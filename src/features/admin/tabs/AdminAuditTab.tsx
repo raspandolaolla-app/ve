@@ -48,7 +48,7 @@ export function AdminAuditTab({ logs, onRefresh }: AdminAuditTabProps) {
         <div className="flex items-center gap-2 text-amber-300">
           <Lock className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
-            <strong>Registro Forense Protegido:</strong> Las entradas de auditoría están protegidas por triggers inmutables en PostgreSQL (UPDATE/DELETE prohibidos a nivel de base de datos).
+            <strong>Registro Forense Protegido:</strong> Las entradas de auditoría son inmutables (modificación y eliminación prohibidas a nivel de sistema).
           </span>
         </div>
         <Button

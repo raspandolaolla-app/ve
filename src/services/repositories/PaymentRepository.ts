@@ -170,7 +170,7 @@ export class PaymentRepository {
     receiptUrl?: string;
   }): Promise<{ success: boolean; id?: string; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return { success: false, error: 'Usuario no autenticado' };
@@ -206,7 +206,7 @@ export class PaymentRepository {
     idempotencyKey: string = `appr_dep_${depositId}_${Date.now()}`
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { error } = await supabase.rpc('process_deposit_approval', {
       p_deposit_id: depositId,
@@ -230,7 +230,7 @@ export class PaymentRepository {
     idempotencyKey: string = `comp_wth_${withdrawalId}_${Date.now()}`
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { error } = await supabase.rpc('process_withdrawal_completion', {
       p_withdrawal_id: withdrawalId,
@@ -255,7 +255,7 @@ export class PaymentRepository {
     idempotencyKey: string = `rej_wth_${withdrawalId}_${Date.now()}`
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { error } = await supabase.rpc('process_withdrawal_rejection', {
       p_withdrawal_id: withdrawalId,

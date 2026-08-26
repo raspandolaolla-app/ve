@@ -343,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsSigningIn(false);
       setError({
         code: 'SERVICE_UNAVAILABLE',
-        message: 'Supabase client is not configured in this environment.',
+        message: 'Authentication service is not configured in this environment.',
         userFriendlyMessage: 'El servicio de autenticación no está disponible temporalmente.',
       });
       return;

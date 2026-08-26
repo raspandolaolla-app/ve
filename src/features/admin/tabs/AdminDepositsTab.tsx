@@ -61,7 +61,7 @@ export function AdminDepositsTab({
       if (res.success) {
         setActionResult({
           success: true,
-          message: 'Recarga aprobada exitosamente. Fondos acreditados en ledger de Supabase.',
+          message: 'Recarga aprobada exitosamente. Fondos acreditados en la cuenta del usuario.',
         });
         setSelectedDeposit(null);
         onRefresh();

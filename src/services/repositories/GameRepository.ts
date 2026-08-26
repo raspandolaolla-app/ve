@@ -217,7 +217,7 @@ export class GameRepository {
     idempotencyKey: string
   ): Promise<{ success: boolean; grossPool?: number; prizePool?: number; platformFee?: number; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { data, error } = await supabase.rpc('settle_game_session', {
       p_session_id: sessionId,
@@ -248,7 +248,7 @@ export class GameRepository {
     idempotencyKey: string
   ): Promise<{ success: boolean; refundedCount?: number; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     const { data, error } = await supabase.rpc('refund_game_session', {
       p_session_id: sessionId,

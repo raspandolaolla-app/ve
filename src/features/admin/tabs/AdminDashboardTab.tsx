@@ -132,7 +132,7 @@ export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabP
               {formatBolivares(metrics.totalVolumePlayed)}
             </div>
             <p className="text-xs text-slate-400">
-              Total acumulado en partidas tradicionales verificadas en el ledger de Supabase.
+              Total acumulado en partidas tradicionales verificadas en el sistema contable.
             </p>
           </div>
         </Card>

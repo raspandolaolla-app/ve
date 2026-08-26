@@ -143,7 +143,7 @@ export class TableRepository {
   ): Promise<JoinTableResult> {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      return { success: false, error: 'Supabase no está inicializado' };
+      return { success: false, error: 'El servicio no está disponible temporalmente' };
     }
 
     const { data, error } = await supabase.rpc('join_table_transaction', {

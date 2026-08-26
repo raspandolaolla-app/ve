@@ -237,3 +237,15 @@ export interface AdminAuditLogItem {
   createdAt: string;
 }
 
+export interface ProtectedAdminStatus {
+  email: string;
+  protectionStatus: 'PROTECTED';
+  description: string;
+  registeredInAuth: boolean;
+  userId?: string | null;
+  accountStatus: string;
+  role: UserRole;
+  isMfaEnabled: boolean;
+  isProtected: boolean;
+}
+

@@ -26,7 +26,7 @@ export function ConnectionBadge() {
   if (supabaseStatus === 'NOT_CONFIGURED') {
     return (
       <div
-        id="badge-supabase-unconfigured"
+        id="badge-server-unconfigured"
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-950/70 text-amber-300 border border-amber-700/50"
         title="Comprobando enlace de red"
       >
@@ -39,7 +39,7 @@ export function ConnectionBadge() {
   if (supabaseStatus === 'CONNECTED') {
     return (
       <div
-        id="badge-supabase-connected"
+        id="badge-server-connected"
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-950/70 text-emerald-300 border border-emerald-700/50"
         title="Conexión activa y protegida en tiempo real"
       >

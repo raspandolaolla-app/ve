@@ -28,7 +28,7 @@ interface AdminUsersTabProps {
   users: AdminUserItem[];
   currentUserRole: UserRole;
   currentUserEmail: string | null;
-  onUpdateStatus: (userId: string, newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED', reason: string) => Promise<void>;
+  onUpdateStatus: (userId: string, targetEmail: string, newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED', reason: string) => Promise<void>;
   onUpdateRole: (userId: string, targetEmail: string, newRole: UserRole) => Promise<void>;
   onRefresh: () => void;
 }
@@ -52,7 +52,7 @@ export function AdminUsersTab({
   const isSuperAdmin =
     currentUserRole === 'SUPER_ADMIN' &&
     currentUserEmail !== null &&
-    AUTHORIZED_SUPER_ADMIN_EMAILS.includes(currentUserEmail.toLowerCase());
+    AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === currentUserEmail.toLowerCase());
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -70,10 +70,17 @@ export function AdminUsersTab({
 
   const handleApplyStatusChange = async (newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED') => {
     if (!selectedUser) return;
+    const isTargetProtected = AUTHORIZED_SUPER_ADMIN_EMAILS.some(
+      (e) => e.toLowerCase() === selectedUser.email.trim().toLowerCase()
+    );
+    if (isTargetProtected && newStatus !== 'ACTIVE') {
+      alert('PROTECCIÓN INMUTABLE: Los Administradores Principales Protegidos no pueden ser suspendidos ni bloqueados.');
+      return;
+    }
     const reason = statusReason.trim() || `Acción administrativa aplicada por operador`;
     setActionLoading(true);
     try {
-      await onUpdateStatus(selectedUser.id, newStatus, reason);
+      await onUpdateStatus(selectedUser.id, selectedUser.email, newStatus, reason);
       setStatusReason('');
       setSelectedUser(null);
       onRefresh();
@@ -86,6 +93,13 @@ export function AdminUsersTab({
     if (!selectedUser) return;
     if (!isSuperAdmin) {
       alert('Solo los SUPER_ADMIN autorizados pueden gestionar roles.');
+      return;
+    }
+    const isTargetProtected = AUTHORIZED_SUPER_ADMIN_EMAILS.some(
+      (e) => e.toLowerCase() === selectedUser.email.trim().toLowerCase()
+    );
+    if (isTargetProtected && targetRole !== 'SUPER_ADMIN') {
+      alert('PROTECCIÓN INMUTABLE: Los Administradores Principales Protegidos no pueden ser degradados de SUPER_ADMIN.');
       return;
     }
     setActionLoading(true);
@@ -191,19 +205,27 @@ export function AdminUsersTab({
                     </td>
 
                     <td className="py-3 px-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                          u.role === 'SUPER_ADMIN'
-                            ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
-                            : u.role === 'ADMIN'
-                            ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
-                            : u.role === 'OPERATOR'
-                            ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {u.role}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold w-fit ${
+                            u.role === 'SUPER_ADMIN'
+                              ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400'
+                              : u.role === 'ADMIN'
+                              ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                              : u.role === 'OPERATOR'
+                              ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {u.role}
+                        </span>
+                        {AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === u.email.toLowerCase()) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-950/80 border border-purple-500/40 text-purple-300 w-fit">
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            PROTEGIDO
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3">
@@ -317,101 +339,113 @@ export function AdminUsersTab({
               </div>
             </div>
 
-            {/* Acciones de Suspensión / Reactivación */}
-            <div className="space-y-3 pt-2 border-t border-slate-800">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Control de Estado de Cuenta
-              </h4>
-              <textarea
-                id="textarea-status-reason"
-                rows={2}
-                placeholder="Motivo del cambio de estado (requerido para auditoría)..."
-                value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
-              />
-
-              <div className="flex gap-2">
-                {selectedUser.accountStatus !== 'ACTIVE' && (
-                  <Button
-                    id="btn-reactivate-user"
-                    variant="primary"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    isLoading={actionLoading}
-                    onClick={() => handleApplyStatusChange('ACTIVE')}
-                    leftIcon={<UserCheck className="w-3.5 h-3.5" />}
-                  >
-                    Reactivar Cuenta
-                  </Button>
-                )}
-                {selectedUser.accountStatus === 'ACTIVE' && (
-                  <>
-                    <Button
-                      id="btn-suspend-user"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
-                      isLoading={actionLoading}
-                      onClick={() => handleApplyStatusChange('SUSPENDED')}
-                      leftIcon={<AlertTriangle className="w-3.5 h-3.5" />}
-                    >
-                      Suspender
-                    </Button>
-                    <Button
-                      id="btn-block-user"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10"
-                      isLoading={actionLoading}
-                      onClick={() => handleApplyStatusChange('BLOCKED')}
-                      leftIcon={<UserX className="w-3.5 h-3.5" />}
-                    >
-                      Bloquear
-                    </Button>
-                  </>
-                )}
+            {/* Verificación de Administrador Protegido */}
+            {AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === selectedUser.email.toLowerCase()) ? (
+              <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/40 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
+                  <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  <span>ADMINISTRADOR PRINCIPAL PROTEGIDO</span>
+                </div>
+                <p className="text-[11px] text-purple-200/80 leading-relaxed">
+                  Este usuario cuenta con blindaje inmutable a nivel de base de datos. Ningún administrador ni operador puede suspenderlo, bloquearlo, degradarlo ni eliminar su rol.
+                </p>
               </div>
-            </div>
-
-            {/* Asignación de Roles (Solo Super Admin) */}
-            {isSuperAdmin && (
-              <div className="space-y-3 pt-3 border-t border-slate-800">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Gestión de Rol (SUPER_ADMIN)</span>
+            ) : (
+              <>
+                {/* Acciones de Suspensión / Reactivación */}
+                <div className="space-y-3 pt-2 border-t border-slate-800">
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Control de Estado de Cuenta
                   </h4>
-                  <span className="text-[10px] text-slate-500">Auditado inmutable</span>
-                </div>
+                  <textarea
+                    id="textarea-status-reason"
+                    rows={2}
+                    placeholder="Motivo del cambio de estado (requerido para auditoría)..."
+                    value={statusReason}
+                    onChange={(e) => setStatusReason(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                  />
 
-                <div className="flex gap-2 items-center">
-                  <select
-                    id="select-user-target-role"
-                    value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value as UserRole)}
-                    className="flex-1 bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500/50"
-                  >
-                    <option value="PLAYER">PLAYER (Jugador)</option>
-                    <option value="OPERATOR">OPERATOR (Operador de Pagos/Mesas)</option>
-                    <option value="ADMIN">ADMIN (Administrador)</option>
-                    {AUTHORIZED_SUPER_ADMIN_EMAILS.includes(selectedUser.email.toLowerCase()) && (
-                      <option value="SUPER_ADMIN">SUPER_ADMIN (Exclusivo)</option>
+                  <div className="flex gap-2">
+                    {selectedUser.accountStatus !== 'ACTIVE' && (
+                      <Button
+                        id="btn-reactivate-user"
+                        variant="primary"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        isLoading={actionLoading}
+                        onClick={() => handleApplyStatusChange('ACTIVE')}
+                        leftIcon={<UserCheck className="w-3.5 h-3.5" />}
+                      >
+                        Reactivar Cuenta
+                      </Button>
                     )}
-                  </select>
-
-                  <Button
-                    id="btn-save-user-role"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
-                    isLoading={actionLoading}
-                    onClick={handleApplyRoleChange}
-                  >
-                    Guardar Rol
-                  </Button>
+                    {selectedUser.accountStatus === 'ACTIVE' && (
+                      <>
+                        <Button
+                          id="btn-suspend-user"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                          isLoading={actionLoading}
+                          onClick={() => handleApplyStatusChange('SUSPENDED')}
+                          leftIcon={<AlertTriangle className="w-3.5 h-3.5" />}
+                        >
+                          Suspender
+                        </Button>
+                        <Button
+                          id="btn-block-user"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10"
+                          isLoading={actionLoading}
+                          onClick={() => handleApplyStatusChange('BLOCKED')}
+                          leftIcon={<UserX className="w-3.5 h-3.5" />}
+                        >
+                          Bloquear
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                {/* Asignación de Roles (Solo Super Admin) */}
+                {isSuperAdmin && (
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Gestión de Rol (SUPER_ADMIN)</span>
+                      </h4>
+                      <span className="text-[10px] text-slate-500">Auditado inmutable</span>
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <select
+                        id="select-user-target-role"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value as UserRole)}
+                        className="flex-1 bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500/50"
+                      >
+                        <option value="PLAYER">PLAYER (Jugador)</option>
+                        <option value="OPERATOR">OPERATOR (Operador de Pagos/Mesas)</option>
+                        <option value="ADMIN">ADMIN (Administrador)</option>
+                      </select>
+
+                      <Button
+                        id="btn-save-user-role"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+                        isLoading={actionLoading}
+                        onClick={handleApplyRoleChange}
+                      >
+                        Guardar Rol
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

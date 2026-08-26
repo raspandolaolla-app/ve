@@ -88,7 +88,7 @@ export class WalletRepository {
   ): Promise<WithdrawalRequestResult> {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      return { success: false, error: 'Supabase no está configurado' };
+      return { success: false, error: 'El servicio no está disponible temporalmente' };
     }
 
     const { data, error } = await supabase.rpc('request_withdrawal_locked', {

@@ -22,6 +22,7 @@ import type {
   AdminSupportTicketItem,
   AdminNotificationItem,
   AdminAuditLogItem,
+  ProtectedAdminStatus,
 } from '../../types/admin';
 
 export class AdminRepository {
@@ -277,18 +278,157 @@ export class AdminRepository {
   }
 
   /**
+   * Obtiene el diagnóstico y estado de los dos Administradores Principales Protegidos.
+   */
+  public static async getProtectedAdminsStatus(): Promise<ProtectedAdminStatus[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return AUTHORIZED_SUPER_ADMIN_EMAILS.map((email, idx) => ({
+        email,
+        protectionStatus: 'PROTECTED',
+        description: `Administrador Principal Protegido ${idx === 0 ? 'A' : 'B'}`,
+        registeredInAuth: false,
+        userId: null,
+        accountStatus: 'REQUIRES_MANUAL_CREATION',
+        role: 'PLAYER',
+        isMfaEnabled: false,
+        isProtected: true,
+      }));
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_protected_admins_status');
+      if (!error && Array.isArray(data)) {
+        return data as ProtectedAdminStatus[];
+      }
+
+      // Fallback si la RPC aún no ha sido aplicada en la base de datos
+      const results: ProtectedAdminStatus[] = [];
+      for (let i = 0; i < AUTHORIZED_SUPER_ADMIN_EMAILS.length; i++) {
+        const email = AUTHORIZED_SUPER_ADMIN_EMAILS[i];
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_id, account_status, is_mfa_enabled')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (profile) {
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.user_id)
+            .maybeSingle();
+
+          results.push({
+            email,
+            protectionStatus: 'PROTECTED',
+            description: `Administrador Principal Protegido ${i === 0 ? 'A' : 'B'}`,
+            registeredInAuth: true,
+            userId: profile.user_id,
+            accountStatus: profile.account_status || 'ACTIVE',
+            role: (roleData?.role as UserRole) || 'PLAYER',
+            isMfaEnabled: Boolean(profile.is_mfa_enabled),
+            isProtected: true,
+          });
+        } else {
+          results.push({
+            email,
+            protectionStatus: 'PROTECTED',
+            description: `Administrador Principal Protegido ${i === 0 ? 'A' : 'B'}`,
+            registeredInAuth: false,
+            userId: null,
+            accountStatus: 'REQUIRES_MANUAL_CREATION',
+            role: 'PLAYER',
+            isMfaEnabled: false,
+            isProtected: true,
+          });
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.warn('[AdminRepository] Excepción consultando estado de administradores protegidos:', err);
+      return AUTHORIZED_SUPER_ADMIN_EMAILS.map((email, idx) => ({
+        email,
+        protectionStatus: 'PROTECTED',
+        description: `Administrador Principal Protegido ${idx === 0 ? 'A' : 'B'}`,
+        registeredInAuth: false,
+        userId: null,
+        accountStatus: 'REQUIRES_MANUAL_CREATION',
+        role: 'PLAYER',
+        isMfaEnabled: false,
+        isProtected: true,
+      }));
+    }
+  }
+
+  /**
+   * Procedimiento de Recuperación Mutua entre Administradores Protegidos.
+   */
+  public static async initiatePeerRecovery(
+    targetEmail: string,
+    reason: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
+
+    try {
+      const { data, error } = await supabase.rpc('admin_initiate_peer_recovery', {
+        p_target_email: targetEmail,
+        p_reason: reason,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: Boolean(data?.success),
+        message: data?.message || 'Operación de recuperación procesada correctamente.',
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
    * Cambia el estado de cuenta de un usuario (ACTIVE, SUSPENDED, BLOCKED).
    * Genera auditoría forense inmutable.
+   * Rechaza de forma estricta cualquier intento de suspender o bloquear administradores protegidos.
    */
   public static async updateUserAccountStatus(
     userId: string,
+    targetEmail: string,
     newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED',
     reason: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
+
+    const isTargetProtected = AUTHORIZED_SUPER_ADMIN_EMAILS.some(
+      (e) => e.toLowerCase() === targetEmail.trim().toLowerCase()
+    );
+
+    if (isTargetProtected && newStatus !== 'ACTIVE') {
+      return {
+        success: false,
+        error: 'PROTECCIÓN INMUTABLE: Los Administradores Principales Protegidos no pueden ser bloqueados ni suspendidos.',
+      };
+    }
 
     try {
+      // Intentar primero mediante RPC protegida con validación en servidor
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_account_status', {
+        p_target_user_id: userId,
+        p_new_status: newStatus,
+        p_reason: reason,
+      });
+
+      if (!rpcError && rpcData?.success) {
+        return { success: true };
+      }
+
+      // Fallback directo si la RPC aún no existe en DB
       const { error } = await supabase
         .from('profiles')
         .update({ account_status: newStatus })
@@ -305,6 +445,7 @@ export class AdminRepository {
         severity: newStatus === 'BLOCKED' ? 'CRITICAL' : 'WARNING',
         metadata: {
           target_user_id: userId,
+          target_email: targetEmail,
           new_status: newStatus,
           reason,
         },
@@ -318,7 +459,8 @@ export class AdminRepository {
 
   /**
    * Asignación protegida de roles por SUPER_ADMIN.
-   * Regla: Nadie puede asignar SUPER_ADMIN a correos fuera de la lista blanca.
+   * Regla: Nadie puede degradar a un Administrador Principal Protegido,
+   * y nadie puede asignar SUPER_ADMIN a correos fuera de la lista blanca.
    */
   public static async updateUserRole(
     targetUserId: string,
@@ -326,22 +468,40 @@ export class AdminRepository {
     newRole: UserRole
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
-    // Verificación de integridad de rol SUPER_ADMIN
-    if (newRole === 'SUPER_ADMIN') {
-      const isAllowed = AUTHORIZED_SUPER_ADMIN_EMAILS.some(
-        (e) => e.toLowerCase() === targetEmail.trim().toLowerCase()
-      );
-      if (!isAllowed) {
-        return {
-          success: false,
-          error: 'VIOLACIÓN DE SEGURIDAD: Solo los correos autorizados por la dirección pueden ostentar el rol SUPER_ADMIN.',
-        };
-      }
+    const isTargetProtected = AUTHORIZED_SUPER_ADMIN_EMAILS.some(
+      (e) => e.toLowerCase() === targetEmail.trim().toLowerCase()
+    );
+
+    // Regla 1: Un Administrador Protegido no puede ser degradado
+    if (isTargetProtected && newRole !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'PROTECCIÓN INMUTABLE: Los Administradores Principales Protegidos no pueden ser degradados de SUPER_ADMIN.',
+      };
+    }
+
+    // Regla 2: Solo los correos autorizados pueden recibir SUPER_ADMIN
+    if (newRole === 'SUPER_ADMIN' && !isTargetProtected) {
+      return {
+        success: false,
+        error: 'VIOLACIÓN DE SEGURIDAD: Solo los correos autorizados en la lista de protección pueden ostentar el rol SUPER_ADMIN.',
+      };
     }
 
     try {
+      // Intentar primero mediante RPC transaccional
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_user_role', {
+        p_target_user_id: targetUserId,
+        p_new_role: newRole,
+      });
+
+      if (!rpcError && rpcData?.success) {
+        return { success: true };
+      }
+
+      // Fallback
       const { data: authData } = await supabase.auth.getUser();
       const currentAdmin = authData?.user;
 
@@ -451,7 +611,7 @@ export class AdminRepository {
     reason: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -737,7 +897,7 @@ export class AdminRepository {
     reason: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     try {
       const { error } = await supabase
@@ -911,7 +1071,7 @@ export class AdminRepository {
     status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_USER' | 'RESOLVED' | 'CLOSED'
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     try {
       const { error } = await supabase
@@ -1102,7 +1262,7 @@ export class AdminRepository {
     value: any
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
-    if (!supabase) return { success: false, error: 'Supabase no inicializado' };
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     try {
       const { data: authData } = await supabase.auth.getUser();

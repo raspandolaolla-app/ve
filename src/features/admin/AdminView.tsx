@@ -206,10 +206,14 @@ export function AdminView() {
   // Handler para Usuarios y Roles
   const handleUpdateUserStatus = async (
     userId: string,
+    targetEmail: string,
     newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED',
     reason: string
   ) => {
-    await AdminRepository.updateUserAccountStatus(userId, newStatus, reason);
+    const res = await AdminRepository.updateUserAccountStatus(userId, targetEmail, newStatus, reason);
+    if (!res.success) {
+      alert(res.error || 'Error al actualizar el estado del usuario');
+    }
   };
 
   const handleUpdateUserRole = async (userId: string, targetEmail: string, newRole: UserRole) => {
@@ -329,7 +333,7 @@ export function AdminView() {
               </span>
             </div>
             <p className="text-xs text-slate-400 font-mono">
-              Sesión activa: <span className="text-slate-300">{userEmail || 'admin@raspando.com'}</span> • Conexión directa a Supabase
+              Sesión activa: <span className="text-slate-300">{userEmail || 'admin@raspando.com'}</span> • Conexión Activa
             </p>
           </div>
         </div>

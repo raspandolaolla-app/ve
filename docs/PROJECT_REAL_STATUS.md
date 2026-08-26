@@ -29,6 +29,10 @@ CONECTADO Y VERIFICADO (tncxgwycinbnkjbfwojt.supabase.co)
 
 MIGRACIONES:
 17 EJECUTADAS Y VERIFICADAS EN SUPABASE (001 a 017)
+MIGRACIÓN 019 PREPARADA Y AUDITADA (Super Admins Protegidos)
+
+SEGURIDAD Y HARDENING:
+FASE 21 AUDITADA Y COMPLETADA (0 secretos en frontend, RLS verificado, errores técnicos sanitizados)
 
 GITHUB:
 REPOSITORIO VINCULADO (https://github.com/raspandolaolla-app/ve)

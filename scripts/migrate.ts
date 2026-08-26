@@ -4,7 +4,12 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-const connectionString = 'postgresql://postgres:RZjWAMks4Qot139t@db.tncxgwycinbnkjbfwojt.supabase.co:5432/postgres';
+const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+
+if (!connectionString) {
+  console.error('Error: DATABASE_URL o SUPABASE_DB_URL no está configurada en las variables de entorno.');
+  process.exit(1);
+}
 
 async function runMigrations() {
   const client = new Client({

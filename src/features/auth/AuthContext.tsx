@@ -342,9 +342,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('[AuthProvider] Supabase client no configurado o ausente.');
       setIsSigningIn(false);
       setError({
-        code: 'PROVIDER_UNAVAILABLE',
-        message: 'Las variables de entorno de Supabase no están configuradas.',
-        userFriendlyMessage: 'El inicio de sesión con Google todavía no está disponible. Inténtalo nuevamente más tarde.',
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Supabase client is not configured in this environment.',
+        userFriendlyMessage: 'El servicio de autenticación no está disponible temporalmente.',
       });
       return;
     }

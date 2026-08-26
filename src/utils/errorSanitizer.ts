@@ -26,9 +26,12 @@ export function sanitizeUserErrorMessage(rawError: unknown, fallbackMessage = 'N
     lower.includes('unsupported provider') ||
     lower.includes('provider google is not enabled') ||
     lower.includes('oauth provider') ||
-    lower.includes('not_configured')
+    lower.includes('not_configured') ||
+    lower.includes('not configured') ||
+    lower.includes('service_unavailable') ||
+    lower.includes('client no configurado')
   ) {
-    return 'El inicio de sesión con Google todavía no está disponible. Inténtalo nuevamente más tarde.';
+    return 'El servicio de autenticación no está disponible temporalmente.';
   }
 
   // Cancelación por el usuario

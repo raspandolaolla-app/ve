@@ -46,8 +46,8 @@ export const AnnouncementBanner: React.FC = () => {
           }));
           setAnnouncements(activeList);
         }
-      } catch (err) {
-        console.warn('[AnnouncementBanner] Error cargando anuncios:', err);
+      } catch {
+        // Fallback silencioso si la tabla no está creada o la red está inaccesible
       }
     };
 

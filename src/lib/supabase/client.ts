@@ -42,6 +42,45 @@ if (isSupabaseConfigured && supabaseUrl && supabaseAnonKey) {
 }
 
 /**
+ * Diagnóstico seguro de variables públicas del cliente Supabase (sin exponer claves ni secretos).
+ */
+export interface SafeSupabaseConfigDiagnostics {
+  SUPABASE_URL: 'CONFIGURED' | 'MISSING';
+  SUPABASE_KEY: 'CONFIGURED' | 'MISSING';
+  APP_URL: 'CONFIGURED' | 'MISSING';
+  BASE_PATH: 'CONFIGURED' | 'MISSING';
+  isReady: boolean;
+}
+
+export function getSafeSupabaseConfigDiagnostics(): SafeSupabaseConfigDiagnostics {
+  const hasUrl = Boolean(supabaseUrl && supabaseUrl !== '' && supabaseUrl.startsWith('http'));
+  const hasKey = Boolean(supabaseAnonKey && supabaseAnonKey !== '');
+  const hasAppUrl = Boolean(import.meta.env.VITE_APP_URL);
+  const hasBasePath = Boolean(import.meta.env.VITE_APP_BASE_PATH || import.meta.env.BASE_URL);
+
+  return {
+    SUPABASE_URL: hasUrl ? 'CONFIGURED' : 'MISSING',
+    SUPABASE_KEY: hasKey ? 'CONFIGURED' : 'MISSING',
+    APP_URL: hasAppUrl ? 'CONFIGURED' : 'MISSING',
+    BASE_PATH: hasBasePath ? 'CONFIGURED' : 'MISSING',
+    isReady: hasUrl && hasKey,
+  };
+}
+
+// Registro diagnóstico seguro en desarrollo/staging
+if (typeof window !== 'undefined') {
+  const diag = getSafeSupabaseConfigDiagnostics();
+  if (!diag.isReady) {
+    console.warn('[Supabase Config Diagnostic]', {
+      SUPABASE_URL: diag.SUPABASE_URL,
+      SUPABASE_KEY: diag.SUPABASE_KEY,
+      APP_URL: diag.APP_URL,
+      BASE_PATH: diag.BASE_PATH,
+    });
+  }
+}
+
+/**
  * Obtiene la instancia del cliente Supabase.
  * Devuelve `null` si las variables de entorno aún no han sido configuradas.
  */

@@ -8,6 +8,11 @@ import type { GameMetadata } from '../types/games';
 export const APP_NAME = 'Raspando La Olla';
 export const APP_TAGLINE = 'Plataforma Multijugador Online en Tiempo Real';
 
+export const AUTHORIZED_SUPER_ADMIN_EMAILS: readonly string[] = [
+  'v19629049@gmail.com',
+  'pulsoplay2026@gmail.com',
+] as const;
+
 export const FINANCIAL_RULES = {
   WINNER_PERCENT: 90,
   SERVICE_FEE_PERCENT: 10,

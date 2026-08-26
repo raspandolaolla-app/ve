@@ -10,3 +10,4 @@ export * from './games';
 export * from './payments';
 export * from './security';
 export * from './admin';
+export * from './legal';

@@ -27,7 +27,15 @@ import {
   X,
   History,
   AlertCircle,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
+import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
+import type { LegalDocId } from '../../types/legal';
+
+interface ProfileViewProps {
+  onOpenLegalDoc?: (docId: LegalDocId) => void;
+}
 
 const VENEZUELA_STATES = [
   'Amazonas', 'Anzoátegui', 'Apure', 'Aragua', 'Barinas', 'Bolívar',
@@ -36,8 +44,8 @@ const VENEZUELA_STATES = [
   'Portuguesa', 'Sucre', 'Táchira', 'Trujillo', 'La Guaira', 'Yaracuy', 'Zulia'
 ];
 
-export function ProfileView() {
-  const { state, user, profile, signInWithGoogle, signOut, refreshProfile } = useAuth();
+export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
+  const { state, user, profile, hasAcceptedTerms, termsRecord, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -303,6 +311,56 @@ export function ProfileView() {
                 Los datos de Pago Móvil quedan vinculados de forma confidencial y protegida a tu cuenta.
               </span>
             </div>
+          </div>
+        </Card>
+
+        {/* Términos y Cumplimiento Legal */}
+        <Card
+          id="card-legal-compliance"
+          header={
+            <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>Términos y Cumplimiento Legal</span>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            <div className="space-y-2">
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-slate-400">Términos de Uso</span>
+                <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Versión {CURRENT_TERMS_VERSION} {hasAcceptedTerms ? 'Aceptada' : 'Pendiente'}</span>
+                </span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-slate-400">Declaración +18 Años</span>
+                <span className="font-semibold text-emerald-400">
+                  {hasAcceptedTerms || profile?.isAdult ? 'Confirmada' : 'Pendiente'}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-slate-400">Registro de Aceptación</span>
+                <span className="font-mono text-[11px] text-slate-300">
+                  {termsRecord?.acceptedAt
+                    ? new Date(termsRecord.acceptedAt).toLocaleString('es-VE')
+                    : 'Registrado en sesión'}
+                </span>
+              </div>
+            </div>
+
+            <Button
+              id="btn-profile-view-legal"
+              variant="outline"
+              size="sm"
+              className="w-full justify-center"
+              onClick={() => onOpenLegalDoc?.('terms')}
+              rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+            >
+              Consultar Documentos Legales y Políticas
+            </Button>
           </div>
         </Card>
       </div>

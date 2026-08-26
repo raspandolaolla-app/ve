@@ -11,8 +11,10 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../lib/supabase/clie
 import type { AuthState, AuthSession, AuthErrorDetails } from '../../types/auth';
 import type { UserProfile } from '../../types/profile';
 import type { UserRole } from '../../types/admin';
+import type { TermsAcceptanceRecord } from '../../types/legal';
 import { ProfileRepository } from '../../services/repositories/ProfileRepository';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
+import { TermsService } from '../../services/legal/TermsService';
 
 interface AuthContextValue {
   state: AuthState;
@@ -22,6 +24,9 @@ interface AuthContextValue {
   role: UserRole;
   error: AuthErrorDetails | null;
   isConfigured: boolean;
+  hasAcceptedTerms: boolean;
+  termsRecord: TermsAcceptanceRecord | null;
+  confirmTermsAccepted: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -95,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<UserRole>('PLAYER');
   const [error, setError] = useState<AuthErrorDetails | null>(null);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
+  const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
 
   const supabase = getSupabaseClient();
 
@@ -104,6 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setProfile(null);
       setRole('PLAYER');
+      setHasAcceptedTerms(false);
+      setTermsRecord(null);
       setState('unauthenticated');
       return;
     }
@@ -120,6 +129,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         expiresAt: currentSession.expires_at,
       };
       setSession(parsedSession);
+
+      // Comprobar estado de aceptación de términos v1.0
+      const isTermsAccepted = TermsService.hasAcceptedCurrentTerms(authUser.id, authUser.user_metadata);
+      setHasAcceptedTerms(isTermsAccepted);
+      const record = TermsService.getAcceptanceRecord(authUser.id);
+      setTermsRecord(record);
 
       // Cargar perfil y rol verificados desde Supabase
       const [fetchedProfile, fetchedRole] = await Promise.all([
@@ -237,6 +252,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   };
 
+  const confirmTermsAccepted = async () => {
+    if (!user) return;
+    const { success, record } = await TermsService.recordAcceptance(user.id, user.email);
+    if (success) {
+      setHasAcceptedTerms(true);
+      setTermsRecord(record);
+    }
+  };
+
   const signInWithGoogle = async () => {
     setError(null);
 
@@ -299,12 +323,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       error,
       isConfigured: isSupabaseConfigured,
+      hasAcceptedTerms,
+      termsRecord,
+      confirmTermsAccepted,
       signInWithGoogle,
       signOut,
       refreshProfile,
       clearError,
     }),
-    [state, user, session, profile, role, error]
+    [state, user, session, profile, role, error, hasAcceptedTerms, termsRecord]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

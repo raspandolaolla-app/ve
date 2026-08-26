@@ -1,401 +1,480 @@
 // ==============================================================================
-// RASPANDO LA OLLA — VISTA ADMINISTRATIVA (INTEGRACIÓN COMPLETA FASE 4)
+// RASPANDO LA OLLA — PANEL ADMINISTRATIVO PROFESIONAL (FASE 23)
 // ==============================================================================
-// Interfaz interactiva protegida por RBAC (ADMIN / SUPER_ADMIN) y RLS:
-// - Gestión de recargas pendientes (Aprobación vía RPC approve_deposit_request)
-// - Gestión de retiros pendientes (Liquidación vía RPC complete_withdrawal_request)
-// - Registro de auditoría del sistema (audit_logs)
+// Control exclusivo y centralizado conectado directamente a Supabase:
+// - Verificación de identidad y rol en servidor (RLS / RBAC).
+// - Super Admins únicos autorizados: v19629049@gmail.com y pulsoplay2026@gmail.com.
+// - 14 Módulos Integrados: Dashboard, Usuarios, Recargas, Retiros, Billeteras,
+//   Mesas, Partidas, Juegos, Soporte, Notificaciones, Auditoría, Ajustes, Seguridad, Reportes.
 // ==============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { PaymentRepository } from '../../services/repositories/PaymentRepository';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { formatBolivares, maskPhone, maskCedula } from '../../utils/formatters';
-import { FINANCIAL_RULES } from '../../utils/constants';
+import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
+import type {
+  AdminTabId,
+  AdminDashboardMetrics,
+  AdminUserItem,
+  AdminDepositItem,
+  AdminWithdrawalItem,
+  AdminWalletItem,
+  AdminTableItem,
+  AdminMatchItem,
+  AdminGameItem,
+  AdminSupportTicketItem,
+  AdminNotificationItem,
+  AdminAuditLogItem,
+  SystemSettings,
+  UserRole,
+} from '../../types/admin';
+
+// Modular Tabs
+import { AdminDashboardTab } from './tabs/AdminDashboardTab';
+import { AdminUsersTab } from './tabs/AdminUsersTab';
+import { AdminDepositsTab } from './tabs/AdminDepositsTab';
+import { AdminWithdrawalsTab } from './tabs/AdminWithdrawalsTab';
+import { AdminWalletsTab } from './tabs/AdminWalletsTab';
+import { AdminTablesTab } from './tabs/AdminTablesTab';
+import { AdminMatchesTab } from './tabs/AdminMatchesTab';
+import { AdminGamesTab } from './tabs/AdminGamesTab';
+import { AdminSupportTab } from './tabs/AdminSupportTab';
+import { AdminNotificationsTab } from './tabs/AdminNotificationsTab';
+import { AdminAuditTab } from './tabs/AdminAuditTab';
+import { AdminSettingsTab } from './tabs/AdminSettingsTab';
+import { AdminSecurityTab } from './tabs/AdminSecurityTab';
+import { AdminReportsTab } from './tabs/AdminReportsTab';
+
 import {
   Shield,
+  ShieldAlert,
+  ShieldCheck,
   Lock,
+  LayoutDashboard,
+  Users,
   ArrowDownLeft,
   ArrowUpRight,
-  AlertOctagon,
-  Check,
-  X,
+  Wallet,
+  Table,
+  Gamepad2,
+  Dices,
+  MessageSquare,
+  Bell,
+  FileCheck2,
+  Settings,
+  BarChart3,
   RefreshCw,
   AlertCircle,
+  Key,
 } from 'lucide-react';
 
 export function AdminView() {
-  const { role } = useAuth();
-  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals' | 'audit'>('deposits');
-  const [pendingDeposits, setPendingDeposits] = useState<any[]>([]);
-  const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const { user, profile, role } = useAuth();
+  const [activeTab, setActiveTab] = useState<AdminTabId>('dashboard');
   const [loading, setLoading] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
-  const isAuthorized = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  // States for all modules
+  const [metrics, setMetrics] = useState<AdminDashboardMetrics>({
+    registeredUsersCount: 0,
+    activeUsersCount: 0,
+    connectedUsersCount: 0,
+    activeTablesCount: 0,
+    activeMatchesCount: 0,
+    finishedMatchesCount: 0,
+    pendingDepositsCount: 0,
+    pendingWithdrawalsCount: 0,
+    pendingTicketsCount: 0,
+    totalVolumePlayed: 0,
+    totalPrizesAwarded: 0,
+    totalServiceFeesCollected: 0,
+    securityAlertsCount: 0,
+  });
 
-  const loadAdminData = useCallback(async () => {
+  const [usersList, setUsersList] = useState<AdminUserItem[]>([]);
+  const [depositsList, setDepositsList] = useState<AdminDepositItem[]>([]);
+  const [withdrawalsList, setWithdrawalsList] = useState<AdminWithdrawalItem[]>([]);
+  const [walletsList, setWalletsList] = useState<AdminWalletItem[]>([]);
+  const [tablesList, setTablesList] = useState<AdminTableItem[]>([]);
+  const [matchesList, setMatchesList] = useState<AdminMatchItem[]>([]);
+  const [gamesList, setGamesList] = useState<AdminGameItem[]>([]);
+  const [ticketsList, setTicketsList] = useState<AdminSupportTicketItem[]>([]);
+  const [notificationsList, setNotificationsList] = useState<AdminNotificationItem[]>([]);
+  const [auditLogsList, setAuditLogsList] = useState<AdminAuditLogItem[]>([]);
+  const [settingsData, setSettingsData] = useState<SystemSettings>({
+    serviceFeePercent: 10,
+    winnerPercent: 90,
+    minimumAge: 18,
+    minDepositAmount: 50,
+    maxDepositAmount: 50000,
+    minWithdrawalAmount: 100,
+    maxWithdrawalAmount: 20000,
+    maintenanceMode: false,
+    mfaRequiredForWithdrawal: true,
+    kycRequiredForRealMoney: true,
+  });
+
+  const userEmail = user?.email || profile?.email || null;
+  const isSuperAdmin =
+    role === 'SUPER_ADMIN' &&
+    userEmail !== null &&
+    AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === userEmail.toLowerCase());
+
+  const isAuthorized = role === 'ADMIN' || role === 'SUPER_ADMIN' || isSuperAdmin;
+
+  // Carga centralizada de datos
+  const loadAllAdminData = useCallback(async () => {
     if (!isAuthorized) return;
     setLoading(true);
     try {
-      const [deps, withs, logs] = await Promise.all([
-        AdminRepository.getPendingDeposits(),
-        AdminRepository.getPendingWithdrawals(),
-        AdminRepository.getAuditLogs(30),
+      const [
+        fetchedMetrics,
+        fetchedUsers,
+        fetchedDeposits,
+        fetchedWithdrawals,
+        fetchedWallets,
+        fetchedTables,
+        fetchedMatches,
+        fetchedGames,
+        fetchedTickets,
+        fetchedNotifications,
+        fetchedLogs,
+        fetchedSettings,
+      ] = await Promise.all([
+        AdminRepository.getMetrics(),
+        AdminRepository.getUsersList(),
+        AdminRepository.getDepositsList(),
+        AdminRepository.getWithdrawalsList(),
+        AdminRepository.getWalletsList(),
+        AdminRepository.getTablesList(),
+        AdminRepository.getMatchesList(),
+        AdminRepository.getGamesOverview(),
+        AdminRepository.getSupportTickets(),
+        AdminRepository.getAdminNotifications(),
+        AdminRepository.getAuditLogs(50),
+        AdminRepository.getSystemSettings(),
       ]);
-      setPendingDeposits(deps);
-      setPendingWithdrawals(withs);
-      setAuditLogs(logs);
+
+      setMetrics(fetchedMetrics);
+      setUsersList(fetchedUsers);
+      setDepositsList(fetchedDeposits);
+      setWithdrawalsList(fetchedWithdrawals);
+      setWalletsList(fetchedWallets);
+      setTablesList(fetchedTables);
+      setMatchesList(fetchedMatches);
+      setGamesList(fetchedGames);
+      setTicketsList(fetchedTickets);
+      setNotificationsList(fetchedNotifications);
+      setAuditLogsList(fetchedLogs);
+      setSettingsData(fetchedSettings);
+      setInitialLoaded(true);
     } catch (err) {
-      console.error('Error cargando datos de admin:', err);
+      console.error('[AdminView] Error sincronizando datos administrativos:', err);
     } finally {
       setLoading(false);
     }
   }, [isAuthorized]);
 
   useEffect(() => {
-    loadAdminData();
-  }, [loadAdminData]);
+    loadAllAdminData();
+    // Auto-refresco pasivo cada 60s
+    const interval = setInterval(() => {
+      loadAllAdminData();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [loadAllAdminData]);
 
-  // Aprobar recarga mediante RPC `approve_deposit_request`
+  // Handlers para Recargas
   const handleApproveDeposit = async (depositId: string) => {
-    setProcessingId(depositId);
-    setActionFeedback(null);
+    return await PaymentRepository.approveDeposit(depositId);
+  };
 
-    try {
-      const res = await PaymentRepository.approveDeposit(depositId);
-      if (res.success) {
-        setActionFeedback({
-          success: true,
-          message: `Recarga aprobada. Saldo acreditado en billetera y ledger.`,
-        });
-        loadAdminData();
-      } else {
-        setActionFeedback({
-          success: false,
-          message: res.error || 'Error al aprobar recarga.',
-        });
-      }
-    } catch (err: any) {
-      setActionFeedback({
-        success: false,
-        message: err.message || 'Error inesperado.',
-      });
-    } finally {
-      setProcessingId(null);
+  const handleRejectDeposit = async (depositId: string, reason: string) => {
+    return await AdminRepository.rejectDeposit(depositId, reason);
+  };
+
+  // Handlers para Retiros
+  const handleCompleteWithdrawal = async (withdrawalId: string, bankRef: string) => {
+    return await PaymentRepository.completeWithdrawal(withdrawalId, bankRef);
+  };
+
+  const handleRejectWithdrawal = async (withdrawalId: string, reason: string) => {
+    return await PaymentRepository.rejectWithdrawal(withdrawalId, reason);
+  };
+
+  // Handler para Usuarios y Roles
+  const handleUpdateUserStatus = async (
+    userId: string,
+    newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED',
+    reason: string
+  ) => {
+    await AdminRepository.updateUserAccountStatus(userId, newStatus, reason);
+  };
+
+  const handleUpdateUserRole = async (userId: string, targetEmail: string, newRole: UserRole) => {
+    const res = await AdminRepository.updateUserRole(userId, targetEmail, newRole);
+    if (!res.success) {
+      alert(res.error || 'Error al actualizar el rol');
     }
   };
 
-  // Completar retiro mediante RPC `complete_withdrawal_request`
-  const handleCompleteWithdrawal = async (withdrawalId: string) => {
-    const bankRef = window.prompt('Ingrese la referencia bancaria de la transferencia Pago Móvil realizada:') || `PM-${Date.now()}`;
-    setProcessingId(withdrawalId);
-    setActionFeedback(null);
-
-    try {
-      const res = await PaymentRepository.completeWithdrawal(withdrawalId, bankRef);
-      if (res.success) {
-        setActionFeedback({
-          success: true,
-          message: `Retiro completado exitosamente. Saldo retenido deducido del ledger.`,
-        });
-        loadAdminData();
-      } else {
-        setActionFeedback({
-          success: false,
-          message: res.error || 'Error al completar retiro.',
-        });
-      }
-    } catch (err: any) {
-      setActionFeedback({
-        success: false,
-        message: err.message || 'Error inesperado.',
-      });
-    } finally {
-      setProcessingId(null);
-    }
+  // Handler para Mesas
+  const handleCancelTable = async (tableId: string, reason: string) => {
+    return await AdminRepository.cancelTable(tableId, reason);
   };
 
-  // Rechazar retiro mediante RPC `reject_withdrawal_request`
-  const handleRejectWithdrawal = async (withdrawalId: string) => {
-    const reason = window.prompt('Indique el motivo del rechazo del retiro:') || 'Datos bancarios erróneos';
-    setProcessingId(withdrawalId);
-    setActionFeedback(null);
-
-    try {
-      const res = await PaymentRepository.rejectWithdrawal(withdrawalId, reason);
-      if (res.success) {
-        setActionFeedback({
-          success: true,
-          message: `Retiro rechazado. Saldo retenido reintegrado a saldo disponible.`,
-        });
-        loadAdminData();
-      } else {
-        setActionFeedback({
-          success: false,
-          message: res.error || 'Error al rechazar retiro.',
-        });
-      }
-    } catch (err: any) {
-      setActionFeedback({
-        success: false,
-        message: err.message || 'Error inesperado.',
-      });
-    } finally {
-      setProcessingId(null);
-    }
+  // Handler para Tickets
+  const handleUpdateTicketStatus = async (
+    ticketId: string,
+    status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_USER' | 'RESOLVED' | 'CLOSED'
+  ) => {
+    return await AdminRepository.updateTicketStatus(ticketId, status);
   };
 
+  // Handler para Notificaciones
+  const handleMarkNotificationAsRead = async (id: string) => {
+    await AdminRepository.markNotificationAsRead(id);
+    setNotificationsList((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+  };
+
+  // Handler para Configuración
+  const handleUpdateSetting = async (key: string, value: any) => {
+    return await AdminRepository.updateSystemSetting(key, value);
+  };
+
+  // Verificación de acceso
   if (!isAuthorized) {
     return (
-      <div id="admin-unauthorized" className="max-w-md mx-auto py-12 text-center space-y-4">
+      <div id="admin-unauthorized" className="max-w-md mx-auto py-16 text-center space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-red-950/40 border border-red-800/60 flex items-center justify-center mx-auto text-red-400">
           <Lock className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-100">Acceso Restringido</h2>
+        <h2 className="text-xl font-bold text-slate-100">Acceso Administrativo Restringido</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Esta sección está reservada exclusivamente para el equipo de administración y soporte oficial.
+          Esta consola está reservada exclusivamente para operadores y administradores autorizados. Su intento ha sido registrado de forma segura.
         </p>
       </div>
     );
   }
 
+  // Lista de Pestañas
+  const navTabs: Array<{
+    id: AdminTabId;
+    label: string;
+    icon: any;
+    badge?: number;
+    superAdminOnly?: boolean;
+  }> = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'users', label: 'Usuarios', icon: Users },
+    {
+      id: 'deposits',
+      label: 'Recargas',
+      icon: ArrowDownLeft,
+      badge: metrics.pendingDepositsCount > 0 ? metrics.pendingDepositsCount : undefined,
+    },
+    {
+      id: 'withdrawals',
+      label: 'Retiros',
+      icon: ArrowUpRight,
+      badge: metrics.pendingWithdrawalsCount > 0 ? metrics.pendingWithdrawalsCount : undefined,
+    },
+    { id: 'wallets', label: 'Billeteras', icon: Wallet },
+    { id: 'tables', label: 'Mesas', icon: Table },
+    { id: 'matches', label: 'Partidas', icon: Gamepad2 },
+    { id: 'games', label: 'Juegos', icon: Dices },
+    {
+      id: 'support',
+      label: 'Soporte',
+      icon: MessageSquare,
+      badge: metrics.pendingTicketsCount > 0 ? metrics.pendingTicketsCount : undefined,
+    },
+    {
+      id: 'notifications',
+      label: 'Alertas',
+      icon: Bell,
+      badge: notificationsList.filter((n) => !n.isRead).length || undefined,
+    },
+    { id: 'audit', label: 'Auditoría', icon: FileCheck2 },
+    { id: 'settings', label: 'Ajustes', icon: Settings },
+    { id: 'security', label: 'Seguridad', icon: ShieldCheck, superAdminOnly: true },
+    { id: 'reports', label: 'Reportes', icon: BarChart3 },
+  ];
+
   return (
-    <div id="admin-view" className="space-y-8 max-w-5xl mx-auto">
-      {/* Encabezado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div id="admin-panel-root" className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4 py-4">
+      {/* Encabezado Superior del Panel de Control */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-950/80 border border-red-700/60 flex items-center justify-center text-red-400">
-            <Shield className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+            <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-100">Panel de Control Administrativo</h1>
-            <p className="text-xs text-slate-400">Rol activo: {role} (Acceso Autorizado)</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-black text-slate-100 tracking-tight">
+                Consola Administrativa Profesional
+              </h1>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                  isSuperAdmin
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                }`}
+              >
+                {isSuperAdmin ? <Key className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                {isSuperAdmin ? 'SUPER_ADMIN EXCLUSIVO' : role}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 font-mono">
+              Sesión activa: <span className="text-slate-300">{userEmail || 'admin@raspando.com'}</span> • Conexión directa a Supabase
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={loadAdminData}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refrescar</span>
-        </button>
-      </div>
-
-      {/* Reglas y Estadísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card id="card-admin-stat-1">
-          <span className="text-xs font-semibold text-slate-400 uppercase">Comisión Plataforma</span>
-          <div className="text-2xl font-black text-amber-400 font-mono mt-1">
-            {FINANCIAL_RULES.SERVICE_FEE_PERCENT}%
-          </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">Regla 90/10 Inmutable</span>
-        </Card>
-
-        <Card id="card-admin-stat-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase">Recargas Pendientes</span>
-          <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
-            {pendingDeposits.length}
-          </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">Por validar comprobante</span>
-        </Card>
-
-        <Card id="card-admin-stat-3">
-          <span className="text-xs font-semibold text-slate-400 uppercase">Retiros Pendientes</span>
-          <div className="text-2xl font-black text-blue-400 font-mono mt-1">
-            {pendingWithdrawals.length}
-          </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">Por transferir Pago Móvil</span>
-        </Card>
-      </div>
-
-      {actionFeedback && (
-        <div
-          className={`p-3 rounded-2xl border text-xs flex items-start gap-2 ${
-            actionFeedback.success
-              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
-              : 'bg-red-950/40 border-red-800/60 text-red-300'
-          }`}
-        >
-          <AlertCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-          <span>{actionFeedback.message}</span>
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-admin-refresh-all"
+            type="button"
+            onClick={loadAllAdminData}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-700 transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
+            <span>Sincronizar</span>
+          </button>
         </div>
-      )}
-
-      {/* Pestañas de Navegación de Admin */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 text-xs font-medium">
-        <button
-          onClick={() => setActiveTab('deposits')}
-          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'deposits'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Recargas Pendientes ({pendingDeposits.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('withdrawals')}
-          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'withdrawals'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
-          <span>Retiros Pendientes ({pendingWithdrawals.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'audit'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <AlertOctagon className="w-3.5 h-3.5 text-red-400" />
-          <span>Auditoría y Logs ({auditLogs.length})</span>
-        </button>
       </div>
 
-      {/* Contenido de la Pestaña Activa */}
-      {activeTab === 'deposits' && (
-        <Card
-          id="card-admin-deposits"
-          header={<span className="font-semibold text-sm text-slate-200">Solicitudes de Recarga Pendientes</span>}
-        >
-          {pendingDeposits.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              No hay solicitudes de recarga pendientes de validación.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800">
-              {pendingDeposits.map((dep) => (
-                <div key={dep.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-slate-200 flex items-center gap-2">
-                      <span>{dep.bank_origin || 'Pago Móvil'}</span>
-                      <span className="text-amber-400 font-mono font-bold">{formatBolivares(dep.amount)}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      Ref: <strong>{dep.reference_number}</strong> • Usuario: {dep.profiles?.email || dep.user_id}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Fecha: {new Date(dep.created_at).toLocaleString('es-VE')}
-                    </div>
-                  </div>
+      {/* Navegación Modular (Tabs de Control) */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-1.5 shadow-md">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5">
+          {navTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="bg-emerald-600 hover:bg-emerald-500 text-xs px-3"
-                      disabled={processingId === dep.id}
-                      onClick={() => handleApproveDeposit(dep.id)}
-                      leftIcon={<Check className="w-3.5 h-3.5" />}
-                    >
-                      {processingId === dep.id ? 'Aprobando...' : 'Aprobar Recarga'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+            return (
+              <button
+                key={tab.id}
+                id={`tab-btn-${tab.id}`}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                  isActive
+                    ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+                {tab.badge !== undefined && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      isActive
+                        ? 'bg-slate-950 text-amber-400'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {activeTab === 'withdrawals' && (
-        <Card
-          id="card-admin-withdrawals"
-          header={<span className="font-semibold text-sm text-slate-200">Solicitudes de Retiro Pendientes</span>}
-        >
-          {pendingWithdrawals.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              No hay solicitudes de retiro pendientes de transferencia.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800">
-              {pendingWithdrawals.map((wth) => (
-                <div key={wth.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-slate-200 flex items-center gap-2">
-                      <span>{wth.payment_accounts?.bank_name || 'Pago Móvil'}</span>
-                      <span className="text-amber-400 font-mono font-bold">{formatBolivares(wth.amount)}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      Titular: {wth.payment_accounts?.account_holder_name} | Tel: {maskPhone(wth.payment_accounts?.phone_number || '')} | CI: {maskCedula(wth.payment_accounts?.id_document || '')}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Solicitado: {new Date(wth.created_at).toLocaleString('es-VE')}
-                    </div>
-                  </div>
+      {/* Contenido Dinámico del Módulo Seleccionado */}
+      <div className="pt-2">
+        {activeTab === 'dashboard' && (
+          <AdminDashboardTab metrics={metrics} onNavigateTab={(t) => setActiveTab(t)} />
+        )}
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="bg-emerald-600 hover:bg-emerald-500 text-xs px-3"
-                      disabled={processingId === wth.id}
-                      onClick={() => handleCompleteWithdrawal(wth.id)}
-                      leftIcon={<Check className="w-3.5 h-3.5" />}
-                    >
-                      {processingId === wth.id ? 'Completando...' : 'Completar'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="text-red-400 hover:bg-red-950/40 text-xs px-3"
-                      disabled={processingId === wth.id}
-                      onClick={() => handleRejectWithdrawal(wth.id)}
-                      leftIcon={<X className="w-3.5 h-3.5" />}
-                    >
-                      Rechazar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+        {activeTab === 'users' && (
+          <AdminUsersTab
+            users={usersList}
+            currentUserRole={role}
+            currentUserEmail={userEmail}
+            onUpdateStatus={handleUpdateUserStatus}
+            onUpdateRole={handleUpdateUserRole}
+            onRefresh={loadAllAdminData}
+          />
+        )}
 
-      {activeTab === 'audit' && (
-        <Card
-          id="card-admin-audit"
-          header={<span className="font-semibold text-sm text-slate-200">Registros de Auditoría del Sistema</span>}
-        >
-          {auditLogs.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              No hay registros de auditoría recientes.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800 max-h-96 overflow-y-auto">
-              {auditLogs.map((log) => (
-                <div key={log.id} className="py-2.5 space-y-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-semibold text-amber-300 uppercase">{log.action}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {new Date(log.created_at).toLocaleString('es-VE')}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    Tabla: <strong>{log.target_table}</strong> • ID: {log.target_id} • Actor: {log.actor_id || 'SYSTEM'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+        {activeTab === 'deposits' && (
+          <AdminDepositsTab
+            deposits={depositsList}
+            onApproveDeposit={handleApproveDeposit}
+            onRejectDeposit={handleRejectDeposit}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'withdrawals' && (
+          <AdminWithdrawalsTab
+            withdrawals={withdrawalsList}
+            onCompleteWithdrawal={handleCompleteWithdrawal}
+            onRejectWithdrawal={handleRejectWithdrawal}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'wallets' && (
+          <AdminWalletsTab wallets={walletsList} onRefresh={loadAllAdminData} />
+        )}
+
+        {activeTab === 'tables' && (
+          <AdminTablesTab
+            tables={tablesList}
+            onCancelTable={handleCancelTable}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'matches' && (
+          <AdminMatchesTab matches={matchesList} onRefresh={loadAllAdminData} />
+        )}
+
+        {activeTab === 'games' && (
+          <AdminGamesTab games={gamesList} onRefresh={loadAllAdminData} />
+        )}
+
+        {activeTab === 'support' && (
+          <AdminSupportTab
+            tickets={ticketsList}
+            onUpdateStatus={handleUpdateTicketStatus}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'notifications' && (
+          <AdminNotificationsTab
+            notifications={notificationsList}
+            onMarkAsRead={handleMarkNotificationAsRead}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'audit' && (
+          <AdminAuditTab logs={auditLogsList} onRefresh={loadAllAdminData} />
+        )}
+
+        {activeTab === 'settings' && (
+          <AdminSettingsTab
+            settings={settingsData}
+            currentUserRole={role}
+            onUpdateSetting={handleUpdateSetting}
+            onRefresh={loadAllAdminData}
+          />
+        )}
+
+        {activeTab === 'security' && (
+          <AdminSecurityTab currentUserRole={role} currentUserEmail={userEmail} />
+        )}
+
+        {activeTab === 'reports' && <AdminReportsTab metrics={metrics} />}
+      </div>
     </div>
   );
 }

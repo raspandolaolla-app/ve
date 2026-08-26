@@ -339,12 +339,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     if (!supabase || !isSupabaseConfigured) {
-      console.warn('[AuthProvider] Supabase client no configurado o ausente.');
+      console.warn('[AuthProvider] Servicio de autenticación no inicializado o variables públicas ausentes.');
       setIsSigningIn(false);
       setError({
         code: 'SERVICE_UNAVAILABLE',
-        message: 'Authentication service is not configured in this environment.',
-        userFriendlyMessage: 'El servicio de autenticación no está disponible temporalmente.',
+        message: 'Authentication service is initializing or credentials are not yet loaded.',
+        userFriendlyMessage: 'Estamos preparando la conexión. Intenta nuevamente en unos segundos.',
       });
       return;
     }
@@ -382,6 +382,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     try {
+      try {
+        await AdminRepository.endUserSession();
+      } catch (err) {
+        // Ignorar fallo no bloqueante en cierre de sesión
+      }
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);

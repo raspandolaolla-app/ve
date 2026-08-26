@@ -3,6 +3,11 @@ import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { SafeDevelopmentBanner } from './components/layout/SafeDevelopmentBanner';
+import { AnnouncementBanner } from './components/common/AnnouncementBanner';
+import { InactivityWarningModal } from './components/common/InactivityWarningModal';
+import { useInactivityTimeout } from './hooks/useInactivityTimeout';
+import { useHeartbeat } from './hooks/useHeartbeat';
+import { GameRulesModal } from './features/games/GameRulesModal';
 import { LobbyView } from './features/lobby/LobbyView';
 import { TablesView } from './features/tables/TablesView';
 import { WalletView } from './features/wallet/WalletView';
@@ -10,7 +15,7 @@ import { ProfileView } from './features/profile/ProfileView';
 import { AdminView } from './features/admin/AdminView';
 import { LegalModal } from './components/legal/LegalModal';
 import { TermsAcceptanceModal } from './components/legal/TermsAcceptanceModal';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, BookOpen } from 'lucide-react';
 import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
@@ -18,10 +23,15 @@ function AppContent() {
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalDoc, setLegalModalDoc] = useState<LegalDocId>('terms');
+  const [rulesModalOpen, setRulesModalOpen] = useState<boolean>(false);
+  const [rulesGameId, setRulesGameId] = useState<string>('domino_venezolano');
 
   const { state, user, error, clearError, hasAcceptedTerms, confirmTermsAccepted, signOut } = useAuth();
+  const { showWarning, secondsRemaining, keepSessionAlive } = useInactivityTimeout();
+  useHeartbeat();
 
-  const handleSelectGame = (_game: GameMetadata) => {
+  const handleSelectGame = (game: GameMetadata) => {
+    setRulesGameId(game.id);
     setCurrentTab('tables');
   };
 
@@ -34,12 +44,18 @@ function AppContent() {
     setLegalModalOpen(true);
   };
 
+  const handleOpenGameRules = (gameId: string = 'domino_venezolano') => {
+    setRulesGameId(gameId);
+    setRulesModalOpen(true);
+  };
+
   const isTermsModalVisible =
     state === 'authenticated' && user !== null && !hasAcceptedTerms;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
       <SafeDevelopmentBanner />
+      <AnnouncementBanner />
       <Header currentTab={currentTab} onNavigate={setCurrentTab} />
 
       {/* Banner Global de Notificaciones / Errores de Autenticación */}
@@ -87,6 +103,20 @@ function AppContent() {
         isOpen={legalModalOpen}
         initialDoc={legalModalDoc}
         onClose={() => setLegalModalOpen(false)}
+      />
+
+      {/* Modal Visor de Reglas Oficiales y ¿Cómo Jugar? */}
+      <GameRulesModal
+        isOpen={rulesModalOpen}
+        defaultGameId={rulesGameId}
+        onClose={() => setRulesModalOpen(false)}
+      />
+
+      {/* Modal Advertencia de Inactividad de Sesión */}
+      <InactivityWarningModal
+        isOpen={showWarning}
+        secondsRemaining={secondsRemaining}
+        onStayLoggedIn={keepSessionAlive}
       />
 
       {/* Modal Obligatorio de Aceptación de Términos y Mayoría de Edad */}

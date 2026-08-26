@@ -7,18 +7,102 @@ export type UserRole = 'PLAYER' | 'OPERATOR' | 'ADMIN' | 'SUPER_ADMIN';
 export type AdminTabId =
   | 'dashboard'
   | 'users'
+  | 'kyc'
   | 'deposits'
   | 'withdrawals'
+  | 'entry-fees'
   | 'wallets'
+  | 'accounting'
   | 'tables'
   | 'matches'
   | 'games'
+  | 'manuals'
+  | 'activity'
+  | 'announcements'
   | 'support'
   | 'notifications'
   | 'audit'
   | 'settings'
   | 'security'
+  | 'maintenance'
   | 'reports';
+
+export interface EntryFeeItem {
+  id: string;
+  amount: number;
+  gameType?: string | null;
+  mode?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameConfigItem {
+  gameId: string;
+  name: string;
+  shortDescription: string;
+  iconName: string;
+  isActive: boolean;
+  maintenanceMessage?: string | null;
+  minPlayers: number;
+  maxPlayers: number;
+  allowedModes: string[];
+  minEntryFee: number;
+  maxEntryFee: number;
+  config: Record<string, any>;
+  displayOrder: number;
+  updatedAt: string;
+}
+
+export interface GameManualItem {
+  gameId: string;
+  title: string;
+  objective: string;
+  playersInfo: string;
+  preparation: string;
+  turnRules: string;
+  winningRules: string;
+  scoringRules: string;
+  disconnectionRules: string;
+  cancellationRules: string;
+  fullContentMarkdown: string;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
+export interface SystemAnnouncementItem {
+  id: string;
+  title: string;
+  content: string;
+  type: 'GENERAL' | 'IMPORTANT' | 'MAINTENANCE' | 'PROMOTION' | 'UPDATE' | 'SECURITY';
+  priority: number;
+  targetAudience: 'ALL' | 'PLAYERS' | 'OPERATORS' | 'UNVERIFIED';
+  isActive: boolean;
+  startsAt: string;
+  expiresAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KYCVerificationItem {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  documentType: string;
+  idNumber?: string;
+  fullLegalName?: string;
+  documentStoragePath: string;
+  documentBackStoragePath?: string;
+  selfieStoragePath?: string;
+  status: 'UNSUBMITTED' | 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_INFORMATION';
+  reviewerId?: string;
+  reviewerNotes?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
 
 export interface SystemSettings {
   serviceFeePercent: number; // Por defecto 10
@@ -248,4 +332,58 @@ export interface ProtectedAdminStatus {
   isMfaEnabled: boolean;
   isProtected: boolean;
 }
+
+export interface AdminActivityItem {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  startedAt: string;
+  lastSeenAt: string;
+  endedAt?: string | null;
+  status: 'ACTIVE' | 'IDLE' | 'DISCONNECTED' | 'ENDED';
+  sessionDurationSeconds: number;
+  lastActivityType: string;
+  clientPlatform?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountingOverview {
+  totalAvailableBalance: number;
+  totalHeldBalance: number;
+  totalWalletFunds: number;
+  walletsCount: number;
+  approvedDepositsSum: number;
+  approvedDepositsCount: number;
+  pendingDepositsSum: number;
+  pendingDepositsCount: number;
+  completedWithdrawalsSum: number;
+  completedWithdrawalsCount: number;
+  pendingWithdrawalsSum: number;
+  pendingWithdrawalsCount: number;
+  totalPrizesAwarded: number;
+  totalRakeCollected: number;
+  settledMatchesCount: number;
+  netOperatingMargin: number;
+  calculatedAt: string;
+}
+
+export interface MaintenanceDryRunResult {
+  expiredSessionsCount: number;
+  oldNotificationsCount: number;
+  oldAuditLogsCount: number;
+  totalEligibleRecords: number;
+  evaluatedAt: string;
+  canProceed: boolean;
+}
+
+export interface ServerTimeData {
+  serverTimestamp: string;
+  timezone: string;
+  caracasTimestamp: string;
+  caracasFormatted: string;
+  epochMs: number;
+}
+
 

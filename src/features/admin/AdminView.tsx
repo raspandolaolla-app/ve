@@ -34,17 +34,24 @@ import type {
 // Modular Tabs
 import { AdminDashboardTab } from './tabs/AdminDashboardTab';
 import { AdminUsersTab } from './tabs/AdminUsersTab';
+import { AdminKYCTab } from './tabs/AdminKYCTab';
 import { AdminDepositsTab } from './tabs/AdminDepositsTab';
 import { AdminWithdrawalsTab } from './tabs/AdminWithdrawalsTab';
+import { AdminEntryFeesTab } from './tabs/AdminEntryFeesTab';
 import { AdminWalletsTab } from './tabs/AdminWalletsTab';
+import { AdminAccountingTab } from './tabs/AdminAccountingTab';
 import { AdminTablesTab } from './tabs/AdminTablesTab';
 import { AdminMatchesTab } from './tabs/AdminMatchesTab';
 import { AdminGamesTab } from './tabs/AdminGamesTab';
+import { AdminGameManualsTab } from './tabs/AdminGameManualsTab';
+import { AdminActivityTab } from './tabs/AdminActivityTab';
+import { AdminAnnouncementsTab } from './tabs/AdminAnnouncementsTab';
 import { AdminSupportTab } from './tabs/AdminSupportTab';
 import { AdminNotificationsTab } from './tabs/AdminNotificationsTab';
 import { AdminAuditTab } from './tabs/AdminAuditTab';
 import { AdminSettingsTab } from './tabs/AdminSettingsTab';
 import { AdminSecurityTab } from './tabs/AdminSecurityTab';
+import { AdminMaintenanceTab } from './tabs/AdminMaintenanceTab';
 import { AdminReportsTab } from './tabs/AdminReportsTab';
 
 import {
@@ -54,12 +61,18 @@ import {
   Lock,
   LayoutDashboard,
   Users,
+  FileCheck,
   ArrowDownLeft,
   ArrowUpRight,
+  Coins,
   Wallet,
+  DollarSign,
   Table,
   Gamepad2,
   Dices,
+  BookOpen,
+  Activity,
+  Megaphone,
   MessageSquare,
   Bell,
   FileCheck2,
@@ -68,6 +81,8 @@ import {
   RefreshCw,
   AlertCircle,
   Key,
+  Clock,
+  Wrench,
 } from 'lucide-react';
 
 export function AdminView() {
@@ -75,6 +90,8 @@ export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTabId>('dashboard');
   const [loading, setLoading] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
+
+  const [serverTimeFormatted, setServerTimeFormatted] = useState<string>('');
 
   // States for all modules
   const [metrics, setMetrics] = useState<AdminDashboardMetrics>({
@@ -130,6 +147,7 @@ export function AdminView() {
     setLoading(true);
     try {
       const [
+        serverTime,
         fetchedMetrics,
         fetchedUsers,
         fetchedDeposits,
@@ -143,6 +161,7 @@ export function AdminView() {
         fetchedLogs,
         fetchedSettings,
       ] = await Promise.all([
+        AdminRepository.getServerTime(),
         AdminRepository.getMetrics(),
         AdminRepository.getUsersList(),
         AdminRepository.getDepositsList(),
@@ -156,6 +175,10 @@ export function AdminView() {
         AdminRepository.getAuditLogs(50),
         AdminRepository.getSystemSettings(),
       ]);
+
+      if (serverTime) {
+        setServerTimeFormatted(serverTime.caracasFormatted);
+      }
 
       setMetrics(fetchedMetrics);
       setUsersList(fetchedUsers);
@@ -183,8 +206,20 @@ export function AdminView() {
     const interval = setInterval(() => {
       loadAllAdminData();
     }, 60000);
-    return () => clearInterval(interval);
-  }, [loadAllAdminData]);
+
+    // Reloj Caracas en vivo cada 5s
+    const clockInterval = setInterval(async () => {
+      if (isAuthorized) {
+        const st = await AdminRepository.getServerTime();
+        if (st) setServerTimeFormatted(st.caracasFormatted);
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(clockInterval);
+    };
+  }, [loadAllAdminData, isAuthorized]);
 
   // Handlers para Recargas
   const handleApproveDeposit = async (depositId: string) => {
@@ -275,6 +310,7 @@ export function AdminView() {
   }> = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Usuarios', icon: Users },
+    { id: 'kyc', label: 'Expedientes KYC', icon: FileCheck },
     {
       id: 'deposits',
       label: 'Recargas',
@@ -287,10 +323,15 @@ export function AdminView() {
       icon: ArrowUpRight,
       badge: metrics.pendingWithdrawalsCount > 0 ? metrics.pendingWithdrawalsCount : undefined,
     },
+    { id: 'entry-fees', label: 'Montos de Entrada', icon: Coins },
     { id: 'wallets', label: 'Billeteras', icon: Wallet },
+    { id: 'accounting', label: 'Contabilidad & Libro Mayor', icon: DollarSign },
     { id: 'tables', label: 'Mesas', icon: Table },
     { id: 'matches', label: 'Partidas', icon: Gamepad2 },
     { id: 'games', label: 'Juegos', icon: Dices },
+    { id: 'manuals', label: 'Reglas y Manuales', icon: BookOpen },
+    { id: 'activity', label: 'Sesiones & Actividad', icon: Activity },
+    { id: 'announcements', label: 'Anuncios', icon: Megaphone },
     {
       id: 'support',
       label: 'Soporte',
@@ -306,6 +347,7 @@ export function AdminView() {
     { id: 'audit', label: 'Auditoría', icon: FileCheck2 },
     { id: 'settings', label: 'Ajustes', icon: Settings },
     { id: 'security', label: 'Seguridad', icon: ShieldCheck, superAdminOnly: true },
+    { id: 'maintenance', label: 'Mantenimiento', icon: Wrench, superAdminOnly: true },
     { id: 'reports', label: 'Reportes', icon: BarChart3 },
   ];
 
@@ -339,7 +381,16 @@ export function AdminView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Reloj Oficial Caracas */}
+          {serverTimeFormatted && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/90 border border-amber-500/30 text-xs font-mono text-amber-400">
+              <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+              <span>{serverTimeFormatted}</span>
+              <span className="text-[10px] text-slate-500 font-sans">CCS (UTC-4)</span>
+            </div>
+          )}
+
           <button
             id="btn-admin-refresh-all"
             type="button"
@@ -407,6 +458,8 @@ export function AdminView() {
           />
         )}
 
+        {activeTab === 'kyc' && <AdminKYCTab />}
+
         {activeTab === 'deposits' && (
           <AdminDepositsTab
             deposits={depositsList}
@@ -425,9 +478,13 @@ export function AdminView() {
           />
         )}
 
+        {activeTab === 'entry-fees' && <AdminEntryFeesTab />}
+
         {activeTab === 'wallets' && (
           <AdminWalletsTab wallets={walletsList} onRefresh={loadAllAdminData} />
         )}
+
+        {activeTab === 'accounting' && <AdminAccountingTab />}
 
         {activeTab === 'tables' && (
           <AdminTablesTab
@@ -444,6 +501,12 @@ export function AdminView() {
         {activeTab === 'games' && (
           <AdminGamesTab games={gamesList} onRefresh={loadAllAdminData} />
         )}
+
+        {activeTab === 'manuals' && <AdminGameManualsTab />}
+
+        {activeTab === 'activity' && <AdminActivityTab />}
+
+        {activeTab === 'announcements' && <AdminAnnouncementsTab />}
 
         {activeTab === 'support' && (
           <AdminSupportTab
@@ -477,6 +540,8 @@ export function AdminView() {
         {activeTab === 'security' && (
           <AdminSecurityTab currentUserRole={role} currentUserEmail={userEmail} />
         )}
+
+        {activeTab === 'maintenance' && <AdminMaintenanceTab />}
 
         {activeTab === 'reports' && <AdminReportsTab metrics={metrics} />}
       </div>

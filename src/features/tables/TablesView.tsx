@@ -21,6 +21,7 @@ import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
+import { GameRulesModal } from '../games/GameRulesModal';
 import {
   Lock,
   QrCode,
@@ -36,6 +37,7 @@ import {
   AlertCircle,
   Play,
   Loader2,
+  BookOpen,
 } from 'lucide-react';
 
 export function TablesView() {
@@ -63,13 +65,30 @@ export function TablesView() {
   const [createGameType, setCreateGameType] = useState<GameType>('domino_venezolano');
   const [createMode, setCreateMode] = useState<GameMode>('1v1');
   const [createName, setCreateName] = useState('');
-  const [createEntryFee, setCreateEntryFee] = useState<number>(25);
+  const [createEntryFee, setCreateEntryFee] = useState<number>(50);
   const [createMaxPlayers, setCreateMaxPlayers] = useState<number>(4);
   const [createIsPrivate, setCreateIsPrivate] = useState<boolean>(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [availableFees, setAvailableFees] = useState<number[]>([20, 50, 100, 250, 500, 1000, 2000]);
+
+  // Modal de Reglas Oficiales
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [rulesGameId, setRulesGameId] = useState<string>('domino_venezolano');
 
   const isAuthenticated = state === 'authenticated' && user !== null;
+
+  // Cargar montos de entrada dinámicos
+  useEffect(() => {
+    TableRepository.getAvailableEntryFees(createGameType).then((fees) => {
+      if (fees && fees.length > 0) {
+        setAvailableFees(fees);
+        if (!fees.includes(createEntryFee)) {
+          setCreateEntryFee(fees[0]);
+        }
+      }
+    });
+  }, [createGameType]);
 
   // Cargar mesas públicas
   const loadPublicTables = useCallback(async () => {
@@ -224,7 +243,7 @@ export function TablesView() {
       <GameContainer
         table={inGameData.table}
         players={inGameData.players}
-        currentUserId={user?.id || 'demo_user'}
+        currentUserId={user?.id || ''}
         onExit={() => setInGameData(null)}
       />
     );
@@ -638,15 +657,16 @@ export function TablesView() {
                   size="sm"
                   leftIcon={<Play className="w-4 h-4 fill-current" />}
                   onClick={() => {
+                    if (!user) return;
                     const currentSeats = tablePlayers.length > 0 ? tablePlayers : [
                       {
                         tableId: activeTable.id,
-                        userId: user?.id || 'demo_user',
+                        userId: user.id,
                         seatNumber: 1,
                         seatIndex: 0,
                         teamIndex: 0,
                         joinedAt: new Date().toISOString(),
-                        displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user?.email?.split('@')[0] || 'Jugador 1',
+                        displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user.email?.split('@')[0] || 'Jugador',
                         avatarUrl: profile?.avatarUrl || undefined,
                         status: 'READY' as const,
                       }
@@ -733,30 +753,50 @@ export function TablesView() {
                 />
               </div>
 
-              {/* Costo de Entrada */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Costo de Entrada (Bs.)</label>
-                  <input
-                    type="number"
-                    value={createEntryFee}
-                    min={1}
-                    max={10000}
-                    onChange={(e) => setCreateEntryFee(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
+              {/* Costo de Entrada con Montos Oficiales Dinámicos */}
+              <div>
+                <label className="block font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Costo de Entrada (Bs.)</span>
+                  <span className="text-[10px] text-amber-400 font-mono font-bold">90% al Ganador / 10% Plataforma</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {availableFees.map((fee) => (
+                    <button
+                      key={fee}
+                      type="button"
+                      onClick={() => setCreateEntryFee(fee)}
+                      className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition ${
+                        createEntryFee === fee
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {fee} Bs.
+                    </button>
+                  ))}
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <input
+                      type="number"
+                      value={createEntryFee}
+                      min={1}
+                      max={10000}
+                      onChange={(e) => setCreateEntryFee(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Máximo de Jugadores</label>
-                  <input
-                    type="number"
-                    value={createMaxPlayers}
-                    min={2}
-                    max={100}
-                    onChange={(e) => setCreateMaxPlayers(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
+                  <div>
+                    <input
+                      type="number"
+                      value={createMaxPlayers}
+                      min={2}
+                      max={100}
+                      onChange={(e) => setCreateMaxPlayers(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -794,14 +834,34 @@ export function TablesView() {
         </div>
       )}
 
+      {/* Modal de Reglas Oficiales */}
+      <GameRulesModal
+        isOpen={showRulesModal}
+        defaultGameId={rulesGameId}
+        onClose={() => setShowRulesModal(false)}
+      />
+
       {/* Regla de Seguridad */}
-      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start gap-3 text-xs text-slate-400">
-        <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-slate-300">Garantía de Fondos y Transparencia: </strong>
-          Toda validación de acceso, saldo suficiente y deducción transaccional se realiza en servidor seguro.
-          El pozo acumulado y los premios se liquidan automáticamente con total transparencia.
+      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start justify-between gap-3 text-xs text-slate-400">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <strong className="text-slate-300">Garantía de Fondos y Transparencia: </strong>
+            Toda validación de acceso, saldo suficiente y deducción transaccional se realiza en servidor seguro.
+            El pozo acumulado y los premios se liquidan automáticamente con total transparencia.
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setRulesGameId(selectedGameFilter === 'all' ? 'domino_venezolano' : selectedGameFilter);
+            setShowRulesModal(true);
+          }}
+          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 font-semibold flex items-center gap-1.5 shrink-0 transition"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+          ¿Cómo Jugar?
+        </button>
       </div>
     </div>
   );

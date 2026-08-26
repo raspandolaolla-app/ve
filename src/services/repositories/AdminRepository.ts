@@ -23,6 +23,10 @@ import type {
   AdminNotificationItem,
   AdminAuditLogItem,
   ProtectedAdminStatus,
+  AdminActivityItem,
+  AccountingOverview,
+  MaintenanceDryRunResult,
+  ServerTimeData,
 } from '../../types/admin';
 
 export class AdminRepository {
@@ -1290,6 +1294,805 @@ export class AdminRepository {
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
+    }
+  }
+
+  // ============================================================================
+  // FASE 24: GESTIÓN DE MONTOS DE ENTRADA (ENTRY FEES)
+  // ============================================================================
+
+  /**
+   * Obtiene todos los montos de entrada configurados en la plataforma.
+   */
+  public static async getEntryFeesList(): Promise<import('../../types/admin').EntryFeeItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return [
+        { id: '1', amount: 20, displayOrder: 1, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '2', amount: 50, displayOrder: 2, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '3', amount: 100, displayOrder: 3, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '4', amount: 250, displayOrder: 4, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '5', amount: 500, displayOrder: 5, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '6', amount: 1000, displayOrder: 6, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '7', amount: 2000, displayOrder: 7, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('entry_fees')
+        .select('*')
+        .order('display_order', { ascending: true })
+        .order('amount', { ascending: true });
+
+      if (error || !data || data.length === 0) {
+        return [
+          { id: '1', amount: 20, displayOrder: 1, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '2', amount: 50, displayOrder: 2, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '3', amount: 100, displayOrder: 3, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '4', amount: 250, displayOrder: 4, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '5', amount: 500, displayOrder: 5, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '6', amount: 1000, displayOrder: 6, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '7', amount: 2000, displayOrder: 7, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        ];
+      }
+
+      return data.map((row: any) => ({
+        id: row.id,
+        amount: Number(row.amount),
+        gameType: row.game_type,
+        mode: row.mode,
+        displayOrder: Number(row.display_order || 0),
+        isActive: Boolean(row.is_active),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Crea o actualiza un monto de entrada con auditoría.
+   */
+  public static async saveEntryFee(payload: {
+    id?: string;
+    amount: number;
+    gameType?: string | null;
+    mode?: string | null;
+    displayOrder: number;
+    isActive: boolean;
+  }): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const record = {
+        amount: payload.amount,
+        game_type: payload.gameType || null,
+        mode: payload.mode || null,
+        display_order: payload.displayOrder,
+        is_active: payload.isActive,
+        updated_at: new Date().toISOString(),
+      };
+
+      let error;
+      if (payload.id) {
+        const res = await supabase.from('entry_fees').update(record).eq('id', payload.id);
+        error = res.error;
+      } else {
+        const res = await supabase.from('entry_fees').insert(record);
+        error = res.error;
+      }
+
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: payload.id ? 'UPDATE_ENTRY_FEE' : 'CREATE_ENTRY_FEE',
+        resourceType: 'ENTRY_FEE',
+        resourceId: payload.id || `amount_${payload.amount}`,
+        severity: 'INFO',
+        metadata: payload,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Elimina un monto de entrada.
+   */
+  public static async deleteEntryFee(id: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { error } = await supabase.from('entry_fees').delete().eq('id', id);
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: 'DELETE_ENTRY_FEE',
+        resourceType: 'ENTRY_FEE',
+        resourceId: id,
+        severity: 'WARNING',
+        metadata: { id },
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ============================================================================
+  // FASE 24: CONFIGURACIÓN DINÁMICA DE JUEGOS Y MANUALES
+  // ============================================================================
+
+  /**
+   * Obtiene la configuración de todos los juegos.
+   */
+  public static async getGameConfigsList(): Promise<import('../../types/admin').GameConfigItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return SUPPORTED_GAMES_METADATA.map((g, idx) => ({
+        gameId: g.id,
+        name: g.name,
+        shortDescription: g.shortDescription,
+        iconName: 'Gamepad2',
+        isActive: g.isActive,
+        minPlayers: g.minPlayers,
+        maxPlayers: g.maxPlayers,
+        allowedModes: g.allowedModes,
+        minEntryFee: g.minEntryFee,
+        maxEntryFee: g.maxEntryFee,
+        config: {},
+        displayOrder: idx + 1,
+        updatedAt: new Date().toISOString(),
+      }));
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('game_configurations')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error || !data || data.length === 0) {
+        return SUPPORTED_GAMES_METADATA.map((g, idx) => ({
+          gameId: g.id,
+          name: g.name,
+          shortDescription: g.shortDescription,
+          iconName: 'Gamepad2',
+          isActive: g.isActive,
+          minPlayers: g.minPlayers,
+          maxPlayers: g.maxPlayers,
+          allowedModes: g.allowedModes,
+          minEntryFee: g.minEntryFee,
+          maxEntryFee: g.maxEntryFee,
+          config: {},
+          displayOrder: idx + 1,
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+
+      return data.map((row: any) => ({
+        gameId: row.game_id,
+        name: row.name,
+        shortDescription: row.short_description,
+        iconName: row.icon_name || 'Gamepad2',
+        isActive: Boolean(row.is_active),
+        maintenanceMessage: row.maintenance_message,
+        minPlayers: Number(row.min_players),
+        maxPlayers: Number(row.max_players),
+        allowedModes: row.allowed_modes || ['1v1', '2v2'],
+        minEntryFee: Number(row.min_entry_fee),
+        maxEntryFee: Number(row.max_entry_fee),
+        config: row.config || {},
+        displayOrder: Number(row.display_order || 0),
+        updatedAt: row.updated_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Guarda o actualiza la configuración de un juego.
+   */
+  public static async saveGameConfig(config: import('../../types/admin').GameConfigItem): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { error } = await supabase.from('game_configurations').upsert({
+        game_id: config.gameId,
+        name: config.name,
+        short_description: config.shortDescription,
+        icon_name: config.iconName,
+        is_active: config.isActive,
+        maintenance_message: config.maintenanceMessage || null,
+        min_players: config.minPlayers,
+        max_players: config.maxPlayers,
+        allowed_modes: config.allowedModes,
+        min_entry_fee: config.minEntryFee,
+        max_entry_fee: config.maxEntryFee,
+        config: config.config || {},
+        display_order: config.displayOrder,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: 'UPDATE_GAME_CONFIGURATION',
+        resourceType: 'GAME_CONFIG',
+        resourceId: config.gameId,
+        severity: 'INFO',
+        metadata: config,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Obtiene la lista de manuales de todos los juegos.
+   */
+  public static async getGameManualsList(): Promise<import('../../types/admin').GameManualItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase.from('game_manuals').select('*');
+      if (error || !data) return [];
+
+      return data.map((row: any) => ({
+        gameId: row.game_id,
+        title: row.title,
+        objective: row.objective,
+        playersInfo: row.players_info,
+        preparation: row.preparation,
+        turnRules: row.turn_rules,
+        winningRules: row.winning_rules,
+        scoringRules: row.scoring_rules,
+        disconnectionRules: row.disconnection_rules,
+        cancellationRules: row.cancellation_rules,
+        fullContentMarkdown: row.full_content_markdown,
+        updatedAt: row.updated_at,
+        updatedBy: row.updated_by,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Guarda o actualiza el manual de un juego.
+   */
+  public static async saveGameManual(manual: import('../../types/admin').GameManualItem): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+
+      const { error } = await supabase.from('game_manuals').upsert({
+        game_id: manual.gameId,
+        title: manual.title,
+        objective: manual.objective,
+        players_info: manual.playersInfo,
+        preparation: manual.preparation,
+        turn_rules: manual.turnRules,
+        winning_rules: manual.winningRules,
+        scoring_rules: manual.scoringRules,
+        disconnection_rules: manual.disconnectionRules,
+        cancellation_rules: manual.cancellationRules,
+        full_content_markdown: manual.fullContentMarkdown,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+      });
+
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: 'UPDATE_GAME_MANUAL',
+        resourceType: 'GAME_MANUAL',
+        resourceId: manual.gameId,
+        severity: 'INFO',
+        metadata: { game_id: manual.gameId, title: manual.title },
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ============================================================================
+  // FASE 24: SISTEMA DE ANUNCIOS (ANNOUNCEMENTS)
+  // ============================================================================
+
+  /**
+   * Obtiene todos los anuncios del sistema.
+   */
+  public static async getAnnouncementsList(): Promise<import('../../types/admin').SystemAnnouncementItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('system_announcements')
+        .select('*')
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error || !data) return [];
+
+      return data.map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        type: row.type || 'GENERAL',
+        priority: Number(row.priority || 0),
+        targetAudience: row.target_audience || 'ALL',
+        isActive: Boolean(row.is_active),
+        startsAt: row.starts_at,
+        expiresAt: row.expires_at,
+        createdBy: row.created_by,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Guarda o actualiza un anuncio del sistema.
+   */
+  public static async saveAnnouncement(announcement: Partial<import('../../types/admin').SystemAnnouncementItem>): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+
+      const record = {
+        title: announcement.title,
+        content: announcement.content,
+        type: announcement.type || 'GENERAL',
+        priority: announcement.priority ?? 0,
+        target_audience: announcement.targetAudience || 'ALL',
+        is_active: announcement.isActive ?? true,
+        starts_at: announcement.startsAt || new Date().toISOString(),
+        expires_at: announcement.expiresAt || null,
+        created_by: user?.id || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      let error;
+      if (announcement.id) {
+        const res = await supabase.from('system_announcements').update(record).eq('id', announcement.id);
+        error = res.error;
+      } else {
+        const res = await supabase.from('system_announcements').insert(record);
+        error = res.error;
+      }
+
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: announcement.id ? 'UPDATE_ANNOUNCEMENT' : 'CREATE_ANNOUNCEMENT',
+        resourceType: 'SYSTEM_ANNOUNCEMENT',
+        resourceId: announcement.id || 'new',
+        severity: 'INFO',
+        metadata: record,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Elimina un anuncio del sistema.
+   */
+  public static async deleteAnnouncement(id: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { error } = await supabase.from('system_announcements').delete().eq('id', id);
+      if (error) return { success: false, error: error.message };
+
+      await this.recordAdminAudit({
+        action: 'DELETE_ANNOUNCEMENT',
+        resourceType: 'SYSTEM_ANNOUNCEMENT',
+        resourceId: id,
+        severity: 'WARNING',
+        metadata: { id },
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ============================================================================
+  // FASE 24: VERIFICACIÓN KYC Y EXPEDIENTES PRIVADOS
+  // ============================================================================
+
+  /**
+   * Obtiene la lista de expedientes de verificación KYC.
+   */
+  public static async getKYCVerificationsList(statusFilter?: string): Promise<import('../../types/admin').KYCVerificationItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      let query = supabase
+        .from('kyc_verifications')
+        .select(`
+          *,
+          profiles:user_id(first_name, last_name)
+        `)
+        .order('submitted_at', { ascending: false });
+
+      if (statusFilter && statusFilter !== 'ALL') {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) return [];
+
+      return data.map((row: any) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        const name = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Usuario';
+
+        return {
+          id: row.id,
+          userId: row.user_id,
+          userName: name,
+          userEmail: `${name.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+          documentType: row.document_type || 'CEDULA_VENEZOLANA',
+          idNumber: row.id_number,
+          fullLegalName: row.full_legal_name,
+          documentStoragePath: row.document_storage_path,
+          documentBackStoragePath: row.document_back_storage_path,
+          selfieStoragePath: row.selfie_storage_path,
+          status: row.status,
+          reviewerId: row.reviewer_id,
+          reviewerNotes: row.reviewer_notes,
+          submittedAt: row.submitted_at,
+          reviewedAt: row.reviewed_at,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Procesa la revisión de un expediente KYC mediante la RPC segura admin_process_kyc_verification.
+   */
+  public static async processKYCVerification(
+    verificationId: string,
+    status: 'APPROVED' | 'REJECTED' | 'UNDER_REVIEW' | 'NEEDS_MORE_INFORMATION',
+    notes: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('admin_process_kyc_verification', {
+        p_verification_id: verificationId,
+        p_status: status,
+        p_notes: notes,
+      });
+
+      if (error) return { success: false, error: error.message };
+      return { success: Boolean(data?.success) };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Genera una URL firmada de corta duración para visualizar archivos en buckets privados.
+   */
+  public static async getStorageSignedUrl(bucket: string, path: string, expiresInSeconds: number = 300): Promise<string | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase || !path) return null;
+
+    try {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresInSeconds);
+      if (error || !data) return null;
+      return data.signedUrl;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Obtiene la hora oficial del sistema desde Supabase (America/Caracas).
+   */
+  public static async getServerTime(): Promise<ServerTimeData> {
+    const supabase = getSupabaseClient();
+    const fallback: ServerTimeData = {
+      serverTimestamp: new Date().toISOString(),
+      timezone: 'America/Caracas',
+      caracasTimestamp: new Date().toISOString(),
+      caracasFormatted: new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' }),
+      epochMs: Date.now(),
+    };
+
+    if (!supabase) return fallback;
+
+    try {
+      const { data, error } = await supabase.rpc('get_server_time');
+      if (error || !data) return fallback;
+
+      return {
+        serverTimestamp: data.server_timestamp || fallback.serverTimestamp,
+        timezone: data.timezone || 'America/Caracas',
+        caracasTimestamp: data.caracas_timestamp || fallback.caracasTimestamp,
+        caracasFormatted: data.caracas_formatted || fallback.caracasFormatted,
+        epochMs: data.epoch_ms || Date.now(),
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
+   * Envía un pulso de actividad (Heartbeat) seguro a Supabase.
+   */
+  public static async recordHeartbeat(activityType: string = 'PAGE_ACTIVE'): Promise<{ success: boolean; durationSeconds?: number }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false };
+
+    try {
+      const { data, error } = await supabase.rpc('record_user_heartbeat', {
+        p_activity_type: activityType,
+      });
+
+      if (error || !data) return { success: false };
+      return {
+        success: Boolean(data.success),
+        durationSeconds: data.duration_seconds,
+      };
+    } catch {
+      return { success: false };
+    }
+  }
+
+  /**
+   * Finaliza la sesión de actividad de usuario en Supabase (Logout limpio).
+   */
+  public static async endUserSession(): Promise<{ success: boolean }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false };
+
+    try {
+      const { data, error } = await supabase.rpc('end_user_session');
+      if (error || !data) return { success: false };
+      return { success: Boolean(data.success) };
+    } catch {
+      return { success: false };
+    }
+  }
+
+  /**
+   * Obtiene el listado de sesiones de actividad de usuarios para monitoreo en vivo.
+   */
+  public static async getActivitySessions(limit: number = 50): Promise<AdminActivityItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('user_activity_sessions')
+        .select(`
+          id,
+          user_id,
+          started_at,
+          last_seen_at,
+          ended_at,
+          status,
+          session_duration_seconds,
+          last_activity_type,
+          client_platform,
+          created_at,
+          updated_at,
+          profiles:user_id (
+            first_name,
+            last_name,
+            email
+          )
+        `)
+        .order('last_seen_at', { ascending: false })
+        .limit(limit);
+
+      if (error || !data) return [];
+
+      return data.map((row: any) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        const name = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Usuario';
+
+        return {
+          id: row.id,
+          userId: row.user_id,
+          userName: name || 'Jugador',
+          userEmail: profile?.email || `${row.user_id.slice(0, 8)}@raspando.com`,
+          startedAt: row.started_at,
+          lastSeenAt: row.last_seen_at,
+          endedAt: row.ended_at,
+          status: row.status,
+          sessionDurationSeconds: Number(row.session_duration_seconds || 0),
+          lastActivityType: row.last_activity_type || 'PAGE_ACTIVE',
+          clientPlatform: row.client_platform || 'WEB',
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Obtiene el resumen contable general y balance financiero de la plataforma.
+   */
+  public static async getAccountingOverview(): Promise<AccountingOverview> {
+    const supabase = getSupabaseClient();
+    const fallback: AccountingOverview = {
+      totalAvailableBalance: 0,
+      totalHeldBalance: 0,
+      totalWalletFunds: 0,
+      walletsCount: 0,
+      approvedDepositsSum: 0,
+      approvedDepositsCount: 0,
+      pendingDepositsSum: 0,
+      pendingDepositsCount: 0,
+      completedWithdrawalsSum: 0,
+      completedWithdrawalsCount: 0,
+      pendingWithdrawalsSum: 0,
+      pendingWithdrawalsCount: 0,
+      totalPrizesAwarded: 0,
+      totalRakeCollected: 0,
+      settledMatchesCount: 0,
+      netOperatingMargin: 0,
+      calculatedAt: new Date().toISOString(),
+    };
+
+    if (!supabase) return fallback;
+
+    try {
+      const { data, error } = await supabase.rpc('get_accounting_overview');
+      if (error || !data) return fallback;
+
+      return {
+        totalAvailableBalance: Number(data.total_available_balance || 0),
+        totalHeldBalance: Number(data.total_held_balance || 0),
+        totalWalletFunds: Number(data.total_wallet_funds || 0),
+        walletsCount: Number(data.wallets_count || 0),
+        approvedDepositsSum: Number(data.approved_deposits_sum || 0),
+        approvedDepositsCount: Number(data.approved_deposits_count || 0),
+        pendingDepositsSum: Number(data.pending_deposits_sum || 0),
+        pendingDepositsCount: Number(data.pending_deposits_count || 0),
+        completedWithdrawalsSum: Number(data.completed_withdrawals_sum || 0),
+        completedWithdrawalsCount: Number(data.completed_withdrawals_count || 0),
+        pendingWithdrawalsSum: Number(data.pending_withdrawals_sum || 0),
+        pendingWithdrawalsCount: Number(data.pending_withdrawals_count || 0),
+        totalPrizesAwarded: Number(data.total_prizes_awarded || 0),
+        totalRakeCollected: Number(data.total_rake_collected || 0),
+        settledMatchesCount: Number(data.settled_matches_count || 0),
+        netOperatingMargin: Number(data.net_operating_margin || 0),
+        calculatedAt: data.calculated_at || new Date().toISOString(),
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
+   * Ejecuta una evaluación preliminar (Dry-Run) de mantenimiento y limpieza técnica.
+   */
+  public static async runMaintenanceDryRun(): Promise<MaintenanceDryRunResult> {
+    const supabase = getSupabaseClient();
+    const fallback: MaintenanceDryRunResult = {
+      expiredSessionsCount: 0,
+      oldNotificationsCount: 0,
+      oldAuditLogsCount: 0,
+      totalEligibleRecords: 0,
+      evaluatedAt: new Date().toISOString(),
+      canProceed: false,
+    };
+
+    if (!supabase) return fallback;
+
+    try {
+      const { data, error } = await supabase.rpc('admin_cleanup_dry_run');
+      if (error || !data) return fallback;
+
+      return {
+        expiredSessionsCount: Number(data.expired_sessions_count || 0),
+        oldNotificationsCount: Number(data.old_notifications_count || 0),
+        oldAuditLogsCount: Number(data.old_audit_logs_count || 0),
+        totalEligibleRecords: Number(data.total_eligible_records || 0),
+        evaluatedAt: data.evaluated_at || new Date().toISOString(),
+        canProceed: Boolean(data.can_proceed),
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
+   * Ejecuta la limpieza de mantenimiento controlada en Supabase previa confirmación.
+   */
+  public static async executeMaintenanceCleanup(confirm: boolean = true): Promise<{ success: boolean; totalCleaned?: number; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('admin_cleanup_execute', {
+        p_confirm: confirm,
+      });
+
+      if (error || !data) return { success: false, error: error?.message || 'Error en ejecución' };
+
+      return {
+        success: Boolean(data.success),
+        totalCleaned: Number(data.total_cleaned || 0),
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Obtiene las últimas entradas del libro mayor (ledger) para auditoría financiera.
+   */
+  public static async getLedgerEntries(limit: number = 100): Promise<AdminLedgerEntryItem[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('wallet_ledger')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error || !data) {
+        return [];
+      }
+
+      return data.map((row: any) => ({
+        id: row.id,
+        walletId: row.wallet_id || '',
+        userId: row.user_id || '',
+        entryType: row.entry_type || 'TRANSACTION',
+        direction: (row.direction as 'CREDIT' | 'DEBIT') || 'CREDIT',
+        amount: Number(row.amount || 0),
+        balanceAfterAvailable: Number(row.balance_after_available || 0),
+        balanceAfterHeld: Number(row.balance_after_held || 0),
+        referenceTable: row.reference_table || '',
+        referenceId: row.reference_id || '',
+        description: row.description || '',
+        createdAt: row.created_at || new Date().toISOString(),
+      }));
+    } catch {
+      return [];
     }
   }
 }

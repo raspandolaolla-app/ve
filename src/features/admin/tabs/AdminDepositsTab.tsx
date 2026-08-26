@@ -7,6 +7,7 @@ import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { formatBolivares } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
+import { AdminRepository } from '../../../services/repositories/AdminRepository';
 import type { AdminDepositItem } from '../../../types/admin';
 import {
   ArrowDownLeft,
@@ -37,6 +38,7 @@ export function AdminDepositsTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('PENDING');
   const [selectedDeposit, setSelectedDeposit] = useState<AdminDepositItem | null>(null);
+  const [signedReceiptUrl, setSignedReceiptUrl] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -50,6 +52,19 @@ export function AdminDepositsTab({
     const matchesStatus = statusFilter === 'ALL' || d.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const handleOpenDetails = async (d: AdminDepositItem) => {
+    setSelectedDeposit(d);
+    setSignedReceiptUrl(null);
+    if (d.receiptUrl) {
+      if (d.receiptUrl.startsWith('http://') || d.receiptUrl.startsWith('https://')) {
+        setSignedReceiptUrl(d.receiptUrl);
+      } else {
+        const signed = await AdminRepository.getStorageSignedUrl('payment-proofs', d.receiptUrl);
+        setSignedReceiptUrl(signed || d.receiptUrl);
+      }
+    }
+  };
 
   const handleApprove = async (depositId: string) => {
     if (!window.confirm('¿Confirmar la aprobación y acreditación de fondos en la billetera del usuario?')) {
@@ -229,7 +244,7 @@ export function AdminDepositsTab({
                           variant="outline"
                           size="sm"
                           className="text-xs h-7 px-2"
-                          onClick={() => setSelectedDeposit(d)}
+                          onClick={() => handleOpenDetails(d)}
                           leftIcon={<Eye className="w-3 h-3" />}
                         >
                           Ver
@@ -314,13 +329,13 @@ export function AdminDepositsTab({
                 <div className="pt-2">
                   <span className="text-slate-400 block mb-1">Comprobante Adjunto</span>
                   <a
-                    href={selectedDeposit.receiptUrl}
+                    href={signedReceiptUrl || selectedDeposit.receiptUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-medium"
+                    className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Ver Imagen / Comprobante</span>
+                    <span>Ver Comprobante Firmado (Seguro)</span>
                   </a>
                 </div>
               )}

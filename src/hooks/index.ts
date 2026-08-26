@@ -5,3 +5,6 @@
 export * from './useAuth';
 export * from './useNetworkStatus';
 export * from './useSupabaseStatus';
+export * from './useInactivityTimeout';
+export * from './useHeartbeat';
+

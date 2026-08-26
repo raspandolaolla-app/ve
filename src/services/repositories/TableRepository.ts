@@ -166,7 +166,39 @@ export class TableRepository {
   }
 
   /**
-   * Crea una nueva mesa pública o privada.
+   * Obtiene la lista de montos de entrada activos para selección en mesas.
+   */
+  public static async getAvailableEntryFees(gameType?: GameType): Promise<number[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return [20, 50, 100, 250, 500, 1000, 2000];
+    }
+
+    try {
+      let query = supabase
+        .from('entry_fees')
+        .select('amount')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .order('amount', { ascending: true });
+
+      if (gameType) {
+        query = query.or(`game_type.is.null,game_type.eq.${gameType}`);
+      }
+
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) {
+        return [20, 50, 100, 250, 500, 1000, 2000];
+      }
+
+      return data.map((d: any) => Number(d.amount));
+    } catch {
+      return [20, 50, 100, 250, 500, 1000, 2000];
+    }
+  }
+
+  /**
+   * Crea una nueva mesa pública o privada de forma segura.
    */
   public static async createTable(payload: CreateTablePayload): Promise<GameTable | null> {
     const supabase = getSupabaseClient();
@@ -178,6 +210,42 @@ export class TableRepository {
       return null;
     }
 
+    // Intentar primero mediante RPC segura create_game_table_secure
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {
+        p_game_type: payload.gameType,
+        p_name: `Mesa de ${payload.gameType}`,
+        p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
+        p_entry_fee: payload.entryFee,
+        p_max_players: payload.maxPlayers,
+        p_config: payload.config || {},
+      });
+
+      if (!rpcError && rpcData?.success) {
+        return {
+          id: rpcData.table_id,
+          gameType: payload.gameType,
+          name: `Mesa de ${payload.gameType}`,
+          mode: payload.maxPlayers === 4 ? '2v2' : '1v1',
+          entryFee: payload.entryFee,
+          currency: 'VES',
+          minPlayers: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
+          maxPlayers: payload.maxPlayers,
+          currentPlayersCount: 1,
+          status: 'OPEN',
+          hostUserId: authData.user.id,
+          isPrivate: payload.isPrivate,
+          joinCode: rpcData.invite_code,
+          shareToken: rpcData.invite_code,
+          createdAt: new Date().toISOString(),
+          config: payload.config || {},
+        };
+      }
+    } catch (rpcErr) {
+      console.warn('[TableRepository] RPC create_game_table_secure no disponible, usando fallback:', rpcErr);
+    }
+
+    // Fallback estándar
     const inviteCode = payload.isPrivate
       ? `TRK-${Math.floor(1000 + Math.random() * 9000)}`
       : `PUB-${Math.floor(1000 + Math.random() * 9000)}`;

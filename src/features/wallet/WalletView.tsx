@@ -35,10 +35,11 @@ import {
   AlertCircle,
   Building,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 export function WalletView() {
-  const { state, user, signInWithGoogle } = useAuth();
+  const { state, user, isSigningIn, signInWithGoogle } = useAuth();
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -258,9 +259,11 @@ export function WalletView() {
           id="wallet-signin-btn"
           variant="primary"
           onClick={signInWithGoogle}
+          disabled={isSigningIn}
+          leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
           className="w-full font-semibold shadow-md shadow-amber-950/40"
         >
-          Continuar con Google
+          {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google'}
         </Button>
       </div>
     );

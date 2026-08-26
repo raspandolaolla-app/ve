@@ -5,7 +5,7 @@
 import { useAuth } from '../../hooks/useAuth';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { Button } from '../common/Button';
-import { Flame, LogIn, LogOut, User, Shield, Wallet, Grid, Lock } from 'lucide-react';
+import { Flame, LogIn, LogOut, User, Shield, Wallet, Grid, Lock, Loader2 } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
@@ -13,7 +13,7 @@ interface HeaderProps {
 }
 
 export function Header({ currentTab, onNavigate }: HeaderProps) {
-  const { state, user, profile, role, signInWithGoogle, signOut } = useAuth();
+  const { state, user, profile, role, isSigningIn, signInWithGoogle, signOut } = useAuth();
 
   const isAuthenticated = state === 'authenticated' && user !== null;
 
@@ -136,10 +136,17 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
                 variant="primary"
                 size="sm"
                 onClick={signInWithGoogle}
-                leftIcon={<LogIn className="w-4 h-4" />}
+                disabled={isSigningIn}
+                leftIcon={
+                  isSigningIn ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <LogIn className="w-4 h-4" />
+                  )
+                }
                 className="font-semibold shadow-md shadow-amber-950/40"
               >
-                Continuar con Google
+                {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google'}
               </Button>
             )}
           </div>

@@ -1,8 +1,8 @@
 // ==============================================================================
 // RASPANDO LA OLLA — CONTEXTO Y PROVEEDOR DE AUTENTICACIÓN (FASE 21)
 // ==============================================================================
-// Autenticación real con Google OAuth mediante Supabase Auth.
-// Manejo seguro de sesiones, redirecciones de producción y resolución de perfiles.
+// Autenticación real con Google OAuth mediante Supabase Auth y flujo PKCE.
+// Manejo seguro de sesiones, redirecciones en producción, roles protegidos y perfiles.
 // ==============================================================================
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
@@ -12,9 +12,11 @@ import type { AuthState, AuthSession, AuthErrorDetails } from '../../types/auth'
 import type { UserProfile } from '../../types/profile';
 import type { UserRole } from '../../types/admin';
 import type { TermsAcceptanceRecord } from '../../types/legal';
+import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
 import { ProfileRepository } from '../../services/repositories/ProfileRepository';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { TermsService } from '../../services/legal/TermsService';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 
 interface AuthContextValue {
   state: AuthState;
@@ -23,6 +25,7 @@ interface AuthContextValue {
   profile: UserProfile | null;
   role: UserRole;
   error: AuthErrorDetails | null;
+  isSigningIn: boolean;
   isConfigured: boolean;
   hasAcceptedTerms: boolean;
   termsRecord: TermsAcceptanceRecord | null;
@@ -36,60 +39,86 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 /**
- * Calcula la URL de redirección absoluta de OAuth respetando subdirectorios de GitHub Pages,
- * Netlify o variables de entorno personalizadas.
+ * Calcula la URL de redirección absoluta de OAuth respetando:
+ * - VITE_APP_URL explícito si está configurado.
+ * - Subdirectorios de GitHub Pages (ej. /ve/ o /raspando-la-olla/).
+ * - Despliegues en Netlify, entornos locales o dominio personalizado.
  */
-function getOAuthRedirectUrl(): string {
-  const explicitUrl = import.meta.env.VITE_APP_URL as string | undefined;
-  if (explicitUrl && explicitUrl.trim() !== '') {
-    return explicitUrl.trim();
+export function getOAuthRedirectUrl(): string {
+  const explicitUrl = (import.meta.env.VITE_APP_URL as string | undefined)?.trim();
+  const rawBasePath =
+    (import.meta.env.VITE_APP_BASE_PATH as string | undefined)?.trim() ||
+    (import.meta.env.BASE_URL as string | undefined)?.trim() ||
+    '/';
+  const cleanBasePath = rawBasePath.startsWith('/') ? rawBasePath : `/${rawBasePath}`;
+  const normalizedBasePath = cleanBasePath.endsWith('/') ? cleanBasePath : `${cleanBasePath}/`;
+
+  if (explicitUrl && explicitUrl !== '') {
+    const cleanUrl = explicitUrl.replace(/\/+$/, '');
+    const strippedBasePath = normalizedBasePath.replace(/^\/|\/$/g, '');
+
+    // Si explicitUrl ya incluye el subdirectorio de basePath al final, evitar duplicidad
+    if (strippedBasePath && cleanUrl.endsWith(`/${strippedBasePath}`)) {
+      return `${cleanUrl}/`;
+    }
+    return `${cleanUrl}${normalizedBasePath}`;
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location) {
     const { origin, pathname } = window.location;
-    // Si la ruta contiene un archivo o hash, tomar la base del directorio
-    const cleanPath = pathname.endsWith('/')
-      ? pathname
-      : pathname.includes('.')
-        ? pathname.substring(0, pathname.lastIndexOf('/') + 1)
-        : `${pathname}/`;
-    return `${origin}${cleanPath}`;
+    const cleanOrigin = origin.replace(/\/+$/, '');
+
+    // Normalizar la ruta eliminando nombres de archivo (como index.html o 404.html)
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length > 0 && segments[segments.length - 1].includes('.')) {
+      segments.pop();
+    }
+    const cleanPath = segments.length > 0 ? `/${segments.join('/')}/` : normalizedBasePath;
+    return `${cleanOrigin}${cleanPath}`;
   }
 
   return 'http://localhost:3000/';
 }
 
 /**
- * Traduce cualquier mensaje de error técnico a un texto amigable para el usuario.
+ * Traduce cualquier mensaje de error técnico de autenticación a un formato estructurado amigable.
  */
-function sanitizeAuthError(rawError: unknown): { code: string; message: string; userFriendlyMessage: string } {
+function sanitizeAuthError(rawError: unknown): AuthErrorDetails {
   const rawMsg = rawError instanceof Error ? rawError.message : String(rawError || '');
   const lower = rawMsg.toLowerCase();
 
-  let userFriendly = 'Ocurrió un inconveniente al procesar tu acceso. Por favor intenta nuevamente.';
-  let code = 'AUTH_ERROR';
+  const userFriendlyMessage = sanitizeUserErrorMessage(
+    rawError,
+    'No fue posible iniciar sesión con Google. Verifica tu conexión e inténtalo nuevamente.'
+  );
 
-  if (lower.includes('network') || lower.includes('failed to fetch') || lower.includes('fetch failed')) {
-    userFriendly = 'Problema de conexión con el servidor. Revisa tu acceso a internet e inténtalo de nuevo.';
-    code = 'NETWORK_ERROR';
-  } else if (lower.includes('popup') || lower.includes('closed by user') || lower.includes('user cancelled')) {
-    userFriendly = 'La ventana de identificación con Google fue cancelada.';
-    code = 'OAUTH_CANCELLED';
-  } else if (lower.includes('provider is not enabled') || lower.includes('unsupported provider')) {
-    userFriendly = 'El servicio de acceso con Google se encuentra en mantenimiento. Intenta más tarde.';
+  let code = 'AUTH_ERROR';
+  if (
+    lower.includes('provider') ||
+    lower.includes('not enabled') ||
+    lower.includes('unsupported provider') ||
+    lower.includes('not_configured')
+  ) {
     code = 'PROVIDER_UNAVAILABLE';
-  } else if (lower.includes('invalid claim') || lower.includes('jwt') || lower.includes('expired')) {
-    userFriendly = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
-    code = 'SESSION_EXPIRED';
-  } else if (lower.includes('rate limit') || lower.includes('too many requests')) {
-    userFriendly = 'Demasiados intentos seguidos. Por favor espera unos momentos antes de reintentar.';
+  } else if (
+    lower.includes('popup closed') ||
+    lower.includes('user cancelled') ||
+    lower.includes('closed by user') ||
+    lower.includes('access_denied')
+  ) {
+    code = 'OAUTH_CANCELLED';
+  } else if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout')) {
+    code = 'NETWORK_ERROR';
+  } else if (lower.includes('rate limit') || lower.includes('429')) {
     code = 'RATE_LIMIT';
+  } else if (lower.includes('jwt') || lower.includes('expired') || lower.includes('invalid claim')) {
+    code = 'SESSION_EXPIRED';
   }
 
   return {
     code,
     message: rawMsg,
-    userFriendlyMessage: userFriendly,
+    userFriendlyMessage,
   };
 }
 
@@ -100,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<UserRole>('PLAYER');
   const [error, setError] = useState<AuthErrorDetails | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
   const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
 
@@ -114,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setHasAcceptedTerms(false);
       setTermsRecord(null);
       setState('unauthenticated');
+      setIsSigningIn(false);
       return;
     }
 
@@ -174,36 +205,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      setRole(fetchedRole);
+      // Regla de Seguridad Inmutable:
+      // Solo los dos correos autorizados pueden ejercer SUPER_ADMIN.
+      const isWhitelistedSuperAdmin =
+        authUser.email &&
+        AUTHORIZED_SUPER_ADMIN_EMAILS.some(
+          (adminEmail) => adminEmail.toLowerCase() === authUser.email?.toLowerCase().trim()
+        );
+
+      let effectiveRole: UserRole = 'PLAYER';
+      if (isWhitelistedSuperAdmin) {
+        effectiveRole = 'SUPER_ADMIN';
+      } else if (fetchedRole === 'ADMIN' || fetchedRole === 'OPERATOR') {
+        effectiveRole = fetchedRole;
+      } else {
+        effectiveRole = 'PLAYER';
+      }
+
+      setRole(effectiveRole);
       setState('authenticated');
+      setIsSigningIn(false);
     } catch (err: unknown) {
       console.error('[AuthProvider] Error procesando sesión:', err);
       const sanitized = sanitizeAuthError(err);
-      setError({
-        code: sanitized.code,
-        message: sanitized.message,
-        userFriendlyMessage: sanitized.userFriendlyMessage,
-      });
+      setError(sanitized);
       setState('error');
+      setIsSigningIn(false);
     }
   };
 
   useEffect(() => {
-    // Detectar errores en los parámetros de retorno OAuth de la URL
+    // 1. Detectar errores de retorno OAuth en parámetros de URL
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const urlError = urlParams.get('error_description') || hashParams.get('error_description');
+      const hashParams = new URLSearchParams(
+        window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash
+      );
+      const urlError =
+        urlParams.get('error_description') ||
+        urlParams.get('error') ||
+        hashParams.get('error_description') ||
+        hashParams.get('error');
 
       if (urlError) {
+        console.error('[AuthProvider] Error retornado en URL de OAuth:', urlError);
         const sanitized = sanitizeAuthError(urlError);
         setError({
           code: 'OAUTH_RETURN_ERROR',
           message: urlError,
           userFriendlyMessage: sanitized.userFriendlyMessage,
         });
-        // Limpiar parámetros de error de la barra de direcciones
-        window.history.replaceState({}, document.title, window.location.pathname);
+        // Limpiar parámetros de error de la barra de direcciones de forma limpia
+        window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
       }
     }
 
@@ -212,26 +265,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 1. Obtener sesión inicial
+    // 2. Obtener sesión inicial (procesa automáticamente código PKCE en URL con detectSessionInUrl)
     supabase.auth.getSession().then(({ data: { session: initialSession }, error: sessionError }) => {
       if (sessionError) {
         console.error('[AuthProvider] Error al obtener sesión inicial:', sessionError.message);
         const sanitized = sanitizeAuthError(sessionError);
-        setError({
-          code: sanitized.code,
-          message: sanitized.message,
-          userFriendlyMessage: sanitized.userFriendlyMessage,
-        });
+        setError(sanitized);
         setState('unauthenticated');
         return;
       }
       handleSession(initialSession);
+
+      // Limpiar query params de autenticación si se completó el intercambio de código
+      if (typeof window !== 'undefined' && window.location.search.includes('code=')) {
+        window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+      }
     });
 
-    // 2. Suscribirse a cambios en el estado de autenticación de Supabase
+    // 3. Suscribirse a cambios en el estado de autenticación de Supabase
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, updatedSession) => {
-        await handleSession(updatedSession);
+      async (event, updatedSession) => {
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          setRole('PLAYER');
+          setState('unauthenticated');
+          setIsSigningIn(false);
+          return;
+        }
+
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'INITIAL_SESSION' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'USER_UPDATED'
+        ) {
+          setIsSigningIn(false);
+          await handleSession(updatedSession);
+        }
       }
     );
 
@@ -262,20 +334,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    if (isSigningIn) return; // Impedir doble clic concurrente
+    setIsSigningIn(true);
     setError(null);
 
-    if (!supabase) {
+    if (!supabase || !isSupabaseConfigured) {
+      console.warn('[AuthProvider] Supabase client no configurado o ausente.');
+      setIsSigningIn(false);
       setError({
-        code: 'NOT_CONFIGURED',
-        message: 'Las variables de entorno no están configuradas.',
-        userFriendlyMessage: 'La conexión con el servidor está en proceso de configuración.',
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'Las variables de entorno de Supabase no están configuradas.',
+        userFriendlyMessage: 'El inicio de sesión con Google todavía no está disponible. Inténtalo nuevamente más tarde.',
       });
       return;
     }
 
     try {
       const redirectUrl = getOAuthRedirectUrl();
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      console.info('[AuthProvider] Iniciando flujo OAuth con Google. Redirect URL:', redirectUrl);
+
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
@@ -289,13 +367,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (signInError) {
         throw signInError;
       }
+
+      if (data?.url) {
+        window.location.href = data.url;
+      }
     } catch (err: unknown) {
+      console.error('[AuthProvider] Error iniciando Google OAuth:', err);
+      setIsSigningIn(false);
       const sanitized = sanitizeAuthError(err);
-      setError({
-        code: sanitized.code,
-        message: sanitized.message,
-        userFriendlyMessage: sanitized.userFriendlyMessage,
-      });
+      setError(sanitized);
     }
   };
 
@@ -309,6 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRole('PLAYER');
       setState('unauthenticated');
       setError(null);
+      setIsSigningIn(false);
     } catch (err) {
       console.error('[AuthProvider] Error al cerrar sesión:', err);
     }
@@ -322,6 +403,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       role,
       error,
+      isSigningIn,
       isConfigured: isSupabaseConfigured,
       hasAcceptedTerms,
       termsRecord,
@@ -331,7 +413,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       clearError,
     }),
-    [state, user, session, profile, role, error, hasAcceptedTerms, termsRecord]
+    [state, user, session, profile, role, error, isSigningIn, hasAcceptedTerms, termsRecord]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -344,4 +426,3 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
-

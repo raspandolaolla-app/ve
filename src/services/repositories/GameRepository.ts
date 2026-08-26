@@ -5,6 +5,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { GameSession, GameActionPayload, GameType } from '../../types/games';
 
 export class GameRepository {
@@ -227,7 +228,7 @@ export class GameRepository {
 
     if (error) {
       console.error('[GameRepository] Error liquidando partida:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al liquidar partida.') };
     }
 
     return {
@@ -257,7 +258,7 @@ export class GameRepository {
 
     if (error) {
       console.error('[GameRepository] Error reembolsando partida:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar reembolso de partida.') };
     }
 
     return {

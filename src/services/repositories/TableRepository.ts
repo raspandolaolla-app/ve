@@ -6,6 +6,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from '../../types/tables';
 import type { GameType } from '../../types/games';
 
@@ -153,7 +154,7 @@ export class TableRepository {
 
     if (error) {
       console.error('[TableRepository] Error al unirse a mesa:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al unirse a la mesa.') };
     }
 
     return {

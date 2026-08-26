@@ -3,6 +3,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { PaymentAccount, DepositRequest, WithdrawalRequest } from '../../types/payments';
 
 export class PaymentRepository {
@@ -191,7 +192,7 @@ export class PaymentRepository {
 
     if (error) {
       console.error('[PaymentRepository] Error enviando recarga:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al registrar solicitud de recarga.') };
     }
 
     return { success: true, id: data.id };
@@ -214,7 +215,7 @@ export class PaymentRepository {
 
     if (error) {
       console.error('[PaymentRepository] Error aprobando recarga:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al aprobar recarga.') };
     }
 
     return { success: true };
@@ -239,7 +240,7 @@ export class PaymentRepository {
 
     if (error) {
       console.error('[PaymentRepository] Error completando retiro:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al completar retiro.') };
     }
 
     return { success: true };
@@ -264,7 +265,7 @@ export class PaymentRepository {
 
     if (error) {
       console.error('[PaymentRepository] Error rechazando retiro:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al rechazar retiro.') };
     }
 
     return { success: true };

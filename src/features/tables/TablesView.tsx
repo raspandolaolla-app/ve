@@ -34,10 +34,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Play,
+  Loader2,
 } from 'lucide-react';
 
 export function TablesView() {
-  const { state, user, profile, signInWithGoogle } = useAuth();
+  const { state, user, profile, isSigningIn, signInWithGoogle } = useAuth();
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameType | 'all'>('all');
   const [publicTables, setPublicTables] = useState<GameTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -311,8 +312,10 @@ export function TablesView() {
                 variant="primary"
                 className="w-full text-xs font-semibold shadow-md shadow-amber-950/40"
                 onClick={signInWithGoogle}
+                disabled={isSigningIn}
+                leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
               >
-                Continuar con Google para unirte
+                {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google para unirte'}
               </Button>
             )}
           </form>
@@ -366,8 +369,15 @@ export function TablesView() {
                 Crear Mesa Privada
               </Button>
             ) : (
-              <Button id="btn-login-trancaito" variant="secondary" size="sm" onClick={signInWithGoogle}>
-                Iniciar Sesión
+              <Button
+                id="btn-login-trancaito"
+                variant="secondary"
+                size="sm"
+                onClick={signInWithGoogle}
+                disabled={isSigningIn}
+                leftIcon={isSigningIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : undefined}
+              >
+                {isSigningIn ? 'Conectando...' : 'Iniciar Sesión'}
               </Button>
             )}
           </div>

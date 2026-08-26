@@ -29,6 +29,7 @@ import {
   AlertCircle,
   FileText,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
 import type { LegalDocId } from '../../types/legal';
@@ -45,7 +46,7 @@ const VENEZUELA_STATES = [
 ];
 
 export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
-  const { state, user, profile, hasAcceptedTerms, termsRecord, signInWithGoogle, signOut, refreshProfile } = useAuth();
+  const { state, user, profile, hasAcceptedTerms, termsRecord, isSigningIn, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -119,9 +120,11 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           id="profile-signin-btn"
           variant="primary"
           onClick={signInWithGoogle}
+          disabled={isSigningIn}
+          leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
           className="w-full font-semibold shadow-md shadow-amber-950/40"
         >
-          Continuar con Google
+          {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google'}
         </Button>
       </div>
     );

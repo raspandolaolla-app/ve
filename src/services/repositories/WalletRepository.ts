@@ -6,6 +6,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { WalletBalance, WalletTransaction, WithdrawalRequestResult } from '../../types/wallet';
 
 export class WalletRepository {
@@ -98,7 +99,7 @@ export class WalletRepository {
 
     if (error) {
       console.error('[WalletRepository] Error solicitando retiro:', error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al solicitar retiro.') };
     }
 
     return {

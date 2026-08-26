@@ -38,23 +38,42 @@ export class AdminRepository {
 
     const { data, error } = await supabase
       .from('system_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
+      .select('*');
 
-    if (error || !data) return null;
+    if (error || !data || data.length === 0) {
+      // Default safe parameters defined by Venezuelan financial rules
+      return {
+        serviceFeePercent: 10,
+        winnerPercent: 90,
+        minimumAge: 18,
+        minDepositAmount: 50,
+        maxDepositAmount: 50000,
+        minWithdrawalAmount: 100,
+        maxWithdrawalAmount: 20000,
+        maintenanceMode: false,
+        mfaRequiredForWithdrawal: true,
+        kycRequiredForRealMoney: true,
+      };
+    }
+
+    const settingsMap: Record<string, any> = {};
+    for (const row of data) {
+      if (row.key && row.value !== undefined) {
+        settingsMap[row.key] = row.value;
+      }
+    }
 
     return {
-      serviceFeePercent: Number(data.service_fee_percent || 10),
-      winnerPercent: Number(data.winner_percent || 90),
-      minimumAge: Number(data.minimum_age || 18),
-      minDepositAmount: Number(data.min_deposit_amount || 10),
-      maxDepositAmount: Number(data.max_deposit_amount || 50000),
-      minWithdrawalAmount: Number(data.min_withdrawal_amount || 20),
-      maxWithdrawalAmount: Number(data.max_withdrawal_amount || 20000),
-      maintenanceMode: Boolean(data.maintenance_mode),
-      mfaRequiredForWithdrawal: Boolean(data.mfa_required_for_withdrawal),
-      kycRequiredForRealMoney: Boolean(data.kyc_required_for_real_money),
+      serviceFeePercent: Number(settingsMap['SERVICE_FEE_PERCENT']?.percent ?? settingsMap['service_fee_percent'] ?? 10),
+      winnerPercent: Number(settingsMap['WINNER_PERCENT']?.percent ?? settingsMap['winner_percent'] ?? 90),
+      minimumAge: Number(settingsMap['MINIMUM_AGE']?.age ?? settingsMap['minimum_age'] ?? 18),
+      minDepositAmount: Number(settingsMap['DEPOSIT_LIMITS']?.min ?? settingsMap['min_deposit_amount'] ?? 50),
+      maxDepositAmount: Number(settingsMap['DEPOSIT_LIMITS']?.max ?? settingsMap['max_deposit_amount'] ?? 50000),
+      minWithdrawalAmount: Number(settingsMap['WITHDRAWAL_LIMITS']?.min ?? settingsMap['min_withdrawal_amount'] ?? 100),
+      maxWithdrawalAmount: Number(settingsMap['WITHDRAWAL_LIMITS']?.max ?? settingsMap['max_withdrawal_amount'] ?? 20000),
+      maintenanceMode: Boolean(settingsMap['MAINTENANCE_MODE']?.enabled ?? settingsMap['maintenance_mode'] ?? false),
+      mfaRequiredForWithdrawal: Boolean(settingsMap['SECURITY_POLICIES']?.mfa_required ?? settingsMap['mfa_required_for_withdrawal'] ?? true),
+      kycRequiredForRealMoney: Boolean(settingsMap['SECURITY_POLICIES']?.kyc_required ?? settingsMap['kyc_required_for_real_money'] ?? true),
     };
   }
 

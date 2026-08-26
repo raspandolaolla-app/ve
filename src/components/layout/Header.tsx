@@ -143,6 +143,78 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             )}
           </div>
         </div>
+
+        {/* Mobile Navigation Tabs */}
+        <div className="flex md:hidden items-center justify-around py-2 border-t border-slate-900 overflow-x-auto gap-1">
+          <button
+            id="mobile-nav-home"
+            onClick={() => onNavigate('home')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 shrink-0 ${
+              currentTab === 'home'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Grid className="w-3.5 h-3.5" />
+            <span>Lobby</span>
+          </button>
+
+          <button
+            id="mobile-nav-trancaito"
+            onClick={() => onNavigate('tables')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 shrink-0 ${
+              currentTab === 'tables'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Mesas</span>
+          </button>
+
+          <button
+            id="mobile-nav-wallet"
+            onClick={() => onNavigate('wallet')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 shrink-0 ${
+              currentTab === 'wallet'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span>Billetera</span>
+          </button>
+
+          {isAuthenticated && (
+            <button
+              id="mobile-nav-profile"
+              onClick={() => onNavigate('profile')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 shrink-0 ${
+                currentTab === 'profile'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Perfil</span>
+            </button>
+          )}
+
+          {(role === 'ADMIN' || role === 'SUPER_ADMIN') && (
+            <button
+              id="mobile-nav-admin"
+              onClick={() => onNavigate('admin')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 shrink-0 ${
+                currentTab === 'admin'
+                  ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+                  : 'text-slate-400 hover:text-red-300'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5 text-red-400" />
+              <span>Admin</span>
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

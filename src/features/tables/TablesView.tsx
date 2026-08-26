@@ -19,6 +19,7 @@ import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants
 import { formatBolivares } from '../../utils/formatters';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
+import { GameContainer } from '../games/components/GameContainer';
 import {
   Lock,
   QrCode,
@@ -36,7 +37,7 @@ import {
 } from 'lucide-react';
 
 export function TablesView() {
-  const { state, user, signInWithGoogle } = useAuth();
+  const { state, user, profile, signInWithGoogle } = useAuth();
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameType | 'all'>('all');
   const [publicTables, setPublicTables] = useState<GameTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -51,6 +52,9 @@ export function TablesView() {
   const [tablePlayers, setTablePlayers] = useState<TablePlayer[]>([]);
   const [joiningSeat, setJoiningSeat] = useState<number | null>(null);
   const [seatActionFeedback, setSeatActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Partida en Vivo Activa
+  const [inGameData, setInGameData] = useState<{ table: GameTable; players: TablePlayer[] } | null>(null);
 
   // Modal de Crear Mesa
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -212,6 +216,17 @@ export function TablesView() {
       setCreating(false);
     }
   };
+
+  if (inGameData) {
+    return (
+      <GameContainer
+        table={inGameData.table}
+        players={inGameData.players}
+        currentUserId={user?.id || 'demo_user'}
+        onExit={() => setInGameData(null)}
+      />
+    );
+  }
 
   return (
     <div id="tables-view" className="space-y-8 max-w-6xl mx-auto">
@@ -599,22 +614,53 @@ export function TablesView() {
               </div>
             </div>
 
-            {/* Acciones de la Sala */}
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+      {/* Acciones de la Sala */}
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-between flex-wrap gap-3">
               <div className="text-xs text-slate-400">
                 Comparte este código para invitar: <strong className="text-amber-300 font-mono">{activeTable.joinCode}</strong>
               </div>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setActiveTable(null);
-                  setSeatActionFeedback(null);
-                }}
-              >
-                Cerrar Sala
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  id="btn-enter-game-arena"
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Play className="w-4 h-4 fill-current" />}
+                  onClick={() => {
+                    const currentSeats = tablePlayers.length > 0 ? tablePlayers : [
+                      {
+                        tableId: activeTable.id,
+                        userId: user?.id || 'demo_user',
+                        seatNumber: 1,
+                        seatIndex: 0,
+                        teamIndex: 0,
+                        joinedAt: new Date().toISOString(),
+                        displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user?.email?.split('@')[0] || 'Jugador 1',
+                        avatarUrl: profile?.avatarUrl || undefined,
+                        status: 'READY' as const,
+                      }
+                    ];
+                    setInGameData({
+                      table: activeTable,
+                      players: currentSeats,
+                    });
+                    setActiveTable(null);
+                  }}
+                >
+                  Entrar a la Partida
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setActiveTable(null);
+                    setSeatActionFeedback(null);
+                  }}
+                >
+                  Cerrar Sala
+                </Button>
+              </div>
             </div>
           </div>
         </div>

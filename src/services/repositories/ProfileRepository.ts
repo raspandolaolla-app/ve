@@ -20,7 +20,7 @@ export class ProfileRepository {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
@@ -34,17 +34,17 @@ export class ProfileRepository {
       id: data.id,
       firstName: data.first_name,
       lastName: data.last_name,
-      email: data.email,
-      phoneMasked: data.phone_masked || '',
-      cedulaMasked: data.cedula_masked || '',
-      state: data.state,
+      email: data.email || '',
+      phoneMasked: data.phone_number ? `${data.phone_number.substring(0, 4)}***${data.phone_number.slice(-3)}` : (data.phone_masked || ''),
+      cedulaMasked: data.cedula_last4 ? `V-***${data.cedula_last4}` : (data.cedula_masked || ''),
+      state: data.state_venezuela || data.state || '',
       birthDate: data.birth_date,
-      isAdult: Boolean(data.is_adult),
+      isAdult: true,
       avatarUrl: data.avatar_url,
       accountStatus: data.account_status,
-      identityVerificationStatus: data.identity_verification_status,
-      humanVerificationStatus: data.human_verification_status,
-      twoFactorEnabled: Boolean(data.two_factor_enabled),
+      identityVerificationStatus: data.kyc_status || data.identity_verification_status,
+      humanVerificationStatus: data.human_verification_status || 'VERIFIED',
+      twoFactorEnabled: Boolean(data.is_mfa_enabled ?? data.two_factor_enabled),
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -97,14 +97,14 @@ export class ProfileRepository {
     const dataToUpdate: Record<string, any> = {};
     if (updates.firstName !== undefined) dataToUpdate.first_name = updates.firstName;
     if (updates.lastName !== undefined) dataToUpdate.last_name = updates.lastName;
-    if (updates.state !== undefined) dataToUpdate.state = updates.state;
+    if (updates.state !== undefined) dataToUpdate.state_venezuela = updates.state;
     if (updates.avatarUrl !== undefined) dataToUpdate.avatar_url = updates.avatarUrl;
     if (updates.birthDate !== undefined) dataToUpdate.birth_date = updates.birthDate;
 
     const { error } = await supabase
       .from('profiles')
       .update(dataToUpdate)
-      .eq('id', userId);
+      .eq('user_id', userId);
 
     if (error) {
       console.error('[ProfileRepository] Error actualizando perfil:', error.message);

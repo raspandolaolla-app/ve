@@ -20,8 +20,8 @@ export class TableRepository {
     let query = supabase
       .from('game_tables')
       .select('*')
-      .eq('is_private', false)
-      .in('status', ['OPEN', 'waiting', 'ready'])
+      .eq('visibility', 'PUBLIC')
+      .in('status', ['OPEN', 'STARTING', 'ACTIVE'])
       .order('created_at', { ascending: false });
 
     if (gameType) {
@@ -37,18 +37,18 @@ export class TableRepository {
     return (data || []).map((t) => ({
       id: t.id,
       gameType: t.game_type,
-      name: t.name,
-      mode: t.mode,
-      entryFee: Number(t.entry_fee),
+      name: t.name || `Mesa de ${t.game_type}`,
+      mode: t.mode || (t.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
+      entryFee: Number(t.entry_fee || 0),
       currency: t.currency || 'VES',
       minPlayers: t.min_players,
       maxPlayers: t.max_players,
       currentPlayersCount: t.current_players_count || 0,
       status: t.status,
-      hostUserId: t.created_by || t.host_user_id,
-      isPrivate: Boolean(t.is_private),
-      joinCode: t.join_code,
-      shareToken: t.share_token,
+      hostUserId: t.host_user_id || t.created_by,
+      isPrivate: t.visibility === 'PRIVATE' || Boolean(t.is_private),
+      joinCode: t.invite_code || t.join_code,
+      shareToken: t.share_token || t.invite_code,
       createdAt: t.created_at,
       startedAt: t.started_at,
       finishedAt: t.closed_at || t.finished_at,
@@ -63,10 +63,11 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
+    const normalizedCode = code.trim().toUpperCase();
     const { data, error } = await supabase
       .from('game_tables')
       .select('*')
-      .eq('join_code', code.trim().toUpperCase())
+      .or(`invite_code.eq.${normalizedCode},join_code.eq.${normalizedCode}`)
       .maybeSingle();
 
     if (error || !data) return null;
@@ -74,18 +75,18 @@ export class TableRepository {
     return {
       id: data.id,
       gameType: data.game_type,
-      name: data.name,
-      mode: data.mode,
-      entryFee: Number(data.entry_fee),
+      name: data.name || `Mesa de ${data.game_type}`,
+      mode: data.mode || (data.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
+      entryFee: Number(data.entry_fee || 0),
       currency: data.currency || 'VES',
       minPlayers: data.min_players,
       maxPlayers: data.max_players,
       currentPlayersCount: data.current_players_count || 0,
       status: data.status,
-      hostUserId: data.created_by || data.host_user_id,
-      isPrivate: Boolean(data.is_private),
-      joinCode: data.join_code,
-      shareToken: data.share_token,
+      hostUserId: data.host_user_id || data.created_by,
+      isPrivate: data.visibility === 'PRIVATE' || Boolean(data.is_private),
+      joinCode: data.invite_code || data.join_code,
+      shareToken: data.share_token || data.invite_code,
       createdAt: data.created_at,
       startedAt: data.started_at,
       finishedAt: data.closed_at || data.finished_at,
@@ -170,27 +171,33 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
-    const joinCode = payload.isPrivate
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user) {
+      console.error('[TableRepository] No se puede crear mesa sin usuario autenticado');
+      return null;
+    }
+
+    const inviteCode = payload.isPrivate
       ? `TRK-${Math.floor(1000 + Math.random() * 9000)}`
       : `PUB-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const shareToken = `st_${Math.random().toString(36).substring(2, 12)}`;
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
       .from('game_tables')
       .insert({
         game_type: payload.gameType,
-        name: payload.name || `Mesa de ${payload.gameType}`,
-        mode: payload.mode,
+        host_user_id: authData.user.id,
+        visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
+        invite_code: inviteCode,
         entry_fee: payload.entryFee,
-        currency: 'VES',
-        max_players: payload.maxPlayers,
         min_players: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
-        is_private: payload.isPrivate,
-        join_code: joinCode,
-        share_token: shareToken,
-        config: payload.config || {},
+        max_players: payload.maxPlayers,
+        current_players_count: 1,
         status: 'OPEN',
+        config: payload.config || {},
+        expires_at: expiresAt,
       })
       .select()
       .single();
@@ -203,18 +210,18 @@ export class TableRepository {
     return {
       id: data.id,
       gameType: data.game_type,
-      name: data.name,
-      mode: data.mode,
-      entryFee: Number(data.entry_fee),
+      name: data.name || `Mesa de ${data.game_type}`,
+      mode: data.mode || (data.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
+      entryFee: Number(data.entry_fee || 0),
       currency: data.currency || 'VES',
       minPlayers: data.min_players,
       maxPlayers: data.max_players,
-      currentPlayersCount: data.current_players_count || 0,
+      currentPlayersCount: data.current_players_count || 1,
       status: data.status,
-      hostUserId: data.created_by,
-      isPrivate: Boolean(data.is_private),
-      joinCode: data.join_code,
-      shareToken: data.share_token,
+      hostUserId: data.host_user_id,
+      isPrivate: data.visibility === 'PRIVATE',
+      joinCode: data.invite_code,
+      shareToken: shareToken,
       createdAt: data.created_at,
       config: data.config || {},
     };

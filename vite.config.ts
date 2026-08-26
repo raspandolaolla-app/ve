@@ -8,6 +8,7 @@ export default defineConfig(() => {
 
   return {
     base: basePath,
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

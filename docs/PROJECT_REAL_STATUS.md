@@ -25,14 +25,13 @@ CATÁLOGO IMPLEMENTADO (8 Juegos tradicionales)
 TABLEROS INDIVIDUALES PENDIENTES
 
 SUPABASE:
-NO CONECTADO (Pendiente de creación de proyecto e ingreso de credenciales)
+CONECTADO Y VERIFICADO (tncxgwycinbnkjbfwojt.supabase.co)
 
 MIGRACIONES:
-17 PREPARADAS
-NO EJECUTADAS (Archivos SQL en /supabase/migrations/ listos)
+17 EJECUTADAS Y VERIFICADAS EN SUPABASE (001 a 017)
 
 GITHUB:
-REPOSITORIO EXISTENTE A REUTILIZAR (https://github.com/raspandolaolla-app/ve)
+REPOSITORIO VINCULADO (https://github.com/raspandolaolla-app/ve)
 
 NETLIFY:
 CONFIGURACIÓN PREPARADA (netlify.toml y public/_redirects listos)
@@ -66,10 +65,10 @@ NO ACTIVADA
 - **Panel Administrativo:** Métricas, gestión de roles RBAC, aprobación de comprobantes y logs de auditoría. (Funcionando localmente)
 
 ### 2. Infraestructura y Persistencia
-- **Migraciones SQL:** 17 archivos en `/supabase/migrations/` con 18 tablas, constraints, triggers, RLS y funciones transaccionales `SECURITY DEFINER`. (No ejecutadas en Supabase real)
-- **Supabase Auth & Realtime:** Código cliente listo en `src/lib/supabase/client.ts` y `src/services/realtime/RealtimeManager.ts`. (Pendiente de conexión remota)
+- **Migraciones SQL:** 17 archivos en `/supabase/migrations/` con 14 tablas, constraints, triggers, RLS y funciones transaccionales `SECURITY DEFINER` (Ejecutadas y verificadas en Supabase real).
+- **Supabase Auth & Realtime:** Conectado a `https://tncxgwycinbnkjbfwojt.supabase.co` con RLS forzado y canales realtime configurados.
 
 ### 3. Repositorio & CI/CD
 - **Repositorio Destino:** `https://github.com/raspandolaolla-app/ve`
 - **Workflow GitHub Actions:** `.github/workflows/deploy.yml` configurado con build y exportación para GitHub Pages.
-- **Configuración Netlify:** `netlify.toml` con directivas de redirección SPA `/* -> /index.html 200`.
+- **Configuración Netlify:** `netlify.toml` y `public/_redirects` con directivas de redirección SPA `/* -> /index.html 200`.

@@ -161,12 +161,13 @@ export class PaymentRepository {
   }
 
   /**
-   * Envía un comprobante de recarga en bolívares.
+   * Envía un comprobante de recarga en bolívares de forma segura y compatible.
    */
   public static async submitDepositRequest(params: {
     amount: number;
     bankOrigin: string;
     referenceNumber: string;
+    originPhone?: string;
     receiptUrl?: string;
   }): Promise<{ success: boolean; id?: string; error?: string }> {
     const supabase = getSupabaseClient();
@@ -175,27 +176,41 @@ export class PaymentRepository {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return { success: false, error: 'Usuario no autenticado' };
 
+    // Extraer código bancario de 4 dígitos (ej: '0102' de '0102 - Banco de Venezuela')
+    const matchBankCode = params.bankOrigin.match(/\b\d{4}\b/);
+    const bankCode = matchBankCode ? matchBankCode[0] : '0102';
+    const idempotencyKey = `dep_${userData.user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const today = new Date().toISOString().split('T')[0];
+
+    const depositPayload: Record<string, any> = {
+      user_id: userData.user.id,
+      amount: Number(params.amount),
+      currency: 'VES',
+      origin_bank_code: bankCode,
+      origin_bank: params.bankOrigin.trim(),
+      origin_phone: params.originPhone || '0414-0000000',
+      reference_number: params.referenceNumber.trim(),
+      payment_date: today,
+      idempotency_key: idempotencyKey,
+      status: 'PENDING',
+    };
+
+    if (params.receiptUrl) {
+      depositPayload.receipt_url = params.receiptUrl;
+    }
+
     const { data, error } = await supabase
       .from('deposit_requests')
-      .insert({
-        user_id: userData.user.id,
-        amount: params.amount,
-        currency: 'VES',
-        origin_bank: params.bankOrigin,
-        reference_number: params.referenceNumber,
-        receipt_url: params.receiptUrl,
-        payment_date: new Date().toISOString().split('T')[0],
-        status: 'PENDING',
-      })
+      .insert(depositPayload)
       .select()
       .single();
 
     if (error) {
-      console.error('[PaymentRepository] Error enviando recarga:', error.message);
+      console.warn('[PaymentRepository] Error al registrar recarga:', error.message);
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al registrar solicitud de recarga.') };
     }
 
-    return { success: true, id: data.id };
+    return { success: true, id: data?.id };
   }
 
   /**

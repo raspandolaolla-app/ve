@@ -522,13 +522,24 @@ export function WalletView() {
               </div>
 
               <div>
-                <label className="block font-medium text-slate-300 mb-1">Banco Emisor</label>
-                <input
-                  type="text"
+                <label className="block font-medium text-slate-300 mb-1">Banco Emisor (Pago Móvil)</label>
+                <select
                   value={depositOriginBank}
                   onChange={(e) => setDepositOriginBank(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
+                >
+                  <option value="0102 - Banco de Venezuela">0102 - Banco de Venezuela</option>
+                  <option value="0108 - Banco Provincial">0108 - Banco Provincial</option>
+                  <option value="0134 - Banesco">0134 - Banesco</option>
+                  <option value="0105 - Banco Mercantil">0105 - Banco Mercantil</option>
+                  <option value="0172 - Bancamiga">0172 - Bancamiga</option>
+                  <option value="0114 - Bancaribe">0114 - Bancaribe</option>
+                  <option value="0163 - Banco del Tesoro">0163 - Banco del Tesoro</option>
+                  <option value="0175 - Banco Bicentenario">0175 - Banco Bicentenario</option>
+                  <option value="0191 - Banco Nacional de Crédito (BNC)">0191 - Banco Nacional de Crédito (BNC)</option>
+                  <option value="0174 - Banplus">0174 - Banplus</option>
+                  <option value="0177 - BANFANB">0177 - BANFANB</option>
+                </select>
               </div>
 
               <div>

@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../../utils/constants';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import { AdminRepository } from '../../../services/repositories/AdminRepository';
 import type { UserRole, ProtectedAdminStatus } from '../../../types/admin';
 import {
@@ -78,7 +79,7 @@ export function AdminSecurityTab({ currentUserRole, currentUserEmail }: AdminSec
       } else {
         setRecoveryFeedback({
           type: 'error',
-          message: res.error || res.message || 'No se pudo completar la recuperación mutua.',
+          message: sanitizeUserErrorMessage(res.error, res.message || 'No se pudo completar la recuperación mutua.'),
         });
       }
     } finally {

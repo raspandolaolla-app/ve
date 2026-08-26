@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import type { AdminSupportTicketItem } from '../../../types/admin';
 import {
   MessageSquare,
@@ -49,7 +50,7 @@ export function AdminSupportTab({ tickets, onUpdateStatus, onRefresh }: AdminSup
         setSelectedTicket((prev) => (prev ? { ...prev, status: newStatus } : null));
         onRefresh();
       } else {
-        alert(res.error || 'Error al actualizar el ticket.');
+        alert(sanitizeUserErrorMessage(res.error, 'No fue posible actualizar el estado del ticket.'));
       }
     } finally {
       setActionLoading(false);

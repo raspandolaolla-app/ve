@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { formatBolivares } from '../../../utils/formatters';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import type { AdminDepositItem } from '../../../types/admin';
 import {
   ArrowDownLeft,
@@ -66,7 +67,7 @@ export function AdminDepositsTab({
         setSelectedDeposit(null);
         onRefresh();
       } else {
-        setActionResult({ success: false, message: res.error || 'Error al aprobar recarga.' });
+        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible aprobar la recarga.') });
       }
     } finally {
       setActionLoading(false);
@@ -85,7 +86,7 @@ export function AdminDepositsTab({
         setRejectReason('');
         onRefresh();
       } else {
-        setActionResult({ success: false, message: res.error || 'Error al rechazar recarga.' });
+        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible rechazar la recarga.') });
       }
     } finally {
       setActionLoading(false);

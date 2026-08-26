@@ -23,15 +23,15 @@ export function ConnectionBadge() {
     );
   }
 
-  if (supabaseStatus === 'NOT_CONFIGURED') {
+  if (supabaseStatus === 'NOT_CONFIGURED' || supabaseStatus === 'ERROR') {
     return (
       <div
         id="badge-server-unconfigured"
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-950/70 text-amber-300 border border-amber-700/50"
-        title="Comprobando enlace de red"
+        title="Servicio de conexión en espera"
       >
         <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-        <span>Servidor: Enlazando</span>
+        <span>Sin conexión</span>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export function ConnectionBadge() {
       >
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <Database className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Servidor Activo</span>
+        <span>Conectado</span>
       </div>
     );
   }

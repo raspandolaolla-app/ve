@@ -13,6 +13,7 @@ import { getGameEngine } from '../engines';
 import { GameRepository } from '../../../services/repositories/GameRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares } from '../../../utils/formatters';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
 import { RockPaperScissorsBoard } from './RockPaperScissorsBoard';
@@ -340,7 +341,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         }
       } catch (err: any) {
         console.error('[GameContainer] Error ejecutando acción:', err);
-        setErrorMsg(err?.message || 'Error al registrar jugada');
+        setErrorMsg(sanitizeUserErrorMessage(err, 'No fue posible registrar la jugada. La partida permanece protegida.'));
         setTimeout(() => setErrorMsg(null), 3500);
       } finally {
         setIsSubmittingAction(false);

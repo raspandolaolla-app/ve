@@ -13,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { PaymentRepository } from '../../services/repositories/PaymentRepository';
 import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type {
   AdminTabId,
   AdminDashboardMetrics,
@@ -212,14 +213,14 @@ export function AdminView() {
   ) => {
     const res = await AdminRepository.updateUserAccountStatus(userId, targetEmail, newStatus, reason);
     if (!res.success) {
-      alert(res.error || 'Error al actualizar el estado del usuario');
+      alert(sanitizeUserErrorMessage(res.error, 'No fue posible actualizar el estado del usuario.'));
     }
   };
 
   const handleUpdateUserRole = async (userId: string, targetEmail: string, newRole: UserRole) => {
     const res = await AdminRepository.updateUserRole(userId, targetEmail, newRole);
     if (!res.success) {
-      alert(res.error || 'Error al actualizar el rol');
+      alert(sanitizeUserErrorMessage(res.error, 'No fue posible actualizar el rol del usuario.'));
     }
   };
 

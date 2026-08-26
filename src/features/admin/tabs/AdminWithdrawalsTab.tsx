@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { formatBolivares } from '../../../utils/formatters';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import type { AdminWithdrawalItem } from '../../../types/admin';
 import {
   ArrowUpRight,
@@ -70,7 +71,7 @@ export function AdminWithdrawalsTab({
         setBankReference('');
         onRefresh();
       } else {
-        setActionResult({ success: false, message: res.error || 'Error al completar el retiro.' });
+        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible completar el retiro.') });
       }
     } finally {
       setActionLoading(false);
@@ -92,7 +93,7 @@ export function AdminWithdrawalsTab({
         setRejectReason('');
         onRefresh();
       } else {
-        setActionResult({ success: false, message: res.error || 'Error al rechazar el retiro.' });
+        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible rechazar el retiro.') });
       }
     } finally {
       setActionLoading(false);

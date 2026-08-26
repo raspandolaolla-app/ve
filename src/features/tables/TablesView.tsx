@@ -17,6 +17,7 @@ import { TableRepository } from '../../services/repositories/TableRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
 import { formatBolivares } from '../../utils/formatters';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
@@ -173,13 +174,13 @@ export function TablesView() {
       } else {
         setSeatActionFeedback({
           success: false,
-          message: result.error || 'No se pudo ocupar el asiento. Verifica tu saldo disponible.',
+          message: sanitizeUserErrorMessage(result.error, 'No se pudo ocupar el asiento. Verifica tu saldo disponible.'),
         });
       }
     } catch (err: any) {
       setSeatActionFeedback({
         success: false,
-        message: err.message || 'Error al procesar la unión a la mesa.',
+        message: sanitizeUserErrorMessage(err, 'Error al procesar la unión a la mesa.'),
       });
     } finally {
       setJoiningSeat(null);
@@ -209,10 +210,10 @@ export function TablesView() {
         setActiveTable(newTable);
         loadPublicTables();
       } else {
-        setCreateError('Error al crear la mesa en la base de datos.');
+        setCreateError('No fue posible crear la mesa en este momento.');
       }
     } catch (err: any) {
-      setCreateError(err.message || 'Error al crear la mesa');
+      setCreateError(sanitizeUserErrorMessage(err, 'No fue posible crear la mesa. Inténtalo nuevamente.'));
     } finally {
       setCreating(false);
     }

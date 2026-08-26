@@ -21,6 +21,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { formatBolivares, maskPhone, maskCedula } from '../../utils/formatters';
 import { FINANCIAL_RULES } from '../../utils/constants';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import {
   Wallet,
   ArrowDownLeft,
@@ -145,13 +146,13 @@ export function WalletView() {
       } else {
         setDepositFeedback({
           success: false,
-          message: res.error || 'Error al enviar la recarga.',
+          message: sanitizeUserErrorMessage(res.error, 'No fue posible registrar la recarga. Inténtalo nuevamente.'),
         });
       }
     } catch (err: any) {
       setDepositFeedback({
         success: false,
-        message: err.message || 'Error al procesar la recarga.',
+        message: sanitizeUserErrorMessage(err, 'Error al procesar la recarga. Tu saldo no ha sido modificado.'),
       });
     } finally {
       setSubmittingDeposit(false);
@@ -192,13 +193,13 @@ export function WalletView() {
       } else {
         setWithdrawFeedback({
           success: false,
-          message: res.error || 'No se pudo procesar el retiro.',
+          message: sanitizeUserErrorMessage(res.error, 'No se pudo procesar el retiro. Tu saldo no ha sido modificado.'),
         });
       }
     } catch (err: any) {
       setWithdrawFeedback({
         success: false,
-        message: err.message || 'Error inesperado al solicitar el retiro.',
+        message: sanitizeUserErrorMessage(err, 'No fue posible completar la solicitud de retiro.'),
       });
     } finally {
       setSubmittingWithdraw(false);
@@ -232,13 +233,13 @@ export function WalletView() {
       } else {
         setAccountFeedback({
           success: false,
-          message: 'Error al registrar la cuenta bancaria.',
+          message: 'Error al registrar la cuenta bancaria. Verifica los datos.',
         });
       }
     } catch (err: any) {
       setAccountFeedback({
         success: false,
-        message: err.message || 'Error al guardar cuenta bancaria.',
+        message: sanitizeUserErrorMessage(err, 'No fue posible guardar la cuenta bancaria.'),
       });
     } finally {
       setCreatingAccount(false);

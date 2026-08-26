@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { formatBolivares } from '../../../utils/formatters';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import type { AdminTableItem } from '../../../types/admin';
 import {
   Table,
@@ -56,7 +57,7 @@ export function AdminTablesTab({ tables, onCancelTable, onRefresh }: AdminTables
         setCancelReason('');
         onRefresh();
       } else {
-        alert(res.error || 'Error al cancelar la mesa.');
+        alert(sanitizeUserErrorMessage(res.error, 'No fue posible cancelar la mesa.'));
       }
     } finally {
       setActionLoading(false);

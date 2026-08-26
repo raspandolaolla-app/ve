@@ -88,7 +88,7 @@ export function ProfileView() {
         setEditing(false);
         await refreshProfile();
       } else {
-        setFeedback({ success: false, message: 'Error al actualizar el perfil en Supabase.' });
+        setFeedback({ success: false, message: 'No se pudo guardar la información del perfil. Inténtalo nuevamente.' });
       }
     } catch (err: any) {
       setFeedback({ success: false, message: err.message || 'Error al guardar.' });
@@ -105,15 +105,15 @@ export function ProfileView() {
         </div>
         <h2 className="text-xl font-bold text-slate-100">Mi Perfil</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Inicia sesión mediante Google para ver y gestionar tu información personal, verificación KYC y seguridad 2FA.
+          Inicia sesión para gestionar tus datos personales, verificación de identidad y seguridad de cuenta.
         </p>
         <Button
           id="profile-signin-btn"
           variant="primary"
           onClick={signInWithGoogle}
-          className="w-full"
+          className="w-full font-semibold shadow-md shadow-amber-950/40"
         >
-          Iniciar sesión con Google
+          Continuar con Google
         </Button>
       </div>
     );
@@ -175,7 +175,7 @@ export function ProfileView() {
               <span className="font-semibold text-sm text-slate-200">Datos Personales</span>
               <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Protegido por RLS
+                Protegido y Encriptado
               </span>
             </div>
           }
@@ -287,20 +287,20 @@ export function ProfileView() {
           <div className="space-y-4">
             <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Autenticación en Dos Pasos (TOTP)</span>
+                <span className="text-slate-300 font-medium">Autenticación en Dos Pasos (2FA)</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800 text-slate-400 border border-slate-700">
-                  {profile?.twoFactorEnabled ? 'Activado (AAL2)' : 'Desactivado'}
+                  {profile?.twoFactorEnabled ? 'Activado' : 'Desactivado'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Requerido para autorizar retiros de saldo y modificaciones de datos bancarios.
+                Requerido para autorizar retiros de saldo y modificaciones de cuentas registradas.
               </p>
             </div>
 
             <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-800/30 text-amber-300/90 text-xs flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                Los datos de Pago Móvil quedan vinculados de forma segura a tu identidad contable en Supabase.
+                Los datos de Pago Móvil quedan vinculados de forma confidencial y protegida a tu cuenta.
               </span>
             </div>
           </div>
@@ -313,7 +313,7 @@ export function ProfileView() {
         header={
           <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
             <History className="w-4 h-4 text-amber-400" />
-            <span>Eventos de Seguridad Recientes de la Cuenta</span>
+            <span>Registro de Actividad de la Cuenta</span>
           </div>
         }
       >
@@ -327,7 +327,7 @@ export function ProfileView() {
               <div key={log.id} className="py-2.5 flex items-center justify-between">
                 <div>
                   <span className="font-semibold text-slate-200">{log.action}</span>
-                  <div className="text-[10px] text-slate-500 font-mono">Tabla: {log.entity}</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Operación verificada</div>
                 </div>
                 <span className="text-[10px] text-slate-400 font-mono">
                   {new Date(log.timestamp).toLocaleString('es-VE')}

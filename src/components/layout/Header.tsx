@@ -137,8 +137,9 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
                 size="sm"
                 onClick={signInWithGoogle}
                 leftIcon={<LogIn className="w-4 h-4" />}
+                className="font-semibold shadow-md shadow-amber-950/40"
               >
-                Google Auth
+                Continuar con Google
               </Button>
             )}
           </div>

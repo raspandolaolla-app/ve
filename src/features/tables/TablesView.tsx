@@ -273,7 +273,7 @@ export function TablesView() {
           <form onSubmit={handleJoinByCode} className="space-y-4">
             <div>
               <label htmlFor="join-code-input" className="block text-xs font-medium text-slate-300 mb-1.5">
-                Código de Mesa (Token Público)
+                Código de Mesa Privada
               </label>
               <input
                 id="join-code-input"
@@ -298,7 +298,7 @@ export function TablesView() {
                 id="btn-submit-join-code"
                 type="submit"
                 variant="primary"
-                className="w-full"
+                className="w-full font-semibold shadow-md shadow-amber-950/40"
                 rightIcon={<ArrowRight className="w-4 h-4" />}
                 disabled={!joinCodeInput.trim() || searchingCode}
               >
@@ -308,11 +308,11 @@ export function TablesView() {
               <Button
                 id="btn-login-to-join"
                 type="button"
-                variant="secondary"
-                className="w-full text-xs"
+                variant="primary"
+                className="w-full text-xs font-semibold shadow-md shadow-amber-950/40"
                 onClick={signInWithGoogle}
               >
-                Inicia sesión para unirte
+                Continuar con Google para unirte
               </Button>
             )}
           </form>
@@ -421,7 +421,7 @@ export function TablesView() {
           <div className="py-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Users className="w-8 h-8 text-slate-600 mx-auto" />
             <div className="text-slate-400 text-xs">
-              {loadingTables ? 'Consultando mesas en Supabase...' : 'No hay mesas públicas abiertas en este momento.'}
+              {loadingTables ? 'Cargando mesas disponibles...' : 'No hay mesas públicas abiertas en este momento.'}
             </div>
             {isAuthenticated && !loadingTables && (
               <Button
@@ -787,9 +787,9 @@ export function TablesView() {
       <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start gap-3 text-xs text-slate-400">
         <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div>
-          <strong className="text-slate-300">Seguridad de Mesa y Liquidación: </strong>
-          Toda validación de acceso, saldo suficiente y deducción transaccional se realiza de forma atómica en Supabase.
-          El cliente jamás calcula pozos ni saldos finales.
+          <strong className="text-slate-300">Garantía de Fondos y Transparencia: </strong>
+          Toda validación de acceso, saldo suficiente y deducción transaccional se realiza en servidor seguro.
+          El pozo acumulado y los premios se liquidan automáticamente con total transparencia.
         </div>
       </div>
     </div>

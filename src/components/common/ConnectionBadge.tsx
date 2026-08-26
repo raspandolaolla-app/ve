@@ -28,10 +28,10 @@ export function ConnectionBadge() {
       <div
         id="badge-supabase-unconfigured"
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-950/70 text-amber-300 border border-amber-700/50"
-        title="Variables de Supabase pendientes en .env"
+        title="Comprobando enlace de red"
       >
         <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-        <span>Supabase: Pendiente Config</span>
+        <span>Servidor: Enlazando</span>
       </div>
     );
   }
@@ -41,11 +41,11 @@ export function ConnectionBadge() {
       <div
         id="badge-supabase-connected"
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-950/70 text-emerald-300 border border-emerald-700/50"
-        title="Conectado en tiempo real con Supabase"
+        title="Conexión activa y protegida en tiempo real"
       >
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <Database className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Supabase Real</span>
+        <span>Servidor Activo</span>
       </div>
     );
   }

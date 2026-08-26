@@ -98,8 +98,8 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>
               {isDraw
-                ? 'Reembolso procesado atómicamente en el Ledger (RPC refund_game_session).'
-                : 'Liquidación atómica registrada en el Libro Mayor (RPC settle_game_session).'}
+                ? 'Reembolso íntegro acreditado inmediatamente en tu billetera.'
+                : 'Premio acreditado inmediatamente con garantía de transparencia 90/10.'}
             </span>
           </div>
         </div>

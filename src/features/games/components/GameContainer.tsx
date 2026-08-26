@@ -476,12 +476,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           </div>
         </div>
 
-        {/* Indicador de Realtime y Seguridad */}
+        {/* Indicador de Conexión en Vivo */}
         <div className="flex items-center space-x-2">
           {realtimeStatus === 'CONNECTED' ? (
             <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
               <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>REALTIME ACTIVO ({onlineUsers.length || 1}/{players.length})</span>
+              <span>SALA EN VIVO ({onlineUsers.length || 1}/{players.length})</span>
             </div>
           ) : realtimeStatus === 'CONNECTING' ? (
             <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono">

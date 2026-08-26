@@ -159,8 +159,7 @@ export function AdminView() {
         </div>
         <h2 className="text-xl font-bold text-slate-100">Acceso Restringido</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Esta sección requiere rol verificado en base de datos (ADMIN o SUPER_ADMIN).
-          La autorización se valida exclusivamente en PostgreSQL mediante RLS.
+          Esta sección está reservada exclusivamente para el equipo de administración y soporte oficial.
         </p>
       </div>
     );
@@ -176,7 +175,7 @@ export function AdminView() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-100">Panel de Control Administrativo</h1>
-            <p className="text-xs text-slate-400">Rol activo: {role} (Protegido por RLS)</p>
+            <p className="text-xs text-slate-400">Rol activo: {role} (Acceso Autorizado)</p>
           </div>
         </div>
 

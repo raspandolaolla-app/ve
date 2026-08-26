@@ -15,8 +15,8 @@ export function Footer() {
               RASPANDO LA OLLA
             </span>
             <p className="text-slate-400 text-xs leading-relaxed max-w-sm">
-              Plataforma multijugador online en tiempo real con mesas tradicionales,
-              juego responsable y arquitectura contable respaldada en Supabase.
+              Plataforma multijugador online en tiempo real con juegos tradicionales venezolanos,
+              juego responsable y sistema de liquidación transparente.
             </p>
           </div>
 
@@ -32,15 +32,15 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-2 text-slate-400">
               <Lock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span>Seguridad RLS & Autenticación MFA 2FA</span>
+              <span>Protección de Cuentas & Verificación en Dos Pasos</span>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5 md:items-end">
-            <span className="font-semibold text-slate-300">Arquitectura</span>
-            <span className="text-slate-400">PostgreSQL + RLS + Supabase Auth</span>
-            <span className="text-slate-400">Ledger Inmutable & Idempotencia</span>
-            <span className="text-amber-400/90 font-mono text-[11px]">Moneda: Bolívares (Bs.)</span>
+            <span className="font-semibold text-slate-300">Seguridad Financiera</span>
+            <span className="text-slate-400">Conexión Cifrada SSL de Alta Seguridad</span>
+            <span className="text-slate-400">Libro Contable Auditado & Fondos Segregados</span>
+            <span className="text-amber-400/90 font-mono text-[11px]">Moneda Oficial: Bolívares (Bs.)</span>
           </div>
         </div>
 

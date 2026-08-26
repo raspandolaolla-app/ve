@@ -252,15 +252,15 @@ export function WalletView() {
         </div>
         <h2 className="text-xl font-bold text-slate-100">Billetera Digital</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Inicia sesión con tu cuenta de Google real para consultar tu saldo en Bolívares (Bs.) y tus movimientos contables.
+          Inicia sesión para consultar tu saldo en Bolívares (Bs.), recargar fondos o solicitar retiros de tus premios.
         </p>
         <Button
           id="wallet-signin-btn"
           variant="primary"
           onClick={signInWithGoogle}
-          className="w-full"
+          className="w-full font-semibold shadow-md shadow-amber-950/40"
         >
-          Iniciar sesión con Google
+          Continuar con Google
         </Button>
       </div>
     );
@@ -283,7 +283,7 @@ export function WalletView() {
             </button>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Sistema contable de doble entrada (Ledger) en Bolívares Venezolanos ({FINANCIAL_RULES.CURRENCY_SYMBOL}).
+            Gestión segura de saldo y movimientos en Bolívares ({FINANCIAL_RULES.CURRENCY_SYMBOL}).
           </p>
         </div>
 

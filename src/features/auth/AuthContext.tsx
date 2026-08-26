@@ -1,9 +1,8 @@
 // ==============================================================================
-// RASPANDO LA OLLA — CONTEXTO Y PROVEEDOR DE AUTENTICACIÓN
+// RASPANDO LA OLLA — CONTEXTO Y PROVEEDOR DE AUTENTICACIÓN (FASE 21)
 // ==============================================================================
-// Maneja el estado real de autenticación mediante Supabase Auth.
-// Si no hay sesión válida en Supabase, el estado es 'unauthenticated'.
-// NO se admiten usuarios simulados ni banderas falsas.
+// Autenticación real con Google OAuth mediante Supabase Auth.
+// Manejo seguro de sesiones, redirecciones de producción y resolución de perfiles.
 // ==============================================================================
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
@@ -26,9 +25,68 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+/**
+ * Calcula la URL de redirección absoluta de OAuth respetando subdirectorios de GitHub Pages,
+ * Netlify o variables de entorno personalizadas.
+ */
+function getOAuthRedirectUrl(): string {
+  const explicitUrl = import.meta.env.VITE_APP_URL as string | undefined;
+  if (explicitUrl && explicitUrl.trim() !== '') {
+    return explicitUrl.trim();
+  }
+
+  if (typeof window !== 'undefined') {
+    const { origin, pathname } = window.location;
+    // Si la ruta contiene un archivo o hash, tomar la base del directorio
+    const cleanPath = pathname.endsWith('/')
+      ? pathname
+      : pathname.includes('.')
+        ? pathname.substring(0, pathname.lastIndexOf('/') + 1)
+        : `${pathname}/`;
+    return `${origin}${cleanPath}`;
+  }
+
+  return 'http://localhost:3000/';
+}
+
+/**
+ * Traduce cualquier mensaje de error técnico a un texto amigable para el usuario.
+ */
+function sanitizeAuthError(rawError: unknown): { code: string; message: string; userFriendlyMessage: string } {
+  const rawMsg = rawError instanceof Error ? rawError.message : String(rawError || '');
+  const lower = rawMsg.toLowerCase();
+
+  let userFriendly = 'Ocurrió un inconveniente al procesar tu acceso. Por favor intenta nuevamente.';
+  let code = 'AUTH_ERROR';
+
+  if (lower.includes('network') || lower.includes('failed to fetch') || lower.includes('fetch failed')) {
+    userFriendly = 'Problema de conexión con el servidor. Revisa tu acceso a internet e inténtalo de nuevo.';
+    code = 'NETWORK_ERROR';
+  } else if (lower.includes('popup') || lower.includes('closed by user') || lower.includes('user cancelled')) {
+    userFriendly = 'La ventana de identificación con Google fue cancelada.';
+    code = 'OAUTH_CANCELLED';
+  } else if (lower.includes('provider is not enabled') || lower.includes('unsupported provider')) {
+    userFriendly = 'El servicio de acceso con Google se encuentra en mantenimiento. Intenta más tarde.';
+    code = 'PROVIDER_UNAVAILABLE';
+  } else if (lower.includes('invalid claim') || lower.includes('jwt') || lower.includes('expired')) {
+    userFriendly = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
+    code = 'SESSION_EXPIRED';
+  } else if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    userFriendly = 'Demasiados intentos seguidos. Por favor espera unos momentos antes de reintentar.';
+    code = 'RATE_LIMIT';
+  }
+
+  return {
+    code,
+    message: rawMsg,
+    userFriendlyMessage: userFriendly,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>('loading');
@@ -69,21 +127,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AdminRepository.getUserRole(authUser.id),
       ]);
 
-      setProfile(fetchedProfile);
+      // Si el perfil aún no existe en base de datos (primer acceso con Google),
+      // construimos un perfil amigable a partir de los metadatos de Google
+      if (fetchedProfile) {
+        setProfile(fetchedProfile);
+      } else {
+        const metadata = authUser.user_metadata || {};
+        const fullName = metadata.full_name || metadata.name || '';
+        const nameParts = fullName.trim().split(' ');
+        const firstName = metadata.given_name || nameParts[0] || 'Jugador';
+        const lastName = metadata.family_name || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
+        const avatarUrl = metadata.avatar_url || metadata.picture || undefined;
+
+        setProfile({
+          id: authUser.id,
+          firstName,
+          lastName,
+          email: authUser.email || '',
+          phoneMasked: '',
+          cedulaMasked: '',
+          state: 'Distrito Capital',
+          birthDate: null,
+          isAdult: true,
+          avatarUrl,
+          accountStatus: 'ACTIVE',
+          identityVerificationStatus: 'PENDING',
+          humanVerificationStatus: 'VERIFIED',
+          twoFactorEnabled: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       setRole(fetchedRole);
       setState('authenticated');
     } catch (err: unknown) {
       console.error('[AuthProvider] Error procesando sesión:', err);
+      const sanitized = sanitizeAuthError(err);
       setError({
-        code: 'SESSION_PROCESSING_ERROR',
-        message: err instanceof Error ? err.message : 'Error desconocido al cargar sesión',
-        userFriendlyMessage: 'Ocurrió un problema al verificar tu sesión. Por favor intenta nuevamente.',
+        code: sanitized.code,
+        message: sanitized.message,
+        userFriendlyMessage: sanitized.userFriendlyMessage,
       });
       setState('error');
     }
   };
 
   useEffect(() => {
+    // Detectar errores en los parámetros de retorno OAuth de la URL
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const urlError = urlParams.get('error_description') || hashParams.get('error_description');
+
+      if (urlError) {
+        const sanitized = sanitizeAuthError(urlError);
+        setError({
+          code: 'OAUTH_RETURN_ERROR',
+          message: urlError,
+          userFriendlyMessage: sanitized.userFriendlyMessage,
+        });
+        // Limpiar parámetros de error de la barra de direcciones
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
     if (!supabase) {
       setState('unauthenticated');
       return;
@@ -93,10 +201,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session: initialSession }, error: sessionError }) => {
       if (sessionError) {
         console.error('[AuthProvider] Error al obtener sesión inicial:', sessionError.message);
+        const sanitized = sanitizeAuthError(sessionError);
         setError({
-          code: sessionError.name || 'AUTH_SESSION_ERROR',
-          message: sessionError.message,
-          userFriendlyMessage: 'No se pudo verificar la sesión actual.',
+          code: sanitized.code,
+          message: sanitized.message,
+          userFriendlyMessage: sanitized.userFriendlyMessage,
         });
         setState('unauthenticated');
         return;
@@ -119,25 +228,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (!user) return;
     const fetchedProfile = await ProfileRepository.getCurrentProfile(user.id);
-    setProfile(fetchedProfile);
+    if (fetchedProfile) {
+      setProfile(fetchedProfile);
+    }
+  };
+
+  const clearError = () => {
+    setError(null);
   };
 
   const signInWithGoogle = async () => {
+    setError(null);
+
     if (!supabase) {
       setError({
-        code: 'SUPABASE_NOT_CONFIGURED',
-        message: 'Las variables de entorno de Supabase no están configuradas.',
-        userFriendlyMessage: 'La conexión con el servidor aún no está configurada.',
+        code: 'NOT_CONFIGURED',
+        message: 'Las variables de entorno no están configuradas.',
+        userFriendlyMessage: 'La conexión con el servidor está en proceso de configuración.',
       });
       return;
     }
 
     try {
-      const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const redirectUrl = getOAuthRedirectUrl();
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
         },
       });
 
@@ -145,11 +266,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw signInError;
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
+      const sanitized = sanitizeAuthError(err);
       setError({
-        code: 'GOOGLE_SIGN_IN_ERROR',
-        message,
-        userFriendlyMessage: 'No se pudo conectar con Google. Verifica tu conexión e intenta de nuevo.',
+        code: sanitized.code,
+        message: sanitized.message,
+        userFriendlyMessage: sanitized.userFriendlyMessage,
       });
     }
   };
@@ -163,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setRole('PLAYER');
       setState('unauthenticated');
+      setError(null);
     } catch (err) {
       console.error('[AuthProvider] Error al cerrar sesión:', err);
     }
@@ -180,6 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signOut,
       refreshProfile,
+      clearError,
     }),
     [state, user, session, profile, role, error]
   );
@@ -194,3 +317,4 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+

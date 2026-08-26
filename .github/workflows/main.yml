@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   build:
+    environment:
+      name: github-pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -32,14 +34,36 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
+
+      - name: Verify Environment Variables Safely (No Secret Values Logged)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://tncxgwycinbnkjbfwojt.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
+          VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
+        run: |
+          echo "=== DIAGNÓSTICO SEGURO DE VARIABLES PÚBLICAS ==="
+          [ -n "$VITE_SUPABASE_URL" ] && echo "VITE_SUPABASE_URL = PRESENT" || echo "VITE_SUPABASE_URL = MISSING"
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] && echo "VITE_SUPABASE_ANON_KEY = PRESENT" || echo "VITE_SUPABASE_ANON_KEY = MISSING"
+          [ -n "$VITE_APP_URL" ] && echo "VITE_APP_URL = PRESENT" || echo "VITE_APP_URL = MISSING"
+          [ -n "$VITE_APP_BASE_PATH" ] && echo "VITE_APP_BASE_PATH = PRESENT" || echo "VITE_APP_BASE_PATH = MISSING"
+          echo "==============================================="
 
       - name: Run TypeScript typecheck
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://tncxgwycinbnkjbfwojt.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
+          VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
         run: npm run typecheck
 
       - name: Build Web Application
         env:
-          VITE_APP_BASE_PATH: './'
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://tncxgwycinbnkjbfwojt.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
+          VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
         run: npm run build
 
       - name: Copy 404 fallback for Single Page Application

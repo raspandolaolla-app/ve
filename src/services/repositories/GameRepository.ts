@@ -103,6 +103,7 @@ export class GameRepository {
     if (existing) return existing;
 
     const dbGameType = this.mapGameTypeToDbEnum(gameType);
+    const initialTurnDeadline = new Date(Date.now() + 10000).toISOString();
 
     const { data, error } = await supabase
       .from('game_sessions')
@@ -113,6 +114,7 @@ export class GameRepository {
         status: 'ACTIVE',
         current_state: initialState,
         current_turn_user_id: firstTurnUserId || null,
+        turn_deadline_at: initialTurnDeadline,
         started_at: new Date().toISOString(),
       })
       .select()
@@ -158,6 +160,7 @@ export class GameRepository {
 
     const updatePayload: Record<string, unknown> = {
       current_state: newState,
+      turn_deadline_at: new Date(Date.now() + 10000).toISOString(),
     };
 
     if (currentTurnUserId !== undefined) {
@@ -323,6 +326,39 @@ export class GameRepository {
       success: true,
       refundedCount: Number(data?.refunded_count || 0),
     };
+  }
+
+  /**
+   * Expira de forma atómica el turno actual si superó la fecha límite (10s).
+   */
+  public static async expireTurn(sessionId: string): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    const { data, error } = await supabase.rpc('expire_domino_turn_secure', {
+      p_session_id: sessionId,
+    });
+
+    if (error) {
+      console.warn('[GameRepository] Error expirando turno de dominó:', error.message);
+      return false;
+    }
+
+    return Boolean(data?.success);
+  }
+
+  /**
+   * Ejecuta la limpieza de mesas huérfanas sin jugadores activos.
+   */
+  public static async cleanupOrphanedTables(): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    try {
+      await supabase.rpc('cleanup_orphaned_tables_and_sessions');
+    } catch (err) {
+      console.warn('[GameRepository] Error en limpieza de mesas huérfanas:', err);
+    }
   }
 }
 

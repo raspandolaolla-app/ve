@@ -6,12 +6,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { SkipForward, Eye } from 'lucide-react';
+import { SkipForward, Eye, Clock } from 'lucide-react';
 import type { DominoState, DominoTile } from '../../../types/games';
+import { GameRepository } from '../../../services/repositories/GameRepository';
 
 interface DominoBoardProps {
   state: DominoState;
   currentUserId: string;
+  turnExpiresAt?: string;
+  sessionId?: string;
   onPlayTile: (tile: DominoTile, side: 'left' | 'right') => void;
   onPassTurn: () => void;
 }
@@ -85,10 +88,13 @@ const DominoTileRender: React.FC<DominoTileRenderProps> = ({ tile, mode, size = 
 export const DominoBoard: React.FC<DominoBoardProps> = ({
   state,
   currentUserId,
+  turnExpiresAt,
+  sessionId,
   onPlayTile,
   onPassTurn,
 }) => {
   const [selectedTile, setSelectedTile] = useState<DominoTile | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(10);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('domino_view_mode');
     return saved === 'CLASSIC' ? 'CLASSIC' : 'NORMAL';
@@ -100,6 +106,45 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 
   const isMyTurn = state.turnUserId === currentUserId && state.status === 'playing';
   const myHand = state.hands[currentUserId] || [];
+  const activeTurnUserName = state.playerNames[state.turnUserId] || 'Jugador';
+
+  // Temporizador de 10s sincronizado con el servidor
+  useEffect(() => {
+    if (state.status !== 'playing') {
+      setTimeLeft(10);
+      return;
+    }
+
+    const calculateRemaining = () => {
+      if (!turnExpiresAt) return 10;
+      const expireMs = new Date(turnExpiresAt).getTime();
+      const diffSec = Math.ceil((expireMs - Date.now()) / 1000);
+      return Math.max(0, Math.min(10, diffSec));
+    };
+
+    setTimeLeft(calculateRemaining());
+
+    const interval = setInterval(() => {
+      const remaining = calculateRemaining();
+      setTimeLeft(remaining);
+
+      // Si el tiempo expira y es mi turno, solicitar expiración server-side / auto-paso
+      if (remaining === 0 && isMyTurn) {
+        clearInterval(interval);
+        if (sessionId) {
+          GameRepository.expireTurn(sessionId).then((expired) => {
+            if (!expired) {
+              onPassTurn();
+            }
+          });
+        } else {
+          onPassTurn();
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [turnExpiresAt, state.status, state.turnUserId, isMyTurn, sessionId, onPassTurn]);
 
   const handleTileClick = (tile: DominoTile) => {
     if (!isMyTurn) return;
@@ -154,6 +199,38 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           >
             ● CLÁSICA (Puntos)
           </button>
+        </div>
+      </div>
+
+      {/* Banner de Turno y Temporizador Sincronizado */}
+      <div
+        id="domino-turn-banner"
+        className={`w-full flex items-center justify-between p-3 rounded-xl border mb-3 transition-all ${
+          isMyTurn
+            ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
+            : 'bg-neutral-900/80 border-neutral-800 text-neutral-300'
+        }`}
+      >
+        <div className="flex items-center space-x-2">
+          <div
+            className={`w-3 h-3 rounded-full ${
+              isMyTurn ? 'bg-amber-400 animate-ping' : 'bg-neutral-600'
+            }`}
+          />
+          <span className="text-xs font-bold uppercase tracking-wider">
+            {isMyTurn ? '¡ES TU TURNO!' : `TURNO DE: ${activeTurnUserName}`}
+          </span>
+        </div>
+
+        <div
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg border font-mono text-xs font-bold ${
+            timeLeft <= 3
+              ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse'
+              : 'bg-neutral-950 border-neutral-800 text-amber-400'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>TIEMPO: {timeLeft}s</span>
         </div>
       </div>
 

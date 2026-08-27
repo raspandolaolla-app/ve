@@ -77,6 +77,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     async function initGame() {
       try {
         setRealtimeStatus('CONNECTING');
+        // Limpiar mesas huérfanas en segundo plano
+        GameRepository.cleanupOrphanedTables();
+
         // Asegurar que los perfiles reales de los jugadores estén cargados
         const latestPlayers = await TableRepository.getTablePlayers(table.id);
         const activePlayersList = latestPlayers.length > 0 ? latestPlayers : initialPlayers;
@@ -124,11 +127,26 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
 
           // Si la sesión ya tenía un estado guardado, usarlo; de lo contrario el inicial
-          const loadedState =
+          const loadedState: any =
             activeSession.currentState && Object.keys(activeSession.currentState).length > 0
               ? activeSession.currentState
               : initialEngineState;
           
+          // Asegurar que playerNames contenga los nombres reales de los perfiles
+          const namesMap: Record<string, string> = {};
+          activePlayersList.forEach((p, idx) => {
+            if (p.displayName && p.displayName.trim().length > 0) {
+              namesMap[p.userId] = p.displayName.trim();
+            }
+          });
+
+          if (loadedState && loadedState.playerNames) {
+            loadedState.playerNames = {
+              ...loadedState.playerNames,
+              ...namesMap,
+            };
+          }
+
           const sanitizedState = engine.getSanitizedStateForPlayer
             ? engine.getSanitizedStateForPlayer(loadedState, currentUserId)
             : loadedState;
@@ -458,6 +476,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <DominoBoard
             state={gameState}
             currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
             onPlayTile={(tile, side) => handleGameAction('PLAY_TILE', { tile, side })}
             onPassTurn={() => handleGameAction('PASS_TURN', {})}
           />

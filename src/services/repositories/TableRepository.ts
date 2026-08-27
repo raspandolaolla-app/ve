@@ -127,7 +127,7 @@ export class TableRepository {
         seatIndex: p.seat_number ?? p.seat_index ?? 0,
         teamIndex: p.team_index,
         status: p.status,
-        isReady: p.status === 'READY' || Boolean(p.is_ready),
+        isReady: p.status === 'READY',
         isOnline: p.status !== 'DISCONNECTED',
         joinedAt: p.joined_at,
         displayName: `${firstName} ${lastName}`.trim(),

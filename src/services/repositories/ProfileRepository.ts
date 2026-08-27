@@ -111,15 +111,34 @@ export class ProfileRepository {
       return false;
     }
 
+    // Asegurar que el perfil sea auto-sincronizado atómicamente si es posible
+    const ensured = await this.ensureCurrentUserProfile();
+    if (ensured) {
+      if (payload.state || payload.birthDate) {
+        await this.updateProfile(userId, {
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          state: payload.state,
+          birthDate: payload.birthDate,
+          avatarUrl: payload.avatarUrl,
+        });
+      }
+      return true;
+    }
+
     const { error } = await supabase.from('profiles').insert({
-      id: userId,
-      email,
+      user_id: userId,
       first_name: payload.firstName,
       last_name: payload.lastName,
-      state: payload.state,
-      birth_date: payload.birthDate,
+      display_name: `${payload.firstName} ${payload.lastName}`.trim().substring(0, 50),
+      state_venezuela: payload.state || 'Distrito Capital',
+      birth_date: payload.birthDate || '2000-01-01',
+      cedula_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+      cedula_last4: '0000',
+      phone_number: '04120000000',
       avatar_url: payload.avatarUrl || null,
-      account_status: 'pending_verification',
+      account_status: 'PENDING_VERIFICATION',
+      kyc_status: 'UNSUBMITTED',
     });
 
     if (error) {

@@ -152,7 +152,7 @@ export class AdminRepository {
         { count: ticketsCount },
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('game_tables').select('*', { count: 'exact', head: true }).eq('status', 'IN_GAME'),
+        supabase.from('game_tables').select('*', { count: 'exact', head: true }).in('status', ['OPEN', 'STARTING', 'ACTIVE']),
         supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
         supabase.from('withdrawal_requests').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
         supabase.from('support_tickets').select('*', { count: 'exact', head: true }).in('status', ['OPEN', 'IN_PROGRESS']),
@@ -211,12 +211,14 @@ export class AdminRepository {
           user_id,
           first_name,
           last_name,
+          display_name,
           phone_number,
-          id_document,
-          state,
+          cedula_hash,
+          cedula_last4,
+          state_venezuela,
           account_status,
-          identity_verification_status,
-          two_factor_enabled,
+          kyc_status,
+          is_mfa_enabled,
           created_at,
           updated_at,
           user_roles(role),
@@ -240,15 +242,15 @@ export class AdminRepository {
 
         return {
           id: row.user_id,
-          email: `${row.first_name.toLowerCase().replace(/\s+/g, '')}@gmail.com`, // Sanitizado
+          email: `${(row.first_name || 'usuario').toLowerCase().replace(/\s+/g, '')}@gmail.com`, // Sanitizado
           firstName: row.first_name || 'Usuario',
           lastName: row.last_name || '',
           phoneMasked: row.phone_number ? `04**-***${row.phone_number.slice(-4)}` : undefined,
-          cedulaMasked: row.id_document ? `V-***${row.id_document.slice(-4)}` : undefined,
-          state: row.state,
+          cedulaMasked: row.cedula_last4 ? `V-***${row.cedula_last4}` : undefined,
+          state: row.state_venezuela,
           role: (roleData?.role as UserRole) || 'PLAYER',
           accountStatus: row.account_status || 'ACTIVE',
-          kycStatus: row.identity_verification_status || 'UNVERIFIED',
+          kycStatus: row.kyc_status || 'UNSUBMITTED',
           availableBalance: Number(wallet?.available_balance || 0),
           heldBalance: Number(wallet?.held_balance || 0),
           totalBalance: Number(wallet?.total_balance || 0),
@@ -256,7 +258,7 @@ export class AdminRepository {
           gamesWon: 8,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          isTwoFactorEnabled: Boolean(row.two_factor_enabled),
+          isTwoFactorEnabled: Boolean(row.is_mfa_enabled),
         };
       });
 
@@ -666,7 +668,7 @@ export class AdminRepository {
         .select(`
           *,
           profiles:user_id(first_name, last_name),
-          payment_accounts:payment_account_id(bank_code, bank_name, phone_number, cedula_type, cedula_number, account_holder_name)
+          payment_accounts:payment_account_id(bank_code, bank_name, phone_number, id_number_masked, is_verified)
         `)
         .order('created_at', { ascending: false });
 
@@ -695,8 +697,8 @@ export class AdminRepository {
           bankCode: account?.bank_code || '0102',
           bankName: account?.bank_name || 'Banco de Venezuela',
           phoneNumber: account?.phone_number,
-          idDocument: account ? `${account.cedula_type || 'V'}-${account.cedula_number || ''}` : undefined,
-          accountHolderName: account?.account_holder_name || name,
+          idDocument: account?.id_number_masked || undefined,
+          accountHolderName: name,
           bankReference: row.bank_reference,
           rejectionReason: row.rejection_reason,
           processedBy: row.processed_by,
@@ -833,7 +835,7 @@ export class AdminRepository {
         .from('game_tables')
         .select(`
           *,
-          game_table_players(user_id, seat_number, is_ready, profiles:user_id(first_name, last_name))
+          game_table_players(user_id, seat_number, status, profiles:user_id(first_name, last_name))
         `)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -849,29 +851,29 @@ export class AdminRepository {
       }
 
       let items: AdminTableItem[] = (data || []).map((row: any) => {
-        const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_id);
+        const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_type || g.id === row.game_id);
         const players = (row.game_table_players || []).map((p: any) => {
           const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
           return {
             userId: p.user_id,
             seatNumber: p.seat_number,
-            userName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Jugador',
-            isReady: Boolean(p.is_ready),
+            userName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Jugador',
+            isReady: p.status === 'READY',
           };
         });
 
         return {
           id: row.id,
-          gameId: row.game_id,
-          gameName: gameMeta?.name || row.game_id,
-          trackingCode: row.tracking_code || row.trk_code || `TRK-${row.id.slice(0, 6).toUpperCase()}`,
+          gameId: row.game_type || row.game_id,
+          gameName: gameMeta?.name || row.game_type || row.game_id,
+          trackingCode: row.invite_code || row.tracking_code || `TRK-${row.id.slice(0, 6).toUpperCase()}`,
           status: row.status,
-          entryFee: Number(row.entry_fee),
-          currentPot: Number(row.current_pot || row.entry_fee * players.length),
-          currentPlayers: players.length,
+          entryFee: Number(row.entry_fee || 0),
+          currentPot: Number(row.entry_fee * (row.current_players_count || players.length)),
+          currentPlayers: row.current_players_count ?? players.length,
           maxPlayers: row.max_players || 4,
-          isPrivate: Boolean(row.is_private),
-          creatorId: row.created_by,
+          isPrivate: row.visibility === 'PRIVATE' || Boolean(row.is_private),
+          creatorId: row.host_user_id || row.created_by,
           createdAt: row.created_at,
           playersList: players,
         };
@@ -937,7 +939,7 @@ export class AdminRepository {
         .from('game_sessions')
         .select(`
           *,
-          game_settlements(total_pot, service_fee, winner_payout, winner_user_id)
+          game_settlements(gross_pool, platform_fee, prize_pool, total_distributed, settlement_type)
         `)
         .order('created_at', { ascending: false })
         .limit(40);
@@ -949,21 +951,21 @@ export class AdminRepository {
 
       return (data || []).map((row: any) => {
         const settlement = Array.isArray(row.game_settlements) ? row.game_settlements[0] : row.game_settlements;
-        const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_id);
+        const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_type || g.id === row.game_id);
 
         return {
           id: row.id,
           tableId: row.table_id,
-          gameId: row.game_id,
-          gameName: gameMeta?.name || row.game_id,
+          gameId: row.game_type || row.game_id,
+          gameName: gameMeta?.name || row.game_type || row.game_id,
           status: row.status,
-          totalPot: Number(settlement?.total_pot || 100),
-          serviceFee: Number(settlement?.service_fee || 10),
-          winnerPayout: Number(settlement?.winner_payout || 90),
-          winnerUserId: settlement?.winner_user_id,
+          totalPot: Number(settlement?.gross_pool || 0),
+          serviceFee: Number(settlement?.platform_fee || 0),
+          winnerPayout: Number(settlement?.prize_pool || settlement?.total_distributed || 0),
+          winnerUserId: row.winner_user_id,
           playersCount: 2,
-          startedAt: row.created_at,
-          endedAt: row.completed_at,
+          startedAt: row.created_at || row.started_at,
+          endedAt: row.ended_at || row.completed_at,
         };
       });
     } catch (err) {

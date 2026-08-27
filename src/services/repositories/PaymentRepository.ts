@@ -32,10 +32,10 @@ export class PaymentRepository {
       bankCode: row.bank_code,
       bankName: row.bank_name,
       phoneNumber: row.phone_number,
-      idDocument: row.id_document,
-      accountHolderName: row.account_holder_name,
+      idDocument: row.id_number_masked || 'V-***',
+      accountHolderName: 'Titular Registrado',
       isVerified: Boolean(row.is_verified),
-      isLocked: Boolean(row.is_locked),
+      isLocked: !row.is_active,
       createdAt: row.created_at,
     }));
   }
@@ -125,21 +125,20 @@ export class PaymentRepository {
     // Asegurar que el perfil y billetera existen en la base de datos para satisfacer la FK
     await ProfileRepository.ensureCurrentUserProfile();
 
-    const [cedType, cedNum] = params.idDocument.includes('-')
-      ? params.idDocument.split('-')
-      : ['V', params.idDocument];
+    const idMasked = params.idDocument.includes('-')
+      ? params.idDocument
+      : `V-${params.idDocument}`;
 
     const { data, error } = await supabase
       .from('payment_accounts')
       .insert({
         user_id: userData.user.id,
-        account_type: 'PAGO_MOVIL',
         bank_code: params.bankCode,
         bank_name: params.bankName,
         phone_number: params.phoneNumber,
-        cedula_type: cedType || 'V',
-        cedula_number: cedNum || params.idDocument,
-        account_holder_name: params.accountHolderName,
+        id_number_masked: idMasked,
+        is_verified: false,
+        is_default: false,
         is_active: true,
       })
       .select()
@@ -156,10 +155,10 @@ export class PaymentRepository {
       bankCode: data.bank_code,
       bankName: data.bank_name,
       phoneNumber: data.phone_number,
-      idDocument: `${data.cedula_type}-${data.cedula_number}`,
-      accountHolderName: data.account_holder_name,
+      idDocument: data.id_number_masked || idMasked,
+      accountHolderName: params.accountHolderName,
       isVerified: Boolean(data.is_verified),
-      isLocked: Boolean(data.is_locked),
+      isLocked: !data.is_active,
       createdAt: data.created_at,
     };
   }

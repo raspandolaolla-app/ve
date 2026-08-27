@@ -1,19 +1,106 @@
 // ==============================================================================
-// RASPANDO LA OLLA — SANITIZADOR DE ERRORES PARA INTERFAZ PÚBLICA (FASE 24)
+// RASPANDO LA OLLA — SANITIZADOR DE ERRORES PARA INTERFAZ PÚBLICA (FASE 25.1)
 // ==============================================================================
 // Transforma errores técnicos (PostgreSQL, PGRST, RPCs, HTTP, red) en mensajes claros
 // y amigables para el usuario, protegiendo detalles internos de infraestructura.
+//
+// REGLA CRÍTICA:
+// 1. Errores técnicos (42703, 42P01, PGRST204, PGRST205, etc.) NUNCA deben interpretarse
+//    como "El sistema se está actualizando".
+// 2. "Mantenimiento" SOLO se muestra ante una señal explícita y verificable del sistema.
+// 3. Los datos sensibles (tokens, contraseñas, documentos) se limpian de los logs.
 // ==============================================================================
 
 /**
- * Traduce cualquier mensaje o código de error técnico a un mensaje amigable para el usuario.
- * Garantiza que nunca se muestren SQLSTATEs, tablas, funciones RPC ni stack traces.
+ * Categorías canónicas de error en el sistema.
  */
-export function sanitizeUserErrorMessage(
-  rawError: unknown,
-  fallbackMessage = 'No fue posible completar la operación. Inténtalo nuevamente.'
-): string {
-  if (!rawError) return fallbackMessage;
+export type ErrorCategory =
+  | 'AUTH_REQUIRED'
+  | 'AUTH_EXPIRED'
+  | 'PERMISSION_DENIED'
+  | 'INSUFFICIENT_BALANCE'
+  | 'INVALID_OPERATION'
+  | 'NETWORK_ERROR'
+  | 'NOT_FOUND'
+  | 'MAINTENANCE'
+  | 'UNKNOWN_ERROR';
+
+/**
+ * Estructura de error clasificado para uso interno y de interfaz.
+ */
+export interface ClassifiedError {
+  category: ErrorCategory;
+  userMessage: string;
+  safeCode: string;
+}
+
+/**
+ * Sanitiza objetos o mensajes de error para remover credenciales, tokens, JWTs y datos privados
+ * antes de registrar en la consola interna de depuración.
+ */
+export function scrubSensitiveData(data: unknown): any {
+  if (data === null || data === undefined) return data;
+  if (typeof data === 'string') {
+    return data
+      .replace(/bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED]')
+      .replace(/eyJ[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.?[A-Za-z0-9\-_+/=]*/g, '[JWT_REDACTED]')
+      .replace(/sb_secret_[A-Za-z0-9\-_]+/gi, '[SECRET_KEY_REDACTED]')
+      .replace(/password\s*[:=]\s*["']?[^"',\s]+/gi, 'password=[REDACTED]')
+      .replace(/service_role/gi, '[ROLE_REDACTED]');
+  }
+  if (typeof data === 'object') {
+    const scrubbed: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.includes('token') ||
+        lowerKey.includes('secret') ||
+        lowerKey.includes('jwt') ||
+        lowerKey.includes('password') ||
+        lowerKey.includes('service_role') ||
+        lowerKey.includes('authorization') ||
+        lowerKey.includes('cedula') ||
+        lowerKey.includes('document')
+      ) {
+        scrubbed[key] = '[REDACTED]';
+      } else if (typeof value === 'object' && value !== null) {
+        scrubbed[key] = scrubSensitiveData(value);
+      } else if (typeof value === 'string') {
+        scrubbed[key] = scrubSensitiveData(value);
+      } else {
+        scrubbed[key] = value;
+      }
+    }
+    return scrubbed;
+  }
+  return data;
+}
+
+/**
+ * Registra un error internamente sin exponer secretos ni información sensible.
+ */
+export function logInternalError(context: string, rawError: unknown, extraDetails?: Record<string, any>): void {
+  if (process.env.NODE_ENV !== 'production') {
+    const safeError = scrubSensitiveData(rawError);
+    const safeExtra = extraDetails ? scrubSensitiveData(extraDetails) : undefined;
+    console.debug(`[INTERNAL_ERROR] [${context}]`, {
+      error: safeError,
+      ...(safeExtra ? { details: safeExtra } : {}),
+    });
+  }
+}
+
+/**
+ * Clasifica un error técnico y devuelve una categoría estructurada y un mensaje seguro para el usuario.
+ */
+export function classifyError(rawError: unknown): ClassifiedError {
+  if (!rawError) {
+    return {
+      category: 'UNKNOWN_ERROR',
+      userMessage: 'No fue posible completar la operación. Por favor, inténtalo nuevamente en unos instantes.',
+      safeCode: 'UNKNOWN',
+    };
+  }
 
   let rawMsg = '';
   let errorCode = '';
@@ -29,77 +116,108 @@ export function sanitizeUserErrorMessage(
   const lower = rawMsg.toLowerCase();
   const code = errorCode.toLowerCase();
 
-  // Log técnico controlado exclusivamente en modo desarrollo
-  if (process.env.NODE_ENV !== 'production') {
-    console.debug('[Sanitized Error]', { code: errorCode, message: rawMsg });
-  }
-
-  // 1. Mapeo específico por códigos SQL / PostgREST / HTTP
-  if (code === '23505' || lower.includes('23505') || lower.includes('duplicate key') || lower.includes('unique constraint')) {
-    return 'Ya existe un registro con estos datos o la operación ya fue procesada.';
-  }
-
-  if (code === '23503' || lower.includes('23503') || lower.includes('foreign key constraint')) {
-    return 'La referencia seleccionada no es válida o ya no existe en el sistema.';
-  }
-
-  if (code === '42501' || lower.includes('42501') || lower.includes('row-level security') || lower.includes('permission denied')) {
-    return 'No dispones de los permisos necesarios para realizar esta acción.';
-  }
-
-  if (code === '42703' || lower.includes('42703') || lower.includes('column') || lower.includes('schema cache')) {
-    return 'El sistema se está actualizando. Por favor recarga la página o inténtalo en breve.';
-  }
-
-  if (code === 'pgrst116' || lower.includes('pgrst116') || code === '404' || lower.includes('not found')) {
-    return 'El registro solicitado no fue encontrado o no está disponible.';
-  }
-
-  if (code === '401' || lower.includes('401') || lower.includes('unauthorized') || lower.includes('unauthenticated')) {
-    return 'Debes iniciar sesión para realizar esta operación.';
-  }
-
-  if (code === '403' || lower.includes('403') || lower.includes('forbidden')) {
-    return 'Acceso no permitido para este recurso.';
-  }
-
-  if (code === '409' || lower.includes('409') || lower.includes('conflict')) {
-    return 'Conflicto de concurrencia al procesar la solicitud. Inténtalo de nuevo.';
-  }
-
-  if (code === '429' || lower.includes('429') || lower.includes('too many requests') || lower.includes('rate limit')) {
-    return 'Demasiados intentos seguidos. Por favor espera unos momentos antes de reintentar.';
-  }
-
-  if (code === '500' || code === '502' || code === '503' || lower.includes('500') || lower.includes('internal server error')) {
-    return 'El servicio está experimentando alta demanda. Inténtalo en unos minutos.';
-  }
-
-  // 2. Proveedores de Autenticación
+  // 1. Mantenimiento REAL del sistema (SOLO ante banderas o estados explícitos verificables)
   if (
-    lower.includes('provider is not enabled') ||
-    lower.includes('unsupported provider') ||
-    lower.includes('provider google is not enabled') ||
-    lower.includes('oauth provider') ||
-    lower.includes('not_configured') ||
-    lower.includes('not configured') ||
-    lower.includes('service_unavailable') ||
-    lower.includes('client no configurado')
+    code === 'maintenance' ||
+    code === 'maintenance_mode' ||
+    lower.includes('system_maintenance_active') ||
+    lower.includes('platform_maintenance') ||
+    lower.includes('mantenimiento_programado') ||
+    lower.includes('mantenimiento_activo') ||
+    lower.includes('sistema_en_mantenimiento')
   ) {
-    return 'El servicio de autenticación no está disponible temporalmente.';
+    return {
+      category: 'MAINTENANCE',
+      userMessage: 'El sistema se encuentra temporalmente en mantenimiento.',
+      safeCode: 'MAINTENANCE',
+    };
   }
 
-  // 3. Cancelaciones por el usuario
+  // 2. Mantenimiento específico de un juego
   if (
-    lower.includes('popup closed') ||
-    lower.includes('user cancelled') ||
-    lower.includes('closed by user') ||
-    lower.includes('access_denied')
+    lower.includes('game_inactive') ||
+    lower.includes('mantenimiento temporal') ||
+    lower.includes('juego no disponible')
   ) {
-    return 'El inicio de sesión fue cancelado. Puedes intentarlo de nuevo cuando desees.';
+    return {
+      category: 'MAINTENANCE',
+      userMessage: 'El juego seleccionado se encuentra en mantenimiento temporal.',
+      safeCode: 'GAME_MAINTENANCE',
+    };
   }
 
-  // 4. Problemas de red o conectividad
+  // 3. Autenticación requerida
+  if (
+    code === '401' ||
+    code === 'auth_required' ||
+    lower.includes('401') ||
+    lower.includes('unauthorized') ||
+    lower.includes('unauthenticated') ||
+    lower.includes('auth_required') ||
+    lower.includes('debes iniciar sesión') ||
+    lower.includes('usuario no autenticado')
+  ) {
+    const isTableCreation = lower.includes('crear una mesa') || lower.includes('mesa');
+    return {
+      category: 'AUTH_REQUIRED',
+      userMessage: isTableCreation
+        ? 'Debes iniciar sesión para crear una mesa.'
+        : 'Debes iniciar sesión para continuar.',
+      safeCode: 'AUTH_REQUIRED',
+    };
+  }
+
+  // 4. Sesión expirada
+  if (
+    code === 'session_expired' ||
+    lower.includes('jwt') ||
+    lower.includes('expired') ||
+    lower.includes('token_expired') ||
+    lower.includes('invalid claim')
+  ) {
+    return {
+      category: 'AUTH_EXPIRED',
+      userMessage: 'Tu sesión ha expirado. Inicia sesión nuevamente.',
+      safeCode: 'AUTH_EXPIRED',
+    };
+  }
+
+  // 5. Permisos denegados (RLS, roles, 403, 42501)
+  if (
+    code === '403' ||
+    code === '42501' ||
+    lower.includes('403') ||
+    lower.includes('42501') ||
+    lower.includes('forbidden') ||
+    lower.includes('permission denied') ||
+    lower.includes('row-level security') ||
+    lower.includes('permission_denied')
+  ) {
+    return {
+      category: 'PERMISSION_DENIED',
+      userMessage: 'No tienes permisos para realizar esta operación.',
+      safeCode: 'PERMISSION_DENIED',
+    };
+  }
+
+  // 6. Saldo insuficiente
+  if (
+    code === 'insufficient_funds' ||
+    code === 'insufficient_balance' ||
+    lower.includes('insufficient_balance') ||
+    lower.includes('insufficient_funds') ||
+    lower.includes('saldo insuficiente') ||
+    lower.includes('insufficient funds') ||
+    lower.includes('no dispones de saldo')
+  ) {
+    return {
+      category: 'INSUFFICIENT_BALANCE',
+      userMessage: 'Saldo disponible insuficiente para completar esta operación.',
+      safeCode: 'INSUFFICIENT_BALANCE',
+    };
+  }
+
+  // 7. Problemas de red o conectividad
   if (
     lower.includes('failed to fetch') ||
     lower.includes('network') ||
@@ -108,115 +226,164 @@ export function sanitizeUserErrorMessage(
     lower.includes('fetch failed') ||
     lower.includes('connection refused')
   ) {
-    return 'Problema de conexión con el servidor. Revisa tu acceso a internet e inténtalo de nuevo.';
+    return {
+      category: 'NETWORK_ERROR',
+      userMessage: 'No se pudo conectar temporalmente con el servidor.',
+      safeCode: 'NETWORK_ERROR',
+    };
   }
 
-  // 5. Saldo y billetera
+  // 8. Elementos no encontrados (404, pgrst116)
   if (
-    lower.includes('insufficient_balance') ||
-    lower.includes('saldo insuficiente') ||
-    lower.includes('insufficient funds') ||
-    lower.includes('no dispones de saldo')
+    code === '404' ||
+    code === 'pgrst116' ||
+    lower.includes('404') ||
+    lower.includes('pgrst116') ||
+    lower.includes('not found') ||
+    lower.includes('no encontrado')
   ) {
-    return 'Saldo disponible insuficiente para completar esta operación.';
+    return {
+      category: 'NOT_FOUND',
+      userMessage: 'No encontramos la información solicitada.',
+      safeCode: 'NOT_FOUND',
+    };
   }
 
-  // 6. Mesas y partidas
-  if (
-    lower.includes('auth_required') ||
-    lower.includes('debes iniciar sesión') ||
-    lower.includes('usuario no autenticado')
-  ) {
-    return 'Debes iniciar sesión para crear una mesa.';
+  // 9. Operaciones inválidas específicas (mesas, validaciones de negocio)
+  if (lower.includes('invalid_entry_fee') || lower.includes('monto de entrada') || lower.includes('no está autorizado')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'El monto de entrada no es válido o no está autorizado en el sistema.',
+      safeCode: 'INVALID_ENTRY_FEE',
+    };
   }
 
-  if (
-    lower.includes('invalid_entry_fee') ||
-    lower.includes('monto de entrada') ||
-    lower.includes('no está autorizado')
-  ) {
-    return 'El monto de entrada no es válido o no está autorizado en el sistema.';
+  if (lower.includes('invalid_game_type') || lower.includes('tipo de juego')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'El tipo de juego seleccionado no es válido.',
+      safeCode: 'INVALID_GAME_TYPE',
+    };
   }
 
-  if (
-    lower.includes('game_inactive') ||
-    lower.includes('mantenimiento temporal') ||
-    lower.includes('juego no disponible')
-  ) {
-    return 'El juego seleccionado se encuentra en mantenimiento temporal.';
+  if (lower.includes('profile_not_active') || lower.includes('cuenta no se encuentra activa') || lower.includes('cuenta bloqueada')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Tu cuenta no se encuentra activa para crear o participar en mesas.',
+      safeCode: 'PROFILE_NOT_ACTIVE',
+    };
   }
 
-  if (
-    lower.includes('profile_not_active') ||
-    lower.includes('cuenta no se encuentra activa') ||
-    lower.includes('cuenta bloqueada') ||
-    lower.includes('cuenta suspendida')
-  ) {
-    return 'Tu cuenta no se encuentra activa para crear o participar en mesas.';
+  if (lower.includes('seat_taken') || lower.includes('table_full') || lower.includes('asiento ocupado') || lower.includes('mesa llena')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'El asiento seleccionado ya fue ocupado o la mesa alcanzó su capacidad máxima.',
+      safeCode: 'SEAT_TAKEN',
+    };
   }
 
-  if (
-    lower.includes('table_creation_error') ||
-    lower.includes('error al crear la mesa')
-  ) {
-    return 'No fue posible crear la mesa en este momento. Intenta nuevamente.';
+  if (lower.includes('table_not_waiting') || lower.includes('already_started') || lower.includes('partida en curso')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'La mesa ya ha iniciado su partida o no está disponible.',
+      safeCode: 'TABLE_ALREADY_STARTED',
+    };
   }
 
-  if (
-    lower.includes('invalid_game_type') ||
-    lower.includes('tipo de juego')
-  ) {
-    return 'El tipo de juego seleccionado no es válido.';
+  if (code === '23505' || lower.includes('23505') || lower.includes('duplicate key') || lower.includes('unique constraint')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Ya existe un registro con estos datos o la operación ya fue procesada.',
+      safeCode: 'DUPLICATE_KEY',
+    };
   }
 
-  if (
-    lower.includes('invalid_players_count') ||
-    lower.includes('cantidad de jugadores')
-  ) {
-    return 'La cantidad de jugadores configurada no es válida para este juego.';
-  }
-
-  if (
-    lower.includes('duplicate_invite_code') ||
-    lower.includes('código único')
-  ) {
-    return 'No fue posible generar un código único. Intenta nuevamente.';
-  }
-
-  if (
-    lower.includes('seat_taken') ||
-    lower.includes('table_full') ||
-    lower.includes('asiento ocupado') ||
-    lower.includes('mesa llena')
-  ) {
-    return 'El asiento seleccionado ya fue ocupado o la mesa alcanzó su capacidad máxima.';
+  if (code === '23503' || lower.includes('23503') || lower.includes('foreign key constraint')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'La referencia seleccionada no es válida o ya no existe en el sistema.',
+      safeCode: 'FOREIGN_KEY_VIOLATION',
+    };
   }
 
   if (
-    lower.includes('table_not_waiting') ||
-    lower.includes('already_started') ||
-    lower.includes('partida en curso')
+    lower.includes('popup closed') ||
+    lower.includes('user cancelled') ||
+    lower.includes('closed by user') ||
+    lower.includes('access_denied')
   ) {
-    return 'La mesa ya ha iniciado su partida o no está disponible.';
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'El inicio de sesión fue cancelado. Puedes intentarlo de nuevo cuando desees.',
+      safeCode: 'OAUTH_CANCELLED',
+    };
   }
 
-  // 7. Sesión o tokens
-  if (lower.includes('jwt') || lower.includes('expired') || lower.includes('invalid claim')) {
-    return 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
-  }
-
-  // 8. Ocultación de nombres de funciones internas / tablas / RPC / SQL
   if (
-    lower.includes('pgrst') ||
-    lower.includes('rpc') ||
-    lower.includes('security definer') ||
-    lower.includes('relation') ||
-    lower.includes('function') ||
-    lower.includes('syntax error') ||
-    lower.includes('permission_denied')
+    lower.includes('provider is not enabled') ||
+    lower.includes('unsupported provider') ||
+    lower.includes('provider google is not enabled') ||
+    lower.includes('oauth provider') ||
+    lower.includes('not_configured') ||
+    lower.includes('service_unavailable')
   ) {
-    return 'No fue posible completar la operación en este momento. Inténtalo nuevamente.';
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'El servicio de autenticación no está disponible temporalmente.',
+      safeCode: 'PROVIDER_UNAVAILABLE',
+    };
   }
 
-  return fallbackMessage;
+  // 10. Errores de concurrencia y límites
+  if (code === '409' || lower.includes('409') || lower.includes('conflict')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Conflicto de concurrencia al procesar la solicitud. Inténtalo de nuevo.',
+      safeCode: 'CONFLICT',
+    };
+  }
+
+  if (code === '429' || lower.includes('429') || lower.includes('too many requests') || lower.includes('rate limit')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Demasiados intentos seguidos. Por favor espera unos momentos antes de reintentar.',
+      safeCode: 'RATE_LIMIT',
+    };
+  }
+
+  // 11. Errores de servidor, de esquema y no clasificados (42703, 42P01, PGRST204, PGRST205, 500, 502, 503)
+  // NOTA: NUNCA mostrar "El sistema se está actualizando" para estos errores técnicos.
+  return {
+    category: 'UNKNOWN_ERROR',
+    userMessage: 'No fue posible completar la operación. Por favor, inténtalo nuevamente en unos instantes.',
+    safeCode: code || 'SERVER_ERROR',
+  };
 }
+
+/**
+ * Traduce cualquier mensaje o código de error técnico a un mensaje amigable para el usuario.
+ * Garantiza que nunca se muestren SQLSTATEs, tablas, funciones RPC ni stack traces.
+ */
+export function sanitizeUserErrorMessage(
+  rawError: unknown,
+  fallbackMessage = 'No fue posible completar la operación. Por favor, inténtalo nuevamente en unos instantes.'
+): string {
+  if (!rawError) return fallbackMessage;
+
+  logInternalError('sanitizeUserErrorMessage', rawError);
+
+  const classified = classifyError(rawError);
+
+  // Si se clasificó como error desconocido y se proporcionó un fallback personalizado distinto al default, usar el fallback
+  if (
+    classified.category === 'UNKNOWN_ERROR' &&
+    fallbackMessage &&
+    fallbackMessage !== 'No fue posible completar la operación. Por favor, inténtalo nuevamente en unos instantes.' &&
+    fallbackMessage !== 'No fue posible completar la operación. Inténtalo nuevamente.'
+  ) {
+    return fallbackMessage;
+  }
+
+  return classified.userMessage;
+}
+

@@ -16,7 +16,7 @@ import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
 import { ProfileRepository } from '../../services/repositories/ProfileRepository';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { TermsService } from '../../services/legal/TermsService';
-import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { sanitizeUserErrorMessage, classifyError } from '../../utils/errorSanitizer';
 
 interface AuthContextValue {
   state: AuthState;
@@ -86,20 +86,20 @@ export function getOAuthRedirectUrl(): string {
 function sanitizeAuthError(rawError: unknown): AuthErrorDetails {
   const rawMsg = rawError instanceof Error ? rawError.message : String(rawError || '');
   const lower = rawMsg.toLowerCase();
-
-  const userFriendlyMessage = sanitizeUserErrorMessage(
-    rawError,
-    'No fue posible iniciar sesión con Google. Verifica tu conexión e inténtalo nuevamente.'
-  );
+  const classified = classifyError(rawError);
 
   let code = 'AUTH_ERROR';
+  let userFriendlyMessage = classified.userMessage;
+
   if (
     lower.includes('provider') ||
     lower.includes('not enabled') ||
     lower.includes('unsupported provider') ||
-    lower.includes('not_configured')
+    lower.includes('not_configured') ||
+    lower.includes('missing supabase')
   ) {
     code = 'PROVIDER_UNAVAILABLE';
+    userFriendlyMessage = 'El servicio de autenticación no está disponible temporalmente.';
   } else if (
     lower.includes('popup closed') ||
     lower.includes('user cancelled') ||
@@ -107,12 +107,22 @@ function sanitizeAuthError(rawError: unknown): AuthErrorDetails {
     lower.includes('access_denied')
   ) {
     code = 'OAUTH_CANCELLED';
-  } else if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout')) {
+    userFriendlyMessage = 'El inicio de sesión fue cancelado. Puedes intentarlo de nuevo cuando desees.';
+  } else if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout') || lower.includes('connection')) {
     code = 'NETWORK_ERROR';
+    userFriendlyMessage = 'Problema de conexión con el servidor. Revisa tu acceso a internet e inténtalo de nuevo.';
   } else if (lower.includes('rate limit') || lower.includes('429')) {
     code = 'RATE_LIMIT';
+    userFriendlyMessage = 'Demasiados intentos seguidos. Por favor espera unos momentos antes de reintentar.';
   } else if (lower.includes('jwt') || lower.includes('expired') || lower.includes('invalid claim')) {
     code = 'SESSION_EXPIRED';
+    userFriendlyMessage = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
+  } else if (classified.category === 'MAINTENANCE') {
+    code = 'MAINTENANCE';
+    userFriendlyMessage = classified.userMessage;
+  } else if (classified.category === 'UNKNOWN_ERROR') {
+    code = 'AUTH_ERROR';
+    userFriendlyMessage = 'No fue posible iniciar sesión con Google. Verifica tu conexión e inténtalo nuevamente.';
   }
 
   return {

@@ -4,6 +4,7 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { ProfileRepository } from './ProfileRepository';
 import type { PaymentAccount, DepositRequest, WithdrawalRequest } from '../../types/payments';
 
 export class PaymentRepository {
@@ -121,6 +122,9 @@ export class PaymentRepository {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return null;
 
+    // Asegurar que el perfil y billetera existen en la base de datos para satisfacer la FK
+    await ProfileRepository.ensureCurrentUserProfile();
+
     const [cedType, cedNum] = params.idDocument.includes('-')
       ? params.idDocument.split('-')
       : ['V', params.idDocument];
@@ -175,6 +179,9 @@ export class PaymentRepository {
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return { success: false, error: 'Usuario no autenticado' };
+
+    // Asegurar que el perfil y billetera existen en la base de datos para satisfacer la FK deposit_requests_user_id_fkey
+    await ProfileRepository.ensureCurrentUserProfile();
 
     // Extraer código bancario de 4 dígitos (ej: '0102' de '0102 - Banco de Venezuela')
     const matchBankCode = params.bankOrigin.match(/\b\d{4}\b/);

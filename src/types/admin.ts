@@ -7,6 +7,7 @@ export type UserRole = 'PLAYER' | 'OPERATOR' | 'ADMIN' | 'SUPER_ADMIN';
 export type AdminTabId =
   | 'dashboard'
   | 'users'
+  | 'polla'
   | 'kyc'
   | 'deposits'
   | 'withdrawals'

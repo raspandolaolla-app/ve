@@ -52,7 +52,7 @@ export const VENEZUELAN_STATES: readonly VenezuelanState[] = [
 export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
   {
     id: 'tic_tac_toe',
-    name: '3 en Raya',
+    name: 'La Vieja',
     shortDescription: 'Clásico duelo estratégico por turnos.',
     minPlayers: 2,
     maxPlayers: 2,

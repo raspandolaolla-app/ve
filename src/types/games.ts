@@ -65,6 +65,7 @@ export interface TicTacToeState {
   turnUserId: string;
   playerSymbols: Record<string, TicTacToeSymbol>; // userId -> 'X' | 'O'
   playerNames: Record<string, string>;
+  lives?: Record<string, number>;
   round: number;
   targetWins: number;
   scores: Record<string, number>;
@@ -97,6 +98,7 @@ export interface RPSState {
   targetWins: number;
   scores: Record<string, number>;
   playerNames: Record<string, string>;
+  lives?: Record<string, number>;
   playerChoices: Record<string, { choice?: RPSChoice; committed: boolean; hash?: string }>;
   phase: 'selecting' | 'round_result' | 'match_ended';
   status: 'playing' | 'round_won' | 'game_won' | 'draw';
@@ -126,6 +128,7 @@ export interface CheckersState {
   turnUserId: string;
   players: { userId: string; playerNumber: 1 | 2; name: string }[];
   capturedCount: Record<string, number>;
+  lives?: Record<string, number>;
   status: 'playing' | 'game_won' | 'draw';
   winnerUserId: string | null;
   lastMove: CheckersMove | null;
@@ -152,6 +155,7 @@ export interface DominoState {
   turnUserId: string;
   playerOrder: string[];
   playerNames: Record<string, string>;
+  lives?: Record<string, number>;
   targetScore: number;
   cumulativeScores: Record<string, number>;
   round: number;
@@ -224,8 +228,47 @@ export interface BingoState {
 }
 
 // ------------------------------------------------------------------------------
-// 7. POLLA VENEZOLANA
+// 7. POLLA VENEZOLANA (QUINIELA DE ANIMALITOS 00-76)
 // ------------------------------------------------------------------------------
+export type PollaBlockType = 'MAÑANA' | 'TARDE';
+
+export interface PollaTicket {
+  id: string;
+  userId: string;
+  block: PollaBlockType;
+  drawDate: string; // YYYY-MM-DD
+  animalitos: string[]; // 6 códigos de animalitos (ej: ['00', '15', '22', '31', '45', '76'])
+  costBs: number; // 250 Bs
+  hits: number;
+  status: 'PENDING' | 'WINNER' | 'NOT_WINNER' | 'CANCELLED';
+  prizeBs: number;
+  createdAt: string;
+}
+
+export interface PollaLotteryResult {
+  lotteryName: string;
+  numbers: string[]; // Códigos de animalitos (00-76)
+}
+
+export interface PollaDrawResultItem {
+  id: string;
+  drawDate: string;
+  block: PollaBlockType;
+  drawTime: string; // '08:00', '09:00', ..., '19:00'
+  lotteries: PollaLotteryResult[];
+  createdAt: string;
+}
+
+export interface PollaBlockWinner {
+  block: PollaBlockType;
+  drawDate: string;
+  winnerUserId: string | null;
+  winnerName: string | null;
+  winnerTicketId: string | null;
+  hits: number;
+  prizeBs: number;
+}
+
 export interface PollaFixture {
   id: string;
   homeTeam: string;
@@ -249,6 +292,11 @@ export interface PollaState {
   leaderboard: { userId: string; points: number; correctExact: number; correctOutcome: number }[];
   status: 'open_picks' | 'in_progress' | 'settled';
   winnerUserId: string | null;
+  // Campos extendidos para Polla Venezolana (Animalitos)
+  activeBlock?: PollaBlockType;
+  selectedDate?: string;
+  myTickets?: PollaTicket[];
+  blockWinners?: PollaBlockWinner[];
 }
 
 // ------------------------------------------------------------------------------

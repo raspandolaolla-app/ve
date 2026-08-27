@@ -329,18 +329,28 @@ export class GameRepository {
   }
 
   /**
-   * Expira de forma atómica el turno actual si superó la fecha límite (10s).
+   * Expira de forma atómica el turno actual si superó la fecha límite (10s o 30s) y deduce vida.
    */
   public static async expireTurn(sessionId: string): Promise<boolean> {
     const supabase = getSupabaseClient();
     if (!supabase) return false;
 
+    // Intentar primero con el motor unificado de vidas y timeout
+    const { data: genericData, error: genericError } = await supabase.rpc('expire_game_turn_secure', {
+      p_session_id: sessionId,
+    });
+
+    if (!genericError && genericData?.success) {
+      return true;
+    }
+
+    // Fallback al motor específico de dominó
     const { data, error } = await supabase.rpc('expire_domino_turn_secure', {
       p_session_id: sessionId,
     });
 
     if (error) {
-      console.warn('[GameRepository] Error expirando turno de dominó:', error.message);
+      console.warn('[GameRepository] Error expirando turno:', error.message);
       return false;
     }
 

@@ -218,7 +218,7 @@ BEGIN
     WHERE user_id = v_user_id;
   END IF;
 
-  IF v_profile_status IN ('SUSPENDED', 'BANNED', 'LOCKED') THEN
+  IF v_profile_status::text NOT IN ('ACTIVE', 'PENDING_VERIFICATION') THEN
     RAISE EXCEPTION 'ACCOUNT_BLOCKED: Tu cuenta no está autorizada para crear mesas';
   END IF;
 

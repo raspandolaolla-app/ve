@@ -228,6 +228,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         },
         (payload) => {
           const updated = payload.new as any;
+          if (updated) {
+            setSession((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    turnExpiresAt: updated.turn_deadline_at || prev.turnExpiresAt,
+                    currentState: updated.current_state || prev.currentState,
+                    status: updated.status || prev.status,
+                    winnerUserId: updated.winner_user_id || prev.winnerUserId,
+                  }
+                : prev
+            );
+          }
+
           if (updated?.current_state) {
             const sanitized = engine.getSanitizedStateForPlayer
               ? engine.getSanitizedStateForPlayer(updated.current_state, currentUserId)
@@ -447,6 +461,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <TicTacToeBoard
             state={gameState}
             currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
             onPlaceSymbol={(cellIndex) => handleGameAction('PLACE_SYMBOL', { cellIndex })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
           />
@@ -467,6 +483,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <CheckersBoard
             state={gameState}
             currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
             onMovePiece={(move) => handleGameAction('MOVE_PIECE', { move })}
           />
         );

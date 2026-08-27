@@ -6,9 +6,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { SkipForward, Eye, Clock } from 'lucide-react';
+import { SkipForward, Eye } from 'lucide-react';
 import type { DominoState, DominoTile } from '../../../types/games';
 import { GameRepository } from '../../../services/repositories/GameRepository';
+import { PlayerLives } from './PlayerLives';
+import { TurnTimer } from './TurnTimer';
 
 interface DominoBoardProps {
   state: DominoState;
@@ -94,7 +96,6 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   onPassTurn,
 }) => {
   const [selectedTile, setSelectedTile] = useState<DominoTile | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(10);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('domino_view_mode');
     return saved === 'CLASSIC' ? 'CLASSIC' : 'NORMAL';
@@ -106,77 +107,59 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 
   const isMyTurn = state.turnUserId === currentUserId && state.status === 'playing';
   const myHand = state.hands[currentUserId] || [];
-  const activeTurnUserName = state.playerNames[state.turnUserId] || 'Jugador';
-
-  // Temporizador de 10s sincronizado con el servidor
-  useEffect(() => {
-    if (state.status !== 'playing') {
-      setTimeLeft(10);
-      return;
-    }
-
-    const calculateRemaining = () => {
-      if (!turnExpiresAt) return 10;
-      const expireMs = new Date(turnExpiresAt).getTime();
-      const diffSec = Math.ceil((expireMs - Date.now()) / 1000);
-      return Math.max(0, Math.min(10, diffSec));
-    };
-
-    setTimeLeft(calculateRemaining());
-
-    const interval = setInterval(() => {
-      const remaining = calculateRemaining();
-      setTimeLeft(remaining);
-
-      // Si el tiempo expira y es mi turno, solicitar expiración server-side / auto-paso
-      if (remaining === 0 && isMyTurn) {
-        clearInterval(interval);
-        if (sessionId) {
-          GameRepository.expireTurn(sessionId).then((expired) => {
-            if (!expired) {
-              onPassTurn();
-            }
-          });
-        } else {
-          onPassTurn();
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [turnExpiresAt, state.status, state.turnUserId, isMyTurn, sessionId, onPassTurn]);
+  const activeTurnUserName = (state.playerNames[state.turnUserId] || 'JUGADOR').toUpperCase();
 
   const handleTileClick = (tile: DominoTile) => {
     if (!isMyTurn) return;
 
     if (state.board.length === 0) {
-      onPlayTile(tile, 'left');
+      onPlayTile(tile, 'initial');
+      setSelectedTile(null);
       return;
     }
 
-    const matchesLeft = tile[0] === state.leftEnd || tile[1] === state.leftEnd;
-    const matchesRight = tile[0] === state.rightEnd || tile[1] === state.rightEnd;
+    const fitsLeft = state.leftEnd === null || tile[0] === state.leftEnd || tile[1] === state.leftEnd;
+    const fitsRight = state.rightEnd === null || tile[0] === state.rightEnd || tile[1] === state.rightEnd;
 
-    if (matchesLeft && !matchesRight) {
+    if (fitsLeft && !fitsRight) {
       onPlayTile(tile, 'left');
       setSelectedTile(null);
-    } else if (!matchesLeft && matchesRight) {
+    } else if (fitsRight && !fitsLeft) {
       onPlayTile(tile, 'right');
       setSelectedTile(null);
-    } else if (matchesLeft && matchesRight) {
+    } else if (fitsLeft && fitsRight) {
       setSelectedTile(tile);
     }
   };
 
+  const handleTimeout = () => {
+    if (isMyTurn && sessionId) {
+      GameRepository.expireTurn(sessionId).then((expired) => {
+        if (!expired) {
+          onPassTurn();
+        }
+      });
+    }
+  };
+
+  const hasPlayableTile = myHand.some(
+    (tile) =>
+      state.leftEnd === null ||
+      tile[0] === state.leftEnd ||
+      tile[1] === state.leftEnd ||
+      tile[0] === state.rightEnd ||
+      tile[1] === state.rightEnd
+  );
+
   return (
-    <div id="domino-board-container" className="flex flex-col items-center justify-between p-2 sm:p-4 max-w-2xl mx-auto w-full min-h-[480px]">
-      {/* Selector de Vista de Fichas (NORMAL vs CLÁSICA) */}
-      <div className="w-full flex items-center justify-between bg-neutral-900/80 border border-neutral-800 rounded-xl px-3 py-2 mb-3">
-        <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-300">
+    <div id="domino-board-container" className="flex flex-col items-center justify-center p-4 max-w-4xl mx-auto w-full">
+      {/* Selector de Modo de Vista */}
+      <div className="w-full flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-neutral-400">
           <Eye className="w-4 h-4 text-amber-400" />
-          <span>Vista de fichas:</span>
+          <span>ESTILO DE FICHAS:</span>
         </div>
-        <div className="flex items-center space-x-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
+        <div className="flex items-center space-x-1 bg-neutral-900 border border-neutral-800 rounded-lg p-0.5">
           <button
             id="domino-view-normal-btn"
             onClick={() => setViewMode('NORMAL')}
@@ -202,159 +185,151 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         </div>
       </div>
 
-      {/* Banner de Turno y Temporizador Sincronizado */}
-      <div
-        id="domino-turn-banner"
-        className={`w-full flex items-center justify-between p-3 rounded-xl border mb-3 transition-all ${
-          isMyTurn
-            ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
-            : 'bg-neutral-900/80 border-neutral-800 text-neutral-300'
-        }`}
-      >
-        <div className="flex items-center space-x-2">
-          <div
-            className={`w-3 h-3 rounded-full ${
-              isMyTurn ? 'bg-amber-400 animate-ping' : 'bg-neutral-600'
-            }`}
-          />
-          <span className="text-xs font-bold uppercase tracking-wider">
-            {isMyTurn ? '¡ES TU TURNO!' : `TURNO DE: ${activeTurnUserName}`}
-          </span>
-        </div>
-
-        <div
-          className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg border font-mono text-xs font-bold ${
-            timeLeft <= 3
-              ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse'
-              : 'bg-neutral-950 border-neutral-800 text-amber-400'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          <span>TIEMPO: {timeLeft}s</span>
-        </div>
+      {/* Temporizador Sincronizado */}
+      <div className="w-full mb-3">
+        <TurnTimer
+          turnExpiresAt={turnExpiresAt}
+          durationSeconds={10}
+          isMyTurn={isMyTurn}
+          activePlayerName={activeTurnUserName}
+          status={state.status}
+          onTimeout={handleTimeout}
+        />
       </div>
 
-      {/* Marcador Superior */}
+      {/* Marcador Superior con Vidas y Nombres en MAYÚSCULAS */}
       <div id="domino-scoreboard" className="grid grid-cols-2 gap-3 w-full mb-3">
-        {state.playerOrder.map((uId) => (
-          <div
-            key={uId}
-            id={`domino-player-card-${uId}`}
-            className={`p-3 rounded-xl border transition-all ${
-              state.turnUserId === uId && state.status === 'playing'
-                ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-400/30'
-                : 'bg-neutral-900/60 border-neutral-800'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold text-neutral-200 truncate block max-w-[120px]">
-                  {state.playerNames[uId] || 'Jugador'}
-                </span>
-                <span className="text-[10px] text-neutral-400 font-mono">
-                  {state.hands[uId]?.length || 0} fichas restantes
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-xl font-black text-white font-mono">
-                  {state.cumulativeScores[uId] || 0}
-                </span>
-                <span className="text-[10px] text-neutral-500 block font-mono">/{state.targetScore} pts</span>
+        {state.playerOrder.map((uId) => {
+          const pLives = (state.lives && state.lives[uId] !== undefined) ? state.lives[uId] : 3;
+          const uppercaseName = (state.playerNames[uId] || 'JUGADOR').toUpperCase();
+
+          return (
+            <div
+              key={uId}
+              id={`domino-player-card-${uId}`}
+              className={`p-3 rounded-xl border transition-all ${
+                state.turnUserId === uId && state.status === 'playing'
+                  ? 'bg-amber-500/10 border-amber-500 ring-1 ring-amber-400/30'
+                  : 'bg-neutral-900/60 border-neutral-800'
+              }`}
+            >
+              <div className="flex flex-col space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="truncate">
+                    <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[110px]">
+                      {uppercaseName}
+                    </div>
+                    {uId === currentUserId && (
+                      <span className="text-[10px] text-amber-400 font-mono font-semibold uppercase">
+                        (TÚ)
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-neutral-400">Fichas:</span>
+                    <span className="ml-1 text-xs font-bold text-white font-mono">
+                      {state.hands[uId]?.length || 0}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Vidas */}
+                <div className="pt-1 border-t border-neutral-800/80 flex items-center justify-between">
+                  <PlayerLives lives={pLives} size="sm" showText={false} />
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    Pts: {state.cumulativeScores[uId] || 0}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Mesa Verde / Tablero Central de Dominó */}
+      {/* Mesa del Dominó */}
       <div
-        id="domino-table"
-        className="w-full flex-1 min-h-[220px] rounded-2xl bg-emerald-950/80 border-4 border-amber-900/40 p-4 flex flex-col items-center justify-center relative overflow-x-auto shadow-2xl"
+        id="domino-board-table"
+        className="w-full min-h-[220px] sm:min-h-[260px] p-4 rounded-2xl bg-gradient-to-b from-emerald-950/70 to-neutral-950 border-2 border-emerald-900/50 shadow-2xl flex items-center justify-center overflow-x-auto relative mb-4"
       >
         {state.board.length === 0 ? (
-          <div className="text-center text-emerald-300/60 font-mono text-xs">
-            Mano abierta. El jugador en turno debe iniciar la partida.
-          </div>
+          <span className="text-xs sm:text-sm text-emerald-400/60 font-medium italic animate-pulse">
+            Mesa limpia. Esperando la primera jugada...
+          </span>
         ) : (
-          <div className="flex items-center space-x-1.5 overflow-x-auto max-w-full p-2">
-            {state.board.map((placed, idx) => (
+          <div id="domino-tiles-chain" className="flex items-center space-x-1 sm:space-x-1.5 py-4 px-2 min-w-max">
+            {state.board.map((pt, idx) => (
               <motion.div
                 key={idx}
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-                className="w-9 h-18 sm:w-10 sm:h-20 bg-amber-50 border-2 border-neutral-900 rounded-lg shadow-md flex items-center justify-center select-none shrink-0"
+                id={`domino-placed-tile-${idx}`}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-9 h-16 sm:w-11 sm:h-20 bg-neutral-100 rounded-lg border border-neutral-300 shadow-md flex-shrink-0"
               >
-                <DominoTileRender tile={placed.tile} mode={viewMode} size="sm" />
+                <DominoTileRender
+                  tile={pt.flipped ? [pt.tile[1], pt.tile[0]] : pt.tile}
+                  mode={viewMode}
+                  size="sm"
+                />
               </motion.div>
             ))}
           </div>
         )}
-
-        {/* Puntas del Tablero */}
-        {state.board.length > 0 && (
-          <div className="absolute top-2 left-3 right-3 flex justify-between text-[11px] font-mono text-emerald-300">
-            <span>Punta Izquierda: [{state.leftEnd}]</span>
-            <span>Punta Derecha: [{state.rightEnd}]</span>
-          </div>
-        )}
       </div>
 
-      {/* Diálogo emergente para elegir lado si la ficha juega en ambos extremos */}
+      {/* Panel de Selección de Extremo */}
       {selectedTile && (
-        <div className="my-2 p-3 bg-neutral-900 border border-amber-500/50 rounded-xl flex items-center space-x-3">
-          <span className="text-xs text-neutral-200 font-semibold">
-            ¿Por cuál punta deseas jugar [{selectedTile[0]}-{selectedTile[1]}]?
+        <div id="domino-side-selector" className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-between w-full max-w-md">
+          <span className="text-xs font-bold text-amber-300 uppercase">
+            ¿En cuál extremo deseas jugar [{selectedTile[0]}|{selectedTile[1]}]?
           </span>
-          <button
-            onClick={() => {
-              onPlayTile(selectedTile, 'left');
-              setSelectedTile(null);
-            }}
-            className="px-3 py-1 bg-amber-500 text-neutral-950 font-bold text-xs rounded-lg hover:bg-amber-400"
-          >
-            Izquierda ({state.leftEnd})
-          </button>
-          <button
-            onClick={() => {
-              onPlayTile(selectedTile, 'right');
-              setSelectedTile(null);
-            }}
-            className="px-3 py-1 bg-amber-500 text-neutral-950 font-bold text-xs rounded-lg hover:bg-amber-400"
-          >
-            Derecha ({state.rightEnd})
-          </button>
-          <button
-            onClick={() => setSelectedTile(null)}
-            className="px-2 py-1 bg-neutral-800 text-neutral-400 text-xs rounded-lg hover:bg-neutral-700"
-          >
-            Cancelar
-          </button>
+          <div className="flex space-x-2">
+            <button
+              id="domino-play-left-btn"
+              onClick={() => {
+                onPlayTile(selectedTile, 'left');
+                setSelectedTile(null);
+              }}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs"
+            >
+              IZQUIERDA
+            </button>
+            <button
+              id="domino-play-right-btn"
+              onClick={() => {
+                onPlayTile(selectedTile, 'right');
+                setSelectedTile(null);
+              }}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs"
+            >
+              DERECHA
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Zona de Fichas de Mi Mano (Hand Drawer) */}
-      <div id="domino-hand-drawer" className="w-full mt-3 bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-neutral-300">
-            Tus Fichas {isMyTurn && <span className="text-emerald-400">(¡Es tu turno!)</span>}
+      {/* Mi Mano de Fichas */}
+      <div id="domino-my-hand-container" className="w-full flex flex-col items-center">
+        <div className="flex items-center justify-between w-full mb-2">
+          <span className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+            TUS FICHAS EN MANO ({myHand.length})
           </span>
-          {isMyTurn && (
+          {isMyTurn && !hasPlayableTile && (
             <button
-              id="domino-pass-btn"
+              id="domino-pass-turn-btn"
               onClick={onPassTurn}
-              className="flex items-center space-x-1 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-lg text-xs font-semibold transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 text-xs font-bold transition-colors animate-pulse"
             >
-              <SkipForward className="w-3 h-3" />
-              <span>Paso</span>
+              <SkipForward className="w-3.5 h-3.5" />
+              <span>PASAR TURNO</span>
             </button>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div id="domino-hand-grid" className="flex flex-wrap gap-2 justify-center max-w-full">
           {myHand.map((tile, idx) => {
-            const canPlay =
+            const isPlayable =
               isMyTurn &&
-              (state.board.length === 0 ||
+              (state.leftEnd === null ||
                 tile[0] === state.leftEnd ||
                 tile[1] === state.leftEnd ||
                 tile[0] === state.rightEnd ||
@@ -363,15 +338,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             return (
               <motion.button
                 key={idx}
-                id={`domino-hand-tile-${idx}`}
-                whileHover={canPlay ? { scale: 1.1, y: -4 } : {}}
-                whileTap={canPlay ? { scale: 0.95 } : {}}
-                onClick={() => canPlay && handleTileClick(tile)}
-                disabled={!canPlay}
-                className={`w-11 h-22 sm:w-12 sm:h-24 bg-amber-50 border-2 border-neutral-900 rounded-xl flex items-center justify-center shadow-lg font-black text-sm select-none transition-all ${
-                  canPlay
-                    ? 'cursor-pointer hover:border-amber-500 ring-2 ring-amber-400/50'
-                    : 'opacity-40 cursor-not-allowed'
+                id={`domino-hand-tile-${tile[0]}-${tile[1]}`}
+                whileHover={isPlayable ? { scale: 1.08, y: -4 } : {}}
+                whileTap={isPlayable ? { scale: 0.95 } : {}}
+                onClick={() => handleTileClick(tile)}
+                disabled={!isPlayable}
+                className={`w-11 h-20 sm:w-14 sm:h-24 rounded-xl border-2 transition-all shadow-lg ${
+                  isPlayable
+                    ? 'bg-gradient-to-b from-amber-100 to-amber-200 border-amber-400 cursor-pointer shadow-amber-500/20 ring-2 ring-amber-400/50'
+                    : 'bg-neutral-200 border-neutral-400 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <DominoTileRender tile={tile} mode={viewMode} size="md" />

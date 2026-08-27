@@ -47,6 +47,11 @@ export class DominoEngine implements IGameEngine<DominoState> {
       }
     }
 
+    const lives: Record<string, number> = {};
+    sortedPlayers.forEach((p) => {
+      lives[p.userId] = 3;
+    });
+
     return {
       hands,
       board: [],
@@ -55,6 +60,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
       turnUserId: startingUserId,
       playerOrder,
       playerNames,
+      lives,
       targetScore: 50,
       cumulativeScores,
       round: 1,

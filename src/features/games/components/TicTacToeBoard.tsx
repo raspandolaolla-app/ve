@@ -1,15 +1,20 @@
 // ==============================================================================
-// RASPANDO LA OLLA — TABLERO DE JUEGO: 3 EN RAYA (TIC TAC TOE)
+// RASPANDO LA OLLA — TABLERO DE JUEGO: LA VIEJA
 // ==============================================================================
 
 import React from 'react';
 import { motion } from 'motion/react';
 import { Trophy, RefreshCw, Sparkles } from 'lucide-react';
 import type { TicTacToeState } from '../../../types/games';
+import { PlayerLives } from './PlayerLives';
+import { TurnTimer } from './TurnTimer';
+import { GameRepository } from '../../../services/repositories/GameRepository';
 
 interface TicTacToeBoardProps {
   state: TicTacToeState;
   currentUserId: string;
+  turnExpiresAt?: string;
+  sessionId?: string;
   onPlaceSymbol: (cellIndex: number) => void;
   onNextRound?: () => void;
 }
@@ -17,6 +22,8 @@ interface TicTacToeBoardProps {
 export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   state,
   currentUserId,
+  turnExpiresAt,
+  sessionId,
   onPlaceSymbol,
   onNextRound,
 }) => {
@@ -27,37 +34,56 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   const p1Id = playerIds[0];
   const p2Id = playerIds[1];
 
+  const handleTimeout = () => {
+    if (isMyTurn && sessionId) {
+      GameRepository.expireTurn(sessionId);
+    }
+  };
+
+  const activeTurnName = (state.playerNames[state.turnUserId] || 'OPONENTE').toUpperCase();
+
   return (
     <div id="tictactoe-board-container" className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full">
-      {/* Marcador superior */}
-      <div id="tictactoe-scoreboard" className="grid grid-cols-2 gap-4 w-full mb-6">
+      {/* Marcador superior con Vidas y Nombres en MAYÚSCULAS */}
+      <div id="tictactoe-scoreboard" className="grid grid-cols-2 gap-3 sm:gap-4 w-full mb-4">
         {/* Jugador 1 */}
         {p1Id && (
           <div
             id="tictactoe-player-1-card"
-            className={`p-4 rounded-xl border transition-all ${
+            className={`p-3.5 rounded-xl border transition-all ${
               state.turnUserId === p1Id && state.status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 font-bold flex items-center justify-center text-lg border border-red-500/30">
-                  X
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-neutral-200 truncate max-w-[110px]">
-                    {state.playerNames[p1Id] || 'Jugador 1'}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 truncate">
+                  <span className="w-7 h-7 rounded-lg bg-red-500/20 text-red-400 font-bold flex items-center justify-center text-base border border-red-500/30 shrink-0">
+                    X
+                  </span>
+                  <div className="truncate">
+                    <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
+                      {(state.playerNames[p1Id] || 'JUGADOR 1').toUpperCase()}
+                    </div>
+                    {p1Id === currentUserId && (
+                      <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
+                        (TÚ)
+                      </span>
+                    )}
                   </div>
-                  {p1Id === currentUserId && (
-                    <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
-                      (Tú)
-                    </span>
-                  )}
                 </div>
+                <span className="text-xl font-black text-white font-mono">{state.scores[p1Id] || 0}</span>
               </div>
-              <span className="text-2xl font-black text-white font-mono">{state.scores[p1Id] || 0}</span>
+
+              {/* Vidas */}
+              <div className="pt-1 border-t border-neutral-800/80">
+                <PlayerLives
+                  lives={(state.lives && state.lives[p1Id] !== undefined) ? state.lives[p1Id] : 3}
+                  size="sm"
+                  showText={false}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -66,66 +92,81 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
         {p2Id && (
           <div
             id="tictactoe-player-2-card"
-            className={`p-4 rounded-xl border transition-all ${
+            className={`p-3.5 rounded-xl border transition-all ${
               state.turnUserId === p2Id && state.status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-lg border border-blue-500/30">
-                  O
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-neutral-200 truncate max-w-[110px]">
-                    {state.playerNames[p2Id] || 'Jugador 2'}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 truncate">
+                  <span className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-base border border-blue-500/30 shrink-0">
+                    O
+                  </span>
+                  <div className="truncate">
+                    <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
+                      {(state.playerNames[p2Id] || 'JUGADOR 2').toUpperCase()}
+                    </div>
+                    {p2Id === currentUserId && (
+                      <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
+                        (TÚ)
+                      </span>
+                    )}
                   </div>
-                  {p2Id === currentUserId && (
-                    <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
-                      (Tú)
-                    </span>
-                  )}
                 </div>
+                <span className="text-xl font-black text-white font-mono">{state.scores[p2Id] || 0}</span>
               </div>
-              <span className="text-2xl font-black text-white font-mono">{state.scores[p2Id] || 0}</span>
+
+              {/* Vidas */}
+              <div className="pt-1 border-t border-neutral-800/80">
+                <PlayerLives
+                  lives={(state.lives && state.lives[p2Id] !== undefined) ? state.lives[p2Id] : 3}
+                  size="sm"
+                  showText={false}
+                />
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Estado del turno */}
-      <div id="tictactoe-status-banner" className="mb-4 text-center">
-        {state.status === 'playing' && (
-          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-sm">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                isMyTurn ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span className="text-neutral-300 font-medium">
-              {isMyTurn ? '¡Es tu turno de marcar!' : `Esperando jugada de ${state.playerNames[state.turnUserId] || 'oponente'}...`}
-            </span>
-          </div>
-        )}
+      {/* Temporizador de Turno Sincronizado */}
+      <div className="w-full mb-3">
+        <TurnTimer
+          turnExpiresAt={turnExpiresAt}
+          durationSeconds={30}
+          isMyTurn={isMyTurn}
+          activePlayerName={activeTurnName}
+          status={state.status}
+          onTimeout={handleTimeout}
+        />
+      </div>
 
+      {/* Estado del turno / Ronda */}
+      <div id="tictactoe-status-banner" className="mb-4 text-center">
         {state.status === 'round_won' && (
           <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-semibold text-sm animate-bounce">
             <Trophy className="w-4 h-4 text-amber-400" />
-            <span>¡Ronda ganada por {state.playerNames[state.roundWinnerUserId || ''] || 'ganador'}!</span>
+            <span>
+              ¡RONDA GANADA POR {(state.playerNames[state.roundWinnerUserId || ''] || 'GANADOR').toUpperCase()}!
+            </span>
           </div>
         )}
 
         {state.status === 'draw' && (
           <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-neutral-300 font-semibold text-sm">
-            <span>¡Empate en el tablero! Todas las casillas ocupadas.</span>
+            <span>¡EMPATE EN EL TABLERO! TODAS LAS CASILLAS OCUPADAS.</span>
           </div>
         )}
 
         {state.status === 'game_won' && (
           <div className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-neutral-950 font-bold text-base shadow-lg">
             <Sparkles className="w-5 h-5 text-neutral-950" />
-            <span>¡Partida concluida! Ganador: {state.playerNames[state.winnerUserId || '']}</span>
+            <span>
+              ¡PARTIDA CONCLUIDA! GANADOR:{' '}
+              {(state.playerNames[state.winnerUserId || ''] || 'GANADOR').toUpperCase()}
+            </span>
           </div>
         )}
       </div>
@@ -160,37 +201,20 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   : 'bg-neutral-800/20 border border-neutral-800/50 cursor-not-allowed'
               }`}
             >
-              {symbol && (
-                <motion.span
-                  initial={{ scale: 0, rotate: -30 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                >
-                  {symbol}
-                </motion.span>
-              )}
-              {!symbol && canClick && (
-                <span className="opacity-0 hover:opacity-25 text-neutral-500 text-2xl font-bold">
-                  {mySymbol}
-                </span>
-              )}
+              {symbol}
             </motion.button>
           );
         })}
       </div>
 
-      {/* Botón Siguiente Ronda si procede */}
       {state.status === 'round_won' && onNextRound && (
-        <div className="mt-6">
-          <button
-            id="tictactoe-next-round-btn"
-            onClick={onNextRound}
-            className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold transition-all shadow-lg hover:shadow-amber-500/20"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Iniciar Siguiente Ronda</span>
-          </button>
-        </div>
+        <button
+          onClick={onNextRound}
+          className="mt-4 flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-sm shadow-lg transition-all"
+        >
+          <RefreshCw className="w-4 h-4" />
+          <span>SIGUIENTE RONDA</span>
+        </button>
       )}
     </div>
   );

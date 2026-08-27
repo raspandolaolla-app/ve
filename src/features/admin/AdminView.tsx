@@ -35,6 +35,7 @@ import type {
 import { AdminDashboardTab } from './tabs/AdminDashboardTab';
 import { AdminUsersTab } from './tabs/AdminUsersTab';
 import { AdminKYCTab } from './tabs/AdminKYCTab';
+import { AdminPollaTab } from './tabs/AdminPollaTab';
 import { AdminDepositsTab } from './tabs/AdminDepositsTab';
 import { AdminWithdrawalsTab } from './tabs/AdminWithdrawalsTab';
 import { AdminEntryFeesTab } from './tabs/AdminEntryFeesTab';
@@ -83,6 +84,7 @@ import {
   Key,
   Clock,
   Wrench,
+  Ticket,
 } from 'lucide-react';
 
 export function AdminView() {
@@ -310,6 +312,7 @@ export function AdminView() {
   }> = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Usuarios', icon: Users },
+    { id: 'polla', label: 'Polla Venezolana', icon: Ticket },
     { id: 'kyc', label: 'Expedientes KYC', icon: FileCheck },
     {
       id: 'deposits',
@@ -459,6 +462,8 @@ export function AdminView() {
         )}
 
         {activeTab === 'kyc' && <AdminKYCTab />}
+
+        {activeTab === 'polla' && <AdminPollaTab />}
 
         {activeTab === 'deposits' && (
           <AdminDepositsTab

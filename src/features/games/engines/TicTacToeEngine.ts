@@ -48,11 +48,19 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       scores[p2.userId] = 0;
     }
 
+    const lives: Record<string, number> = {
+      [p1.userId]: 3,
+    };
+    if (p2 && p2.userId !== p1.userId) {
+      lives[p2.userId] = 3;
+    }
+
     return {
       board: Array(9).fill(null),
       turnUserId: p1.userId,
       playerSymbols,
       playerNames,
+      lives,
       round: 1,
       targetWins: 1, // Partida directa o configurable
       scores,
@@ -62,6 +70,28 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       roundWinnerUserId: null,
       moveHistory: [],
     };
+  }
+
+  /**
+   * Obtiene un movimiento válido para el BOT en La Vieja
+   */
+  public getBotMove(state: TicTacToeState): number | null {
+    const emptyIndices: number[] = [];
+    state.board.forEach((cell, idx) => {
+      if (cell === null) emptyIndices.push(idx);
+    });
+    if (emptyIndices.length === 0) return null;
+
+    // Preferir el centro (casilla 4) si está libre
+    if (emptyIndices.includes(4)) return 4;
+
+    // Preferir esquinas (0, 2, 6, 8)
+    const corners = [0, 2, 6, 8].filter((c) => emptyIndices.includes(c));
+    if (corners.length > 0) {
+      return corners[Math.floor(Math.random() * corners.length)];
+    }
+
+    return emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
   }
 
   public validateAction(state: TicTacToeState, action: GameActionPayload): { valid: boolean; reason?: string } {

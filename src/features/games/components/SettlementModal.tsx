@@ -62,7 +62,7 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
               <span className="text-blue-400">Reembolso íntegro del 100% a todos los jugadores</span>
             ) : (
               <>
-                Ganador: <strong className="text-amber-400">{winnerName}</strong>
+                Ganador: <strong className="text-amber-400 uppercase">{winnerName?.toUpperCase()}</strong>
               </>
             )}
           </p>

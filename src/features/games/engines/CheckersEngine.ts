@@ -59,6 +59,10 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
         [p1.userId]: 0,
         [p2.userId]: 0,
       },
+      lives: {
+        [p1.userId]: 3,
+        [p2.userId]: 3,
+      },
       status: 'playing',
       winnerUserId: null,
       lastMove: null,

@@ -6,11 +6,12 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Users, Shield, Radio, Trophy, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Radio, Trophy, AlertTriangle, Wifi, WifiOff, RefreshCw, LogOut } from 'lucide-react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { GameSession, GameActionPayload } from '../../../types/games';
 import { getGameEngine } from '../engines';
 import { GameRepository } from '../../../services/repositories/GameRepository';
+import { TableRepository } from '../../../services/repositories/TableRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
@@ -34,14 +35,17 @@ interface GameContainerProps {
 
 export const GameContainer: React.FC<GameContainerProps> = ({
   table,
-  players,
+  players: initialPlayers,
   currentUserId,
   onExit,
 }) => {
   const [session, setSession] = useState<GameSession | null>(null);
   const [gameState, setGameState] = useState<any>(null);
+  const [currentPlayers, setCurrentPlayers] = useState<TablePlayer[]>(initialPlayers);
   const [isSettling, setIsSettling] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+  const [isAbandoning, setIsAbandoning] = useState(false);
+  const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [realtimeStatus, setRealtimeStatus] = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED'>('CONNECTING');
   const [settlementResult, setSettlementResult] = useState<{
@@ -58,6 +62,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   // Instancia del motor determinista para este tipo de juego
   const engine = useMemo(() => getGameEngine(table.gameType), [table.gameType]);
 
+  // Recargar dinámicamente los jugadores reales con sus perfiles de Supabase
+  const refreshPlayers = useCallback(async () => {
+    const updated = await TableRepository.getTablePlayers(table.id);
+    if (updated && updated.length > 0) {
+      setCurrentPlayers(updated);
+    }
+  }, [table.id]);
+
   // Inicialización de la sesión y estado
   useEffect(() => {
     let isMounted = true;
@@ -65,13 +77,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     async function initGame() {
       try {
         setRealtimeStatus('CONNECTING');
+        // Asegurar que los perfiles reales de los jugadores estén cargados
+        const latestPlayers = await TableRepository.getTablePlayers(table.id);
+        const activePlayersList = latestPlayers.length > 0 ? latestPlayers : initialPlayers;
+        if (isMounted) {
+          setCurrentPlayers(activePlayersList);
+        }
+
         // 1. Obtener o crear sesión en base de datos
-        const initialEngineState = engine.initialize(table, players);
+        const initialEngineState = engine.initialize(table, activePlayersList);
         const activeSession = await GameRepository.createOrGetSession(
           table.id,
           table.gameType,
           initialEngineState,
-          players[0]?.userId
+          activePlayersList[0]?.userId
         );
 
         if (!isMounted) return;
@@ -81,8 +100,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           // Si la sesión ya estaba liquidada, preparar modal
           if (activeSession.status === 'completed' || (activeSession.status as any) === 'SETTLED' || activeSession.isSettled) {
             isSettledRef.current = true;
-            const winnerPlayer = players.find((p) => p.userId === activeSession.winnerUserId);
-            const grossPool = table.entryFee * players.length;
+            const winnerPlayer = activePlayersList.find((p) => p.userId === activeSession.winnerUserId);
+            const grossPool = table.entryFee * activePlayersList.length;
             setSettlementResult({
               grossPool,
               prizePool: grossPool * 0.9,
@@ -93,7 +112,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
           } else if (activeSession.status === 'abandoned' || (activeSession.status as any) === 'CANCELLED') {
             isSettledRef.current = true;
-            const grossPool = table.entryFee * players.length;
+            const grossPool = table.entryFee * activePlayersList.length;
             setSettlementResult({
               grossPool,
               prizePool: 0,
@@ -130,7 +149,33 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [table, players, engine, currentUserId]);
+  }, [table, initialPlayers, engine, currentUserId]);
+
+  // Suscripción Realtime a cambios en game_table_players (Nombres, Entradas y Abandonos)
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const playersChannel = supabase
+      .channel(`table_players_realtime_${table.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_table_players',
+          filter: `table_id=eq.${table.id}`,
+        },
+        () => {
+          refreshPlayers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(playersChannel);
+    };
+  }, [table.id, refreshPlayers]);
 
   // Suscripción Realtime a cambios en la sesión de juego y presencia
   useEffect(() => {
@@ -174,8 +219,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
           if (updated?.status === 'SETTLED' && !isSettledRef.current) {
             isSettledRef.current = true;
-            const winnerPlayer = players.find((p) => p.userId === updated.winner_user_id);
-            const grossPool = table.entryFee * players.length;
+            const winnerPlayer = currentPlayers.find((p) => p.userId === updated.winner_user_id);
+            const grossPool = table.entryFee * currentPlayers.length;
             setSettlementResult({
               grossPool,
               prizePool: grossPool * 0.9,
@@ -186,7 +231,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
           } else if (updated?.status === 'CANCELLED' && !isSettledRef.current) {
             isSettledRef.current = true;
-            const grossPool = table.entryFee * players.length;
+            const grossPool = table.entryFee * currentPlayers.length;
             setSettlementResult({
               grossPool,
               prizePool: 0,
@@ -245,7 +290,24 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.id, currentUserId, engine, players, table]);
+  }, [session?.id, currentUserId, engine, currentPlayers, table]);
+
+  // Procesar abandono de mesa confirmado
+  const handleConfirmAbandon = async () => {
+    if (isAbandoning) return;
+    setIsAbandoning(true);
+
+    try {
+      const result = await TableRepository.abandonTable(table.id, session?.id);
+      setShowAbandonModal(false);
+      onExit();
+    } catch (err: any) {
+      console.error('[GameContainer] Error al abandonar mesa:', err);
+      setErrorMsg('No se pudo procesar el abandono de la mesa');
+    } finally {
+      setIsAbandoning(false);
+    }
+  };
 
   // Manejador central de acciones de juego con anti-double click
   const handleGameAction = useCallback(
@@ -305,7 +367,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             );
             setIsSettling(false);
 
-            const grossPool = table.entryFee * players.length;
+            const grossPool = table.entryFee * currentPlayers.length;
             setSettlementResult({
               grossPool,
               prizePool: 0,
@@ -326,13 +388,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
             setIsSettling(false);
 
-            const winnerPlayer = players.find((p) => p.userId === result.winnerUserId);
+            const winnerPlayer = currentPlayers.find((p) => p.userId === result.winnerUserId);
             const winnerName = winnerPlayer?.displayName || 'Ganador';
 
             setSettlementResult({
-              grossPool: settlement.grossPool || table.entryFee * players.length,
-              prizePool: settlement.prizePool || table.entryFee * players.length * 0.9,
-              platformFee: settlement.platformFee || table.entryFee * players.length * 0.1,
+              grossPool: settlement.grossPool || table.entryFee * currentPlayers.length,
+              prizePool: settlement.prizePool || table.entryFee * currentPlayers.length * 0.9,
+              platformFee: settlement.platformFee || table.entryFee * currentPlayers.length * 0.1,
               winnerName,
               isWinner: result.winnerUserId === currentUserId,
               isDraw: false,
@@ -347,7 +409,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         setIsSubmittingAction(false);
       }
     },
-    [gameState, session, currentUserId, engine, players, table, isSubmittingAction]
+    [gameState, session, currentUserId, engine, currentPlayers, table, isSubmittingAction]
   );
 
   // Renderizar el tablero específico según el juego
@@ -472,29 +534,39 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             <div className="flex items-center space-x-3 text-xs text-neutral-400 font-mono mt-0.5">
               <span>Entrada: {formatBolivares(table.entryFee)}</span>
               <span>•</span>
-              <span className="text-emerald-400">Pozo: {formatBolivares(table.entryFee * players.length)}</span>
+              <span className="text-emerald-400">Pozo: {formatBolivares(table.entryFee * currentPlayers.length)}</span>
             </div>
           </div>
         </div>
 
-        {/* Indicador de Conexión en Vivo */}
+        {/* Indicador de Conexión en Vivo y Botón Abandonar */}
         <div className="flex items-center space-x-2">
           {realtimeStatus === 'CONNECTED' ? (
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
               <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>SALA EN VIVO ({onlineUsers.length || 1}/{players.length})</span>
+              <span>SALA EN VIVO ({onlineUsers.length || 1}/{currentPlayers.length})</span>
             </div>
           ) : realtimeStatus === 'CONNECTING' ? (
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono">
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               <span>CONECTANDO...</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono">
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono">
               <WifiOff className="w-3.5 h-3.5" />
               <span>RECONECTANDO</span>
             </div>
           )}
+
+          <button
+            id="abandon-table-btn"
+            onClick={() => setShowAbandonModal(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-xs font-bold transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">ABANDONAR MESA</span>
+            <span className="sm:hidden">ABANDONAR</span>
+          </button>
         </div>
       </header>
 
@@ -524,6 +596,58 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           onReturnToLobby={onExit}
         />
       )}
+
+      {/* Modal de Confirmación de Abandono de Mesa */}
+      <AnimatePresence>
+        {showAbandonModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center space-x-3 text-red-400">
+                <AlertTriangle className="w-6 h-6" />
+                <h3 className="text-lg font-bold text-white">¿Seguro que deseas abandonar la mesa?</h3>
+              </div>
+
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Si abandonas voluntariamente una partida activa, perderás tu participación y el premio correspondiente será asignado al jugador que permanece en la partida, según las reglas de abandono.
+              </p>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  id="cancel-abandon-btn"
+                  onClick={() => setShowAbandonModal(false)}
+                  disabled={isAbandoning}
+                  className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  id="confirm-abandon-btn"
+                  onClick={handleConfirmAbandon}
+                  disabled={isAbandoning}
+                  className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-900/30"
+                >
+                  {isAbandoning ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>PROCESANDO...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>ABANDONAR</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

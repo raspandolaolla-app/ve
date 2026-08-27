@@ -99,7 +99,7 @@ export class TableRepository {
   }
 
   /**
-   * Obtiene los jugadores conectados a una mesa.
+   * Obtiene los jugadores conectados a una mesa con sus perfiles completos.
    */
   public static async getTablePlayers(tableId: string): Promise<TablePlayer[]> {
     const supabase = getSupabaseClient();
@@ -107,8 +107,9 @@ export class TableRepository {
 
     const { data, error } = await supabase
       .from('game_table_players')
-      .select('*, profiles:user_id(first_name, last_name, avatar_url)')
-      .eq('table_id', tableId);
+      .select('*, profiles:user_id(display_name, first_name, last_name, avatar_url)')
+      .eq('table_id', tableId)
+      .order('seat_number', { ascending: true });
 
     if (error) {
       console.error('[TableRepository] Error al obtener jugadores de mesa:', error.message);
@@ -117,23 +118,60 @@ export class TableRepository {
 
     return (data || []).map((p) => {
       const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
-      const firstName = profile?.first_name || 'Jugador';
-      const lastName = profile?.last_name || '';
+      const seatNum = p.seat_number ?? p.seat_index ?? 1;
+      
+      let displayName = '';
+      if (profile?.display_name && profile.display_name.trim().length > 0) {
+        displayName = profile.display_name.trim();
+      } else if (profile?.first_name || profile?.last_name) {
+        displayName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
+      } else {
+        displayName = `Jugador ${seatNum}`;
+      }
+
       return {
         id: p.id,
         tableId: p.table_id,
         userId: p.user_id,
-        seatNumber: p.seat_number ?? p.seat_index ?? 0,
-        seatIndex: p.seat_number ?? p.seat_index ?? 0,
+        seatNumber: seatNum,
+        seatIndex: seatNum,
         teamIndex: p.team_index,
         status: p.status,
         isReady: p.status === 'READY',
-        isOnline: p.status !== 'DISCONNECTED',
+        isOnline: p.status !== 'DISCONNECTED' && p.status !== 'LEFT',
         joinedAt: p.joined_at,
-        displayName: `${firstName} ${lastName}`.trim(),
+        displayName,
         avatarUrl: profile?.avatar_url || undefined,
       };
     });
+  }
+
+  /**
+   * Procesa el abandono voluntario o cancelación atómica de una mesa mediante RPC de Supabase.
+   */
+  public static async abandonTable(
+    tableId: string,
+    sessionId?: string,
+    idempotencyKey?: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+
+    const effectiveKey =
+      idempotencyKey || `abandon_${tableId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const { data, error } = await supabase.rpc('abandon_game_table_secure', {
+      p_table_id: tableId,
+      p_session_id: sessionId || null,
+      p_idempotency_key: effectiveKey,
+    });
+
+    if (error) {
+      console.error('[TableRepository] Error procesando abandono de mesa:', error.message);
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar salida de la mesa') };
+    }
+
+    return { success: true, data };
   }
 
   /**

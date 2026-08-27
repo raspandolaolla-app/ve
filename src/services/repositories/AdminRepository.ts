@@ -1327,13 +1327,16 @@ export class AdminRepository {
 
       if (error || !data || data.length === 0) {
         return [
-          { id: '1', amount: 20, displayOrder: 1, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '2', amount: 50, displayOrder: 2, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '3', amount: 100, displayOrder: 3, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '4', amount: 250, displayOrder: 4, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '5', amount: 500, displayOrder: 5, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '6', amount: 1000, displayOrder: 6, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: '7', amount: 2000, displayOrder: 7, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '1', amount: 10, displayOrder: 1, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '2', amount: 15, displayOrder: 2, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '3', amount: 20, displayOrder: 3, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '4', amount: 25, displayOrder: 4, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '5', amount: 50, displayOrder: 5, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '6', amount: 100, displayOrder: 6, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '7', amount: 250, displayOrder: 7, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '8', amount: 500, displayOrder: 8, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '9', amount: 1000, displayOrder: 9, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: '10', amount: 2000, displayOrder: 10, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
         ];
       }
 

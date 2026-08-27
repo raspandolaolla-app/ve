@@ -209,7 +209,10 @@ export function TablesView() {
   // Crear mesa
   const handleCreateTableSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setCreateError('Debes iniciar sesión para crear una mesa.');
+      return;
+    }
 
     setCreating(true);
     setCreateError(null);

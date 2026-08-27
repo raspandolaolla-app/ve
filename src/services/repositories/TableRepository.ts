@@ -1,5 +1,5 @@
 // ==============================================================================
-// RASPANDO LA OLLA — REPOSITORIO DE MESAS DE JUEGO
+// RASPANDO LA OLLA — REPOSITORIO DE MESAS DE JUEGO (FASE 24)
 // ==============================================================================
 // Capa de abstracción para mesas públicas y privadas (Trancaíto).
 // Entrada a mesa gobernada por la función segura join_table_transaction().
@@ -7,6 +7,8 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { GameRepository } from './GameRepository';
+import { ProfileRepository } from './ProfileRepository';
 import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from '../../types/tables';
 import type { GameType } from '../../types/games';
 
@@ -26,7 +28,8 @@ export class TableRepository {
       .order('created_at', { ascending: false });
 
     if (gameType) {
-      query = query.eq('game_type', gameType);
+      const dbGameType = GameRepository.mapGameTypeToDbEnum(gameType);
+      query = query.eq('game_type', dbGameType);
     }
 
     const { data, error } = await query;
@@ -37,9 +40,9 @@ export class TableRepository {
 
     return (data || []).map((t) => ({
       id: t.id,
-      gameType: t.game_type,
-      name: t.name || `Mesa de ${t.game_type}`,
-      mode: t.mode || (t.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
+      gameType: GameRepository.mapDbEnumToGameType(t.game_type),
+      name: t.name || `Mesa de ${GameRepository.mapDbEnumToGameType(t.game_type)}`,
+      mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
       entryFee: Number(t.entry_fee || 0),
       currency: t.currency || 'VES',
       minPlayers: t.min_players,
@@ -75,9 +78,9 @@ export class TableRepository {
 
     return {
       id: data.id,
-      gameType: data.game_type,
-      name: data.name || `Mesa de ${data.game_type}`,
-      mode: data.mode || (data.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
+      gameType: GameRepository.mapDbEnumToGameType(data.game_type),
+      name: data.name || `Mesa de ${GameRepository.mapDbEnumToGameType(data.game_type)}`,
+      mode: (data.mode as any) || (data.max_players === 4 ? '2v2' : '1v1'),
       entryFee: Number(data.entry_fee || 0),
       currency: data.currency || 'VES',
       minPlayers: data.min_players,
@@ -171,7 +174,7 @@ export class TableRepository {
   public static async getAvailableEntryFees(gameType?: GameType): Promise<number[]> {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      return [20, 50, 100, 250, 500, 1000, 2000];
+      return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
     }
 
     try {
@@ -183,17 +186,18 @@ export class TableRepository {
         .order('amount', { ascending: true });
 
       if (gameType) {
-        query = query.or(`game_type.is.null,game_type.eq.${gameType}`);
+        const dbGameType = GameRepository.mapGameTypeToDbEnum(gameType);
+        query = query.or(`game_type.is.null,game_type.eq.${dbGameType}`);
       }
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) {
-        return [20, 50, 100, 250, 500, 1000, 2000];
+        return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
       }
 
       return data.map((d: any) => Number(d.amount));
     } catch {
-      return [20, 50, 100, 250, 500, 1000, 2000];
+      return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
     }
   }
 
@@ -204,95 +208,68 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) {
-      console.error('[TableRepository] No se puede crear mesa sin usuario autenticado');
-      return null;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user) {
+      console.warn('[TableRepository] CREATE_TABLE_ERROR: No authenticated session found', authError);
+      throw new Error('AUTH_REQUIRED: Debes iniciar sesión para crear una mesa.');
     }
 
-    // Intentar primero mediante RPC segura create_game_table_secure
-    try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {
-        p_game_type: payload.gameType,
-        p_name: `Mesa de ${payload.gameType}`,
-        p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
-        p_entry_fee: payload.entryFee,
-        p_max_players: payload.maxPlayers,
-        p_config: payload.config || {},
+    // Asegurar que el perfil esté conciliado en public.profiles
+    await ProfileRepository.ensureCurrentUserProfile();
+
+    const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
+    const tableName = payload.name?.trim() || `Mesa de ${payload.gameType}`;
+
+    // Invocar exclusivamente la RPC segura create_game_table_secure
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {
+      p_game_type: dbGameType,
+      p_name: tableName,
+      p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
+      p_entry_fee: Number(payload.entryFee || 0),
+      p_max_players: Number(payload.maxPlayers || 2),
+      p_config: payload.config || {},
+    });
+
+    if (rpcError) {
+      console.error('[TableRepository] CREATE_TABLE_ERROR', {
+        operation: 'create_game_table_secure',
+        userId: authData.user.id,
+        gameType: payload.gameType,
+        dbGameType,
+        entryFee: payload.entryFee,
+        maxPlayers: payload.maxPlayers,
+        isPrivate: payload.isPrivate,
+        error: {
+          message: rpcError.message,
+          code: rpcError.code,
+          details: rpcError.details,
+          hint: rpcError.hint,
+        },
       });
-
-      if (!rpcError && rpcData?.success) {
-        return {
-          id: rpcData.table_id,
-          gameType: payload.gameType,
-          name: `Mesa de ${payload.gameType}`,
-          mode: payload.maxPlayers === 4 ? '2v2' : '1v1',
-          entryFee: payload.entryFee,
-          currency: 'VES',
-          minPlayers: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
-          maxPlayers: payload.maxPlayers,
-          currentPlayersCount: 1,
-          status: 'OPEN',
-          hostUserId: authData.user.id,
-          isPrivate: payload.isPrivate,
-          joinCode: rpcData.invite_code,
-          shareToken: rpcData.invite_code,
-          createdAt: new Date().toISOString(),
-          config: payload.config || {},
-        };
-      }
-    } catch (rpcErr) {
-      console.warn('[TableRepository] RPC create_game_table_secure no disponible, usando fallback:', rpcErr);
+      throw new Error(rpcError.message || 'No fue posible crear la mesa en este momento.');
     }
 
-    // Fallback estándar
-    const inviteCode = payload.isPrivate
-      ? `TRK-${Math.floor(1000 + Math.random() * 9000)}`
-      : `PUB-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const shareToken = `st_${Math.random().toString(36).substring(2, 12)}`;
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-
-    const { data, error } = await supabase
-      .from('game_tables')
-      .insert({
-        game_type: payload.gameType,
-        host_user_id: authData.user.id,
-        visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
-        invite_code: inviteCode,
-        entry_fee: payload.entryFee,
-        min_players: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
-        max_players: payload.maxPlayers,
-        current_players_count: 1,
-        status: 'OPEN',
-        config: payload.config || {},
-        expires_at: expiresAt,
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.error('[TableRepository] Error creando mesa:', error?.message);
-      return null;
+    if (!rpcData?.success) {
+      throw new Error('No fue posible crear la mesa en este momento.');
     }
 
     return {
-      id: data.id,
-      gameType: data.game_type,
-      name: data.name || `Mesa de ${data.game_type}`,
-      mode: data.mode || (data.max_players === 4 ? 'PAREJAS' : 'INDIVIDUAL'),
-      entryFee: Number(data.entry_fee || 0),
-      currency: data.currency || 'VES',
-      minPlayers: data.min_players,
-      maxPlayers: data.max_players,
-      currentPlayersCount: data.current_players_count || 1,
-      status: data.status,
-      hostUserId: data.host_user_id,
-      isPrivate: data.visibility === 'PRIVATE',
-      joinCode: data.invite_code,
-      shareToken: shareToken,
-      createdAt: data.created_at,
-      config: data.config || {},
+      id: rpcData.table_id,
+      gameType: payload.gameType,
+      name: rpcData.name || tableName,
+      mode: payload.mode || (payload.maxPlayers === 4 ? '2v2' : '1v1'),
+      entryFee: Number(rpcData.entry_fee ?? payload.entryFee),
+      currency: 'VES',
+      minPlayers: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
+      maxPlayers: payload.maxPlayers,
+      currentPlayersCount: 0,
+      status: 'OPEN',
+      hostUserId: authData.user.id,
+      isPrivate: payload.isPrivate,
+      joinCode: rpcData.invite_code,
+      shareToken: rpcData.invite_code,
+      createdAt: rpcData.created_at || new Date().toISOString(),
+      config: payload.config || {},
     };
   }
 }

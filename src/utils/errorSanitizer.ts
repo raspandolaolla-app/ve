@@ -123,6 +123,67 @@ export function sanitizeUserErrorMessage(
 
   // 6. Mesas y partidas
   if (
+    lower.includes('auth_required') ||
+    lower.includes('debes iniciar sesión') ||
+    lower.includes('usuario no autenticado')
+  ) {
+    return 'Debes iniciar sesión para crear una mesa.';
+  }
+
+  if (
+    lower.includes('invalid_entry_fee') ||
+    lower.includes('monto de entrada') ||
+    lower.includes('no está autorizado')
+  ) {
+    return 'El monto de entrada no es válido o no está autorizado en el sistema.';
+  }
+
+  if (
+    lower.includes('game_inactive') ||
+    lower.includes('mantenimiento temporal') ||
+    lower.includes('juego no disponible')
+  ) {
+    return 'El juego seleccionado se encuentra en mantenimiento temporal.';
+  }
+
+  if (
+    lower.includes('profile_not_active') ||
+    lower.includes('cuenta no se encuentra activa') ||
+    lower.includes('cuenta bloqueada') ||
+    lower.includes('cuenta suspendida')
+  ) {
+    return 'Tu cuenta no se encuentra activa para crear o participar en mesas.';
+  }
+
+  if (
+    lower.includes('table_creation_error') ||
+    lower.includes('error al crear la mesa')
+  ) {
+    return 'No fue posible crear la mesa en este momento. Intenta nuevamente.';
+  }
+
+  if (
+    lower.includes('invalid_game_type') ||
+    lower.includes('tipo de juego')
+  ) {
+    return 'El tipo de juego seleccionado no es válido.';
+  }
+
+  if (
+    lower.includes('invalid_players_count') ||
+    lower.includes('cantidad de jugadores')
+  ) {
+    return 'La cantidad de jugadores configurada no es válida para este juego.';
+  }
+
+  if (
+    lower.includes('duplicate_invite_code') ||
+    lower.includes('código único')
+  ) {
+    return 'No fue posible generar un código único. Intenta nuevamente.';
+  }
+
+  if (
     lower.includes('seat_taken') ||
     lower.includes('table_full') ||
     lower.includes('asiento ocupado') ||

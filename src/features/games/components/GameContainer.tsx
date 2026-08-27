@@ -286,7 +286,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           session.id,
           result.newState,
           result.newState.turnUserId || null,
-          result.isGameOver ? 'COMPLETED' : 'ACTIVE',
+          result.isGameOver ? 'FINISHED' : 'ACTIVE',
           result.winnerUserId
         );
 

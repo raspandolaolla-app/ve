@@ -45,6 +45,7 @@ export class GameRepository {
 
   /**
    * Obtiene la sesión de juego activa asociada a una mesa.
+   * Filtra exclusivamente con valores válidos del ENUM session_status_enum de PostgreSQL.
    */
   public static async getActiveSession(tableId: string): Promise<GameSession | null> {
     const supabase = getSupabaseClient();
@@ -54,7 +55,7 @@ export class GameRepository {
       .from('game_sessions')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['WAITING', 'READY', 'STARTING', 'ACTIVE', 'IN_PROGRESS', 'WAITING_PLAYERS', 'in_progress', 'initializing', 'settling'])
+      .in('status', ['WAITING', 'READY', 'STARTING', 'ACTIVE', 'PAUSED'])
       .order('created_at', { ascending: false })
       .maybeSingle();
 
@@ -67,7 +68,13 @@ export class GameRepository {
       roundNumber: data.session_number || data.current_round || 1,
       currentTurnUserId: data.current_turn_user_id || data.turn_user_id,
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at,
-      status: (data.status === 'ACTIVE' ? 'in_progress' : data.status.toLowerCase()) as any,
+      status: (data.status === 'ACTIVE' || data.status === 'STARTING' || data.status === 'READY' || data.status === 'WAITING'
+        ? 'in_progress'
+        : data.status === 'FINISHED' || data.status === 'SETTLED'
+        ? 'completed'
+        : data.status === 'CANCELLED' || data.status === 'ABANDONED'
+        ? 'abandoned'
+        : 'in_progress') as any,
       grossPool: Number(data.gross_pool || 0),
       winnerPrizeAmount: Number(data.prize_pool || data.winner_prize_amount || 0),
       serviceFeeAmount: Number(data.platform_fee || data.service_fee_amount || 0),
@@ -137,6 +144,7 @@ export class GameRepository {
 
   /**
    * Actualiza el estado público de la partida en tiempo real.
+   * Mapea cualquier estado recibido a los valores estrictos de session_status_enum.
    */
   public static async updateSessionState(
     sessionId: string,
@@ -157,7 +165,24 @@ export class GameRepository {
     }
 
     if (status) {
-      updatePayload.status = status;
+      // Mapeo seguro a valores estrictos de session_status_enum
+      const normalizedStatusMap: Record<string, string> = {
+        COMPLETED: 'FINISHED',
+        completed: 'FINISHED',
+        finished: 'FINISHED',
+        FINISHED: 'FINISHED',
+        in_progress: 'ACTIVE',
+        playing: 'ACTIVE',
+        ACTIVE: 'ACTIVE',
+        SETTLED: 'SETTLED',
+        CANCELLED: 'CANCELLED',
+        ABANDONED: 'ABANDONED',
+        WAITING: 'WAITING',
+        READY: 'READY',
+        STARTING: 'STARTING',
+        PAUSED: 'PAUSED',
+      };
+      updatePayload.status = normalizedStatusMap[status] || 'ACTIVE';
     }
 
     if (winnerUserId !== undefined) {
@@ -179,6 +204,7 @@ export class GameRepository {
 
   /**
    * Envía una acción de juego validada por el motor.
+   * Utiliza la función RPC atómica submit_game_action_secure para evitar colisiones en uq_game_actions_session_seq.
    */
   public static async submitAction(payload: GameActionPayload): Promise<boolean> {
     const supabase = getSupabaseClient();
@@ -186,12 +212,40 @@ export class GameRepository {
 
     const idempotencyKey =
       payload.idempotencyKey ||
-      `act_${payload.sessionId}_${payload.userId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      `act_${payload.sessionId}_${payload.userId}_${payload.clientTimestamp || Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    const { error } = await supabase.from('game_actions').insert({
+    // 1. Inserción atómica mediante RPC transaccional
+    const { data: rpcData, error: rpcError } = await supabase.rpc('submit_game_action_secure', {
+      p_session_id: payload.sessionId,
+      p_action_type: payload.actionType,
+      p_payload: payload.actionData || {},
+      p_idempotency_key: idempotencyKey,
+    });
+
+    if (!rpcError && rpcData?.success) {
+      return true;
+    }
+
+    if (rpcError) {
+      console.warn('[GameRepository] Error en submit_game_action_secure RPC:', rpcError.message);
+    }
+
+    // 2. Fallback con cálculo dinámico de secuencia máxima si la RPC no está activa
+    const { data: existingActions } = await supabase
+      .from('game_actions')
+      .select('sequence_number')
+      .eq('session_id', payload.sessionId)
+      .order('sequence_number', { ascending: false })
+      .limit(1);
+
+    const nextSeq = existingActions && existingActions.length > 0 
+      ? Number(existingActions[0].sequence_number || 0) + 1 
+      : 1;
+
+    const { error: insertError } = await supabase.from('game_actions').insert({
       session_id: payload.sessionId,
       user_id: payload.userId,
-      sequence_number: payload.sequenceNumber || 1,
+      sequence_number: payload.sequenceNumber || nextSeq,
       action_type: payload.actionType,
       payload: payload.actionData,
       is_valid: true,
@@ -199,8 +253,12 @@ export class GameRepository {
       idempotency_key: idempotencyKey,
     });
 
-    if (error) {
-      console.error('[GameRepository] Error registrando acción de juego:', error.message);
+    if (insertError) {
+      if (insertError.code === '23505') {
+        // Ignorar duplicados de idempotencia/secuencia como operaciones idempotentes
+        return true;
+      }
+      console.error('[GameRepository] Error registrando acción de juego:', insertError.message);
       return false;
     }
 

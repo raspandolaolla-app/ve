@@ -231,6 +231,13 @@ export class TableRepository {
     });
 
     if (rpcError) {
+      console.error('[CREATE_TABLE_REAL_ERROR]', {
+        code: rpcError?.code,
+        message: rpcError?.message,
+        details: rpcError?.details,
+        hint: rpcError?.hint,
+        raw: rpcError
+      });
       console.error('[TableRepository] CREATE_TABLE_ERROR', {
         operation: 'create_game_table_secure',
         userId: authData.user.id,

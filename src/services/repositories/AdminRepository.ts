@@ -1030,7 +1030,7 @@ export class AdminRepository {
       // Desactivar o desvincular sesiones activas de jugadores en esa mesa sin borrar su cuenta
       await supabase
         .from('game_table_players')
-        .update({ status: 'LEFT', left_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: 'LEFT', left_at: new Date().toISOString() })
         .eq('table_id', tableId)
         .neq('status', 'LEFT');
 
@@ -1040,14 +1040,55 @@ export class AdminRepository {
         for (const p of players) {
           if (p.user_id) {
             try {
-              // Devolver entrada al monedero disponible
-              await supabase.rpc('credit_user_wallet_refund', {
-                p_user_id: p.user_id,
-                p_amount: Number(tableData.entry_fee),
-                p_reference_id: tableId,
-                p_reason: `Reembolso por terminación administrativa de mesa #${tableData.invite_code || tableId.slice(0, 6)}`,
-              });
-              refundedCount++;
+              // Devolver entrada al monedero disponible si no ha sido devuelta
+              const { data: existingLedger } = await supabase
+                .from('ledger_entries')
+                .select('id')
+                .eq('user_id', p.user_id)
+                .eq('reference_table', 'game_tables')
+                .eq('reference_id', tableId)
+                .eq('entry_type', 'TABLE_ENTRY_REFUND')
+                .maybeSingle();
+
+              if (!existingLedger) {
+                const { data: walletData } = await supabase
+                  .from('wallets')
+                  .select('id, available_balance, held_balance, total_balance')
+                  .eq('user_id', p.user_id)
+                  .maybeSingle();
+
+                if (walletData) {
+                  const fee = Number(tableData.entry_fee);
+                  const newAvailable = Number(walletData.available_balance || 0) + fee;
+                  const newHeld = Math.max(0, Number(walletData.held_balance || 0) - fee);
+
+                  await supabase
+                    .from('wallets')
+                    .update({
+                      available_balance: newAvailable,
+                      held_balance: newHeld,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', walletData.id);
+
+                  await supabase.from('ledger_entries').insert({
+                    wallet_id: walletData.id,
+                    user_id: p.user_id,
+                    entry_type: 'TABLE_ENTRY_REFUND',
+                    direction: 'CREDIT',
+                    amount: fee,
+                    balance_after_available: newAvailable,
+                    balance_after_held: newHeld,
+                    reference_table: 'game_tables',
+                    reference_id: tableId,
+                    description: `Reembolso por terminación administrativa de mesa #${tableData.invite_code || tableId.slice(0, 6)}`,
+                    idempotency_key: `admin_terminate_refund_${tableId}_${p.user_id}`,
+                    created_at: new Date().toISOString(),
+                  });
+
+                  refundedCount++;
+                }
+              }
             } catch (errRef) {
               console.warn(`[AdminRepository] No se pudo procesar reembolso directo a ${p.user_id}:`, errRef);
             }
@@ -1140,7 +1181,7 @@ export class AdminRepository {
       // Fallback manual en cliente
       await supabase
         .from('game_table_players')
-        .update({ status: 'LEFT', left_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: 'LEFT', left_at: new Date().toISOString() })
         .eq('table_id', tableId)
         .eq('user_id', userId);
 
@@ -1152,8 +1193,8 @@ export class AdminRepository {
 
   /**
    * Ejecuta la limpieza de datos temporales (sesiones efímeras, presencias expiradas)
-   * de una mesa que ya está terminada o cerrada.
-   * NO elimina transacciones, wallets, ledger ni resultados de partidas.
+   * de una mesa. Si la mesa está activa/abierta, realiza el cierre administrativo completo
+   * devolviendo cuotas y desconectando jugadores antes de depurar registros.
    */
   public static async cleanupTable(tableId: string): Promise<{ success: boolean; cleanedItemsCount?: number; error?: string }> {
     const supabase = getSupabaseClient();
@@ -1164,10 +1205,10 @@ export class AdminRepository {
       const adminId = authData?.user?.id;
       if (!adminId) return { success: false, error: 'Sesión no autenticada.' };
 
-      // 1. Verificar estado de la mesa
+      // 1. Verificar estado de la mesa y sus jugadores
       const { data: tableData, error: tableErr } = await supabase
         .from('game_tables')
-        .select('id, status, game_type')
+        .select('*, game_table_players(*)')
         .eq('id', tableId)
         .maybeSingle();
 
@@ -1175,19 +1216,125 @@ export class AdminRepository {
         return { success: false, error: 'Mesa no encontrada.' };
       }
 
-      // 2. Intentar llamada a RPC server-side si está disponible
+      // 2. Intentar llamada a RPC server-side SECURITY DEFINER
       const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_cleanup_game_table', {
         p_table_id: tableId,
       });
 
       if (!rpcErr && rpcData?.success) {
-        return { success: true, cleanedItemsCount: rpcData.cleaned_items_count || 0 };
+        // Emitir notificación Realtime
+        try {
+          const channel = supabase.channel(`table_${tableId}`);
+          await channel.send({
+            type: 'broadcast',
+            event: 'TABLE_CLOSED',
+            payload: {
+              tableId,
+              status: 'CLOSED',
+              reason: 'Mesa limpiada y cerrada por la administración',
+              cleanedAt: new Date().toISOString(),
+            },
+          });
+        } catch {
+          // ignore
+        }
+        return { success: true, cleanedItemsCount: (rpcData.cleaned_items_count || 0) + (rpcData.refunded_count || 0) };
       }
 
-      // 3. Fallback controlado: Limpiar únicamente presencia efímera o registros temporales de jugadores abandonados
+      // 3. Fallback controlado: Cierre de mesa + reembolso seguro + depuración de registros efímeros
       let cleanedCount = 0;
+      const isActiveStatus = ['OPEN', 'WAITING_PLAYERS', 'FULL', 'WAITING', 'IN_GAME', 'STARTING', 'PAUSED'].includes(
+        (tableData.status || '').toUpperCase()
+      );
 
-      // Limpiar entradas de presencia temporal o sesiones efímeras sin tocar game_table_players
+      if (isActiveStatus) {
+        // Cambiar estado a CLOSED
+        await supabase
+          .from('game_tables')
+          .update({
+            status: 'CLOSED',
+            current_players_count: 0,
+            closed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', tableId);
+
+        // Cancelar sesiones
+        await supabase
+          .from('game_sessions')
+          .update({ status: 'CANCELLED', ended_at: new Date().toISOString() })
+          .eq('table_id', tableId)
+          .neq('status', 'SETTLED');
+
+        // Reembolsar jugadores activos si aplica
+        const players = tableData.game_table_players || [];
+        const entryFee = Number(tableData.entry_fee || 0);
+
+        if (entryFee > 0) {
+          for (const p of players) {
+            if (p.user_id && ['JOINED', 'READY', 'PLAYING'].includes((p.status || '').toUpperCase())) {
+              try {
+                const { data: existingLedger } = await supabase
+                  .from('ledger_entries')
+                  .select('id')
+                  .eq('user_id', p.user_id)
+                  .eq('reference_table', 'game_tables')
+                  .eq('reference_id', tableId)
+                  .eq('entry_type', 'TABLE_ENTRY_REFUND')
+                  .maybeSingle();
+
+                if (!existingLedger) {
+                  const { data: walletData } = await supabase
+                    .from('wallets')
+                    .select('id, available_balance, held_balance')
+                    .eq('user_id', p.user_id)
+                    .maybeSingle();
+
+                  if (walletData) {
+                    const newAvailable = Number(walletData.available_balance || 0) + entryFee;
+                    const newHeld = Math.max(0, Number(walletData.held_balance || 0) - entryFee);
+
+                    await supabase
+                      .from('wallets')
+                      .update({
+                        available_balance: newAvailable,
+                        held_balance: newHeld,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('id', walletData.id);
+
+                    await supabase.from('ledger_entries').insert({
+                      wallet_id: walletData.id,
+                      user_id: p.user_id,
+                      entry_type: 'TABLE_ENTRY_REFUND',
+                      direction: 'CREDIT',
+                      amount: entryFee,
+                      balance_after_available: newAvailable,
+                      balance_after_held: newHeld,
+                      reference_table: 'game_tables',
+                      reference_id: tableId,
+                      description: `Reembolso por limpieza/cierre de mesa #${tableData.invite_code || tableId.slice(0, 6)}`,
+                      idempotency_key: `admin_clean_refund_${tableId}_${p.user_id}`,
+                      created_at: new Date().toISOString(),
+                    });
+                  }
+                }
+              } catch (errRef) {
+                console.warn(`[AdminRepository] Error al reembolsar durante limpieza a ${p.user_id}:`, errRef);
+              }
+            }
+          }
+        }
+
+        // Marcar jugadores como LEFT
+        await supabase
+          .from('game_table_players')
+          .update({ status: 'LEFT', left_at: new Date().toISOString() })
+          .eq('table_id', tableId)
+          .neq('status', 'LEFT');
+      }
+
+      // Depurar presencias temporales
       const { data: disconPlayers } = await supabase
         .from('game_table_players')
         .delete()
@@ -1197,7 +1344,24 @@ export class AdminRepository {
 
       cleanedCount += (disconPlayers || []).length;
 
-      // Registrar auditoría del proceso de limpieza
+      // Broadcast Realtime de cierre
+      try {
+        const channel = supabase.channel(`table_${tableId}`);
+        await channel.send({
+          type: 'broadcast',
+          event: 'TABLE_CLOSED',
+          payload: {
+            tableId,
+            status: 'CLOSED',
+            reason: 'Mesa limpiada y cerrada por la administración',
+            cleanedAt: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // ignore
+      }
+
+      // Auditoría
       await this.recordAdminAudit({
         action: 'GAME_TABLE_CLEANUP',
         resourceType: 'GAME_TABLE',
@@ -1207,7 +1371,7 @@ export class AdminRepository {
           table_id: tableId,
           admin_id: adminId,
           cleaned_items_count: cleanedCount,
-          reason: 'Limpieza manual de datos temporales de mesa inactiva/cerrada',
+          reason: 'Limpieza manual de datos temporales de mesa',
           timestamp: new Date().toISOString(),
         },
       });

@@ -26,17 +26,9 @@ export const InstallPWAButton: React.FC<InstallPWAButtonProps> = ({
     promptInstall,
   } = usePWA();
 
-  // Si ya está instalada, mostramos una pequeña confirmación en lugar de ocultarse por completo (o un badge sutil)
+  // Si ya está instalada la PWA, ocultar el botón/badge en todos los componentes
   if (isInstalled) {
-    if (variant === 'profile' || variant === 'lobby') {
-      return (
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>App Instalada</span>
-        </div>
-      );
-    }
-    return null; // Ocultar en el header cuando ya está en modo app
+    return null;
   }
 
   const renderButtonContent = () => {

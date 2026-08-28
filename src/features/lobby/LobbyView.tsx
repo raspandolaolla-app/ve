@@ -66,6 +66,7 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
 
       {/* SECCIÓN DESTACADA: SORTEO GLOBAL PERMANENTE — POLLA VENEZOLANA */}
       <div id="section-global-draws" className="space-y-4">
+        <MediaBanner location="POLLA" onNavigateTab={onNavigateTab} />
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -205,6 +206,10 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
           ))}
         </div>
       </div>
+
+      {/* SECCIONES ADICIONALES DE CONTENIDO: PROMOCIONES E INFORMACIÓN */}
+      <MediaBanner location="PROMOTIONS" onNavigateTab={onNavigateTab} />
+      <MediaBanner location="INFO" onNavigateTab={onNavigateTab} />
     </div>
   );
 }

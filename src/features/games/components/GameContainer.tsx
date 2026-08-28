@@ -537,8 +537,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <AtrapaitoBoard
             state={gameState}
             currentUserId={currentUserId}
-            onPlayCard={(cardId) => handleGameAction('PLAY_CARD', { cardId })}
-            onSlapTable={() => handleGameAction('SLAP_TABLE', {})}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
+            onRollDice={() => handleGameAction('ROLL_DICE', {})}
+            onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
           />
         );
 

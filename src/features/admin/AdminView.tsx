@@ -54,6 +54,7 @@ import { AdminSettingsTab } from './tabs/AdminSettingsTab';
 import { AdminSecurityTab } from './tabs/AdminSecurityTab';
 import { AdminMaintenanceTab } from './tabs/AdminMaintenanceTab';
 import { AdminReportsTab } from './tabs/AdminReportsTab';
+import { AdminLobbyContentTab } from './tabs/AdminLobbyContentTab';
 
 import {
   Shield,
@@ -85,6 +86,7 @@ import {
   Clock,
   Wrench,
   Ticket,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export function AdminView() {
@@ -347,6 +349,7 @@ export function AdminView() {
     { id: 'manuals', label: 'Reglas y Manuales', icon: BookOpen },
     { id: 'activity', label: 'Sesiones & Actividad', icon: Activity },
     { id: 'announcements', label: 'Anuncios', icon: Megaphone },
+    { id: 'lobby-content', label: '🎨 Contenido del Lobby', icon: ImageIcon },
     {
       id: 'support',
       label: 'Soporte',
@@ -565,6 +568,8 @@ export function AdminView() {
         {activeTab === 'maintenance' && <AdminMaintenanceTab />}
 
         {activeTab === 'reports' && <AdminReportsTab metrics={metrics} />}
+
+        {activeTab === 'lobby-content' && <AdminLobbyContentTab />}
       </div>
     </div>
   );

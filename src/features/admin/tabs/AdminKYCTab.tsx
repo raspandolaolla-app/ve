@@ -73,7 +73,7 @@ export const AdminKYCTab: React.FC = () => {
     }
   };
 
-  const handleProcessKYC = async (status: 'APPROVED' | 'REJECTED') => {
+  const handleProcessKYC = async (status: 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_INFORMATION' | 'VERIFIED_WHATSAPP') => {
     if (!selectedKyc) return;
     if (status === 'REJECTED' && !reviewerNotes.trim()) {
       alert('Debes indicar el motivo de rechazo en las notas.');
@@ -85,7 +85,13 @@ export const AdminKYCTab: React.FC = () => {
     try {
       const res = await AdminRepository.processKYCVerification(selectedKyc.id, status, reviewerNotes);
       if (res.success) {
-        setSuccessMsg(`Expediente marcado como ${status === 'APPROVED' ? 'APROBADO' : 'RECHAZADO'}.`);
+        let msg = 'Expediente actualizado correctamente.';
+        if (status === 'APPROVED') msg = 'Expediente marcado como APROBADO.';
+        if (status === 'REJECTED') msg = 'Expediente marcado como RECHAZADO.';
+        if (status === 'NEEDS_MORE_INFORMATION') msg = 'Se ha solicitado nueva documentación al jugador.';
+        if (status === 'VERIFIED_WHATSAPP') msg = 'Expediente VERIFICADO POR WHATSAPP exitosamente.';
+
+        setSuccessMsg(msg);
         setSelectedKyc(null);
         await loadKYC();
         setTimeout(() => setSuccessMsg(null), 4000);
@@ -321,6 +327,32 @@ export const AdminKYCTab: React.FC = () => {
                 </div>
               </div>
 
+              {/* Información Adicional del Expediente */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase">Método de Solicitud</span>
+                  <span className="font-semibold text-slate-200">
+                    {selectedKyc.verificationMethod === 'WHATSAPP' ? '📱 WhatsApp' : '🪪 Carga de Documentos'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase">Fecha de Solicitud</span>
+                  <span className="font-mono text-slate-300">
+                    {new Date(selectedKyc.submittedAt).toLocaleDateString('es-VE')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase">Revisor</span>
+                  <span className="font-mono text-slate-300">{selectedKyc.reviewerId ? selectedKyc.reviewerId.slice(0, 8) + '...' : 'Pendiente'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase">Fecha de Revisión</span>
+                  <span className="font-mono text-slate-300">
+                    {selectedKyc.reviewedAt ? new Date(selectedKyc.reviewedAt).toLocaleDateString('es-VE') : 'Pendiente'}
+                  </span>
+                </div>
+              </div>
+
               {/* Notas del Revisor */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
@@ -330,37 +362,53 @@ export const AdminKYCTab: React.FC = () => {
                   rows={3}
                   value={reviewerNotes}
                   onChange={(e) => setReviewerNotes(e.target.value)}
-                  placeholder="Escribe observaciones o motivo en caso de rechazo..."
+                  placeholder="Escribe observaciones o motivo en caso de rechazo o solicitud de documentos..."
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               {/* Acciones de Resolución */}
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+              <div className="pt-4 flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setSelectedKyc(null)}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition"
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
                 >
                   Cerrar
                 </button>
                 <button
                   type="button"
                   disabled={processing}
-                  onClick={() => handleProcessKYC('REJECTED')}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm flex items-center gap-2 transition disabled:opacity-50"
+                  onClick={() => handleProcessKYC('NEEDS_MORE_INFORMATION')}
+                  className="px-3.5 py-2.5 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold transition disabled:opacity-50"
                 >
-                  <XCircle className="w-4 h-4" />
-                  Rechazar Expediente
+                  Solicitar Documentos
+                </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => handleProcessKYC('VERIFIED_WHATSAPP')}
+                  className="px-3.5 py-2.5 bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+                >
+                  📱 Verificado por WhatsApp
+                </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => handleProcessKYC('REJECTED')}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Rechazar
                 </button>
                 <button
                   type="button"
                   disabled={processing}
                   onClick={() => handleProcessKYC('APPROVED')}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm flex items-center gap-2 transition shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                 >
-                  <CheckCircle className="w-4 h-4" />
-                  Aprobar y Verificar
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Aprobar Expediente
                 </button>
               </div>
             </div>

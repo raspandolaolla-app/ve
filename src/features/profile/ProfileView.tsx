@@ -17,6 +17,7 @@ import { Button } from '../../components/common/Button';
 import { maskCedula, maskPhone, formatDateVE } from '../../utils/formatters';
 import { FINANCIAL_RULES } from '../../utils/constants';
 import type { AuditLogEntry } from '../../types/security';
+import { KYCRepository, type UserKYCStatus } from '../../services/repositories/KYCRepository';
 import {
   User,
   ShieldCheck,
@@ -30,6 +31,11 @@ import {
   FileText,
   ExternalLink,
   Loader2,
+  Camera,
+  Upload,
+  CheckCircle2,
+  Clock,
+  Lock,
 } from 'lucide-react';
 import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
 import type { LegalDocId } from '../../types/legal';
@@ -46,7 +52,7 @@ const VENEZUELA_STATES = [
 ];
 
 export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
-  const { state, user, profile, hasAcceptedTerms, termsRecord, isSigningIn, signInWithGoogle, signOut, refreshProfile } = useAuth();
+  const { state, user, profile, role, hasAcceptedTerms, termsRecord, isSigningIn, signInWithGoogle, signOut, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -55,14 +61,40 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Estado KYC
+  const [userKyc, setUserKyc] = useState<UserKYCStatus | null>(null);
+  const [loadingKyc, setLoadingKyc] = useState<boolean>(false);
+  const [cedulaFile, setCedulaFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [kycIdNumber, setKycIdNumber] = useState<string>('');
+  const [kycFullName, setKycFullName] = useState<string>('');
+  const [submittingKyc, setSubmittingKyc] = useState<boolean>(false);
+  const [kycFeedback, setKycFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
   const [userAuditLogs, setUserAuditLogs] = useState<AuditLogEntry[]>([]);
 
   const isAuthenticated = state === 'authenticated' && user !== null;
+  const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
 
   const loadUserSecurity = useCallback(async () => {
     if (!user) return;
     const logs = await SecurityRepository.getUserAuditLogs(user.id, 10);
     setUserAuditLogs(logs);
+  }, [user]);
+
+  const loadKYC = useCallback(async () => {
+    if (!user) return;
+    setLoadingKyc(true);
+    try {
+      const kyc = await KYCRepository.getUserKYCStatus(user.id);
+      setUserKyc(kyc);
+      if (kyc?.idNumber) setKycIdNumber(kyc.idNumber);
+      if (kyc?.fullLegalName) setKycFullName(kyc.fullLegalName);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingKyc(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -71,11 +103,105 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
       setLastName(profile.lastName || '');
       setResidenceState(profile.state || 'Distrito Capital');
       setBirthDate(profile.birthDate || '');
+      if (!kycFullName) {
+        setKycFullName(`${profile.firstName || ''} ${profile.lastName || ''}`.trim());
+      }
     }
     if (user) {
       loadUserSecurity();
+      loadKYC();
     }
-  }, [profile, user, loadUserSecurity]);
+  }, [profile, user, loadUserSecurity, loadKYC]);
+
+  const handleSubmitKYC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!kycIdNumber.trim()) {
+      setKycFeedback({ success: false, message: 'Por favor ingresa tu número de cédula de identidad.' });
+      return;
+    }
+
+    setSubmittingKyc(true);
+    setKycFeedback(null);
+
+    try {
+      let docPath: string | undefined = undefined;
+      let selfiePath: string | undefined = undefined;
+
+      if (cedulaFile) {
+        const upDoc = await KYCRepository.uploadKYCFile('kyc-documents', user.id, cedulaFile, 'cedula');
+        if (!upDoc.success) {
+          setKycFeedback({ success: false, message: 'Error al subir la cédula: ' + upDoc.error });
+          setSubmittingKyc(false);
+          return;
+        }
+        docPath = upDoc.storagePath;
+      }
+
+      if (selfieFile) {
+        const upSelfie = await KYCRepository.uploadKYCFile('kyc-selfies', user.id, selfieFile, 'selfie');
+        if (!upSelfie.success) {
+          setKycFeedback({ success: false, message: 'Error al subir la foto selfie: ' + upSelfie.error });
+          setSubmittingKyc(false);
+          return;
+        }
+        selfiePath = upSelfie.storagePath;
+      }
+
+      const res = await KYCRepository.submitKYC({
+        idNumber: kycIdNumber.trim(),
+        fullLegalName: kycFullName.trim() || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || user.email || '',
+        documentStoragePath: docPath,
+        selfieStoragePath: selfiePath,
+        verificationMethod: 'DOCUMENT_UPLOAD',
+      });
+
+      if (res.success) {
+        setKycFeedback({ success: true, message: res.message || 'Solicitud de verificación KYC enviada con éxito.' });
+        await loadKYC();
+        await refreshProfile();
+      } else {
+        setKycFeedback({ success: false, message: res.error || 'Error al enviar solicitud KYC.' });
+      }
+    } catch (err: any) {
+      setKycFeedback({ success: false, message: err.message || 'Error en el envío.' });
+    } finally {
+      setSubmittingKyc(false);
+    }
+  };
+
+  const handleWhatsAppVerification = async () => {
+    if (!user) return;
+    setSubmittingKyc(true);
+    setKycFeedback(null);
+
+    try {
+      const fullName = kycFullName.trim() || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || user.email || 'Usuario';
+      const idNum = kycIdNumber.trim() || 'V-Pendiente';
+
+      await KYCRepository.submitKYC({
+        idNumber: idNum,
+        fullLegalName: fullName,
+        verificationMethod: 'WHATSAPP',
+      });
+
+      await loadKYC();
+
+      const whatsappNumber = '584141234567';
+      const msg = `Hola equipo de Soporte Raspando la Olla. Solicito la verificación de identidad (KYC) por WhatsApp para mi cuenta.\n\n📧 Correo: ${user.email}\n👤 Nombre: ${fullName}\n🪪 Cédula: ${idNum}`;
+      window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+
+      setKycFeedback({
+        success: true,
+        message: 'Se ha abierto WhatsApp. Envía el mensaje precargado para completar tu verificación.'
+      });
+    } catch (err: any) {
+      setKycFeedback({ success: false, message: err.message || 'Error al iniciar verificación por WhatsApp.' });
+    } finally {
+      setSubmittingKyc(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -367,6 +493,227 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           </div>
         </Card>
       </div>
+
+      {/* 🔐 VERIFICACIÓN DE IDENTIDAD (KYC) */}
+      {isAdminOrOperator ? (
+        <Card
+          id="card-kyc-verification-admin"
+          header={
+            <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>🔐 Estatus KYC — Perfil Técnico de Plataforma</span>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-3">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-emerald-300 text-sm">KYC Validado de Forma Permanente</h3>
+                <p className="text-slate-300 mt-1 leading-relaxed text-xs">
+                  Tu usuario cuenta con rol de <strong className="text-emerald-400 uppercase">{role}</strong>. De acuerdo con las políticas de operación interna y auditoría de la plataforma, las cuentas administrativas y operativas se consideran validadas y exentas del proceso KYC de jugador.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-400 text-xs flex items-center justify-between">
+              <span>Restricción de Retiros de Fondos:</span>
+              <span className="font-semibold text-amber-400 flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5" /> Retiros Deshabilitados
+              </span>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card
+          id="card-kyc-verification-player"
+          header={
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>🔐 VERIFICACIÓN DE IDENTIDAD (KYC)</span>
+              </div>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border uppercase ${
+                  userKyc?.status === 'APPROVED' || profile?.identityVerificationStatus === 'approved' || profile?.accountStatus === 'active'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : userKyc?.status === 'PENDING' || userKyc?.status === 'UNDER_REVIEW'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    : userKyc?.status === 'NEEDS_MORE_INFORMATION'
+                    ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                    : userKyc?.status === 'REJECTED'
+                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                {userKyc?.status === 'APPROVED' || profile?.identityVerificationStatus === 'approved'
+                  ? '✓ Aprobado'
+                  : userKyc?.status === 'PENDING' || userKyc?.status === 'UNDER_REVIEW'
+                  ? '⏳ En Revisión'
+                  : userKyc?.status === 'NEEDS_MORE_INFORMATION'
+                  ? '⚠️ Documentos Requeridos'
+                  : userKyc?.status === 'REJECTED'
+                  ? '✕ Rechazado'
+                  : '⚪ No Verificado'}
+              </span>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            {kycFeedback && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                  kycFeedback.success
+                    ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
+                    : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span>{kycFeedback.message}</span>
+              </div>
+            )}
+
+            {userKyc?.status === 'APPROVED' || profile?.identityVerificationStatus === 'approved' ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2 text-emerald-300">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <span>Identidad Verificada Correctamente</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-xs">
+                  Tu cuenta cumple con todos los requisitos de verificación de identidad. Puedes realizar retiros de tus fondos sin limitaciones.
+                </p>
+              </div>
+            ) : (
+              <>
+                {userKyc?.status === 'PENDING' || userKyc?.status === 'UNDER_REVIEW' ? (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-amber-300">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <Clock className="w-5 h-5 text-amber-400" />
+                      <span>Verificación en Proceso</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed text-xs">
+                      Tu solicitud fue enviada el{' '}
+                      <strong className="text-amber-300">
+                        {userKyc.submittedAt ? new Date(userKyc.submittedAt).toLocaleDateString('es-VE') : 'recientemente'}
+                      </strong>{' '}
+                      y está siendo revisada por nuestro equipo de operadores. Te notificaremos al ser procesada.
+                    </p>
+                    {userKyc.verificationMethod === 'WHATSAPP' && (
+                      <p className="text-xs text-amber-400 font-semibold">
+                        Método seleccionado: Solicitud vía WhatsApp
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitKYC} className="space-y-4">
+                    {userKyc?.status === 'REJECTED' && (
+                      <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 space-y-1">
+                        <span className="font-bold block text-xs">Tu solicitud anterior fue rechazada</span>
+                        {userKyc.reviewerNotes && (
+                          <p className="text-xs text-rose-200 italic">Observaciones del operador: "{userKyc.reviewerNotes}"</p>
+                        )}
+                        <p className="text-[11px] text-slate-300">Por favor vuelve a subir tus documentos corregidos.</p>
+                      </div>
+                    )}
+
+                    {userKyc?.status === 'NEEDS_MORE_INFORMATION' && (
+                      <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl text-orange-300 space-y-1">
+                        <span className="font-bold block text-xs">Documentos adicionales requeridos</span>
+                        {userKyc.reviewerNotes && (
+                          <p className="text-xs text-orange-200 italic">Indicación del equipo: "{userKyc.reviewerNotes}"</p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-medium text-slate-300 mb-1">Cédula de Identidad (V/E)</label>
+                        <input
+                          type="text"
+                          value={kycIdNumber}
+                          onChange={(e) => setKycIdNumber(e.target.value)}
+                          placeholder="Ej. V-12345678"
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-medium text-slate-300 mb-1">Nombre Completo Legal</label>
+                        <input
+                          type="text"
+                          value={kycFullName}
+                          onChange={(e) => setKycFullName(e.target.value)}
+                          placeholder="Nombre y Apellido según Cédula"
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="block font-medium text-slate-200 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-emerald-400" />
+                          <span>🪪 Documento de Cédula</span>
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={(e) => setCedulaFile(e.target.files?.[0] || null)}
+                          className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                        />
+                        <p className="text-[10px] text-slate-500">Formato JPG, PNG o PDF (Máx. 10MB)</p>
+                      </div>
+
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="block font-medium text-slate-200 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-sky-400" />
+                          <span>🤳 Foto de tu Cara / Selfie</span>
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          onChange={(e) => setSelfieFile(e.target.files?.[0] || null)}
+                          className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                        />
+                        <p className="text-[10px] text-slate-500">Fotografía legible mostrando tu rostro claro</p>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                      🔒 <strong>Privacidad:</strong> Tus documentos se utilizan exclusivamente para validar tu identidad según las normas de cumplimiento de la plataforma.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={submittingKyc}
+                        leftIcon={submittingKyc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        className="flex-1 font-semibold"
+                      >
+                        {submittingKyc ? 'Enviando...' : 'Enviar Documentación Digital'}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleWhatsAppVerification}
+                        disabled={submittingKyc}
+                        className="flex-1 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-semibold"
+                      >
+                        📱 Verificar por WhatsApp
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Historial de Seguridad Personal */}
       <Card

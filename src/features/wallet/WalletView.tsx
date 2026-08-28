@@ -41,7 +41,8 @@ import {
 } from 'lucide-react';
 
 export function WalletView() {
-  const { state, user, isSigningIn, signInWithGoogle } = useAuth();
+  const { state, user, role, isSigningIn, signInWithGoogle } = useAuth();
+  const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -399,17 +400,24 @@ export function WalletView() {
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
             Retira tus ganancias directamente a tu cuenta bancaria registrada con verificación contable y retención auditada.
           </p>
-          <Button
-            id="btn-open-withdraw-modal"
-            variant="outline"
-            className="w-full text-slate-300 border-amber-500/30 hover:bg-amber-500/10"
-            onClick={() => {
-              setWithdrawFeedback(null);
-              setShowWithdrawModal(true);
-            }}
-          >
-            Solicitar Retiro
-          </Button>
+          {isAdminOrOperator ? (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+              <Lock className="w-4 h-4 flex-shrink-0 text-amber-400" />
+              <span>Función deshabilitada para perfiles administrativos y operativos.</span>
+            </div>
+          ) : (
+            <Button
+              id="btn-open-withdraw-modal"
+              variant="outline"
+              className="w-full text-slate-300 border-amber-500/30 hover:bg-amber-500/10"
+              onClick={() => {
+                setWithdrawFeedback(null);
+                setShowWithdrawModal(true);
+              }}
+            >
+              Solicitar Retiro
+            </Button>
+          )}
         </Card>
       </div>
 

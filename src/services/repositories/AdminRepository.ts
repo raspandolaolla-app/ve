@@ -2091,6 +2091,7 @@ export class AdminRepository {
           documentStoragePath: row.document_storage_path,
           documentBackStoragePath: row.document_back_storage_path,
           selfieStoragePath: row.selfie_storage_path,
+          verificationMethod: (row.verification_method as any) || (row.document_storage_path === 'WHATSAPP_PENDING' ? 'WHATSAPP' : 'DOCUMENT_UPLOAD'),
           status: row.status,
           reviewerId: row.reviewer_id,
           reviewerNotes: row.reviewer_notes,
@@ -2108,7 +2109,7 @@ export class AdminRepository {
    */
   public static async processKYCVerification(
     verificationId: string,
-    status: 'APPROVED' | 'REJECTED' | 'UNDER_REVIEW' | 'NEEDS_MORE_INFORMATION',
+    status: 'APPROVED' | 'REJECTED' | 'UNDER_REVIEW' | 'NEEDS_MORE_INFORMATION' | 'VERIFIED_WHATSAPP',
     notes: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();

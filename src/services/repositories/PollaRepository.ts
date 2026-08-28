@@ -393,7 +393,7 @@ export class PollaRepository {
       const supabase = getSupabaseClient();
       let query = supabase
         .from('polla_block_closures')
-        .select('*, winner_user:profiles!winner_user_id(username, full_name)')
+        .select('*, winner_user:profiles!winner_user_id(first_name, last_name, display_name)')
         .order('created_at', { ascending: false });
 
       if (drawDate) {
@@ -407,7 +407,9 @@ export class PollaRepository {
       }
 
       return (data || []).map((row: any) => {
-        const name = row.winner_user?.full_name || row.winner_user?.username || 'JUGADOR SIN NOMBRE';
+        const u = row.winner_user || {};
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+        const name = fullName || u.display_name || 'JUGADOR SIN NOMBRE';
         return {
           block: row.block,
           drawDate: row.draw_date,
@@ -494,7 +496,7 @@ export class PollaRepository {
       const supabase = getSupabaseClient();
       let query = supabase
         .from('polla_tickets')
-        .select('*, user:profiles!user_id(username, full_name)')
+        .select('*, user:profiles!user_id(first_name, last_name, display_name)')
         .order('created_at', { ascending: false });
 
       if (drawDate) {
@@ -508,7 +510,9 @@ export class PollaRepository {
       }
 
       return (data || []).map((row: any) => {
-        const userName = row.user?.full_name || row.user?.username || 'JUGADOR DESCONOCIDO';
+        const u = row.user || {};
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+        const userName = fullName || u.display_name || 'JUGADOR DESCONOCIDO';
         return {
           id: row.id,
           userId: row.user_id,

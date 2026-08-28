@@ -137,7 +137,17 @@ export function TablesView() {
       activeTable.id,
       (tablePayload) => {
         if (tablePayload.new) {
-          setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
+          const newStatus = (tablePayload.new.status || '').toUpperCase();
+          if (newStatus === 'CLOSED' || newStatus === 'TERMINATED' || newStatus === 'CANCELLED' || newStatus === 'EXPIRED') {
+            setActiveTable(null);
+            setInGameData(null);
+            setSeatActionFeedback({
+              success: false,
+              message: 'Esta mesa ha sido cerrada o terminada por la administración.',
+            });
+          } else {
+            setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
+          }
         }
       },
       () => {

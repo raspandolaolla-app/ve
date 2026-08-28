@@ -266,6 +266,18 @@ export function AdminView() {
     return await AdminRepository.cancelTable(tableId, reason);
   };
 
+  const handleTerminateTable = async (tableId: string, reason: string, refundPlayers: boolean) => {
+    return await AdminRepository.terminateTable(tableId, reason, refundPlayers);
+  };
+
+  const handleCleanupTable = async (tableId: string) => {
+    return await AdminRepository.cleanupTable(tableId);
+  };
+
+  const handleAutoCleanTables = async (inactiveMinutes?: number) => {
+    return await AdminRepository.autoCleanExpiredTables(inactiveMinutes || 15);
+  };
+
   // Handler para Tickets
   const handleUpdateTicketStatus = async (
     ticketId: string,
@@ -494,7 +506,11 @@ export function AdminView() {
         {activeTab === 'tables' && (
           <AdminTablesTab
             tables={tablesList}
+            currentUserRole={(role as UserRole) || 'ADMIN'}
             onCancelTable={handleCancelTable}
+            onTerminateTable={handleTerminateTable}
+            onCleanupTable={handleCleanupTable}
+            onAutoCleanTables={handleAutoCleanTables}
             onRefresh={loadAllAdminData}
           />
         )}

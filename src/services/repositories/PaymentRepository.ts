@@ -220,6 +220,49 @@ export class PaymentRepository {
   }
 
   /**
+   * Sube una imagen de comprobante de pago (JPG, PNG, WEBP) a Supabase Storage bucket 'payment-proofs'.
+   */
+  public static async uploadReceiptImage(
+    file: File
+  ): Promise<{ success: boolean; publicUrl?: string; storagePath?: string; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return { success: false, error: 'Usuario no autenticado' };
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${userData.user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      const filePath = `receipts/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('payment-proofs')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'image/jpeg',
+        });
+
+      if (error) {
+        console.warn('[PaymentRepository] Advertencia al subir comprobante:', error.message);
+        // Si el bucket no existe en la instancia, devolvemos error descriptivo
+        return { success: false, error: `Error en almacenamiento de comprobantes: ${error.message}` };
+      }
+
+      const { data: urlData } = supabase.storage.from('payment-proofs').getPublicUrl(filePath);
+
+      return {
+        success: true,
+        publicUrl: urlData?.publicUrl || filePath,
+        storagePath: filePath,
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Excepción al subir imagen' };
+    }
+  }
+
+  /**
    * Aprueba una recarga ejecutando la función segura process_deposit_approval.
    */
   public static async approveDeposit(

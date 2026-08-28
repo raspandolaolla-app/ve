@@ -49,6 +49,7 @@ export const VENEZUELAN_STATES: readonly VenezuelanState[] = [
   'Distrito Capital',
 ] as const;
 
+// Juegos con modalidad de Mesa (Excluye Polla Venezolana que es Sorteo Diario Global)
 export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
   {
     id: 'tic_tac_toe',
@@ -118,17 +119,6 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     isActive: true,
   },
   {
-    id: 'polla_venezolana',
-    name: 'Polla Venezolana',
-    shortDescription: 'Pronósticos y quinielas de eventos con pozo acumulado.',
-    minPlayers: 2,
-    maxPlayers: 1000,
-    allowedModes: ['mass_participation'],
-    minEntryFee: 20,
-    maxEntryFee: 2000,
-    isActive: true,
-  },
-  {
     id: 'atrapaito',
     name: 'Atrapaíto',
     shortDescription: 'Juego de reflejos y cálculo matemático en vivo.',
@@ -137,6 +127,21 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     allowedModes: ['1v1', '1v3'],
     minEntryFee: 15,
     maxEntryFee: 1500,
+    isActive: true,
+  },
+] as const;
+
+// Sorteos Diarios Globales Permanentes (Sin Mesa, Sin Creador, Sin Matchmaking)
+export const GLOBAL_DRAWS_METADATA: readonly GameMetadata[] = [
+  {
+    id: 'polla_venezolana',
+    name: 'Polla Venezolana',
+    shortDescription: 'Quiniela diaria de 6 animalitos (00-76). Sorteos Turno Mañana y Tarde.',
+    minPlayers: 1,
+    maxPlayers: 999999,
+    allowedModes: ['mass_participation'],
+    minEntryFee: 250,
+    maxEntryFee: 250,
     isActive: true,
   },
 ] as const;

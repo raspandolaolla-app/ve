@@ -16,6 +16,7 @@ import { AdminView } from './features/admin/AdminView';
 import { LegalModal } from './components/legal/LegalModal';
 import { TermsAcceptanceModal } from './components/legal/TermsAcceptanceModal';
 import { AlertCircle, X, BookOpen } from 'lucide-react';
+import { PollaBoard } from './features/games/components/PollaBoard';
 import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
@@ -82,8 +83,11 @@ function AppContent() {
           <LobbyView
             onSelectGame={handleSelectGame}
             onJoinTrancaito={handleJoinTrancaito}
+            onNavigateTab={setCurrentTab}
           />
         )}
+
+        {currentTab === 'polla' && <PollaBoard />}
 
         {currentTab === 'tables' && <TablesView />}
 

@@ -23,27 +23,3 @@
 6. **Bingo Online** — Extracción de balotas y cartones interactivos.
 7. **Polla Venezolana** — Pronósticos deportivos y eventos por pozo común.
 8. **Atrapaíto** — Juego de reflejos y rapidez mental.
-
----
-
-## 🚀 Ejecución en Entorno Local
-
-### Requisitos Previos
-- Node.js 20+
-- npm 10+ (o bun / pnpm)
-
-### Pasos de Instalación
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/raspandolaolla-app/ve.git
-cd ve
-
-# 2. Instalar dependencias
-npm install
-
-# 3. Configurar variables de entorno
-cp .env.example .env.local
-
-# 4. Iniciar servidor de desarrollo
-npm run dev
-```

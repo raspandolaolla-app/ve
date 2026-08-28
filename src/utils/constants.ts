@@ -121,10 +121,10 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
   {
     id: 'atrapaito',
     name: 'Atrapaíto',
-    shortDescription: 'Juego de reflejos y cálculo matemático en vivo.',
+    shortDescription: 'Parchís venezolano multijugador (Individual, Parejas, 1v1, 6 Fichas y 3v3).',
     minPlayers: 2,
-    maxPlayers: 4,
-    allowedModes: ['1v1', '1v3'],
+    maxPlayers: 6,
+    allowedModes: ['1v1', '2v2', '1v3', '1v4'],
     minEntryFee: 15,
     maxEntryFee: 1500,
     isActive: true,

@@ -321,18 +321,63 @@ export interface PollaState {
 }
 
 // ------------------------------------------------------------------------------
-// 8. ATRAPAÍTO
+// 8. ATRAPAÍTO (PARCHÍS / LUDO VENEZOLANO MULTIJUGADOR)
 // ------------------------------------------------------------------------------
+export type AtrapaitoMode = 'INDIVIDUAL_4' | 'PAIRS_4' | 'ONE_VS_ONE' | 'SIX_PIECES' | 'THREE_VS_THREE';
+export type AtrapaitoColor = 'yellow' | 'red' | 'blue' | 'green' | 'orange' | 'cyan';
+export type AtrapaitoPieceState = 'HOME' | 'ON_BOARD' | 'SAFE' | 'FINAL_PATH' | 'FINISHED' | 'CAPTURED';
+
+export interface AtrapaitoPiece {
+  id: string;
+  color: AtrapaitoColor;
+  pieceNumber: number;
+  state: AtrapaitoPieceState;
+  position: number;
+  pathProgress: number;
+}
+
+export interface AtrapaitoPlayer {
+  userId: string;
+  name: string;
+  colors: AtrapaitoColor[];
+  team: 'A' | 'B' | null;
+  seat: number;
+  lives: number;
+  status: 'active' | 'eliminated' | 'disconnected';
+}
+
+export interface AtrapaitoLegalMove {
+  pieceId: string;
+  fromPosition: number;
+  toPosition: number;
+  steps: number;
+  isExitMove?: boolean;
+  isCapture?: boolean;
+  isGoalEntry?: boolean;
+}
+
 export interface AtrapaitoState {
-  targetNumber: number;
-  currentCardsInMiddle: { id: string; value: number; label: string }[];
-  playerHands: Record<string, { id: string; value: number; label: string }[]>;
-  playerNames: Record<string, string>;
-  playerScores: Record<string, number>;
-  targetScore: number;
-  turnUserId: string;
-  status: 'playing' | 'round_won' | 'game_won';
+  mode: AtrapaitoMode;
+  boardType: '4_COLORS' | '6_COLORS';
+  pieces: Record<string, AtrapaitoPiece>;
+  players: Record<string, AtrapaitoPlayer>;
+  playerOrder: string[];
+  currentTurnUserId: string;
+  activeColor: AtrapaitoColor;
+  turnPhase: 'ROLL_DICE' | 'SELECT_PIECE' | 'BONUS_MOVE' | 'TURN_ENDED';
+  diceValue: number | null;
+  consecutiveSixes: number;
+  lastMovedPieceId: string | null;
+  pendingBonus: { type: 'CAPTURE_20' | 'GOAL_10'; bonusSteps: number; color: AtrapaitoColor } | null;
+  legalMoves: AtrapaitoLegalMove[];
+  status: 'initializing' | 'playing' | 'game_won' | 'cancelled';
   winnerUserId: string | null;
-  lastReaction: { userId: string; success: boolean; delta: number; message: string } | null;
+  winnerTeam: 'A' | 'B' | null;
+  lastActionDescription: string | null;
+  lives: Record<string, number>;
+  playerNames: Record<string, string>;
+  turnUserId: string;
+  turnStartedAt: number;
+  turnDeadlineAt: number;
 }
 

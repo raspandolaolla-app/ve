@@ -26,7 +26,8 @@ export type AdminTabId =
   | 'settings'
   | 'security'
   | 'maintenance'
-  | 'reports';
+  | 'reports'
+  | 'lobby-content';
 
 export interface EntryFeeItem {
   id: string;

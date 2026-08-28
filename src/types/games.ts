@@ -56,7 +56,7 @@ export interface GameActionPayload {
 }
 
 // ------------------------------------------------------------------------------
-// 1. TRES EN RAYA (TIC TAC TOE)
+// 1. LA VIEJA (TIC TAC TOE)
 // ------------------------------------------------------------------------------
 export type TicTacToeSymbol = 'X' | 'O';
 
@@ -205,9 +205,11 @@ export interface TrucoState {
 }
 
 // ------------------------------------------------------------------------------
-// 6. BINGO ONLINE
+// 6. BINGO ONLINE (75, 80, 90 BOLAS)
 // ------------------------------------------------------------------------------
-export interface BingoCard {
+export type BingoVariant = '75' | '80' | '90';
+
+export interface BingoCard75 {
   b: number[]; // 5
   i: number[]; // 5
   n: (number | 'FREE')[]; // 5 (center FREE)
@@ -216,15 +218,34 @@ export interface BingoCard {
   marked: boolean[][]; // 5x5
 }
 
+export interface BingoCard80 {
+  grid: number[][]; // 4x4 numbers (1-80)
+  marked: boolean[][]; // 4x4
+}
+
+export interface BingoCard90 {
+  rows: (number | null)[][]; // 3x9 grid (15 numbers, 5 per row)
+  marked: boolean[][]; // 3x9
+}
+
+export type BingoCard = BingoCard75; // Backward compatibility
+
 export interface BingoState {
+  variant: BingoVariant;
   drawnBalls: number[];
   currentBall: number | null;
-  cards: Record<string, BingoCard>;
+  cards: Record<string, BingoCard75[]>; // User ID -> Array of cards (1 to 20 cards)
+  cards80?: Record<string, BingoCard80[]>;
+  cards90?: Record<string, BingoCard90[]>;
+  cardsPurchased: Record<string, number>; // User ID -> card count
   playerNames: Record<string, string>;
   winnerUserId: string | null;
   status: 'in_progress' | 'bingo_won' | 'finished';
   callIntervalMs: number;
-  totalBalls: number;
+  totalBalls: number; // 75, 80, or 90
+  totalPoolBs: number;
+  winnerPoolBs: number; // 90%
+  systemFeeBs: number;  // 10%
 }
 
 // ------------------------------------------------------------------------------

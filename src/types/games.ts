@@ -264,6 +264,13 @@ export interface PollaTicket {
   status: 'PENDING' | 'WINNER' | 'NOT_WINNER' | 'CANCELLED';
   prizeBs: number;
   createdAt: string;
+  ticketNumber?: string;
+  verificationCode?: string;
+  validationStatus?: 'PENDING' | 'DETECTED' | 'PENDING_VALIDATION' | 'VALIDATED' | 'CREDITED' | 'REJECTED';
+  validatedBy?: string;
+  validatedAt?: string;
+  creditedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface PollaLotteryResult {

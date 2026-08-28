@@ -58,14 +58,11 @@ ALTER TABLE public.polla_block_closures ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Usuarios ven sus propias pollas" ON public.polla_tickets;
 CREATE POLICY "Usuarios ven sus propias pollas"
   ON public.polla_tickets FOR SELECT
-  USING (auth.uid() = user_id OR EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN')
-  ));
+  USING (auth.uid() = user_id OR public.is_admin(auth.uid()));
 
 DROP POLICY IF EXISTS "Inserción vía RPC buy_polla_ticket_secure" ON public.polla_tickets;
-CREATE POLICY "Inserción vía RPC buy_polla_ticket_secure"
-  ON public.polla_tickets FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Sin inserción directa de usuarios" ON public.polla_tickets;
+-- No INSERT policy for polla_tickets: Inserts are strictly reserved for SECURITY DEFINER RPC buy_polla_ticket_secure
 
 -- Políticas para polla_draw_results (Lectura pública a usuarios autenticados)
 DROP POLICY IF EXISTS "Lectura pública de resultados" ON public.polla_draw_results;
@@ -76,9 +73,7 @@ CREATE POLICY "Lectura pública de resultados"
 DROP POLICY IF EXISTS "Solo administradores crean resultados" ON public.polla_draw_results;
 CREATE POLICY "Solo administradores crean resultados"
   ON public.polla_draw_results FOR ALL
-  USING (EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN')
-  ));
+  USING (public.is_admin(auth.uid()));
 
 -- Políticas para polla_block_closures
 DROP POLICY IF EXISTS "Lectura pública de ganadores y cierres" ON public.polla_block_closures;

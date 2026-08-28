@@ -1,34 +1,61 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE JUEGO: BINGO ONLINE (75 BOLAS)
+// RASPANDO LA OLLA — MOTOR DE JUEGO: BINGO ONLINE (75, 80, 90 BOLAS)
 // ==============================================================================
-// Cartones 5x5, balotera secuencial, marcaje de números y validación de BINGO.
+// Cartones 5x5, 4x4 y 3x9, balotera secuencial, marcaje de números y validación.
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
-import type { BingoState, BingoCard, GameActionPayload } from '../../../types/games';
+import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
 export class BingoEngine implements IGameEngine<BingoState> {
   public readonly gameType = 'bingo';
 
   public initialize(table: GameTable, players: TablePlayer[]): BingoState {
-    const cards: Record<string, BingoCard> = {};
+    const cards: Record<string, BingoCard75[]> = {};
+    const cardsPurchased: Record<string, number> = {};
     const playerNames: Record<string, string> = {};
 
+    const variant: BingoVariant = ((table.config?.variant as BingoVariant) || '75');
+    const totalBalls = variant === '90' ? 90 : variant === '80' ? 80 : 75;
+
+    // Calcular pozo inicial basado en apuestas (o default 10 Bs por cartón)
+    const cardPrice = table.entryFee || 10.0;
+    let totalCardCount = 0;
+
     players.forEach((p) => {
-      cards[p.userId] = this.generateBingoCard();
-      playerNames[p.userId] = p.displayName || `Jugador ${p.seatNumber}`;
+      const isHost = p.userId === table.hostUserId;
+      // 1 a 20 cartones por jugador
+      const count = Math.min(20, Math.max(1, isHost ? 3 : 1));
+      cardsPurchased[p.userId] = count;
+      totalCardCount += count;
+
+      const userCards: BingoCard75[] = [];
+      for (let c = 0; c < count; c++) {
+        userCards.push(this.generateBingoCard75());
+      }
+      cards[p.userId] = userCards;
+      playerNames[p.userId] = (p.displayName || `Jugador ${p.seatNumber}`).toUpperCase();
     });
 
+    const totalPoolBs = totalCardCount * cardPrice;
+    const winnerPoolBs = Math.round(totalPoolBs * 0.90 * 100) / 100; // 90% para ganador
+    const systemFeeBs = Math.round(totalPoolBs * 0.10 * 100) / 100;  // 10% para sistema
+
     return {
+      variant,
       drawnBalls: [],
       currentBall: null,
       cards,
+      cardsPurchased,
       playerNames,
       winnerUserId: null,
       status: 'in_progress',
       callIntervalMs: 4000,
-      totalBalls: 75,
+      totalBalls,
+      totalPoolBs,
+      winnerPoolBs,
+      systemFeeBs,
     };
   }
 
@@ -39,35 +66,18 @@ export class BingoEngine implements IGameEngine<BingoState> {
 
     if (action.actionType === 'DRAW_BALL') {
       if (state.drawnBalls.length >= state.totalBalls) {
-        return { valid: false, reason: 'Ya se han extraído todas las 75 balotas.' };
+        return { valid: false, reason: `Ya se han extraído todas las ${state.totalBalls} balotas.` };
       }
-      return { valid: true };
-    }
-
-    if (action.actionType === 'MARK_NUMBER') {
-      const { row, col } = action.actionData as { row: number; col: number };
-      const card = state.cards[action.userId];
-      if (!card) return { valid: false, reason: 'No tienes un cartón registrado.' };
-
-      if (row < 0 || row > 4 || col < 0 || col > 4) {
-        return { valid: false, reason: 'Posición fuera del cartón (5x5).' };
-      }
-
-      const num = this.getCardValue(card, row, col);
-      if (num !== 'FREE' && !state.drawnBalls.includes(num as number)) {
-        return { valid: false, reason: `El número ${num} aún no ha sido cantado por la balotera.` };
-      }
-
       return { valid: true };
     }
 
     if (action.actionType === 'CLAIM_BINGO') {
-      const card = state.cards[action.userId];
-      if (!card) return { valid: false, reason: 'Cartón no encontrado.' };
+      const userCards = state.cards[action.userId];
+      if (!userCards || userCards.length === 0) return { valid: false, reason: 'Cartón no encontrado.' };
 
-      const isBingoValid = this.verifyBingoCard(card, state.drawnBalls);
-      if (!isBingoValid) {
-        return { valid: false, reason: '¡Canto falso! Tu cartón no completa un Bingo válido.' };
+      const hasValidBingo = userCards.some((card) => this.verifyBingoCard75(card, state.drawnBalls));
+      if (!hasValidBingo) {
+        return { valid: false, reason: '¡Canto falso! Ninguno de tus cartones completa un Bingo válido.' };
       }
 
       return { valid: true };
@@ -91,8 +101,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
     }
 
     if (action.actionType === 'DRAW_BALL') {
-      // Extraer una bola no repetida entre 1 y 75
-      const available = Array.from({ length: 75 }, (_, i) => i + 1).filter(
+      const available = Array.from({ length: state.totalBalls }, (_, i) => i + 1).filter(
         (n) => !state.drawnBalls.includes(n)
       );
 
@@ -114,37 +123,6 @@ export class BingoEngine implements IGameEngine<BingoState> {
         ...state,
         drawnBalls: updatedDrawn,
         currentBall: nextBall,
-      };
-
-      return {
-        newState: updatedState,
-        isValid: true,
-        isGameOver: false,
-        winnerUserId: null,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
-    }
-
-    if (action.actionType === 'MARK_NUMBER') {
-      const { row, col } = action.actionData as { row: number; col: number };
-      const card = state.cards[action.userId];
-      const newMarked = card.marked.map((r) => [...r]);
-      newMarked[row][col] = true;
-
-      const updatedCard = {
-        ...card,
-        marked: newMarked,
-      };
-
-      const updatedCards = {
-        ...state.cards,
-        [action.userId]: updatedCard,
-      };
-
-      const updatedState: BingoState = {
-        ...state,
-        cards: updatedCards,
       };
 
       return {
@@ -189,7 +167,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
     return state;
   }
 
-  private generateBingoCard(): BingoCard {
+  public generateBingoCard75(): BingoCard75 {
     const getRandomDistinct = (min: number, max: number, count: number): number[] => {
       const nums: number[] = [];
       while (nums.length < count) {
@@ -209,48 +187,15 @@ export class BingoEngine implements IGameEngine<BingoState> {
     const marked: boolean[][] = Array(5)
       .fill(false)
       .map(() => Array(5).fill(false));
-    marked[2][2] = true; // Casilla central FREE marcada por defecto
+    marked[2][2] = true;
 
     return { b, i, n, g, o, marked };
   }
 
-  private getCardValue(card: BingoCard, row: number, col: number): number | 'FREE' {
-    switch (col) {
-      case 0:
-        return card.b[row];
-      case 1:
-        return card.i[row];
-      case 2:
-        return card.n[row];
-      case 3:
-        return card.g[row];
-      case 4:
-        return card.o[row];
-      default:
-        return 0;
-    }
-  }
-
-  private verifyBingoCard(card: BingoCard, drawnBalls: number[]): boolean {
-    // Validar que cada casilla marcada corresponda a una bola cantada
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c < 5; c++) {
-        if (card.marked[r][c]) {
-          const val = this.getCardValue(card, r, c);
-          if (val !== 'FREE' && !drawnBalls.includes(val as number)) {
-            return false;
-          }
-        }
-      }
-    }
-
-    // Verificar al menos una línea completa (Horizontal, Vertical o Diagonal)
-    // Filas
+  private verifyBingoCard75(card: BingoCard75, drawnBalls: number[]): boolean {
     for (let r = 0; r < 5; r++) {
       if (card.marked[r].every((m) => m)) return true;
     }
-
-    // Columnas
     for (let c = 0; c < 5; c++) {
       let colFull = true;
       for (let r = 0; r < 5; r++) {
@@ -258,11 +203,8 @@ export class BingoEngine implements IGameEngine<BingoState> {
       }
       if (colFull) return true;
     }
-
-    // Diagonales
     const diag1 = card.marked[0][0] && card.marked[1][1] && card.marked[2][2] && card.marked[3][3] && card.marked[4][4];
     const diag2 = card.marked[0][4] && card.marked[1][3] && card.marked[2][2] && card.marked[3][1] && card.marked[4][0];
-
     return diag1 || diag2;
   }
 }

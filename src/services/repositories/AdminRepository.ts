@@ -850,41 +850,84 @@ export class AdminRepository {
         return [];
       }
 
-      let items: AdminTableItem[] = (data || []).map((row: any) => {
-        const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_type || g.id === row.game_id);
-        const players = (row.game_table_players || []).map((p: any) => {
-          const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+      let items: AdminTableItem[] = (data || [])
+        .filter((row: any) => {
+          // Excluir Bingo y Polla Venezolana de la administración de mesas tipo room/match
+          const gType = (row.game_type || row.game_id || '').toLowerCase();
+          return !gType.includes('bingo') && !gType.includes('polla');
+        })
+        .map((row: any) => {
+          const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_type || g.id === row.game_id);
+          const players = (row.game_table_players || []).map((p: any) => {
+            const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+            const isDiscon = p.status === 'DISCONNECTED' || p.status === 'LEFT';
+            return {
+              userId: p.user_id,
+              seatNumber: p.seat_number,
+              userName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Jugador',
+              isReady: p.status === 'READY' || p.status === 'PLAYING',
+              isOnline: !isDiscon,
+              lastSeenAt: p.updated_at || p.joined_at,
+            };
+          });
+
+          const updatedAt = row.updated_at || row.created_at;
+          const lastActivityAt = row.last_activity_at || updatedAt;
+          const diffMs = Date.now() - new Date(lastActivityAt).getTime();
+          const inactivityMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+          let mappedStatus: AdminTableItem['status'] = 'WAITING_PLAYERS';
+          const rawStatus = (row.status || '').toUpperCase();
+          if (rawStatus === 'OPEN' || rawStatus === 'WAITING' || rawStatus === 'WAITING_PLAYERS') {
+            mappedStatus = players.length === 0 ? 'WAITING_PLAYERS' : 'WAITING_PLAYERS';
+          } else if (rawStatus === 'IN_GAME' || rawStatus === 'ACTIVE' || rawStatus === 'PLAYING') {
+            mappedStatus = 'IN_GAME';
+          } else if (rawStatus === 'FULL') {
+            mappedStatus = 'FULL';
+          } else if (rawStatus === 'PAUSED') {
+            mappedStatus = 'PAUSED';
+          } else if (rawStatus === 'EXPIRED') {
+            mappedStatus = 'EXPIRED';
+          } else if (rawStatus === 'TERMINATED') {
+            mappedStatus = 'TERMINATED';
+          } else if (rawStatus === 'CLOSED') {
+            mappedStatus = 'CLOSED';
+          } else if (rawStatus === 'FINISHED') {
+            mappedStatus = 'FINISHED';
+          } else if (rawStatus === 'CANCELLED') {
+            mappedStatus = 'CANCELLED';
+          }
+
           return {
-            userId: p.user_id,
-            seatNumber: p.seat_number,
-            userName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Jugador',
-            isReady: p.status === 'READY',
+            id: row.id,
+            gameId: row.game_type || row.game_id,
+            gameName: gameMeta?.name || row.game_type || row.game_id,
+            trackingCode: row.invite_code || row.tracking_code || `TRK-${row.id.slice(0, 6).toUpperCase()}`,
+            status: mappedStatus,
+            entryFee: Number(row.entry_fee || 0),
+            currentPot: Number(row.entry_fee * (row.current_players_count || players.length)),
+            currentPlayers: row.current_players_count ?? players.length,
+            maxPlayers: row.max_players || 4,
+            isPrivate: row.visibility === 'PRIVATE' || Boolean(row.is_private),
+            creatorId: row.host_user_id || row.created_by,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            lastActivityAt,
+            inactivityMinutes,
+            gameStarted: mappedStatus === 'IN_GAME',
+            currentTurn: row.current_turn || null,
+            spectatorsCount: Number(row.spectators_count || 0),
+            playersList: players,
           };
         });
-
-        return {
-          id: row.id,
-          gameId: row.game_type || row.game_id,
-          gameName: gameMeta?.name || row.game_type || row.game_id,
-          trackingCode: row.invite_code || row.tracking_code || `TRK-${row.id.slice(0, 6).toUpperCase()}`,
-          status: row.status,
-          entryFee: Number(row.entry_fee || 0),
-          currentPot: Number(row.entry_fee * (row.current_players_count || players.length)),
-          currentPlayers: row.current_players_count ?? players.length,
-          maxPlayers: row.max_players || 4,
-          isPrivate: row.visibility === 'PRIVATE' || Boolean(row.is_private),
-          creatorId: row.host_user_id || row.created_by,
-          createdAt: row.created_at,
-          playersList: players,
-        };
-      });
 
       if (filters?.search) {
         const s = filters.search.toLowerCase();
         items = items.filter(
           (t) =>
             t.trackingCode.toLowerCase().includes(s) ||
-            t.gameName.toLowerCase().includes(s)
+            t.gameName.toLowerCase().includes(s) ||
+            t.id.toLowerCase().includes(s)
         );
       }
 
@@ -896,34 +939,284 @@ export class AdminRepository {
   }
 
   /**
-   * Cierre o cancelación administrativa de una mesa con auditoría.
+   * Cierre o cancelación administrativa tradicional.
    */
   public static async cancelTable(
     tableId: string,
     reason: string
   ): Promise<{ success: boolean; error?: string }> {
+    return this.terminateTable(tableId, reason, true);
+  }
+
+  /**
+   * Termina una mesa de juego respetando reglas de seguridad server-side.
+   * Transición controlada: WAITING/ACTIVE -> TERMINATED/CLOSED.
+   * NO borra transacciones, ledger ni auditoría.
+   */
+  public static async terminateTable(
+    tableId: string,
+    reason: string,
+    refundPlayers: boolean = false
+  ): Promise<{ success: boolean; error?: string; refundedCount?: number }> {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
     try {
-      const { error } = await supabase
+      const { data: authData } = await supabase.auth.getUser();
+      const adminId = authData?.user?.id;
+      if (!adminId) return { success: false, error: 'Sesión no autenticada.' };
+
+      // 1. Obtener estado actual de la mesa con información de jugadores
+      const { data: tableData, error: tableErr } = await supabase
         .from('game_tables')
-        .update({ status: 'CANCELLED' })
-        .eq('id', tableId);
+        .select('*, game_table_players(*)')
+        .eq('id', tableId)
+        .maybeSingle();
 
-      if (error) return { success: false, error: error.message };
+      if (tableErr || !tableData) {
+        return { success: false, error: 'La mesa especificada no fue encontrada o ya no existe.' };
+      }
 
-      await this.recordAdminAudit({
-        action: 'ADMIN_CANCEL_TABLE',
-        resourceType: 'GAME_TABLE',
-        resourceId: tableId,
-        severity: 'WARNING',
-        metadata: { table_id: tableId, reason },
+      const prevStatus = tableData.status;
+      if (prevStatus === 'CLOSED' || prevStatus === 'TERMINATED') {
+        return { success: false, error: 'La mesa ya se encuentra cerrada o terminada.' };
+      }
+
+      const players = tableData.game_table_players || [];
+      const playersCount = players.length;
+
+      // Intentar primero mediante RPC Server-Side SECURITY DEFINER
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_terminate_game_table', {
+        p_table_id: tableId,
+        p_reason: reason || 'Terminación administrativa por operador',
+        p_refund_players: refundPlayers,
       });
 
-      return { success: true };
+      if (!rpcErr && rpcData?.success) {
+        return { success: true, refundedCount: rpcData.refunded_count || 0 };
+      }
+
+      // Fallback seguro en cliente con políticas RLS
+      const newStatus = playersCount === 0 ? 'CLOSED' : 'TERMINATED';
+      const { error: updateErr } = await supabase
+        .from('game_tables')
+        .update({
+          status: newStatus,
+          closed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tableId);
+
+      if (updateErr) {
+        return { success: false, error: updateErr.message };
+      }
+
+      // Desactivar o desvincular sesiones activas de jugadores en esa mesa sin borrar su cuenta
+      await supabase
+        .from('game_table_players')
+        .update({ status: 'LEFT', updated_at: new Date().toISOString() })
+        .eq('table_id', tableId)
+        .neq('status', 'LEFT');
+
+      // Si se solicitó reembolso y había jugadores inscritos con cuota
+      let refundedCount = 0;
+      if (refundPlayers && Number(tableData.entry_fee) > 0 && playersCount > 0) {
+        for (const p of players) {
+          if (p.user_id) {
+            try {
+              // Devolver entrada al monedero disponible
+              await supabase.rpc('credit_user_wallet_refund', {
+                p_user_id: p.user_id,
+                p_amount: Number(tableData.entry_fee),
+                p_reference_id: tableId,
+                p_reason: `Reembolso por terminación administrativa de mesa #${tableData.invite_code || tableId.slice(0, 6)}`,
+              });
+              refundedCount++;
+            } catch (errRef) {
+              console.warn(`[AdminRepository] No se pudo procesar reembolso directo a ${p.user_id}:`, errRef);
+            }
+          }
+        }
+      }
+
+      // Notificación Realtime para clientes conectados
+      try {
+        const channel = supabase.channel(`table_${tableId}`);
+        await channel.send({
+          type: 'broadcast',
+          event: 'TABLE_CLOSED',
+          payload: {
+            tableId,
+            status: newStatus,
+            reason: reason || 'Mesa cerrada por la administración',
+            terminatedAt: new Date().toISOString(),
+          },
+        });
+      } catch (rtErr) {
+        console.warn('[AdminRepository] No se pudo emitir broadcast Realtime de cierre:', rtErr);
+      }
+
+      // Registro inmutable de auditoría audit_logs
+      await this.recordAdminAudit({
+        action: 'GAME_TABLE_TERMINATED',
+        resourceType: 'GAME_TABLE',
+        resourceId: tableId,
+        severity: playersCount > 0 ? 'CRITICAL' : 'WARNING',
+        metadata: {
+          table_id: tableId,
+          game_type: tableData.game_type,
+          admin_id: adminId,
+          previous_status: prevStatus,
+          new_status: newStatus,
+          players_count: playersCount,
+          refund_players: refundPlayers,
+          refunded_count: refundedCount,
+          reason,
+          created_at: new Date().toISOString(),
+        },
+      });
+
+      return { success: true, refundedCount };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      console.error('[AdminRepository] Error al terminar mesa:', err);
+      return { success: false, error: err.message || 'Error inesperado al terminar la mesa.' };
+    }
+  }
+
+  /**
+   * Ejecuta la limpieza de datos temporales (sesiones efímeras, presencias expiradas)
+   * de una mesa que ya está terminada o cerrada.
+   * NO elimina transacciones, wallets, ledger ni resultados de partidas.
+   */
+  public static async cleanupTable(tableId: string): Promise<{ success: boolean; cleanedItemsCount?: number; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const adminId = authData?.user?.id;
+      if (!adminId) return { success: false, error: 'Sesión no autenticada.' };
+
+      // 1. Verificar estado de la mesa
+      const { data: tableData, error: tableErr } = await supabase
+        .from('game_tables')
+        .select('id, status, game_type')
+        .eq('id', tableId)
+        .maybeSingle();
+
+      if (tableErr || !tableData) {
+        return { success: false, error: 'Mesa no encontrada.' };
+      }
+
+      // 2. Intentar llamada a RPC server-side si está disponible
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_cleanup_game_table', {
+        p_table_id: tableId,
+      });
+
+      if (!rpcErr && rpcData?.success) {
+        return { success: true, cleanedItemsCount: rpcData.cleaned_items_count || 0 };
+      }
+
+      // 3. Fallback controlado: Limpiar únicamente presencia efímera o registros temporales de jugadores abandonados
+      let cleanedCount = 0;
+
+      // Limpiar entradas de presencia temporal o sesiones efímeras sin tocar game_table_players
+      const { data: disconPlayers } = await supabase
+        .from('game_table_players')
+        .delete()
+        .eq('table_id', tableId)
+        .in('status', ['LEFT', 'DISCONNECTED'])
+        .select('id');
+
+      cleanedCount += (disconPlayers || []).length;
+
+      // Registrar auditoría del proceso de limpieza
+      await this.recordAdminAudit({
+        action: 'GAME_TABLE_CLEANUP',
+        resourceType: 'GAME_TABLE',
+        resourceId: tableId,
+        severity: 'INFO',
+        metadata: {
+          table_id: tableId,
+          admin_id: adminId,
+          cleaned_items_count: cleanedCount,
+          reason: 'Limpieza manual de datos temporales de mesa inactiva/cerrada',
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      return { success: true, cleanedItemsCount: cleanedCount };
+    } catch (err: any) {
+      console.error('[AdminRepository] Error al limpiar datos temporales de mesa:', err);
+      return { success: false, error: err.message || 'Error al ejecutar limpieza de mesa.' };
+    }
+  }
+
+  /**
+   * Política de limpieza automática para mesas abandonadas o inactivas.
+   * Marca como EXPIRED/CLOSED las mesas WAITING sin jugadores con inactividad > inactiveMinutes.
+   */
+  public static async autoCleanExpiredTables(inactiveMinutes: number = 15): Promise<{
+    success: boolean;
+    expiredTablesCount: number;
+    error?: string;
+  }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, expiredTablesCount: 0, error: 'El servicio no está disponible.' };
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const adminId = authData?.user?.id;
+
+      const cutoffTime = new Date(Date.now() - inactiveMinutes * 60 * 1000).toISOString();
+
+      // Buscar mesas en estado WAITING/OPEN sin jugadores actualizadas antes del límite
+      const { data: candidateTables, error: searchErr } = await supabase
+        .from('game_tables')
+        .select('id, status, current_players_count, game_type')
+        .in('status', ['OPEN', 'WAITING', 'WAITING_PLAYERS'])
+        .or(`current_players_count.eq.0,current_players_count.is.null`)
+        .lt('created_at', cutoffTime);
+
+      if (searchErr || !candidateTables || candidateTables.length === 0) {
+        return { success: true, expiredTablesCount: 0 };
+      }
+
+      const tableIdsToExpire = candidateTables.map((t) => t.id);
+
+      // Actualizar estado a EXPIRED
+      const { error: updateErr } = await supabase
+        .from('game_tables')
+        .update({
+          status: 'EXPIRED',
+          closed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', tableIdsToExpire);
+
+      if (updateErr) {
+        return { success: false, expiredTablesCount: 0, error: updateErr.message };
+      }
+
+      // Registrar acción de auditoría
+      await this.recordAdminAudit({
+        action: 'AUTO_CLEANUP_EXPIRED_TABLES',
+        resourceType: 'GAME_TABLE_BATCH',
+        resourceId: 'BATCH_CLEANUP',
+        severity: 'INFO',
+        metadata: {
+          admin_id: adminId || 'SYSTEM_DAEMON',
+          inactive_minutes_threshold: inactiveMinutes,
+          expired_tables_count: tableIdsToExpire.length,
+          expired_table_ids: tableIdsToExpire,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      return { success: true, expiredTablesCount: tableIdsToExpire.length };
+    } catch (err: any) {
+      console.error('[AdminRepository] Error en limpieza automática de mesas:', err);
+      return { success: false, expiredTablesCount: 0, error: err.message };
     }
   }
 

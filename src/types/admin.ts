@@ -226,7 +226,7 @@ export interface AdminTableItem {
   gameId: string;
   gameName: string;
   trackingCode: string;
-  status: 'WAITING_PLAYERS' | 'FULL' | 'IN_GAME' | 'FINISHED' | 'CANCELLED';
+  status: 'WAITING_PLAYERS' | 'FULL' | 'IN_GAME' | 'FINISHED' | 'CANCELLED' | 'PAUSED' | 'CLOSED' | 'TERMINATED' | 'EXPIRED' | 'OPEN';
   entryFee: number;
   currentPot: number;
   currentPlayers: number;
@@ -235,11 +235,19 @@ export interface AdminTableItem {
   creatorId: string;
   creatorName?: string;
   createdAt: string;
+  updatedAt?: string;
+  lastActivityAt?: string;
+  inactivityMinutes?: number;
+  gameStarted?: boolean;
+  currentTurn?: string | null;
+  spectatorsCount?: number;
   playersList?: Array<{
     userId: string;
     seatNumber: number;
     userName: string;
     isReady: boolean;
+    isOnline?: boolean;
+    lastSeenAt?: string;
   }>;
 }
 

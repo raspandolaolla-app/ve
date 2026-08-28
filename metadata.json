@@ -1,6 +1,6 @@
 {
   "name": "Raspando La Olla",
-  "description": "Plataforma multijugador online en tiempo real con mesas de juegos tradicionales, billetera ledger y autenticación segura.",
+  "description": "Plataforma multijugador online en tiempo real con PulsoPLAY, mesas de juegos tradicionales, billetera ledger y autenticación segura.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

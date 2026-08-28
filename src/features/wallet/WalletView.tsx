@@ -617,6 +617,22 @@ export function WalletView() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                          if (file.type && !allowedTypes.includes(file.type.toLowerCase())) {
+                            setDepositFeedback({
+                              success: false,
+                              message: 'El comprobante debe ser una imagen válida (JPG, JPEG, PNG, WEBP).',
+                            });
+                            return;
+                          }
+                          if (file.size > 10 * 1024 * 1024) {
+                            setDepositFeedback({
+                              success: false,
+                              message: 'El archivo supera el tamaño permitido (máximo 10MB).',
+                            });
+                            return;
+                          }
+                          setDepositFeedback(null);
                           setReceiptFile(file);
                           const reader = new FileReader();
                           reader.onloadend = () => {

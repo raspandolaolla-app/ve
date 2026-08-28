@@ -37,6 +37,7 @@ import {
   Building,
   RefreshCw,
   Loader2,
+  Upload,
 } from 'lucide-react';
 
 export function WalletView() {
@@ -51,6 +52,8 @@ export function WalletView() {
   const [depositAmount, setDepositAmount] = useState<number>(50);
   const [depositOriginBank, setDepositOriginBank] = useState<string>('0102 - Banco de Venezuela');
   const [depositReference, setDepositReference] = useState<string>('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [submittingDeposit, setSubmittingDeposit] = useState(false);
   const [depositFeedback, setDepositFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -130,10 +133,26 @@ export function WalletView() {
     setDepositFeedback(null);
 
     try {
+      let uploadedReceiptUrl: string | undefined = undefined;
+
+      if (receiptFile) {
+        const uploadRes = await PaymentRepository.uploadReceiptImage(receiptFile);
+        if (!uploadRes.success) {
+          setDepositFeedback({
+            success: false,
+            message: uploadRes.error || 'Error al subir la imagen del comprobante.',
+          });
+          setSubmittingDeposit(false);
+          return;
+        }
+        uploadedReceiptUrl = uploadRes.publicUrl;
+      }
+
       const res = await PaymentRepository.submitDepositRequest({
         amount: Number(depositAmount),
         bankOrigin: depositOriginBank,
         referenceNumber: depositReference.trim(),
+        receiptUrl: uploadedReceiptUrl,
       });
 
       if (res.success) {
@@ -142,6 +161,8 @@ export function WalletView() {
           message: 'Solicitud de recarga enviada con éxito. El operador revisará el comprobante.',
         });
         setDepositReference('');
+        setReceiptFile(null);
+        setReceiptPreview(null);
         loadWalletData();
       } else {
         setDepositFeedback({
@@ -543,14 +564,70 @@ export function WalletView() {
               </div>
 
               <div>
-                <label className="block font-medium text-slate-300 mb-1">Número de Referencia Bancaria</label>
+                <label className="block font-medium text-slate-300 mb-1">Número de Referencia Bancaria *</label>
                 <input
                   type="text"
+                  required
                   placeholder="Ej: 984721"
                   value={depositReference}
                   onChange={(e) => setDepositReference(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
                 />
+              </div>
+
+              {/* SECCIÓN COMPROBANTE DE PAGO OBLIGATORIO */}
+              <div className="space-y-1.5 border-t border-slate-800 pt-3">
+                <label className="block font-bold text-slate-200">
+                  COMPROBANTE DE PAGO <span className="text-amber-400">*</span>
+                </label>
+                <p className="text-[11px] text-slate-400">
+                  Adjunta una imagen clara de tu comprobante de pago (JPG, JPEG, PNG, WEBP).
+                </p>
+
+                {receiptPreview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-amber-500/40 bg-slate-950 p-2 space-y-2">
+                    <img
+                      src={receiptPreview}
+                      alt="Vista previa del comprobante"
+                      className="max-h-48 w-full object-contain rounded-lg"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-slate-300 px-1">
+                      <span className="truncate max-w-[200px] font-mono">{receiptFile?.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReceiptFile(null);
+                          setReceiptPreview(null);
+                        }}
+                        className="text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-xl bg-slate-950 cursor-pointer transition-colors text-center">
+                    <Upload className="w-6 h-6 text-amber-400 mb-1 animate-bounce" />
+                    <span className="text-xs font-bold text-slate-100">[ 📷 SUBIR COMPROBANTE ]</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Formatos aceptados: JPG, JPEG, PNG, WEBP</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setReceiptFile(file);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setReceiptPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               {depositFeedback && (
@@ -618,8 +695,26 @@ export function WalletView() {
               </div>
             ) : (
               <form onSubmit={handleWithdrawSubmit} className="space-y-4 text-xs">
+                {/* BANNER DESTACADO DE SALDO DISPONIBLE Y RESERVA */}
+                <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-1.5">
+                  <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+                    Saldo Disponible para Retiro
+                  </div>
+                  <div className="text-2xl font-black font-mono text-emerald-400">
+                    {formatBolivares(balance?.availableBalance || 0)}
+                  </div>
+                  {balance && balance.heldBalance > 0 && (
+                    <div className="text-[11px] text-slate-400 pt-1.5 border-t border-slate-800 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        Tienes <strong className="text-amber-300 font-mono">{formatBolivares(balance.heldBalance)}</strong> en reserva (mesas activas o retiros pendientes).
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div>
-                  <label className="block font-medium text-slate-300 mb-1">Cuenta Destino</label>
+                  <label className="block font-medium text-slate-300 mb-1">Cuenta Destino (Pago Móvil)</label>
                   <select
                     value={selectedAccountId}
                     onChange={(e) => setSelectedAccountId(e.target.value)}

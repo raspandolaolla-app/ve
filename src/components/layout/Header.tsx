@@ -60,6 +60,19 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             </button>
 
             <button
+              id="nav-polla"
+              onClick={() => onNavigate('polla')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                currentTab === 'polla'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <span className="text-amber-400 text-sm">🐾</span>
+              <span>Polla Venezolana</span>
+            </button>
+
+            <button
               id="nav-trancaito"
               onClick={() => onNavigate('tables')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${

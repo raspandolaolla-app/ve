@@ -108,9 +108,10 @@ class PresenceServiceManager {
         .from('profiles')
         .update({
           is_online: isOnline,
+          last_seen_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', userId);
+        .or(`user_id.eq.${userId},id.eq.${userId}`);
     } catch {
       // Ignorar si la columna no existe o falla la actualización
     }

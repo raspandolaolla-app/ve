@@ -300,11 +300,11 @@ async function runAllTests() {
   // -------------------------------------------------------------
   // 8. ATRAPAÍTO
   // -------------------------------------------------------------
-  console.log('\n8. Probando Motor: AtrapaitoEngine (Reflejos y Rapidez)');
+  console.log('\n8. Probando Motor: AtrapaitoEngine (Parchís Venezolano)');
   const atrapaitoEngine = new AtrapaitoEngine();
   let atrapaitoState = atrapaitoEngine.initialize(mockTable('atrapaito'), mockPlayers);
-  assert(atrapaitoState.targetNumber >= 5, 'Número objetivo generado');
-  assert(atrapaitoState.playerHands['user_player_1'].length === 5, 'P1 recibe 5 cartas de reflejos');
+  assert(atrapaitoState.status === 'playing', 'Partida de Atrapaíto inicializada');
+  assert(Object.keys(atrapaitoState.pieces).length >= 16, 'Fichas generadas en el tablero');
 
   // -------------------------------------------------------------
   // 9. VERIFICACIÓN FINANCIERA DE LIQUIDACIÓN 90/10

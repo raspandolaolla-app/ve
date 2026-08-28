@@ -99,6 +99,7 @@ export interface KYCVerificationItem {
   documentStoragePath: string;
   documentBackStoragePath?: string;
   selfieStoragePath?: string;
+  verificationMethod?: 'DOCUMENT_UPLOAD' | 'WHATSAPP';
   status: 'UNSUBMITTED' | 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_INFORMATION';
   reviewerId?: string;
   reviewerNotes?: string;

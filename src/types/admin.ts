@@ -155,6 +155,8 @@ export interface AdminUserItem {
   createdAt: string;
   updatedAt?: string;
   isTwoFactorEnabled?: boolean;
+  isOnline?: boolean;
+  lastSeenAt?: string;
 }
 
 export interface AdminDepositItem {

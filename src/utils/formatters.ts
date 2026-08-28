@@ -67,3 +67,47 @@ export function formatDateVE(isoDate: string): string {
     return isoDate;
   }
 }
+
+/**
+ * Mapea cualquier identificador o enum de juego al nombre visible oficial en la plataforma.
+ * Mantiene 'PulsoPLAY' para el juego rock_paper_scissors / PIEDRA_PAPEL_TIJERA.
+ */
+export function getGameDisplayName(gameType?: string | null): string {
+  if (!gameType) return 'Juego Multijugador';
+  const clean = gameType.trim().toLowerCase();
+
+  if (
+    clean === 'rock_paper_scissors' ||
+    clean === 'piedra_papel_tijera' ||
+    clean === 'piedra_papel_o_tijera' ||
+    clean === 'rps' ||
+    clean === 'pulsoplay'
+  ) {
+    return 'PulsoPLAY';
+  }
+
+  if (clean === 'tic_tac_toe' || clean === 'tres_en_raya' || clean === 'la_vieja') {
+    return 'La Vieja';
+  }
+  if (clean === 'checkers' || clean === 'damas') {
+    return 'Damas';
+  }
+  if (clean === 'domino_venezolano' || clean === 'domino') {
+    return 'Dominó Venezolano';
+  }
+  if (clean === 'truco_venezolano' || clean === 'truco') {
+    return 'Truco Venezolano';
+  }
+  if (clean === 'bingo') {
+    return 'Bingo Online';
+  }
+  if (clean === 'atrapaito' || clean === 'parchis') {
+    return 'Atrapaíto';
+  }
+  if (clean === 'polla_venezolana' || clean === 'polla') {
+    return 'Polla Venezolana';
+  }
+
+  return gameType.replace(/_/g, ' ');
+}
+

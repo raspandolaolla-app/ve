@@ -64,8 +64,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
   },
   {
     id: 'rock_paper_scissors',
-    name: 'Piedra, Papel o Tijera',
-    shortDescription: 'Duelo rápido con esquema seguro commit-reveal.',
+    name: 'PulsoPLAY',
+    shortDescription: 'Duelo rápido de reflejos y decisión con esquema seguro commit-reveal.',
     minPlayers: 2,
     maxPlayers: 2,
     allowedModes: ['1v1'],

@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" href="/favicon.ico" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>PulsoPLAY — Juegos multijugador online en tiempo real</title>
     <meta name="description" content="PulsoPLAY: Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con PulsoPLAY, Dominó, Truco, Bingo, Atrapaíto y más." />
@@ -22,12 +22,29 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js').then(
-            function(reg) { console.log('[PWA] Service Worker registrado en:', reg.scope); },
-            function(err) { console.warn('[PWA] Error registrando Service Worker:', err); }
-          );
+          var swPath = './sw.js';
+          navigator.serviceWorker.register(swPath).then(
+            function(reg) {
+              console.log('[PWA] Service Worker registrado correctamente en scope:', reg.scope);
+              reg.onupdatefound = function() {
+                var installingWorker = reg.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = function() {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('[PWA] Nueva versión disponible; lista para actualizar.');
+                    }
+                  };
+                }
+              };
+            },
+            function(err) {
+              console.warn('[PWA] Service Worker no registrado (modo WebApp activo):', err);
+            }
+          ).catch(function(err) {
+            console.warn('[PWA] Excepción al registrar Service Worker:', err);
+          });
         });
       }
     </script>

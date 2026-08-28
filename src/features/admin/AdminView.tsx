@@ -276,6 +276,10 @@ export function AdminView() {
     return await AdminRepository.cleanupTable(tableId);
   };
 
+  const handleDisconnectPlayer = async (tableId: string, userId: string, reason?: string) => {
+    return await AdminRepository.disconnectPlayer(tableId, userId, reason);
+  };
+
   const handleAutoCleanTables = async (inactiveMinutes?: number) => {
     return await AdminRepository.autoCleanExpiredTables(inactiveMinutes || 15);
   };
@@ -512,6 +516,7 @@ export function AdminView() {
             currentUserRole={(role as UserRole) || 'ADMIN'}
             onCancelTable={handleCancelTable}
             onTerminateTable={handleTerminateTable}
+            onDisconnectPlayer={handleDisconnectPlayer}
             onCleanupTable={handleCleanupTable}
             onAutoCleanTables={handleAutoCleanTables}
             onRefresh={loadAllAdminData}

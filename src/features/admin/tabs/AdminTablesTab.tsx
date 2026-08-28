@@ -50,6 +50,11 @@ interface AdminTablesTabProps {
     reason: string,
     refundPlayers: boolean
   ) => Promise<{ success: boolean; error?: string; refundedCount?: number }>;
+  onDisconnectPlayer?: (
+    tableId: string,
+    userId: string,
+    reason?: string
+  ) => Promise<{ success: boolean; refunded?: boolean; error?: string }>;
   onCleanupTable: (tableId: string) => Promise<{ success: boolean; cleanedItemsCount?: number; error?: string }>;
   onAutoCleanTables: (inactiveMinutes?: number) => Promise<{ success: boolean; expiredTablesCount?: number; error?: string }>;
   onRefresh: () => void;
@@ -60,6 +65,7 @@ export function AdminTablesTab({
   currentUserRole = 'ADMIN',
   onCancelTable,
   onTerminateTable,
+  onDisconnectPlayer,
   onCleanupTable,
   onAutoCleanTables,
   onRefresh,
@@ -680,6 +686,32 @@ export function AdminTablesTab({
                         >
                           {p.isReady ? 'Listo / Jugando' : 'En espera'}
                         </span>
+                        {onDisconnectPlayer && selectedTable.status !== 'CLOSED' && selectedTable.status !== 'TERMINATED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-[10px] text-amber-400 border-amber-500/30 hover:bg-amber-500/10 px-2 py-0.5 h-6"
+                            onClick={async () => {
+                              if (confirm(`¿Desconectar al jugador ${p.userName} de la mesa?`)) {
+                                const res = await onDisconnectPlayer(selectedTable.id, p.userId, 'Desconexión por la administración');
+                                if (res.success) {
+                                  setFeedbackMessage({
+                                    type: 'success',
+                                    text: `Jugador ${p.userName} desconectado.${res.refunded ? ' Se procesó reembolso de cuota.' : ''}`
+                                  });
+                                  onRefresh();
+                                } else {
+                                  setFeedbackMessage({
+                                    type: 'error',
+                                    text: res.error || 'No se pudo desconectar al jugador'
+                                  });
+                                }
+                              }
+                            }}
+                          >
+                            Desconectar
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))

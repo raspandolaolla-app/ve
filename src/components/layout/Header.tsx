@@ -4,6 +4,7 @@
 
 import { useAuth } from '../../hooks/useAuth';
 import { ConnectionBadge } from '../common/ConnectionBadge';
+import { InstallPWAButton } from '../common/InstallPWAButton';
 import { Button } from '../common/Button';
 import { Flame, LogIn, LogOut, User, Shield, Wallet, Grid, Lock, Loader2 } from 'lucide-react';
 
@@ -114,8 +115,9 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             ) : null}
           </nav>
 
-          {/* Estado de Conexión & Auth */}
+          {/* Estado de Conexión, PWA & Auth */}
           <div className="flex items-center gap-3">
+            <InstallPWAButton variant="header" />
             <ConnectionBadge />
 
             {state === 'loading' ? (

@@ -39,6 +39,8 @@ import {
 } from 'lucide-react';
 import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
 import type { LegalDocId } from '../../types/legal';
+import { MediaBanner } from '../../components/common/MediaBanner';
+import { InstallPWAButton } from '../../components/common/InstallPWAButton';
 
 interface ProfileViewProps {
   onOpenLegalDoc?: (docId: LegalDocId) => void;
@@ -258,6 +260,9 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
 
   return (
     <div id="profile-view" className="space-y-8 max-w-4xl mx-auto">
+      {/* Zona Publicitaria del Perfil */}
+      <MediaBanner location="PROFILE" />
+
       {/* Encabezado del Perfil */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -289,6 +294,9 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           </Button>
         </div>
       </div>
+
+      {/* Botón de Instalación de la Aplicación PWA */}
+      <InstallPWAButton variant="profile" />
 
       {feedback && (
         <div

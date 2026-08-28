@@ -38,6 +38,20 @@ const FALLBACK_MANUALS: Record<string, GameManualItem> = {
     fullContentMarkdown: '# Truco Venezolano Oficial\n\n...',
     updatedAt: new Date().toISOString(),
   },
+  rock_paper_scissors: {
+    gameId: 'rock_paper_scissors',
+    title: 'PulsoPLAY (Duelo de Reacción y Decisión)',
+    objective: 'Vencer las elecciones del rival mediante esquema seguro de jugada encriptada (commit-reveal).',
+    playersInfo: '2 jugadores cara a cara (1v1).',
+    preparation: 'Cada jugador selecciona en secreto su jugada antes de revelar el resultado.',
+    turnRules: 'Rondas dinámicas simultáneas. La jugada se bloquea en servidor antes del despliegue.',
+    winningRules: 'El primer jugador en alcanzar el número objetivo de rondas gana el pozo acumulado.',
+    scoringRules: 'La jerarquía elemental define el punto de ronda: Piedra vence Tijera, Tijera a Papel, Papel a Piedra.',
+    disconnectionRules: '60 segundos de tolerancia. Si el rival abandona antes de terminar, el jugador presente gana.',
+    cancellationRules: '100% de reembolso automático si la partida se cancela antes de enviar la primera jugada.',
+    fullContentMarkdown: '# PulsoPLAY Oficial\n\nDuelo de velocidad y estrategia...',
+    updatedAt: new Date().toISOString(),
+  },
 };
 
 export const GameRulesModal: React.FC<GameRulesModalProps> = ({
@@ -105,6 +119,7 @@ export const GameRulesModal: React.FC<GameRulesModalProps> = ({
   if (!isOpen) return null;
 
   const gamesList = [
+    { id: 'rock_paper_scissors', name: 'PulsoPLAY' },
     { id: 'domino_venezolano', name: 'Dominó Venezolano' },
     { id: 'truco_venezolano', name: 'Truco Venezolano' },
     { id: 'caida_venezolana', name: 'Caída Venezolana' },

@@ -39,6 +39,7 @@ import {
   Loader2,
   BookOpen,
 } from 'lucide-react';
+import { MediaBanner } from '../../components/common/MediaBanner';
 
 export function TablesView() {
   const { state, user, profile, isSigningIn, signInWithGoogle } = useAuth();
@@ -264,6 +265,9 @@ export function TablesView() {
 
   return (
     <div id="tables-view" className="space-y-8 max-w-6xl mx-auto">
+      {/* Zona Publicitaria de Juegos */}
+      <MediaBanner location="GAMES" />
+
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

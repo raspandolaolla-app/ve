@@ -7,6 +7,7 @@ import { SUPPORTED_GAMES_METADATA, GLOBAL_DRAWS_METADATA } from '../../utils/con
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { MediaBanner } from '../../components/common/MediaBanner';
+import { InstallPWAButton } from '../../components/common/InstallPWAButton';
 import { Users, Coins, Sparkles, Play, Award, Sun, Moon, ArrowRight } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
@@ -63,6 +64,9 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
           </div>
         </div>
       </div>
+
+      {/* Botón / Tarjeta de Instalación PWA Directa */}
+      <InstallPWAButton variant="lobby" />
 
       {/* SECCIÓN DESTACADA: SORTEO GLOBAL PERMANENTE — POLLA VENEZOLANA */}
       <div id="section-global-draws" className="space-y-4">

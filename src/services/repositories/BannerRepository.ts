@@ -49,7 +49,10 @@ export class BannerRepository {
       const nowIso = new Date().toISOString();
       // Mapear alias comunes de ubicaciones
       const targetLoc = location.toUpperCase();
-      const locationQuery = `location.eq.${targetLoc},location.eq.GENERAL,location.eq.HOME,location.eq.LOBBY_MAIN`;
+      let locationQuery = `location.eq.${targetLoc},location.eq.GENERAL`;
+      if (targetLoc === 'HOME' || targetLoc === 'LOBBY_MAIN') {
+        locationQuery = `location.eq.HOME,location.eq.LOBBY_MAIN,location.eq.GENERAL`;
+      }
 
       const { data, error } = await supabase
         .from('content_banners')

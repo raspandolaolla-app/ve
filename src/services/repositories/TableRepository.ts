@@ -7,6 +7,7 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { getGameDisplayName } from '../../utils/formatters';
 import { GameRepository } from './GameRepository';
 import { ProfileRepository } from './ProfileRepository';
 import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from '../../types/tables';
@@ -41,7 +42,7 @@ export class TableRepository {
     return (data || []).map((t) => ({
       id: t.id,
       gameType: GameRepository.mapDbEnumToGameType(t.game_type),
-      name: t.name || `Mesa de ${GameRepository.mapDbEnumToGameType(t.game_type)}`,
+      name: t.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(t.game_type))}`,
       mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
       entryFee: Number(t.entry_fee || 0),
       currency: t.currency || 'VES',
@@ -79,7 +80,7 @@ export class TableRepository {
     return {
       id: data.id,
       gameType: GameRepository.mapDbEnumToGameType(data.game_type),
-      name: data.name || `Mesa de ${GameRepository.mapDbEnumToGameType(data.game_type)}`,
+      name: data.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(data.game_type))}`,
       mode: (data.mode as any) || (data.max_players === 4 ? '2v2' : '1v1'),
       entryFee: Number(data.entry_fee || 0),
       currency: data.currency || 'VES',
@@ -256,7 +257,7 @@ export class TableRepository {
     await ProfileRepository.ensureCurrentUserProfile();
 
     const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
-    const tableName = payload.name?.trim() || `Mesa de ${payload.gameType}`;
+    const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
 
     // Invocar exclusivamente la RPC segura create_game_table_secure
     const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {

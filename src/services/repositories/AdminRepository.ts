@@ -867,7 +867,7 @@ export class AdminRepository {
               userName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Jugador',
               isReady: p.status === 'READY' || p.status === 'PLAYING',
               isOnline: !isDiscon,
-              lastSeenAt: p.updated_at || p.joined_at,
+              lastSeenAt: p.left_at || p.updated_at || p.joined_at,
             };
           });
 
@@ -1030,7 +1030,7 @@ export class AdminRepository {
       // Desactivar o desvincular sesiones activas de jugadores en esa mesa sin borrar su cuenta
       await supabase
         .from('game_table_players')
-        .update({ status: 'LEFT', updated_at: new Date().toISOString() })
+        .update({ status: 'LEFT', left_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('table_id', tableId)
         .neq('status', 'LEFT');
 
@@ -1096,6 +1096,57 @@ export class AdminRepository {
     } catch (err: any) {
       console.error('[AdminRepository] Error al terminar mesa:', err);
       return { success: false, error: err.message || 'Error inesperado al terminar la mesa.' };
+    }
+  }
+
+  /**
+   * Desconecta individualmente a un jugador de una mesa de juego.
+   * Procesa reembolso si aplica (sin duplicarlo) y notifica vía Realtime.
+   */
+  public static async disconnectPlayer(
+    tableId: string,
+    userId: string,
+    reason?: string
+  ): Promise<{ success: boolean; refunded?: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_disconnect_player_secure', {
+        p_table_id: tableId,
+        p_user_id: userId,
+        p_reason: reason || 'Desconexión administrativa',
+      });
+
+      if (!rpcErr && rpcData?.success) {
+        // Emitir notificación Realtime
+        try {
+          const channel = supabase.channel(`table_${tableId}`);
+          await channel.send({
+            type: 'broadcast',
+            event: 'PLAYER_DISCONNECTED',
+            payload: {
+              tableId,
+              userId,
+              reason: reason || 'Desconexión por la administración',
+            },
+          });
+        } catch {
+          // ignore
+        }
+        return { success: true, refunded: rpcData.refunded || false };
+      }
+
+      // Fallback manual en cliente
+      await supabase
+        .from('game_table_players')
+        .update({ status: 'LEFT', left_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('table_id', tableId)
+        .eq('user_id', userId);
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al desconectar jugador' };
     }
   }
 

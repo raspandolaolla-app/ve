@@ -8,6 +8,7 @@ import {
   type ContentBannerItem,
   type ContentBannerLocation,
 } from '../../../services/repositories/BannerRepository';
+import { VideoAdPlayer } from '../../../components/common/VideoAdPlayer';
 import {
   Image as ImageIcon,
   Video as VideoIcon,
@@ -810,40 +811,46 @@ export function AdminLobbyContentTab() {
             </div>
 
             {/* Simulación del Banner tal como se ve en el Lobby */}
-            <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950 p-6 shadow-xl">
-              <div className="flex flex-col md:flex-row items-stretch gap-5">
-                <div className="relative w-full md:w-64 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-black shrink-0">
-                  <img src={previewBanner.imageUrl} alt={previewBanner.title} className="w-full h-full object-cover" />
-                  {previewBanner.videoUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-amber-400">
-                      <div className="p-3 bg-amber-500 text-slate-950 rounded-full shadow-lg">
-                        <Play className="w-5 h-5 fill-current ml-0.5" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 flex flex-col justify-between space-y-2">
-                  <div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 border border-amber-500/40 text-amber-300">
-                      Ubicación: {previewBanner.location}
-                    </span>
-                    <h3 className="text-lg font-black text-slate-100 mt-2">{previewBanner.title}</h3>
-                    {previewBanner.description && (
-                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">{previewBanner.description}</p>
-                    )}
+            {previewBanner.videoUrl ? (
+              <VideoAdPlayer
+                src={previewBanner.videoUrl}
+                posterUrl={previewBanner.imageUrl}
+                title={previewBanner.title}
+                description={previewBanner.description}
+                buttonText={previewBanner.buttonText}
+                showAdBadge={true}
+                adBadgeText="PUBLICIDAD"
+                loop={true}
+              />
+            ) : (
+              <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950 p-6 shadow-xl">
+                <div className="flex flex-col md:flex-row items-stretch gap-5">
+                  <div className="relative w-full md:w-64 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-black shrink-0">
+                    <img src={previewBanner.imageUrl} alt={previewBanner.title} className="w-full h-full object-cover" />
                   </div>
 
-                  {previewBanner.buttonText && (
-                    <div className="pt-3">
-                      <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg">
-                        {previewBanner.buttonText}
+                  <div className="flex-1 flex flex-col justify-between space-y-2">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                        Ubicación: {previewBanner.location}
                       </span>
+                      <h3 className="text-lg font-black text-slate-100 mt-2">{previewBanner.title}</h3>
+                      {previewBanner.description && (
+                        <p className="text-xs text-slate-300 mt-1 leading-relaxed">{previewBanner.description}</p>
+                      )}
                     </div>
-                  )}
+
+                    {previewBanner.buttonText && (
+                      <div className="pt-3">
+                        <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg">
+                          {previewBanner.buttonText}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

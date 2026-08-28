@@ -13,7 +13,7 @@ import { getGameEngine } from '../engines';
 import { GameRepository } from '../../../services/repositories/GameRepository';
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
-import { formatBolivares } from '../../../utils/formatters';
+import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
@@ -566,7 +566,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           </button>
           <div>
             <h1 className="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <span>{table.gameType.replace(/_/g, ' ')}</span>
+              <span>{getGameDisplayName(table.gameType)}</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono border border-amber-500/30">
                 Mesa #{table.id.substring(0, 6)}
               </span>

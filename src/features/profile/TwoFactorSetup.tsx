@@ -16,7 +16,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
-  RefreshCw,
+  Download,
 } from 'lucide-react';
 
 interface TwoFactorSetupProps {
@@ -27,11 +27,14 @@ interface TwoFactorSetupProps {
 export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFactorSetupProps) {
   const [setupMode, setSetupMode] = useState<boolean>(false);
   const [disableMode, setDisableMode] = useState<boolean>(false);
-  const [secretData, setSecretData] = useState<{ secret: string; qrUri: string; email: string } | null>(null);
+  const [showBackupCodes, setShowBackupCodes] = useState<boolean>(false);
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [secretData, setSecretData] = useState<{ secret: string; qrUri: string; email?: string } | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [totpCode, setTotpCode] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [copiedBackup, setCopiedBackup] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -53,15 +56,25 @@ export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFact
     setLoading(true);
     setFeedback(null);
     setTotpCode('');
-    const data = await SecurityRepository.generateTotpSecret();
+    setShowBackupCodes(false);
+
+    const res = await SecurityRepository.generateTOTPSecret();
     setLoading(false);
-    if (data) {
-      setSecretData(data);
+
+    if (res.success && res.secret && (res.qr_uri || res.qrUri)) {
+      setSecretData({
+        secret: res.secret,
+        qrUri: res.qr_uri || res.qrUri || '',
+        email: res.email,
+      });
+      if (res.backup_codes && res.backup_codes.length > 0) {
+        setBackupCodes(res.backup_codes);
+      }
       setSetupMode(true);
     } else {
       setFeedback({
         success: false,
-        message: 'No se pudo generar el secreto 2FA. Reintenta más tarde.',
+        message: res.message || 'No se pudo generar el secreto 2FA. Reintenta más tarde.',
       });
     }
   };
@@ -71,6 +84,25 @@ export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFact
     navigator.clipboard.writeText(secretData.secret);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyBackupCodes = () => {
+    if (!backupCodes.length) return;
+    navigator.clipboard.writeText(backupCodes.join('\n'));
+    setCopiedBackup(true);
+    setTimeout(() => setCopiedBackup(false), 2000);
+  };
+
+  const handleDownloadBackupCodes = () => {
+    if (!backupCodes.length) return;
+    const content = `RASPANDO LA OLLA - CÓDIGOS DE RESPALDO 2FA\nGuardar en un lugar seguro.\n\n${backupCodes.join('\n')}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'raspando-la-olla-codigos-respaldo-2fa.txt';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleEnable2FA = async (e: React.FormEvent) => {
@@ -83,17 +115,20 @@ export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFact
     setLoading(true);
     setFeedback(null);
 
-    const res = await SecurityRepository.enable2FA(totpCode);
+    const res = await SecurityRepository.verifyAndEnableTOTP(totpCode);
     setLoading(false);
 
     if (res.success) {
-      setFeedback({ success: true, message: res.message });
+      setFeedback({ success: true, message: res.message || '2FA Activado correctamente' });
       setSetupMode(false);
       setSecretData(null);
       setTotpCode('');
+      if (backupCodes.length > 0) {
+        setShowBackupCodes(true);
+      }
       if (onStatusChange) onStatusChange();
     } else {
-      setFeedback({ success: false, message: res.message });
+      setFeedback({ success: false, message: res.message || 'Código TOTP incorrecto.' });
     }
   };
 
@@ -107,16 +142,17 @@ export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFact
     setLoading(true);
     setFeedback(null);
 
-    const res = await SecurityRepository.disable2FA(totpCode);
+    const res = await SecurityRepository.disableTOTP(totpCode);
     setLoading(false);
 
     if (res.success) {
-      setFeedback({ success: true, message: res.message });
+      setFeedback({ success: true, message: res.message || '2FA desactivado con éxito' });
       setDisableMode(false);
+      setShowBackupCodes(false);
       setTotpCode('');
       if (onStatusChange) onStatusChange();
     } else {
-      setFeedback({ success: false, message: res.message });
+      setFeedback({ success: false, message: res.message || 'Código TOTP incorrecto.' });
     }
   };
 
@@ -193,6 +229,50 @@ export function TwoFactorSetup({ isMfaEnabled = false, onStatusChange }: TwoFact
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           )}
           <span>{feedback.message}</span>
+        </div>
+      )}
+
+      {/* Códigos de Respaldo */}
+      {showBackupCodes && backupCodes.length > 0 && (
+        <div className="p-4 bg-amber-950/30 rounded-xl border border-amber-500/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-amber-400 flex items-center gap-2">
+              <KeyRound className="w-4 h-4" />
+              <span>Códigos de Respaldo Guardados</span>
+            </h4>
+            <button
+              onClick={() => setShowBackupCodes(false)}
+              className="text-xs text-slate-400 hover:text-slate-200"
+            >
+              Cerrar
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-300">
+            Guarda estos códigos de emergencia en un lugar seguro. Cada uno sólo puede usarse una vez si pierdes tu teléfono:
+          </p>
+          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-xs text-amber-300">
+            {backupCodes.map((code, idx) => (
+              <div key={idx} className="text-center py-1 bg-slate-900/60 rounded">
+                {code}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCopyBackupCodes}
+              className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded flex items-center justify-center gap-1.5"
+            >
+              {copiedBackup ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedBackup ? '¡Copiados!' : 'Copiar Todos'}</span>
+            </button>
+            <button
+              onClick={handleDownloadBackupCodes}
+              className="flex-1 py-1.5 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30 text-amber-300 text-xs rounded flex items-center justify-center gap-1.5 font-semibold"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Descargar TXT</span>
+            </button>
+          </div>
         </div>
       )}
 

@@ -34,6 +34,7 @@ export const PollaBoard: React.FC = () => {
   const [myTickets, setMyTickets] = useState<PollaTicket[]>([]);
   const [drawResults, setDrawResults] = useState<PollaDrawResultItem[]>([]);
   const [blockWinners, setBlockWinners] = useState<PollaBlockWinner[]>([]);
+  const [poolStats, setPoolStats] = useState<{ totalTickets: number; totalBs: number }>({ totalTickets: 0, totalBs: 0 });
   const [loading, setLoading] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -68,14 +69,16 @@ export const PollaBoard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tickets, results, winners] = await Promise.all([
+      const [tickets, results, winners, stats] = await Promise.all([
         PollaRepository.getUserTickets(selectedDate, selectedBlock),
         PollaRepository.getDrawResults(selectedDate, selectedBlock),
         PollaRepository.getBlockWinners(selectedDate),
+        PollaRepository.getDrawPoolStats(selectedDate, selectedBlock),
       ]);
       setMyTickets(tickets);
       setDrawResults(results);
       setBlockWinners(winners);
+      setPoolStats(stats);
     } catch (err) {
       console.error('[PollaBoard] Error cargando datos:', err);
     } finally {
@@ -135,8 +138,8 @@ export const PollaBoard: React.FC = () => {
     const currentTicketsInBlock = myTickets.filter(
       (t) => t.block === selectedBlock && t.drawDate === selectedDate
     );
-    if (currentTicketsInBlock.length >= 10) {
-      setActionMessage({ text: 'Has alcanzado el límite máximo de 10 pollas por bloque.', isError: true });
+    if (currentTicketsInBlock.length >= 20) {
+      setActionMessage({ text: 'Has alcanzado el límite máximo de 20 pollas para este turno.', isError: true });
       return;
     }
 
@@ -319,13 +322,17 @@ export const PollaBoard: React.FC = () => {
         </button>
       </div>
 
-      {/* Alerta / banner de Siguiente Sorteo Disponible */}
-      <div className="w-full bg-neutral-900/80 border border-neutral-800 rounded-2xl p-3 mb-4 flex items-center justify-between text-xs font-mono">
+      {/* Alerta / banner de Siguiente Sorteo y Pozo Acumulado */}
+      <div className="w-full bg-neutral-900/80 border border-neutral-800 rounded-2xl p-3 mb-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
         <div className="flex items-center space-x-2 text-neutral-300">
-          <Clock className="w-4 h-4 text-amber-400" />
+          <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
           <span><b>Próximo Sorteo Habilitado:</b> {shiftSchedule.nextShift.title}</span>
         </div>
-        <span className="text-amber-400 font-bold hidden sm:inline">Abre {shiftSchedule.nextShift.openTimeFormatted}</span>
+        <div className="flex items-center space-x-3 text-right">
+          <span className="text-amber-400 font-bold bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/30">
+            🏆 POZO DEL SORTEO ({selectedBlock}): {poolStats.totalTickets} {poolStats.totalTickets === 1 ? 'polla' : 'pollas'} ({poolStats.totalBs.toFixed(2)} Bs)
+          </span>
+        </div>
       </div>
 
       {/* Notificaciones de Mensajes y Descarga Inmediata */}
@@ -377,7 +384,7 @@ export const PollaBoard: React.FC = () => {
                   SELECCIONA EXACTAMENTE 6 ANIMALITOS
                 </span>
                 <span className="text-[11px] text-neutral-500 font-mono block">
-                  Sin repetidos • Máximo 10 pollas por jugador/bloque
+                  Sin repetidos • Límite: 20 pollas por jugador / turno ({myTickets.filter(t => t.block === selectedBlock && t.drawDate === selectedDate).length}/20 jugadas)
                 </span>
               </div>
             </div>
@@ -486,7 +493,7 @@ export const PollaBoard: React.FC = () => {
               <Ticket className="w-10 h-10 text-neutral-600 mx-auto mb-2" />
               <p className="text-sm font-bold text-neutral-300">No tienes pollas jugadas en este bloque.</p>
               <p className="text-xs text-neutral-500 mt-1">
-                Puedes comprar hasta 10 pollas por bloque de 250 Bs cada una.
+                Puedes comprar hasta 20 pollas por turno de 250 Bs cada una.
               </p>
             </div>
           ) : (

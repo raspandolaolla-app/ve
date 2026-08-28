@@ -299,14 +299,21 @@ export class PollaRepository {
   }
 
   /**
-   * Obtiene los tickets del usuario autenticado ("Mis Pollas") con numeración y estado
+   * Obtiene los tickets del usuario autenticado ("Mis Pollas") con numeración y estado.
+   * Filtra STRICTMENTE por auth.uid() para garantizar el aislamiento absoluto entre cuentas.
    */
   public static async getUserTickets(drawDate?: string, block?: PollaBlockType): Promise<PollaTicket[]> {
     try {
       const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return [];
+      }
+
       let query = supabase
         .from('polla_tickets')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (drawDate) {
@@ -344,6 +351,31 @@ export class PollaRepository {
     } catch (err) {
       console.error('[PollaRepository] Excepción obteniendo tickets de polla:', err);
       return [];
+    }
+  }
+
+  /**
+   * Obtiene las estadísticas globales del pozo común para un sorteo (total de pollas vendidas por TODOS los jugadores en ese turno/fecha)
+   */
+  public static async getDrawPoolStats(drawDate: string, block: PollaBlockType): Promise<{ totalTickets: number; totalBs: number }> {
+    try {
+      const supabase = getSupabaseClient();
+      const { count, error } = await supabase
+        .from('polla_tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('draw_date', drawDate)
+        .eq('block', block);
+
+      if (error) {
+        console.error('[PollaRepository] Error obteniendo pozo del sorteo:', error.message);
+        return { totalTickets: 0, totalBs: 0 };
+      }
+
+      const total = count || 0;
+      return { totalTickets: total, totalBs: total * 250 };
+    } catch (err) {
+      console.error('[PollaRepository] Excepción obteniendo pozo del sorteo:', err);
+      return { totalTickets: 0, totalBs: 0 };
     }
   }
 

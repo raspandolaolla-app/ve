@@ -993,22 +993,13 @@ export class AdminRepository {
       });
 
       if (!rpcErr && rpcData?.success) {
-        // Notificación Realtime para clientes conectados
-        try {
-          const channel = supabase.channel(`table_${tableId}`);
-          await channel.send({
-            type: 'broadcast',
-            event: 'TABLE_CLOSED',
-            payload: {
-              tableId,
-              status: 'TERMINATED',
-              reason: reason || 'Mesa terminada por la administración',
-              terminatedAt: new Date().toISOString(),
-            },
-          });
-        } catch (rtErr) {
-          console.warn('[AdminRepository] No se pudo emitir broadcast Realtime de cierre:', rtErr);
-        }
+        // Notificación Realtime para clientes conectados vía REST httpSend
+        await this.sendBroadcastEvent(tableId, 'TABLE_CLOSED', {
+          tableId,
+          status: 'TERMINATED',
+          reason: reason || 'Mesa terminada por la administración',
+          terminatedAt: new Date().toISOString(),
+        });
         return { success: true, refundedCount: rpcData.refunded_count || 0 };
       }
 
@@ -1096,22 +1087,13 @@ export class AdminRepository {
         }
       }
 
-      // Notificación Realtime para clientes conectados
-      try {
-        const channel = supabase.channel(`table_${tableId}`);
-        await channel.send({
-          type: 'broadcast',
-          event: 'TABLE_CLOSED',
-          payload: {
-            tableId,
-            status: newStatus,
-            reason: reason || 'Mesa cerrada por la administración',
-            terminatedAt: new Date().toISOString(),
-          },
-        });
-      } catch (rtErr) {
-        console.warn('[AdminRepository] No se pudo emitir broadcast Realtime de cierre:', rtErr);
-      }
+      // Notificación Realtime para clientes conectados vía REST httpSend
+      await this.sendBroadcastEvent(tableId, 'TABLE_CLOSED', {
+        tableId,
+        status: newStatus,
+        reason: reason || 'Mesa cerrada por la administración',
+        terminatedAt: new Date().toISOString(),
+      });
 
       // Registro inmutable de auditoría audit_logs
       await this.recordAdminAudit({
@@ -1160,21 +1142,12 @@ export class AdminRepository {
       });
 
       if (!rpcErr && rpcData?.success) {
-        // Emitir notificación Realtime
-        try {
-          const channel = supabase.channel(`table_${tableId}`);
-          await channel.send({
-            type: 'broadcast',
-            event: 'PLAYER_DISCONNECTED',
-            payload: {
-              tableId,
-              userId,
-              reason: reason || 'Desconexión por la administración',
-            },
-          });
-        } catch {
-          // ignore
-        }
+        // Emitir notificación Realtime vía REST httpSend
+        await this.sendBroadcastEvent(tableId, 'PLAYER_DISCONNECTED', {
+          tableId,
+          userId,
+          reason: reason || 'Desconexión por la administración',
+        });
         return { success: true, refunded: rpcData.refunded || false };
       }
 
@@ -1222,22 +1195,13 @@ export class AdminRepository {
       });
 
       if (!rpcErr && rpcData?.success) {
-        // Emitir notificación Realtime
-        try {
-          const channel = supabase.channel(`table_${tableId}`);
-          await channel.send({
-            type: 'broadcast',
-            event: 'TABLE_CLOSED',
-            payload: {
-              tableId,
-              status: 'CLOSED',
-              reason: 'Mesa limpiada y cerrada por la administración',
-              cleanedAt: new Date().toISOString(),
-            },
-          });
-        } catch {
-          // ignore
-        }
+        // Emitir notificación Realtime vía REST httpSend
+        await this.sendBroadcastEvent(tableId, 'TABLE_CLOSED', {
+          tableId,
+          status: 'CLOSED',
+          reason: 'Mesa limpiada y cerrada por la administración',
+          cleanedAt: new Date().toISOString(),
+        });
         return { success: true, cleanedItemsCount: (rpcData.cleaned_items_count || 0) + (rpcData.refunded_count || 0) };
       }
 
@@ -1344,22 +1308,13 @@ export class AdminRepository {
 
       cleanedCount += (disconPlayers || []).length;
 
-      // Broadcast Realtime de cierre
-      try {
-        const channel = supabase.channel(`table_${tableId}`);
-        await channel.send({
-          type: 'broadcast',
-          event: 'TABLE_CLOSED',
-          payload: {
-            tableId,
-            status: 'CLOSED',
-            reason: 'Mesa limpiada y cerrada por la administración',
-            cleanedAt: new Date().toISOString(),
-          },
-        });
-      } catch {
-        // ignore
-      }
+      // Broadcast Realtime de cierre vía REST httpSend
+      await this.sendBroadcastEvent(tableId, 'TABLE_CLOSED', {
+        tableId,
+        status: 'CLOSED',
+        reason: 'Mesa limpiada y cerrada por la administración',
+        cleanedAt: new Date().toISOString(),
+      });
 
       // Auditoría
       await this.recordAdminAudit({
@@ -2632,6 +2587,30 @@ export class AdminRepository {
       }));
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Envía un evento broadcast Realtime vía HTTP REST (httpSend)
+   * evitando el aviso de deprecación de fallback automático de send().
+   */
+  private static async sendBroadcastEvent(tableId: string, event: string, payload: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    try {
+      const channel = supabase.channel(`table_${tableId}`);
+      if (typeof (channel as any).httpSend === 'function') {
+        await (channel as any).httpSend(event, payload);
+      } else {
+        await channel.send({
+          type: 'broadcast',
+          event,
+          payload,
+        });
+      }
+    } catch (err) {
+      console.warn(`[AdminRepository] No se pudo emitir broadcast Realtime (${event}):`, err);
     }
   }
 }

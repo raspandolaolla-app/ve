@@ -41,6 +41,7 @@ import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
 import type { LegalDocId } from '../../types/legal';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { InstallPWAButton } from '../../components/common/InstallPWAButton';
+import { TwoFactorSetup } from './TwoFactorSetup';
 
 interface ProfileViewProps {
   onOpenLegalDoc?: (docId: LegalDocId) => void;
@@ -430,17 +431,10 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           }
         >
           <div className="space-y-4">
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Autenticación en Dos Pasos (2FA)</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800 text-slate-400 border border-slate-700">
-                  {profile?.twoFactorEnabled ? 'Activado' : 'Desactivado'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Requerido para autorizar retiros de saldo y modificaciones de cuentas registradas.
-              </p>
-            </div>
+            <TwoFactorSetup
+              isMfaEnabled={profile?.twoFactorEnabled}
+              onStatusChange={refreshProfile}
+            />
 
             <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-800/30 text-amber-300/90 text-xs flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />

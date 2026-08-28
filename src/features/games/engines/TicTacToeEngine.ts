@@ -75,23 +75,34 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   /**
    * Obtiene un movimiento válido para el BOT en La Vieja
    */
-  public getBotMove(state: TicTacToeState): number | null {
+  public getBotMove(state: TicTacToeState, userId: string): GameActionPayload | null {
+    if (state.turnUserId !== userId || state.status !== 'playing') return null;
+
     const emptyIndices: number[] = [];
     state.board.forEach((cell, idx) => {
       if (cell === null) emptyIndices.push(idx);
     });
     if (emptyIndices.length === 0) return null;
 
-    // Preferir el centro (casilla 4) si está libre
-    if (emptyIndices.includes(4)) return 4;
-
-    // Preferir esquinas (0, 2, 6, 8)
-    const corners = [0, 2, 6, 8].filter((c) => emptyIndices.includes(c));
-    if (corners.length > 0) {
-      return corners[Math.floor(Math.random() * corners.length)];
+    let movePos = emptyIndices[0];
+    if (emptyIndices.includes(4)) {
+      movePos = 4;
+    } else {
+      const corners = [0, 2, 6, 8].filter((c) => emptyIndices.includes(c));
+      if (corners.length > 0) {
+        movePos = corners[Math.floor(Math.random() * corners.length)];
+      } else {
+        movePos = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+      }
     }
 
-    return emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'MAKE_MOVE',
+      actionData: { index: movePos, position: movePos },
+      clientTimestamp: Date.now(),
+    };
   }
 
   public validateAction(state: TicTacToeState, action: GameActionPayload): { valid: boolean; reason?: string } {

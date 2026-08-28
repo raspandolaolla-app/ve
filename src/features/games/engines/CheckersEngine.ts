@@ -223,4 +223,41 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
   public getSanitizedStateForPlayer(state: CheckersState, _userId: string): CheckersState {
     return state;
   }
+
+  public getBotMove(state: CheckersState, userId: string): GameActionPayload | null {
+    if (state.turnUserId !== userId || state.status !== 'playing') return null;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = state.board[r][c];
+        if (piece && piece.userId === userId) {
+          const dir = piece.player === 1 ? 1 : -1;
+          const targets = [
+            { row: r + dir, col: c - 1 },
+            { row: r + dir, col: c + 1 },
+          ];
+          for (const target of targets) {
+            if (
+              target.row >= 0 &&
+              target.row < 8 &&
+              target.col >= 0 &&
+              target.col < 8 &&
+              state.board[target.row][target.col] === null
+            ) {
+              return {
+                sessionId: '',
+                userId,
+                actionType: 'MOVE_PIECE',
+                actionData: {
+                  from: { row: r, col: c },
+                  to: { row: target.row, col: target.col },
+                },
+                clientTimestamp: Date.now(),
+              };
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
 }

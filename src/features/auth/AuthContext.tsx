@@ -147,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleSession = async (currentSession: Session | null) => {
     if (!currentSession || !currentSession.user) {
+      console.log('[AUTH] Usuario desconectado (sin sesión activa)');
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -160,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const authUser = currentSession.user;
+      console.log('[AUTH] Usuario actual:', authUser.email || authUser.id);
       setUser(authUser);
 
       const parsedSession: AuthSession = {
@@ -170,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         expiresAt: currentSession.expires_at,
       };
       setSession(parsedSession);
+      console.log('[AUTH] Sesión obtenida. Vence:', currentSession.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleTimeString('es-VE') : 'N/A');
 
       // Comprobar estado de aceptación de términos v1.0
       const isTermsAccepted = TermsService.hasAcceptedCurrentTerms(authUser.id, authUser.user_metadata);
@@ -177,16 +180,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const record = TermsService.getAcceptanceRecord(authUser.id);
       setTermsRecord(record);
 
-      // Cargar perfil y rol verificados desde Supabase
-      const [fetchedProfile, fetchedRole] = await Promise.all([
-        ProfileRepository.getCurrentProfile(authUser.id),
-        AdminRepository.getUserRole(authUser.id),
-      ]);
+      // Cargar perfil y rol de forma segura sin romper la sesión en caso de latencia o error de red
+      let fetchedProfile: UserProfile | null = null;
+      let fetchedRole: UserRole = 'PLAYER';
 
-      // Si el perfil aún no existe en base de datos (primer acceso con Google),
-      // construimos un perfil amigable a partir de los metadatos de Google
+      try {
+        fetchedProfile = await ProfileRepository.getCurrentProfile(authUser.id);
+      } catch (pErr) {
+        console.warn('[AUTH] Error recuperando perfil desde DB, usando metadatos:', pErr);
+      }
+
+      try {
+        fetchedRole = await AdminRepository.getUserRole(authUser.id);
+      } catch (rErr) {
+        console.warn('[AUTH] Error recuperando rol desde DB, asignando PLAYER por defecto:', rErr);
+      }
+
       if (fetchedProfile) {
         setProfile(fetchedProfile);
+        console.log('[AUTH] Perfil cargado:', fetchedProfile.firstName, fetchedProfile.lastName);
       } else {
         const metadata = authUser.user_metadata || {};
         const fullName = metadata.full_name || metadata.name || '';
@@ -213,10 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+        console.log('[AUTH] Perfil cargado (desde metadatos OAuth)');
       }
 
       // Regla de Seguridad Inmutable:
-      // Solo los dos correos autorizados pueden ejercer SUPER_ADMIN.
       const isWhitelistedSuperAdmin =
         authUser.email &&
         AUTHORIZED_SUPER_ADMIN_EMAILS.some(
@@ -235,11 +247,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRole(effectiveRole);
       setState('authenticated');
       setIsSigningIn(false);
+      setError(null);
     } catch (err: unknown) {
-      console.error('[AuthProvider] Error procesando sesión:', err);
-      const sanitized = sanitizeAuthError(err);
-      setError(sanitized);
-      setState('error');
+      console.error('[AUTH] Error de sesión procesando autenticación:', err);
+      if (currentSession?.user) {
+        // Garantizar persistencia de sesión si la cuenta está autenticada
+        setUser(currentSession.user);
+        setState('authenticated');
+      } else {
+        const sanitized = sanitizeAuthError(err);
+        setError(sanitized);
+        setState('error');
+      }
       setIsSigningIn(false);
     }
   };
@@ -258,14 +277,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hashParams.get('error');
 
       if (urlError) {
-        console.error('[AuthProvider] Error retornado en URL de OAuth:', urlError);
+        console.error('[AUTH] Error de sesión en URL OAuth:', urlError);
         const sanitized = sanitizeAuthError(urlError);
         setError({
           code: 'OAUTH_RETURN_ERROR',
           message: urlError,
           userFriendlyMessage: sanitized.userFriendlyMessage,
         });
-        // Limpiar parámetros de error de la barra de direcciones de forma limpia
         window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
       }
     }
@@ -278,15 +296,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 2. Obtener sesión inicial (procesa automáticamente código PKCE en URL con detectSessionInUrl)
     supabase.auth.getSession().then(({ data: { session: initialSession }, error: sessionError }) => {
       if (sessionError) {
-        console.error('[AuthProvider] Error al obtener sesión inicial:', sessionError.message);
+        console.error('[AUTH] Error de sesión inicial:', sessionError.message);
+        if (sessionError.message.toLowerCase().includes('expired') || sessionError.message.toLowerCase().includes('jwt')) {
+          console.warn('[AUTH] Token expirado');
+        }
         const sanitized = sanitizeAuthError(sessionError);
         setError(sanitized);
         setState('unauthenticated');
         return;
       }
-      handleSession(initialSession);
 
-      // Limpiar query params de autenticación si se completó el intercambio de código
+      if (initialSession) {
+        console.log('[AUTH] Sesión obtenida al arrancar');
+        handleSession(initialSession);
+      } else {
+        setState('unauthenticated');
+      }
+
       if (typeof window !== 'undefined' && window.location.search.includes('code=')) {
         window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
       }
@@ -295,7 +321,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. Suscribirse a cambios en el estado de autenticación de Supabase
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, updatedSession) => {
+        console.log(`[AUTH] Sesión cambió. Evento: ${event}`, updatedSession?.user?.email || '');
+
         if (event === 'SIGNED_OUT') {
+          console.log('[AUTH] Usuario desconectado');
           setUser(null);
           setSession(null);
           setProfile(null);
@@ -305,13 +334,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (
-          event === 'SIGNED_IN' ||
-          event === 'INITIAL_SESSION' ||
-          event === 'TOKEN_REFRESHED' ||
-          event === 'USER_UPDATED'
-        ) {
+        if (event === 'SIGNED_IN') {
+          console.log('[AUTH] Login correcto');
           setIsSigningIn(false);
+          await handleSession(updatedSession);
+        } else if (event === 'TOKEN_REFRESHED') {
+          console.log('[AUTH] Token renovado');
+          await handleSession(updatedSession);
+        } else if (event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+          await handleSession(updatedSession);
+        } else if (updatedSession) {
           await handleSession(updatedSession);
         }
       }
@@ -324,9 +356,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return;
-    const fetchedProfile = await ProfileRepository.getCurrentProfile(user.id);
-    if (fetchedProfile) {
-      setProfile(fetchedProfile);
+    try {
+      const fetchedProfile = await ProfileRepository.getCurrentProfile(user.id);
+      if (fetchedProfile) {
+        setProfile(fetchedProfile);
+        console.log('[AUTH] Perfil cargado (refresco manual)');
+      }
+    } catch (err) {
+      console.warn('[AUTH] Error al refrescar perfil:', err);
     }
   };
 
@@ -344,12 +381,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    if (isSigningIn) return; // Impedir doble clic concurrente
+    if (isSigningIn) return;
     setIsSigningIn(true);
     setError(null);
 
     if (!supabase || !isSupabaseConfigured) {
-      console.warn('[AuthProvider] Servicio de autenticación no inicializado o variables públicas ausentes.');
+      console.warn('[AUTH] Servicio de autenticación no inicializado.');
       setIsSigningIn(false);
       setError({
         code: 'SERVICE_UNAVAILABLE',
@@ -361,7 +398,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const redirectUrl = getOAuthRedirectUrl();
-      console.info('[AuthProvider] Iniciando flujo OAuth con Google. Redirect URL:', redirectUrl);
+      console.info('[AUTH] Iniciando OAuth Google. Redirect URL:', redirectUrl);
 
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -382,7 +419,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.location.href = data.url;
       }
     } catch (err: unknown) {
-      console.error('[AuthProvider] Error iniciando Google OAuth:', err);
+      console.error('[AUTH] Error de sesión iniciando Google OAuth:', err);
       setIsSigningIn(false);
       const sanitized = sanitizeAuthError(err);
       setError(sanitized);
@@ -390,12 +427,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    console.log('[AUTH] Logout solicitado');
     if (!supabase) return;
     try {
       try {
         await AdminRepository.endUserSession();
       } catch (err) {
-        // Ignorar fallo no bloqueante en cierre de sesión
+        // Ignorar fallo en registro de actividad
       }
       await supabase.auth.signOut();
       setUser(null);
@@ -406,7 +444,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setIsSigningIn(false);
     } catch (err) {
-      console.error('[AuthProvider] Error al cerrar sesión:', err);
+      console.error('[AUTH] Error al cerrar sesión:', err);
     }
   };
 

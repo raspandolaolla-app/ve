@@ -298,6 +298,21 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
     };
   }
 
+  public getBotMove(state: TrucoState, userId: string): GameActionPayload | null {
+    if (state.turnUserId !== userId || state.status !== 'playing') return null;
+    const hand = state.hands[userId] || [];
+    if (hand.length > 0) {
+      return {
+        sessionId: '',
+        userId,
+        actionType: 'PLAY_CARD',
+        actionData: { card: hand[0] },
+        clientTimestamp: Date.now(),
+      };
+    }
+    return null;
+  }
+
   private evaluateTrickWinner(cards: { userId: string; card: TrucoCard }[], vira: TrucoCard): string | null {
     let highestPower = -1;
     let winnerId: string | null = null;

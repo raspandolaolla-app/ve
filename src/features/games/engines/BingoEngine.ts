@@ -167,6 +167,17 @@ export class BingoEngine implements IGameEngine<BingoState> {
     return state;
   }
 
+  public getBotMove(state: BingoState, userId: string): GameActionPayload | null {
+    if (state.status !== 'in_progress') return null;
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'DRAW_BALL',
+      actionData: {},
+      clientTimestamp: Date.now(),
+    };
+  }
+
   public generateBingoCard75(): BingoCard75 {
     const getRandomDistinct = (min: number, max: number, count: number): number[] => {
       const nums: number[] = [];

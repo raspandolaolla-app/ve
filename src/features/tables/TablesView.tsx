@@ -15,6 +15,7 @@ import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
+import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
 import { formatBolivares } from '../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
@@ -57,6 +58,14 @@ export function TablesView() {
   const [tablePlayers, setTablePlayers] = useState<TablePlayer[]>([]);
   const [joiningSeat, setJoiningSeat] = useState<number | null>(null);
   const [seatActionFeedback, setSeatActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>(PresenceService.getOnlineUserIds());
+
+  useEffect(() => {
+    const unsub = PresenceService.subscribeToOnlineUsers((ids) => {
+      setOnlineUserIds(ids);
+    });
+    return () => unsub();
+  }, []);
 
   // Partida en Vivo Activa
   const [inGameData, setInGameData] = useState<{ table: GameTable; players: TablePlayer[] } | null>(null);
@@ -610,6 +619,7 @@ export function TablesView() {
                     (p) => p.seatNumber === seatNum || p.seatIndex === seatNum - 1
                   );
                   const isCurrentPlayer = playerAtSeat?.userId === user?.id;
+                  const isPlayerOnline = playerAtSeat ? onlineUserIds.includes(playerAtSeat.userId) : false;
 
                   return (
                     <div
@@ -623,15 +633,30 @@ export function TablesView() {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-mono text-xs font-bold text-slate-300">
-                          #{seatNum}
+                        <div className="relative">
+                          <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-mono text-xs font-bold text-slate-300">
+                            #{seatNum}
+                          </div>
+                          {playerAtSeat && (
+                            <span
+                              className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${
+                                isPlayerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
+                              }`}
+                              title={isPlayerOnline ? 'En línea' : 'Desconectado'}
+                            />
+                          )}
                         </div>
                         <div>
-                          <div className="text-xs font-semibold text-slate-200">
-                            {playerAtSeat ? playerAtSeat.displayName : 'Asiento Disponible'}
+                          <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                            <span>{playerAtSeat ? playerAtSeat.displayName : 'Asiento Disponible'}</span>
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {playerAtSeat ? (isCurrentPlayer ? '(Tú)' : 'Listo') : 'Vacante'}
+                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                            <span>{playerAtSeat ? (isCurrentPlayer ? '(Tú)' : 'Listo') : 'Vacante'}</span>
+                            {playerAtSeat && (
+                              <span className={isPlayerOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                                • {isPlayerOnline ? 'ONLINE' : 'OFFLINE'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

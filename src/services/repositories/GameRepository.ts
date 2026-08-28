@@ -358,6 +358,41 @@ export class GameRepository {
   }
 
   /**
+   * Ejecuta un movimiento automático (BOT_MOVE) en servidor cuando se agota el tiempo del turno.
+   */
+  public static async executeBotMoveOnTimeout(
+    sessionId: string,
+    userId: string,
+    botAction?: Record<string, unknown>
+  ): Promise<{ success: boolean; botActionExecuted?: boolean }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false };
+
+    try {
+      const { data, error } = await supabase.rpc('execute_bot_move_on_timeout', {
+        p_session_id: sessionId,
+        p_user_id: userId,
+        p_bot_action: botAction ? (botAction as any) : null,
+      });
+
+      if (error) {
+        console.warn('[GameRepository] Error ejecutando BOT move:', error.message);
+        // Fallback a expiración estándar de turno
+        await this.expireTurn(sessionId);
+        return { success: false };
+      }
+
+      return {
+        success: Boolean(data?.success),
+        botActionExecuted: true,
+      };
+    } catch (err) {
+      console.error('[GameRepository] Error al invocar execute_bot_move_on_timeout:', err);
+      return { success: false };
+    }
+  }
+
+  /**
    * Ejecuta la limpieza de mesas huérfanas sin jugadores activos.
    */
   public static async cleanupOrphanedTables(): Promise<void> {

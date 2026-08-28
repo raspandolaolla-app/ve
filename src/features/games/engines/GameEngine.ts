@@ -23,4 +23,5 @@ export interface IGameEngine<TState> {
   validateAction(state: TState, action: GameActionPayload): { valid: boolean; reason?: string };
   applyAction(state: TState, action: GameActionPayload): ActionResult<TState>;
   getSanitizedStateForPlayer(state: TState, userId: string): TState;
+  getBotMove?(state: TState, userId: string): GameActionPayload | null;
 }

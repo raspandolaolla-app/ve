@@ -365,4 +365,49 @@ export class DominoEngine implements IGameEngine<DominoState> {
       hands: sanitizedHands,
     };
   }
+
+  public getBotMove(state: DominoState, userId: string): GameActionPayload | null {
+    if (state.turnUserId !== userId || state.status !== 'playing') return null;
+    const hand = state.hands[userId] || [];
+
+    if (state.board.length === 0 && hand.length > 0) {
+      return {
+        sessionId: '',
+        userId,
+        actionType: 'PLAY_TILE',
+        actionData: { tile: hand[0], end: 'left' },
+        clientTimestamp: Date.now(),
+      };
+    }
+
+    for (const tile of hand) {
+      const [a, b] = tile;
+      if (a === state.leftEnd || b === state.leftEnd) {
+        return {
+          sessionId: '',
+          userId,
+          actionType: 'PLAY_TILE',
+          actionData: { tile, end: 'left' },
+          clientTimestamp: Date.now(),
+        };
+      }
+      if (a === state.rightEnd || b === state.rightEnd) {
+        return {
+          sessionId: '',
+          userId,
+          actionType: 'PLAY_TILE',
+          actionData: { tile, end: 'right' },
+          clientTimestamp: Date.now(),
+        };
+      }
+    }
+
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'PASS_TURN',
+      actionData: {},
+      clientTimestamp: Date.now(),
+    };
+  }
 }

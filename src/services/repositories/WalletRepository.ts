@@ -79,12 +79,13 @@ export class WalletRepository {
   }
 
   /**
-   * Solicita un retiro con bloqueo pesimista y validación MFA en servidor.
+   * Solicita un retiro con bloqueo pesimista y validación MFA/2FA en servidor.
    */
   public static async requestWithdrawal(
     paymentAccountId: string,
     amount: number,
-    idempotencyKey: string
+    idempotencyKey: string,
+    totpCode?: string
   ): Promise<WithdrawalRequestResult> {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -95,6 +96,7 @@ export class WalletRepository {
       p_payment_account_id: paymentAccountId,
       p_amount: amount,
       p_idempotency_key: idempotencyKey,
+      p_totp_code: totpCode || null,
     });
 
     if (error) {

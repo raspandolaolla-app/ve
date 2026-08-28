@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Users, Shield, Radio, Trophy, AlertTriangle, Wifi, WifiOff, RefreshCw, LogOut } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Radio, Trophy, AlertTriangle, Wifi, WifiOff, RefreshCw, LogOut, Clock } from 'lucide-react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { GameSession, GameActionPayload } from '../../../types/games';
 import { getGameEngine } from '../engines';
@@ -57,6 +57,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     isDraw?: boolean;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [botNotice, setBotNotice] = useState<string | null>(null);
   const isSettledRef = useRef(false);
 
   // Instancia del motor determinista para este tipo de juego
@@ -285,25 +286,31 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         },
         (payload) => {
           const actionRow = payload.new as any;
-          if (actionRow && actionRow.user_id !== currentUserId) {
-            // Aplicar la acción recibida del oponente a través del motor
-            setGameState((prev: any) => {
-              if (!prev) return prev;
-              const actionPayload: GameActionPayload = {
-                sessionId: session.id,
-                userId: actionRow.user_id,
-                actionType: actionRow.action_type,
-                actionData: actionRow.payload || {},
-                clientTimestamp: Date.now(),
-              };
-              const result = engine.applyAction(prev, actionPayload);
-              if (result.isValid) {
-                return engine.getSanitizedStateForPlayer
-                  ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
-                  : result.newState;
-              }
-              return prev;
-            });
+          if (actionRow) {
+            if (actionRow.action_type === 'BOT_MOVE' || actionRow.payload?.executedByBot) {
+              setBotNotice('⏱️ Turno expirado - BOT realizó movimiento automático');
+              setTimeout(() => setBotNotice(null), 5000);
+            }
+            if (actionRow.user_id !== currentUserId) {
+              // Aplicar la acción recibida del oponente a través del motor
+              setGameState((prev: any) => {
+                if (!prev) return prev;
+                const actionPayload: GameActionPayload = {
+                  sessionId: session.id,
+                  userId: actionRow.user_id,
+                  actionType: actionRow.action_type,
+                  actionData: actionRow.payload || {},
+                  clientTimestamp: Date.now(),
+                };
+                const result = engine.applyAction(prev, actionPayload);
+                if (result.isValid) {
+                  return engine.getSanitizedStateForPlayer
+                    ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
+                    : result.newState;
+                }
+                return prev;
+              });
+            }
           }
         }
       )
@@ -615,6 +622,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         <div className="bg-red-500/20 border-b border-red-500/40 text-red-300 px-4 py-2 text-xs font-semibold flex items-center justify-center space-x-2">
           <AlertTriangle className="w-4 h-4 text-red-400" />
           <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Alerta de Movimiento Bot por Inactividad */}
+      {botNotice && (
+        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-300 px-4 py-2 text-xs font-bold flex items-center justify-center space-x-2 animate-pulse">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <span>{botNotice}</span>
         </div>
       )}
 

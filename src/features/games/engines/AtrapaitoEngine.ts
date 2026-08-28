@@ -737,4 +737,24 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
   public getSanitizedStateForPlayer(state: AtrapaitoState, _userId: string): AtrapaitoState {
     return state;
   }
+
+  public getBotMove(state: AtrapaitoState, userId: string): GameActionPayload | null {
+    if (state.currentTurnUserId !== userId || state.status !== 'playing') return null;
+    if (state.turnPhase === 'ROLL_DICE' || state.diceValue === null) {
+      return {
+        sessionId: '',
+        userId,
+        actionType: 'ROLL_DICE',
+        actionData: {},
+        clientTimestamp: Date.now(),
+      };
+    }
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'PASS_TURN',
+      actionData: {},
+      clientTimestamp: Date.now(),
+    };
+  }
 }

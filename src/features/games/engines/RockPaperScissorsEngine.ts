@@ -231,6 +231,19 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
     return state;
   }
 
+  public getBotMove(state: RPSState, userId: string): GameActionPayload | null {
+    if (state.phase !== 'selecting') return null;
+    const choices: ('rock' | 'paper' | 'scissors')[] = ['rock', 'paper', 'scissors'];
+    const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'SUBMIT_CHOICE',
+      actionData: { choice: randomChoice },
+      clientTimestamp: Date.now(),
+    };
+  }
+
   private evaluateDuel(
     id1: string,
     c1: RPSChoice,

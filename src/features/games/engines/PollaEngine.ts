@@ -185,4 +185,15 @@ export class PollaEngine implements IGameEngine<PollaState> {
   public getSanitizedStateForPlayer(state: PollaState, _userId: string): PollaState {
     return state;
   }
+
+  public getBotMove(state: PollaState, userId: string): GameActionPayload | null {
+    if (state.status !== 'open_picks') return null;
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'SUBMIT_PREDICTION',
+      actionData: { matchId: 'm1', homeScore: 1, awayScore: 0 },
+      clientTimestamp: Date.now(),
+    };
+  }
 }

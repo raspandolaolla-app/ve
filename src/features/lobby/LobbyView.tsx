@@ -2,8 +2,9 @@
 // RASPANDO LA OLLA — VISTA PRINCIPAL: LOBBY DE JUEGOS Y SORTEOS
 // ==============================================================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SUPPORTED_GAMES_METADATA, GLOBAL_DRAWS_METADATA } from '../../utils/constants';
+import { PresenceService } from '../../services/PresenceService';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { MediaBanner } from '../../components/common/MediaBanner';
@@ -19,6 +20,13 @@ interface LobbyViewProps {
 
 export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: LobbyViewProps) {
   const pollaMetadata = GLOBAL_DRAWS_METADATA[0];
+  const [onlineCount, setOnlineCount] = useState<number>(PresenceService.getOnlineUserIds().length);
+
+  useEffect(() => {
+    return PresenceService.subscribeToOnlineUsers((ids) => {
+      setOnlineCount(ids.length);
+    });
+  }, []);
 
   return (
     <div id="lobby-view" className="space-y-8">
@@ -28,9 +36,15 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
       {/* Banner Principal del Lobby */}
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-950 border border-amber-500/20 p-6 sm:p-8 shadow-2xl">
         <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>PLATAFORMA MULTIJUGADOR Y SORTEOS EN VIVO</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>PLATAFORMA MULTIJUGADOR Y SORTEOS EN VIVO</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{onlineCount} {onlineCount === 1 ? 'Jugador Online' : 'Jugadores Online'}</span>
+            </div>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight">
             Selecciona tu juego o participa en la Polla Venezolana

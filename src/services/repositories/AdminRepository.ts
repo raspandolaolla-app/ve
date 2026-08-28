@@ -993,6 +993,22 @@ export class AdminRepository {
       });
 
       if (!rpcErr && rpcData?.success) {
+        // Notificación Realtime para clientes conectados
+        try {
+          const channel = supabase.channel(`table_${tableId}`);
+          await channel.send({
+            type: 'broadcast',
+            event: 'TABLE_CLOSED',
+            payload: {
+              tableId,
+              status: 'TERMINATED',
+              reason: reason || 'Mesa terminada por la administración',
+              terminatedAt: new Date().toISOString(),
+            },
+          });
+        } catch (rtErr) {
+          console.warn('[AdminRepository] No se pudo emitir broadcast Realtime de cierre:', rtErr);
+        }
         return { success: true, refundedCount: rpcData.refunded_count || 0 };
       }
 
@@ -1165,6 +1181,15 @@ export class AdminRepository {
     if (!supabase) return { success: false, expiredTablesCount: 0, error: 'El servicio no está disponible.' };
 
     try {
+      // 1. Intentar llamada a RPC server-side si está disponible
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_auto_clean_expired_tables', {
+        p_inactive_minutes: inactiveMinutes,
+      });
+
+      if (!rpcErr && rpcData?.success) {
+        return { success: true, expiredTablesCount: rpcData.expired_tables_count || 0 };
+      }
+
       const { data: authData } = await supabase.auth.getUser();
       const adminId = authData?.user?.id;
 

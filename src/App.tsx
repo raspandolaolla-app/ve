@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import { PresenceService } from './services/PresenceService';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { SafeDevelopmentBanner } from './components/layout/SafeDevelopmentBanner';
@@ -30,6 +31,16 @@ function AppContent() {
   const { state, user, error, clearError, hasAcceptedTerms, confirmTermsAccepted, signOut } = useAuth();
   const { showWarning, secondsRemaining, keepSessionAlive } = useInactivityTimeout();
   useHeartbeat();
+
+  useEffect(() => {
+    if (state === 'authenticated' && user?.id) {
+      PresenceService.initGlobalPresence(user.id, {
+        displayName: user.user_metadata?.full_name || user.email || 'Jugador',
+      });
+    } else {
+      PresenceService.cleanup();
+    }
+  }, [state, user?.id, user?.user_metadata, user?.email]);
 
   const handleSelectGame = (game: GameMetadata) => {
     setRulesGameId(game.id);

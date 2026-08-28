@@ -260,9 +260,9 @@ async function runAllTests() {
   console.log('\n6. Probando Motor: BingoEngine (Bingo 75 Bolas)');
   const bingoEngine = new BingoEngine();
   let bingoState = bingoEngine.initialize(mockTable('bingo'), mockPlayers);
-  assert(bingoState.cards['user_player_1'].b.length === 5, 'Columna B de 5 números generada');
-  assert(bingoState.cards['user_player_1'].n[2] === 'FREE', 'Casilla central N[2] es FREE');
-  assert(bingoState.cards['user_player_1'].marked.length === 5, 'Matriz de marcaje 5x5 generada');
+  assert(bingoState.cards['user_player_1'][0].b.length === 5, 'Columna B de 5 números generada');
+  assert(bingoState.cards['user_player_1'][0].n[2] === 'FREE', 'Casilla central N[2] es FREE');
+  assert(bingoState.cards['user_player_1'][0].marked.length === 5, 'Matriz de marcaje 5x5 generada');
 
   // Extraer balota
   let drawRes = bingoEngine.applyAction(bingoState, {

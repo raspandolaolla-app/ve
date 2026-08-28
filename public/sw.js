@@ -1,85 +1,94 @@
 // ==============================================================================
-// PULSOPLAY — SERVICE WORKER PWA (PROGRESSIVE WEB APP)
+// PULSOPLAY — SERVICE WORKER PWA (STABLE & RESILIENT)
 // ==============================================================================
 
-const CACHE_NAME = 'pulsoplay-pwa-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/favicon.svg',
-  '/favicon.ico'
-];
+const CACHE_NAME = 'pulsoplay-pwa-v2';
 
-// Instalación e inicio
+// 1. INSTALACIÓN: Instantánea y libre de errores.
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[PulsoPLAY SW] Cuidado al precargar assets:', err);
-      });
-    })
-  );
   self.skipWaiting();
 });
 
-// Activación y limpieza de caches obsoletos
+// 2. ACTIVACIÓN: Limpieza de versiones obsoletas y toma de control.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[PulsoPLAY SW] Eliminando caché obsoleta:', key);
             return caches.delete(key);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Intercepción inteligente de peticiones
+// 3. INTERCEPCIÓN DE PETICIONES (FETCH)
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const req = event.request;
 
-  // CRÍTICO: NUNCA interceptar ni almacenar en cache operaciones sensibles
-  // Supabase REST/Realtime, Auth, Wallet, Pagos o endpoints API
+  // CRÍTICO: Bypassear inmediatamente cualquier método diferente de GET
+  if (req.method !== 'GET') {
+    return;
+  }
+
+  let url;
+  try {
+    url = new URL(req.url);
+  } catch (err) {
+    return;
+  }
+
+  // CRÍTICO: Bypassear completamente peticiones sensibles o de tiempo real:
+  // - Supabase (Auth, Realtime, REST, RPC, Storage, WebSockets)
+  // - WebSockets (ws://, wss://)
+  // - Wallet, KYC, Pagos, Retiros, API
   if (
-    url.pathname.startsWith('/api') ||
+    url.protocol === 'ws:' ||
+    url.protocol === 'wss:' ||
     url.hostname.includes('supabase') ||
     url.pathname.includes('/rest/v1') ||
     url.pathname.includes('/realtime') ||
     url.pathname.includes('/auth') ||
-    event.request.method !== 'GET'
+    url.pathname.startsWith('/api') ||
+    url.pathname.includes('wallet') ||
+    url.pathname.includes('kyc')
   ) {
-    return; // Permite que el navegador maneje la petición directamente por red
+    return; // Permite el paso directo al navegador sin intervención del SW
   }
 
-  // Estrategia Network-First con fallback a cache para la shell PWA
+  // Estrategia Network-First con fallback a caché para recursos estáticos del mismo origen
   event.respondWith(
-    fetch(event.request)
+    fetch(req)
       .then((networkResponse) => {
         if (
           networkResponse &&
           networkResponse.status === 200 &&
-          networkResponse.type === 'basic'
+          networkResponse.type === 'basic' &&
+          (req.destination === 'document' ||
+           req.destination === 'script' ||
+           req.destination === 'style' ||
+           req.destination === 'image' ||
+           req.destination === 'font')
         ) {
-          const responseToCache = networkResponse.clone();
+          const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(req, responseClone).catch(() => {});
           });
         }
         return networkResponse;
       })
       .catch(async () => {
-        const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) {
-          return cachedResponse;
+        const cached = await caches.match(req);
+        if (cached) {
+          return cached;
         }
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+        if (req.mode === 'navigate') {
+          return caches.match('./') || caches.match('index.html');
         }
       })
   );
 });
+

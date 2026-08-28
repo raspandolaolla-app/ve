@@ -1,24 +1,30 @@
 {
   "name": "PulsoPLAY — Juegos Multijugador",
   "short_name": "PulsoPLAY",
-  "description": "Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con PulsoPLAY, Dominó, Truco, Bingo y más.",
-  "start_url": "/",
+  "description": "Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con PulsoPLAY, Dominó, Truco, Bingo, Atrapaíto y más.",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
   "orientation": "portrait-primary",
-  "scope": "/",
   "categories": ["games", "entertainment", "social"],
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "48x48 72x72 96x96 128x128 256x256 512x512",
+      "src": "favicon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/favicon.ico",
-      "sizes": "16x16 32x32 48x48",
+      "src": "favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     }
   ]

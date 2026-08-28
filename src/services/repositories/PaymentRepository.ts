@@ -203,6 +203,7 @@ export class PaymentRepository {
 
     if (params.receiptUrl) {
       depositPayload.receipt_url = params.receiptUrl;
+      depositPayload.storage_path = params.receiptUrl;
     }
 
     const { data, error } = await supabase
@@ -232,9 +233,22 @@ export class PaymentRepository {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return { success: false, error: 'Usuario no autenticado' };
 
+      // Validar tipo y formato del archivo
+      const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (file.type && !allowedMimes.includes(file.type.toLowerCase())) {
+        return { success: false, error: 'El comprobante debe ser una imagen válida (JPG, JPEG, PNG, WEBP).' };
+      }
+
+      // Validar tamaño máximo (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        return { success: false, error: 'El archivo supera el tamaño permitido (máximo 10MB).' };
+      }
+
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${userData.user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-      const filePath = `receipts/${fileName}`;
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      // Estructura de ruta basada en el ID del usuario autenticado: `${userId}/${fileName}`
+      // Satisface la política RLS: (storage.foldername(name))[1] = auth.uid()::text
+      const filePath = `${userData.user.id}/${fileName}`;
 
       const { error } = await supabase.storage
         .from('payment-proofs')
@@ -245,20 +259,21 @@ export class PaymentRepository {
         });
 
       if (error) {
-        console.warn('[PaymentRepository] Advertencia al subir comprobante:', error.message);
-        // Si el bucket no existe en la instancia, devolvemos error descriptivo
-        return { success: false, error: `Error en almacenamiento de comprobantes: ${error.message}` };
+        console.warn('[PaymentRepository] Error en Supabase Storage RLS:', error.message);
+        return {
+          success: false,
+          error: 'No se pudo cargar el comprobante. Verifica la imagen e inténtalo nuevamente.',
+        };
       }
-
-      const { data: urlData } = supabase.storage.from('payment-proofs').getPublicUrl(filePath);
 
       return {
         success: true,
-        publicUrl: urlData?.publicUrl || filePath,
+        publicUrl: filePath,
         storagePath: filePath,
       };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Excepción al subir imagen' };
+      console.error('[PaymentRepository] Excepción al subir comprobante:', err);
+      return { success: false, error: 'No se pudo cargar el comprobante. Inténtalo nuevamente.' };
     }
   }
 

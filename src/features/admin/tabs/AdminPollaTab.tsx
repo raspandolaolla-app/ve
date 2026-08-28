@@ -5,8 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { PollaRepository } from '../../../services/repositories/PollaRepository';
 import { ANIMALITOS_CATALOG, getAnimalitoByCode } from '../../../data/pollaAnimalitos';
-import type { PollaBlockType, PollaDrawResultItem, PollaBlockWinner } from '../../../types/games';
-import { Trophy, Save, ListFilter, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import type { PollaBlockType, PollaDrawResultItem, PollaBlockWinner, PollaTicket } from '../../../types/games';
+import { Trophy, Save, ListFilter, CheckCircle, AlertCircle, RefreshCw, ShieldCheck, DollarSign, Check, X } from 'lucide-react';
 
 export const AdminPollaTab: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(PollaRepository.getTodayVenezuelaString());
@@ -23,7 +23,12 @@ export const AdminPollaTab: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [results, setResults] = useState<PollaDrawResultItem[]>([]);
   const [winners, setWinners] = useState<PollaBlockWinner[]>([]);
+  const [pendingTickets, setPendingTickets] = useState<(PollaTicket & { userName?: string })[]>([]);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Estados de entrada para premios por ticket
+  const [customPrizes, setCustomPrizes] = useState<Record<string, number>>({});
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
 
   const drawTimesByBlock = selectedBlock === 'MAÑANA'
     ? ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00']
@@ -32,12 +37,14 @@ export const AdminPollaTab: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resData, winData] = await Promise.all([
+      const [resData, winData, ticketsData] = await Promise.all([
         PollaRepository.getDrawResults(selectedDate, selectedBlock),
         PollaRepository.getBlockWinners(selectedDate),
+        PollaRepository.getPendingValidationTickets(selectedDate),
       ]);
       setResults(resData);
       setWinners(winData);
+      setPendingTickets(ticketsData);
     } catch (err) {
       console.error('[AdminPollaTab] Error cargando datos:', err);
     } finally {
@@ -61,13 +68,64 @@ export const AdminPollaTab: React.FC = () => {
     ];
 
     const res = await PollaRepository.saveDrawResult(selectedDate, selectedBlock, selectedDrawTime, lotteries);
-    setSubmitting(false);
-
     if (res.success) {
-      setMessage({ text: `Resultado registrado para el Sorteo ${selectedDrawTime}!`, isError: false });
+      // Detección automática de aciertos tras guardar
+      const detectRes = await PollaRepository.detectPotentialWinners(selectedDate, selectedBlock);
+      setSubmitting(false);
+      setMessage({ 
+        text: `Resultado publicado! ${detectRes.message || ''}`, 
+        isError: false 
+      });
       await loadData();
     } else {
+      setSubmitting(false);
       setMessage({ text: res.error || 'Error registrando resultado.', isError: true });
+    }
+  };
+
+  const handleDetectWinnersManually = async () => {
+    setSubmitting(true);
+    setMessage(null);
+    const res = await PollaRepository.detectPotentialWinners(selectedDate, selectedBlock);
+    setSubmitting(false);
+    if (res.success) {
+      setMessage({ text: res.message || 'Detección finalizada.', isError: false });
+      await loadData();
+    } else {
+      setMessage({ text: res.error || 'Error detectando ganadores.', isError: true });
+    }
+  };
+
+  const handleValidateTicket = async (ticketId: string, action: 'VALIDATE' | 'REJECT') => {
+    setSubmitting(true);
+    setMessage(null);
+    const reason = rejectionReasons[ticketId] || 'Revisado por administrador';
+    const res = await PollaRepository.validateWinner(ticketId, action, reason);
+    setSubmitting(false);
+    if (res.success) {
+      setMessage({ text: res.message || 'Estado actualizado.', isError: false });
+      await loadData();
+    } else {
+      setMessage({ text: res.error || 'Error al validar ticket.', isError: true });
+    }
+  };
+
+  const handleCreditPrize = async (ticketId: string) => {
+    const amount = customPrizes[ticketId] || 1000;
+    if (amount <= 0) {
+      setMessage({ text: 'Ingresa un monto de premio válido mayor a 0.', isError: true });
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage(null);
+    const res = await PollaRepository.creditPrize(ticketId, amount);
+    setSubmitting(false);
+    if (res.success) {
+      setMessage({ text: res.message || 'Premio acreditado exitosamente.', isError: false });
+      await loadData();
+    } else {
+      setMessage({ text: res.error || 'Error acreditando premio.', isError: true });
     }
   };
 
@@ -78,7 +136,7 @@ export const AdminPollaTab: React.FC = () => {
           <span>GESTIÓN DE POLLA VENEZOLANA</span>
         </h2>
         <p className="text-xs text-neutral-400 font-mono">
-          Publicación de Resultados Oficiales de Sorteos por Lotería y Auditoría de Cierres de Bloque.
+          Publicación de Resultados Oficiales, Detección de Aciertos y Validación Humana de Premios.
         </p>
 
         {/* Filtros de Fecha y Bloque */}
@@ -228,15 +286,188 @@ export const AdminPollaTab: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleSaveResult}
-          disabled={submitting}
-          className="py-3 px-6 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-sm rounded-xl flex items-center space-x-2 transition-all"
-        >
-          <Save className="w-4 h-4" />
-          <span>{submitting ? 'Guardando...' : 'Publicar Resultado del Sorteo'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <button
+            onClick={handleSaveResult}
+            disabled={submitting}
+            className="py-3 px-6 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-sm rounded-xl flex items-center space-x-2 transition-all disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            <span>{submitting ? 'Guardando...' : 'Publicar Resultado del Sorteo'}</span>
+          </button>
+
+          <button
+            onClick={handleDetectWinnersManually}
+            disabled={submitting}
+            className="py-3 px-4 bg-neutral-800 hover:bg-neutral-700 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl flex items-center space-x-2 transition-all disabled:opacity-50"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Auditar & Escanear Aciertos</span>
+          </button>
+        </div>
+      </div>
+
+      {/* PANEL DE VALIDACIÓN HUMANA Y ACREDITACIÓN DE PREMIOS */}
+      <div className="bg-neutral-900 border border-amber-500/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+          <div>
+            <h3 className="text-base font-black text-white uppercase tracking-wider flex items-center space-x-2">
+              <ShieldCheck className="w-5 h-5 text-amber-400" />
+              <span>REVISIÓN HUMANA Y ACREDITACIÓN DE PREMIOS</span>
+            </h3>
+            <p className="text-xs text-neutral-400 font-mono mt-0.5">
+              Ningún premio se acredita automáticamente. Requiere aprobación explícita de un administrador.
+            </p>
+          </div>
+          <button
+            onClick={loadData}
+            className="p-2 rounded-xl bg-neutral-800 text-amber-400 hover:bg-neutral-700 transition-all"
+            title="Recargar"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+
+        {pendingTickets.length === 0 ? (
+          <div className="text-center py-8 text-neutral-500 font-mono text-xs bg-neutral-950 rounded-2xl border border-neutral-800">
+            No hay tickets de polla registrados para esta fecha.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pendingTickets.map((ticket) => {
+              const valStatus = ticket.validationStatus || 'PENDING';
+              return (
+                <div
+                  key={ticket.id}
+                  className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 shadow-lg space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-neutral-850 pb-2">
+                    <div>
+                      <span className="text-xs font-mono font-bold text-amber-400 mr-2">
+                        {ticket.ticketNumber}
+                      </span>
+                      <span className="text-xs font-bold text-white uppercase mr-2">
+                        {ticket.userName}
+                      </span>
+                      <span className="text-[10px] text-neutral-500 font-mono">
+                        Turno {ticket.block} • {ticket.drawDate}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-mono font-bold text-neutral-300 bg-neutral-800 px-2.5 py-1 rounded-lg">
+                        {ticket.hits} Aciertos
+                      </span>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                        valStatus === 'CREDITED'
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                          : valStatus === 'VALIDATED'
+                          ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                          : valStatus === 'PENDING_VALIDATION'
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                          : valStatus === 'REJECTED'
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                          : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                      }`}>
+                        {valStatus === 'CREDITED'
+                          ? '✔ PAGADO / ACREDITADO'
+                          : valStatus === 'VALIDATED'
+                          ? 'Aprobado (Listo para Pagar)'
+                          : valStatus === 'PENDING_VALIDATION'
+                          ? 'Requiere Revisión'
+                          : valStatus === 'REJECTED'
+                          ? 'Rechazado'
+                          : 'Pendiente'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Animalitos Jugados */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {ticket.animalitos.map((code) => {
+                      const animal = getAnimalitoByCode(code);
+                      return (
+                        <span
+                          key={code}
+                          className="px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-800 text-white font-mono text-xs font-bold flex items-center space-x-1"
+                        >
+                          <span>{animal?.icon || '🐾'}</span>
+                          <span className="text-amber-400">{code}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {/* Acciones de Administrador */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-neutral-850">
+                    <div className="w-full sm:w-auto flex items-center space-x-2">
+                      {valStatus !== 'CREDITED' && valStatus !== 'REJECTED' && (
+                        <>
+                          <button
+                            onClick={() => handleValidateTicket(ticket.id, 'VALIDATE')}
+                            disabled={submitting}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center space-x-1 transition-all"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Aprobar Ticket</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleValidateTicket(ticket.id, 'REJECT')}
+                            disabled={submitting}
+                            className="px-3 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center space-x-1 transition-all"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Rechazar</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Formulario de Acreditación de Premio */}
+                    {valStatus === 'VALIDATED' && (
+                      <div className="w-full sm:w-auto flex items-center space-x-2">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            placeholder="Monto Premio Bs"
+                            value={customPrizes[ticket.id] || ''}
+                            onChange={(e) =>
+                              setCustomPrizes({
+                                ...customPrizes,
+                                [ticket.id]: Number(e.target.value),
+                              })
+                            }
+                            className="w-32 bg-neutral-900 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 font-mono font-bold"
+                          />
+                          <span className="absolute right-2 top-1.5 text-[10px] text-neutral-500 font-mono">Bs</span>
+                        </div>
+
+                        <button
+                          onClick={() => handleCreditPrize(ticket.id)}
+                          disabled={submitting}
+                          className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs rounded-xl flex items-center space-x-1 transition-all shadow-lg"
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>Pagar a Billetera</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {valStatus === 'CREDITED' && (
+                      <div className="text-xs font-mono font-bold text-emerald-400 flex items-center space-x-1">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Acreditado: {ticket.prizeBs.toFixed(2)} Bs</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+

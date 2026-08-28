@@ -4,12 +4,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Clock, CheckCircle, AlertCircle, Sparkles, Ticket, ListFilter, Award, RefreshCw, Check } from 'lucide-react';
+import { Trophy, Clock, CheckCircle, AlertCircle, Sparkles, Ticket, ListFilter, Award, RefreshCw, Check, Download, ShieldCheck } from 'lucide-react';
 import { ANIMALITOS_CATALOG, getAnimalitoByCode } from '../../../data/pollaAnimalitos';
-import { PollaRepository, BlockSalesStatus } from '../../../services/repositories/PollaRepository';
+import { PollaRepository, BlockSalesStatus, ShiftScheduleInfo } from '../../../services/repositories/PollaRepository';
 import type { PollaBlockType, PollaTicket, PollaDrawResultItem, PollaBlockWinner } from '../../../types/games';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../../components/common/Button';
+import { generatePollaTicketPng } from '../../../utils/pollaPngGenerator';
 
 export const PollaBoard: React.FC = () => {
   const { profile, refreshProfile } = useAuth();
@@ -20,9 +21,12 @@ export const PollaBoard: React.FC = () => {
   // Estado de selección de animalitos (exactamente 6 distintos)
   const [selectedAnimalCodes, setSelectedAnimalCodes] = useState<string[]>([]);
   
-  // Estado operativo de la ventana de ventas
+  // Estado operativo de la ventana de ventas y turnos
   const [salesStatus, setSalesStatus] = useState<BlockSalesStatus>(
     PollaRepository.getBlockSalesStatus('MAÑANA', selectedDate)
+  );
+  const [shiftSchedule, setShiftSchedule] = useState<ShiftScheduleInfo>(
+    PollaRepository.getShiftSchedule()
   );
   const [countdownText, setCountdownText] = useState<string>('');
 
@@ -33,10 +37,14 @@ export const PollaBoard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [lastBoughtTicket, setLastBoughtTicket] = useState<PollaTicket | null>(null);
 
   // Actualizar estado de ventas y temporizador en tiempo real
   useEffect(() => {
     const updateSales = () => {
+      const schedule = PollaRepository.getShiftSchedule();
+      setShiftSchedule(schedule);
+
       const status = PollaRepository.getBlockSalesStatus(selectedBlock, selectedDate);
       setSalesStatus(status);
 
@@ -142,12 +150,37 @@ export const PollaBoard: React.FC = () => {
     if (result.success) {
       const msg = result.message || 'SE DESCONTARON 250 Bs DE TU SALDO.';
       setActionMessage({ text: msg, isError: false });
+
+      const newTicketObj: PollaTicket = {
+        id: result.ticketId || genId(),
+        userId: profile?.id || 'me',
+        block: selectedBlock,
+        drawDate: selectedDate,
+        animalitos: [...selectedAnimalCodes],
+        costBs: 250,
+        hits: 0,
+        status: 'PENDING',
+        prizeBs: 0,
+        createdAt: new Date().toISOString(),
+        ticketNumber: result.ticketNumber,
+        verificationCode: result.verificationCode,
+        validationStatus: 'PENDING',
+      };
+      setLastBoughtTicket(newTicketObj);
+
       setSelectedAnimalCodes([]);
       await refreshProfile();
       await loadData();
     } else {
       setActionMessage({ text: result.error || 'No se pudo completar la compra.', isError: true });
     }
+  };
+
+  const genId = () => Math.random().toString(36).substring(2, 9);
+
+  const handleDownloadTicketPng = (ticket: PollaTicket) => {
+    const playerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : 'JUGADOR';
+    generatePollaTicketPng(ticket, playerName);
   };
 
   return (
@@ -165,7 +198,7 @@ export const PollaBoard: React.FC = () => {
                 POLLA VENEZOLANA
               </h2>
               <p className="text-xs text-amber-400 font-medium">
-                Quiniela de 6 Animalitos (00 a 76) • Sorteos Diarios
+                Quiniela de 6 Animalitos (00 a 76) • Sorteos Diarios por Turnos
               </p>
             </div>
           </div>
@@ -207,11 +240,14 @@ export const PollaBoard: React.FC = () => {
         </div>
       </div>
 
-      {/* Selector de Bloque y Fecha */}
+      {/* Selector de Bloque e Información de Siguiente Turno */}
       <div id="polla-block-selector" className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
         {/* Bloque Mañana */}
         <button
-          onClick={() => setSelectedBlock('MAÑANA')}
+          onClick={() => {
+            setSelectedBlock('MAÑANA');
+            setSelectedDate(shiftSchedule.currentShift.block === 'MAÑANA' ? shiftSchedule.currentShift.drawDate : shiftSchedule.nextShift.drawDate);
+          }}
           className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${
             selectedBlock === 'MAÑANA'
               ? 'bg-amber-500/10 border-amber-500/60 text-white shadow-lg'
@@ -220,11 +256,11 @@ export const PollaBoard: React.FC = () => {
         >
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-mono font-bold text-amber-400 uppercase">BLOQUE MAÑANA</span>
+              <span className="text-xs font-mono font-bold text-amber-400 uppercase">TURNO MAÑANA</span>
               {selectedBlock === 'MAÑANA' && <Check className="w-4 h-4 text-amber-400" />}
             </div>
             <div className="text-sm font-black text-neutral-200 mt-0.5">08:00 AM — 01:00 PM</div>
-            <span className="text-[10px] text-neutral-400 font-mono block mt-1">6 Sorteos • Cierre 07:55 AM</span>
+            <span className="text-[10px] text-neutral-400 font-mono block mt-1">Venta abre 02:00 PM • Cierra 07:55 AM</span>
           </div>
           {selectedBlock === 'MAÑANA' && (
             <div className="text-right">
@@ -246,7 +282,10 @@ export const PollaBoard: React.FC = () => {
 
         {/* Bloque Tarde */}
         <button
-          onClick={() => setSelectedBlock('TARDE')}
+          onClick={() => {
+            setSelectedBlock('TARDE');
+            setSelectedDate(shiftSchedule.currentShift.block === 'TARDE' ? shiftSchedule.currentShift.drawDate : shiftSchedule.nextShift.drawDate);
+          }}
           className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${
             selectedBlock === 'TARDE'
               ? 'bg-amber-500/10 border-amber-500/60 text-white shadow-lg'
@@ -255,11 +294,11 @@ export const PollaBoard: React.FC = () => {
         >
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-mono font-bold text-amber-400 uppercase">BLOQUE TARDE</span>
+              <span className="text-xs font-mono font-bold text-amber-400 uppercase">TURNO TARDE</span>
               {selectedBlock === 'TARDE' && <Check className="w-4 h-4 text-amber-400" />}
             </div>
             <div className="text-sm font-black text-neutral-200 mt-0.5">02:00 PM — 07:00 PM</div>
-            <span className="text-[10px] text-neutral-400 font-mono block mt-1">6 Sorteos • Cierre 01:55 PM</span>
+            <span className="text-[10px] text-neutral-400 font-mono block mt-1">Venta abre 08:05 AM • Cierra 01:55 PM</span>
           </div>
           {selectedBlock === 'TARDE' && (
             <div className="text-right">
@@ -280,25 +319,46 @@ export const PollaBoard: React.FC = () => {
         </button>
       </div>
 
-      {/* Notificaciones de Mensajes */}
+      {/* Alerta / banner de Siguiente Sorteo Disponible */}
+      <div className="w-full bg-neutral-900/80 border border-neutral-800 rounded-2xl p-3 mb-4 flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center space-x-2 text-neutral-300">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <span><b>Próximo Sorteo Habilitado:</b> {shiftSchedule.nextShift.title}</span>
+        </div>
+        <span className="text-amber-400 font-bold hidden sm:inline">Abre {shiftSchedule.nextShift.openTimeFormatted}</span>
+      </div>
+
+      {/* Notificaciones de Mensajes y Descarga Inmediata */}
       <AnimatePresence>
         {actionMessage && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`w-full mb-4 p-3.5 rounded-2xl border flex items-center space-x-3 text-sm font-bold shadow-lg ${
+            className={`w-full mb-4 p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-sm font-bold shadow-lg ${
               actionMessage.isError
                 ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
                 : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
             }`}
           >
-            {actionMessage.isError ? (
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
-            ) : (
-              <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+            <div className="flex items-center space-x-3">
+              {actionMessage.isError ? (
+                <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+              ) : (
+                <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+              )}
+              <span>{actionMessage.text}</span>
+            </div>
+
+            {!actionMessage.isError && lastBoughtTicket && (
+              <button
+                onClick={() => handleDownloadTicketPng(lastBoughtTicket)}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs rounded-xl flex items-center space-x-1.5 shadow-md transition-all flex-shrink-0"
+              >
+                <Download className="w-4 h-4" />
+                <span>DESCARGAR COMPROBANTE PNG</span>
+              </button>
             )}
-            <span>{actionMessage.text}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -317,7 +377,7 @@ export const PollaBoard: React.FC = () => {
                   SELECCIONA EXACTAMENTE 6 ANIMALITOS
                 </span>
                 <span className="text-[11px] text-neutral-500 font-mono block">
-                  Sin repetidos • Máximo 10 pollas por bloque
+                  Sin repetidos • Máximo 10 pollas por jugador/bloque
                 </span>
               </div>
             </div>
@@ -434,14 +494,16 @@ export const PollaBoard: React.FC = () => {
               {myTickets.map((ticket) => (
                 <div
                   key={ticket.id}
-                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4"
+                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                 >
-                  <div>
-                    <div className="flex items-center space-x-2 mb-2">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-mono font-bold text-amber-400 uppercase">
-                        POLLA BLOQUE {ticket.block}
+                        {ticket.ticketNumber || `POLLA #${ticket.id.substring(0, 8)}`}
                       </span>
-                      <span className="text-[10px] text-neutral-400 font-mono">• {ticket.drawDate}</span>
+                      <span className="text-[10px] text-neutral-400 font-mono">
+                        Turno {ticket.block} • {ticket.drawDate}
+                      </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         ticket.status === 'WINNER'
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
@@ -469,11 +531,25 @@ export const PollaBoard: React.FC = () => {
                         );
                       })}
                     </div>
+
+                    <div className="text-[10px] font-mono text-neutral-500">
+                      Código de Verificación: <span className="text-neutral-300 font-bold">{ticket.verificationCode}</span>
+                    </div>
                   </div>
 
-                  <div className="text-center sm:text-right flex-shrink-0">
-                    <span className="text-[10px] text-neutral-500 uppercase font-mono block">COSTO</span>
-                    <span className="text-sm font-black text-amber-400 font-mono">250.00 Bs</span>
+                  <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto flex-shrink-0">
+                    <div>
+                      <span className="text-[10px] text-neutral-500 uppercase font-mono block">MONTO</span>
+                      <span className="text-sm font-black text-amber-400 font-mono">250.00 Bs</span>
+                    </div>
+
+                    <button
+                      onClick={() => handleDownloadTicketPng(ticket)}
+                      className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 border border-amber-500/30 rounded-xl font-bold text-xs flex items-center justify-center space-x-1 transition-all"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Descargar PNG</span>
+                    </button>
                   </div>
                 </div>
               ))}

@@ -39,26 +39,52 @@ export class TableRepository {
       return [];
     }
 
-    return (data || []).map((t) => ({
-      id: t.id,
-      gameType: GameRepository.mapDbEnumToGameType(t.game_type),
-      name: t.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(t.game_type))}`,
-      mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
-      entryFee: Number(t.entry_fee || 0),
-      currency: t.currency || 'VES',
-      minPlayers: t.min_players,
-      maxPlayers: t.max_players,
-      currentPlayersCount: t.current_players_count || 0,
-      status: t.status,
-      hostUserId: t.host_user_id || t.created_by,
-      isPrivate: t.visibility === 'PRIVATE' || Boolean(t.is_private),
-      joinCode: t.invite_code || t.join_code,
-      shareToken: t.share_token || t.invite_code,
-      createdAt: t.created_at,
-      startedAt: t.started_at,
-      finishedAt: t.closed_at || t.finished_at,
-      config: t.config || {},
-    }));
+    if (!data || data.length === 0) return [];
+
+    // Verificación de sesiones finalizadas para excluir mesas fantasma en el Lobby
+    const tableIds = data.map((t) => t.id);
+    const { data: activeSessions } = await supabase
+      .from('game_sessions')
+      .select('table_id, status')
+      .in('table_id', tableIds);
+
+    const finishedTableIds = new Set<string>();
+    if (activeSessions && activeSessions.length > 0) {
+      for (const s of activeSessions) {
+        if (['FINISHED', 'SETTLED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(s.status)) {
+          finishedTableIds.add(s.table_id);
+          // Auto-cerrar mesa en segundo plano si quedó marcada como OPEN
+          supabase
+            .from('game_tables')
+            .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
+            .eq('id', s.table_id)
+            .then(() => {});
+        }
+      }
+    }
+
+    return data
+      .filter((t) => !finishedTableIds.has(t.id))
+      .map((t) => ({
+        id: t.id,
+        gameType: GameRepository.mapDbEnumToGameType(t.game_type),
+        name: t.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(t.game_type))}`,
+        mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
+        entryFee: Number(t.entry_fee || 0),
+        currency: t.currency || 'VES',
+        minPlayers: t.min_players,
+        maxPlayers: t.max_players,
+        currentPlayersCount: t.current_players_count || 0,
+        status: t.status,
+        hostUserId: t.host_user_id || t.created_by,
+        isPrivate: t.visibility === 'PRIVATE' || Boolean(t.is_private),
+        joinCode: t.invite_code || t.join_code,
+        shareToken: t.share_token || t.invite_code,
+        createdAt: t.created_at,
+        startedAt: t.started_at,
+        finishedAt: t.closed_at || t.finished_at,
+        config: t.config || {},
+      }));
   }
 
   /**

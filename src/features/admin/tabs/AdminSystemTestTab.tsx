@@ -420,6 +420,7 @@ export function AdminSystemTestTab({
               <option value="WALLET">WALLET (Finanzas)</option>
               <option value="SYSTEM">SYSTEM (Realtime & Presencia)</option>
               <option value="MULTIPLAYER">MULTIPLAYER (Mesas)</option>
+              <option value="BLOCKED_TABLES">BLOCKED_TABLES (Mesas Bloqueadas)</option>
               <option value="GAMES">GAMES (8 Motores)</option>
               <option value="CONCURRENCY">CONCURRENCY (Locks)</option>
             </select>

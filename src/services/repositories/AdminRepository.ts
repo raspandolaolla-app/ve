@@ -1420,6 +1420,33 @@ export class AdminRepository {
   }
 
   /**
+   * Ejecuta la limpieza atómica masiva de todas las mesas inválidas,
+   * expiradas, o con sesiones finalizadas en el sistema.
+   */
+  public static async cleanupAllInvalidTables(): Promise<{ success: boolean; cleanedCount?: number; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user?.id) return { success: false, error: 'Sesión no autenticada.' };
+
+      const { data, error } = await supabase.rpc('admin_cleanup_all_invalid_tables');
+      if (error) {
+        console.error('[AdminRepository] Error ejecutando admin_cleanup_all_invalid_tables RPC:', error.message);
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: Boolean(data?.success),
+        cleanedCount: data?.cleaned_count || 0,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Error en ejecución de limpieza masiva' };
+    }
+  }
+
+  /**
    * Ejecuta la limpieza global masiva de mesas vacías o finalizadas.
    */
   public static async cleanupAllEmptyTables(): Promise<{

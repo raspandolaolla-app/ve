@@ -5,8 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { PollaRepository } from '../../../services/repositories/PollaRepository';
 import { ANIMALITOS_CATALOG, getAnimalitoByCode } from '../../../data/pollaAnimalitos';
-import type { PollaBlockType, PollaDrawResultItem, PollaBlockWinner, PollaTicket } from '../../../types/games';
-import { Trophy, Save, ListFilter, CheckCircle, AlertCircle, RefreshCw, ShieldCheck, DollarSign, Check, X } from 'lucide-react';
+import type { PollaBlockType, PollaDrawResultItem, PollaBlockWinner, PollaTicket, PollaShiftPoolSummary } from '../../../types/games';
+import { Trophy, Save, ListFilter, CheckCircle, AlertCircle, RefreshCw, ShieldCheck, DollarSign, Check, X, Layers } from 'lucide-react';
 
 export const AdminPollaTab: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(PollaRepository.getTodayVenezuelaString());
@@ -24,6 +24,7 @@ export const AdminPollaTab: React.FC = () => {
   const [results, setResults] = useState<PollaDrawResultItem[]>([]);
   const [winners, setWinners] = useState<PollaBlockWinner[]>([]);
   const [pendingTickets, setPendingTickets] = useState<(PollaTicket & { userName?: string })[]>([]);
+  const [shiftPoolSummary, setShiftPoolSummary] = useState<PollaShiftPoolSummary | null>(null);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
   // Estados de entrada para premios por ticket
@@ -37,14 +38,16 @@ export const AdminPollaTab: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resData, winData, ticketsData] = await Promise.all([
+      const [resData, winData, ticketsData, poolSummary] = await Promise.all([
         PollaRepository.getDrawResults(selectedDate, selectedBlock),
         PollaRepository.getBlockWinners(selectedDate),
         PollaRepository.getPendingValidationTickets(selectedDate),
+        PollaRepository.getShiftPoolSummary(selectedDate, selectedBlock),
       ]);
       setResults(resData);
       setWinners(winData);
       setPendingTickets(ticketsData);
+      setShiftPoolSummary(poolSummary);
     } catch (err) {
       console.error('[AdminPollaTab] Error cargando datos:', err);
     } finally {
@@ -178,6 +181,72 @@ export const AdminPollaTab: React.FC = () => {
                 <option key={time} value={time}>{time} HORS</option>
               ))}
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* POLLA — POZO DEL TURNO CONSOLIDADO */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-amber-500/20 pb-4">
+          <div>
+            <div className="flex items-center space-x-2">
+              <Trophy className="w-6 h-6 text-amber-400" />
+              <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                POLLA — POZO DEL TURNO
+              </h3>
+              <span className="px-3 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                TURNO {selectedBlock} ({selectedDate})
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 font-mono mt-1">
+              Consolidación de compras en un ÚNICO POZO acumulado por fecha y turno. Cálculo server-authoritative (90% Ganador / 10% Plataforma).
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border ${
+              shiftPoolSummary?.isSettled
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+            }`}>
+              {shiftPoolSummary?.isSettled ? '✔ TURNO LIQUIDADO' : '⏳ TURNO EN ACUMULACIÓN / ABIERTO'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 font-mono">
+          <div className="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800">
+            <span className="text-[10px] text-neutral-400 font-bold block uppercase">Total Compras</span>
+            <span className="text-lg font-black text-white">{shiftPoolSummary?.totalTickets || 0}</span>
+            <span className="text-[10px] text-neutral-500 block">tickets válidos</span>
+          </div>
+
+          <div className="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800">
+            <span className="text-[10px] text-neutral-400 font-bold block uppercase">Total Vendido</span>
+            <span className="text-lg font-black text-amber-400">{(shiftPoolSummary?.totalCollectedBs || 0).toFixed(2)} Bs</span>
+            <span className="text-[10px] text-neutral-500 block">100% Recaudado</span>
+          </div>
+
+          <div className="bg-neutral-950/80 p-3 rounded-2xl border border-emerald-500/30">
+            <span className="text-[10px] text-emerald-400 font-bold block uppercase">Pozo Ganador (90%)</span>
+            <span className="text-lg font-black text-emerald-400">{(shiftPoolSummary?.prize90Bs || 0).toFixed(2)} Bs</span>
+            <span className="text-[10px] text-emerald-600 block">Premio Acumulado</span>
+          </div>
+
+          <div className="bg-neutral-950/80 p-3 rounded-2xl border border-blue-500/30">
+            <span className="text-[10px] text-blue-400 font-bold block uppercase">Comisión Plataforma (10%)</span>
+            <span className="text-lg font-black text-blue-300">{(shiftPoolSummary?.commission10Bs || 0).toFixed(2)} Bs</span>
+            <span className="text-[10px] text-blue-500 block">Ingreso Plataforma</span>
+          </div>
+
+          <div className="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800 col-span-2 sm:col-span-1">
+            <span className="text-[10px] text-neutral-400 font-bold block uppercase">Ganador / Estado</span>
+            <span className="text-xs font-bold text-white truncate block">
+              {shiftPoolSummary?.winnerName || 'POR DECLARAR'}
+            </span>
+            <span className="text-[10px] text-neutral-500 block truncate">
+              {shiftPoolSummary?.isSettled ? 'Liquidado' : 'Pendiente de cierre'}
+            </span>
           </div>
         </div>
       </div>

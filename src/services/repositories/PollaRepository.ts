@@ -3,7 +3,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
-import type { PollaBlockType, PollaTicket, PollaDrawResultItem, PollaBlockWinner } from '../../types/games';
+import type { PollaBlockType, PollaTicket, PollaDrawResultItem, PollaBlockWinner, PollaShiftPoolSummary } from '../../types/games';
 
 export interface BlockSalesStatus {
   block: PollaBlockType;
@@ -355,28 +355,96 @@ export class PollaRepository {
   }
 
   /**
+   * Obtiene el resumen del pozo acumulado para un turno y fecha (Server Authoritative)
+   */
+  public static async getShiftPoolSummary(
+    drawDate: string,
+    block: PollaBlockType
+  ): Promise<PollaShiftPoolSummary> {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.rpc('get_polla_shift_pool_summary', {
+        p_draw_date: drawDate,
+        p_block: block,
+      });
+
+      if (error || !data) {
+        // Fallback directo por consulta
+        const { data: tickets } = await supabase
+          .from('polla_tickets')
+          .select('cost_bs')
+          .eq('draw_date', drawDate)
+          .eq('block', block)
+          .neq('status', 'CANCELLED')
+          .or('validation_status.is.null,validation_status.neq.REJECTED');
+
+        const totalTickets = tickets?.length || 0;
+        const totalCollectedBs = (tickets || []).reduce((sum: number, t: any) => sum + Number(t.cost_bs || 250), 0);
+        const prize90Bs = Math.round(totalCollectedBs * 0.90 * 100) / 100;
+        const commission10Bs = Math.round((totalCollectedBs - prize90Bs) * 100) / 100;
+
+        const { data: closure } = await supabase
+          .from('polla_block_closures')
+          .select('*')
+          .eq('draw_date', drawDate)
+          .eq('block', block)
+          .maybeSingle();
+
+        return {
+          drawDate,
+          block,
+          totalTickets,
+          totalCollectedBs,
+          prize90Bs,
+          commission10Bs,
+          isSettled: Boolean(closure?.is_settled),
+          winnerUserId: closure?.winner_user_id || null,
+          winnerName: null,
+          winnerTicketId: closure?.winner_ticket_id || null,
+          settledAt: closure?.settled_at || null,
+        };
+      }
+
+      return {
+        drawDate: data.draw_date || drawDate,
+        block: data.block || block,
+        totalTickets: Number(data.total_tickets || 0),
+        totalCollectedBs: Number(data.total_collected_bs || 0),
+        prize90Bs: Number(data.prize_90_bs || 0),
+        commission10Bs: Number(data.commission_10_bs || 0),
+        isSettled: Boolean(data.is_settled),
+        winnerUserId: data.winner_user_id || null,
+        winnerName: data.winner_name || null,
+        winnerTicketId: data.winner_ticket_id || null,
+        settledAt: data.settled_at || null,
+      };
+    } catch (err) {
+      console.error('[PollaRepository] Excepción obteniendo resumen de pozo:', err);
+      return {
+        drawDate,
+        block,
+        totalTickets: 0,
+        totalCollectedBs: 0,
+        prize90Bs: 0,
+        commission10Bs: 0,
+        isSettled: false,
+        winnerUserId: null,
+        winnerName: null,
+        winnerTicketId: null,
+        settledAt: null,
+      };
+    }
+  }
+
+  /**
    * Obtiene las estadísticas globales del pozo común para un sorteo (total de pollas vendidas por TODOS los jugadores en ese turno/fecha)
    */
   public static async getDrawPoolStats(drawDate: string, block: PollaBlockType): Promise<{ totalTickets: number; totalBs: number }> {
-    try {
-      const supabase = getSupabaseClient();
-      const { count, error } = await supabase
-        .from('polla_tickets')
-        .select('*', { count: 'exact', head: true })
-        .eq('draw_date', drawDate)
-        .eq('block', block);
-
-      if (error) {
-        console.error('[PollaRepository] Error obteniendo pozo del sorteo:', error.message);
-        return { totalTickets: 0, totalBs: 0 };
-      }
-
-      const total = count || 0;
-      return { totalTickets: total, totalBs: total * 250 };
-    } catch (err) {
-      console.error('[PollaRepository] Excepción obteniendo pozo del sorteo:', err);
-      return { totalTickets: 0, totalBs: 0 };
-    }
+    const summary = await this.getShiftPoolSummary(drawDate, block);
+    return {
+      totalTickets: summary.totalTickets,
+      totalBs: summary.totalCollectedBs,
+    };
   }
 
   /**
@@ -442,6 +510,9 @@ export class PollaRepository {
         const u = row.winner_user || {};
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
         const name = fullName || u.display_name || 'JUGADOR SIN NOMBRE';
+        const totalCollected = Number(row.total_collected_bs || row.closure_event_data?.total_collected_bs || 0);
+        const prizeBs = Number(row.prize_bs || row.closure_event_data?.prize_bs || 0);
+        const commissionBs = Number(row.commission_bs || row.closure_event_data?.commission_bs || 0);
         return {
           block: row.block,
           drawDate: row.draw_date,
@@ -449,7 +520,11 @@ export class PollaRepository {
           winnerName: name.toUpperCase(),
           winnerTicketId: row.winner_ticket_id,
           hits: row.hits || 6,
-          prizeBs: Number(row.closure_event_data?.prize_bs || 0),
+          totalCollectedBs: totalCollected,
+          prizeBs: prizeBs,
+          commissionBs: commissionBs,
+          totalTickets: Number(row.total_tickets || row.closure_event_data?.total_tickets || 0),
+          isSettled: Boolean(row.is_settled ?? true),
         };
       });
     } catch (err) {
@@ -603,17 +678,17 @@ export class PollaRepository {
   }
 
   /**
-   * Acredita el premio del ganador validado en su billetera de forma segura
+   * Acredita el único premio del pozo del turno en la billetera del ganador de forma server-authoritative
    */
   public static async creditPrize(
     ticketId: string,
-    prizeBs: number
+    prizeBs?: number
   ): Promise<{ success: boolean; balanceAfter?: number; message?: string; error?: string }> {
     try {
       const supabase = getSupabaseClient();
       const { data, error } = await supabase.rpc('credit_polla_prize_secure', {
         p_ticket_id: ticketId,
-        p_prize_bs: prizeBs,
+        p_prize_bs: prizeBs || null,
       });
 
       if (error) {
@@ -624,13 +699,13 @@ export class PollaRepository {
         return {
           success: true,
           balanceAfter: data.balance_after,
-          message: data.message || 'PREMIO ACREDITADO CON ÉXITO.',
+          message: data.message || 'PREMIO DE POZO ACREDITADO CON ÉXITO.',
         };
       }
 
       return {
         success: false,
-        error: data?.error || 'No se pudo acreditar el premio.',
+        error: data?.error || 'No se pudo liquidar el pozo del turno.',
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Error acreditando premio.' };

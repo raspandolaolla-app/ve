@@ -2,16 +2,15 @@
 // RASPANDO LA OLLA — REPRODUCTOR DE VIDEO PUBLICITARIO AUTOMÁTICO
 // ==============================================================================
 // Cumple con todas las especificaciones de publicidad webapp:
-// - Reproducción automática (autoplay)
-// - Sin sonido por defecto (muted inicial)
-// - Bucle continuo (loop)
-// - Sin controles nativos de reproducción (no play, no pause, no seekbar, no speed)
+// - Reproducción completa del video sin cortes por temporizador
+// - Transición impulsada EXCLUSIVAMENTE por el evento nativo HTML5 'ended'
+// - Sin atributo HTML 'loop' en la etiqueta <video> para garantizar el evento 'ended'
+// - Carga y reproducción limpia al cambiar de fuente
 // - Botón flotante discreto de audio (🔇 / 🔊)
 // - Etiqueta externa de "PUBLICIDAD"
-// - Video original 100% limpio sin modificaciones internas
 // ==============================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, Sparkles, ArrowRight } from 'lucide-react';
 import { adAudioPreference } from '../../utils/adAudioPreference';
 
@@ -44,7 +43,7 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(adAudioPreference.getMuted());
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
 
   // Suscribir al estado de preferencia de audio global
@@ -58,31 +57,71 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
     return unsubscribe;
   }, []);
 
-  // Forzar reproducción automática sin interrupción al cambiar la fuente o cargar
+  // Forzar reproducción y carga limpia al cambiar la fuente (src)
   useEffect(() => {
     setHasError(false);
     const vid = videoRef.current;
     if (!vid) return;
 
-    vid.muted = isMuted;
+    let isSubscribed = true;
 
-    const promise = vid.play();
-    if (promise !== undefined) {
-      promise
-        .then(() => {
-          setIsPlaying(true);
-        })
-        .catch((err) => {
-          console.warn('[VideoAdPlayer] Autoplay prevenido o diferido por el navegador, forzando modo silencio:', err);
-          // Si el navegador bloquea audio con sonido, aseguramos muted y volvemos a intentar
+    // 1. Detener correctamente el video anterior
+    try {
+      vid.pause();
+      vid.currentTime = 0;
+    } catch {
+      // Ignorar errores de pausa previo
+    }
+
+    // 2. Establecer nueva fuente y ejecutar load()
+    vid.src = src;
+    vid.muted = isMuted;
+    vid.load();
+
+    // 3. Iniciar reproducción cuando esté listo
+    const handleCanPlay = async () => {
+      if (!isSubscribed) return;
+      try {
+        await vid.play();
+        if (isSubscribed) setIsPlaying(true);
+      } catch (err) {
+        console.warn('[VideoAdPlayer] Autoplay prevenido con sonido, intentando en silencio:', err);
+        try {
           vid.muted = true;
           adAudioPreference.setMuted(true);
-          vid.play().catch(() => {
-            setIsPlaying(false);
-          });
-        });
+          await vid.play();
+          if (isSubscribed) setIsPlaying(true);
+        } catch (fallbackErr) {
+          console.warn('[VideoAdPlayer] Autoplay bloqueado por el navegador:', fallbackErr);
+          if (isSubscribed) setIsPlaying(false);
+        }
+      }
+    };
+
+    vid.addEventListener('canplay', handleCanPlay, { once: true });
+
+    return () => {
+      isSubscribed = false;
+      vid.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [src, isMuted]);
+
+  // Manejador del evento nativo 'ended'
+  const handleVideoEnded = useCallback(() => {
+    console.log('[VideoAdPlayer] Evento NATIVO "ended" recibido. El video finalizó completamente.');
+
+    // Notificar al componente padre para avanzar en la playlist si existen múltiples anuncios
+    if (onEnded) {
+      onEnded();
     }
-  }, [src]);
+
+    // Si es un video único o la fuente no cambia, reiniciar reproducción desde el segundo 0
+    const vid = videoRef.current;
+    if (vid) {
+      vid.currentTime = 0;
+      vid.play().catch(() => {});
+    }
+  }, [onEnded]);
 
   const toggleSound = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -96,7 +135,7 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
     <div
       className={`relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950 shadow-2xl group ${className}`}
     >
-      {/* ETIQUETA EXTERNA DE PUBLICIDAD (Requisito 5) */}
+      {/* ETIQUETA EXTERNA DE PUBLICIDAD */}
       {showAdBadge && (
         <div className="absolute top-3 left-3 z-30 flex items-center gap-1.5 px-3 py-1 rounded-md bg-black/85 border border-amber-500/40 backdrop-blur-md shadow-lg pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -106,7 +145,7 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
         </div>
       )}
 
-      {/* BOTÓN DISCRETO DE AUDIO (🔇 / 🔊) (Requisito 4 & 13) */}
+      {/* BOTÓN DISCRETO DE AUDIO (🔇 / 🔊) */}
       <button
         type="button"
         onClick={toggleSound}
@@ -121,7 +160,7 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
         )}
       </button>
 
-      {/* REPRODUCTOR DE VIDEO SIN CONTROLES NATIVOS (Requisito 2, 3, 6, 7) */}
+      {/* REPRODUCTOR DE VIDEO SIN CONTROLES NATIVOS Y SIN ATRIBUTO HTML LOOP */}
       <div className="relative w-full aspect-video sm:aspect-[21/9] bg-black flex items-center justify-center overflow-hidden">
         {hasError ? (
           <div className="p-6 text-center space-y-2">
@@ -137,14 +176,12 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
             poster={posterUrl}
             autoPlay
             muted={isMuted}
-            loop={loop}
+            // NOTA: NO colocar el atributo 'loop' para asegurar que el evento 'ended' sea emitido por el navegador
             playsInline
             controls={false}
             disablePictureInPicture
             controlsList="nofullscreen noremoteplayback nodownload noplaybackrate"
-            onEnded={() => {
-              if (onEnded) onEnded();
-            }}
+            onEnded={handleVideoEnded}
             onError={() => setHasError(true)}
             className="w-full h-full object-cover pointer-events-none select-none"
           />

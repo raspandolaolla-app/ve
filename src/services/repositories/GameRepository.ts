@@ -192,14 +192,31 @@ export class GameRepository {
       updatePayload.winner_user_id = winnerUserId;
     }
 
-    const { error } = await supabase
+    const { data: updatedSession, error } = await supabase
       .from('game_sessions')
       .update(updatePayload)
-      .eq('id', sessionId);
+      .eq('id', sessionId)
+      .select('table_id')
+      .maybeSingle();
 
     if (error) {
       console.error('[GameRepository] Error actualizando estado de sesión:', error.message);
       return false;
+    }
+
+    // Si la sesión terminó o fue liquidada, asegurar explícitamente que la mesa pase a CLOSED
+    if (updatePayload.status === 'FINISHED' || updatePayload.status === 'SETTLED' || updatePayload.status === 'CANCELLED') {
+      const tableId = updatedSession?.table_id;
+      if (tableId) {
+        await supabase
+          .from('game_tables')
+          .update({
+            status: 'CLOSED',
+            closed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', tableId);
+      }
     }
 
     return true;

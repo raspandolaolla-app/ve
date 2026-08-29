@@ -50,21 +50,23 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
     };
   }, [location]);
 
-  // Rotación automática de anuncios cuando hay varios activos
+  const current = banners[currentIndex];
+  const isVideoAd = Boolean(current?.videoUrl) || current?.mediaType === 'video';
+
+  // Rotación automática de anuncios cuando hay varios activos (SOLO PARA BANNER DE IMAGEN)
   useEffect(() => {
-    if (banners.length <= 1 || isPaused) return;
+    // NOTA CRÍTICA: Para anuncios de video, la transición debe ser impulsada EXCLUSIVAMENTE
+    // por el evento 'ended' del reproductor. Se deshabilita cualquier temporizador setInterval.
+    if (loading || banners.length <= 1 || isPaused || isVideoAd) return;
 
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % banners.length);
     }, autoSlideIntervalMs);
 
     return () => clearInterval(timer);
-  }, [banners.length, isPaused, autoSlideIntervalMs]);
+  }, [loading, banners.length, isPaused, autoSlideIntervalMs, isVideoAd]);
 
-  if (loading || banners.length === 0) return null;
-
-  const current = banners[currentIndex];
-  const isVideoAd = Boolean(current.videoUrl) || current.mediaType === 'video';
+  if (loading || banners.length === 0 || !current) return null;
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % banners.length);

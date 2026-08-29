@@ -561,7 +561,7 @@ export function AdminView() {
         )}
 
         {activeTab === 'audit' && (
-          <AdminAuditTab logs={auditLogsList} onRefresh={loadAllAdminData} />
+          <AdminAuditTab logs={auditLogsList} tables={tablesList} onRefresh={loadAllAdminData} />
         )}
 
         {activeTab === 'system-test' && (

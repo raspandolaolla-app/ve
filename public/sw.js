@@ -1,10 +1,10 @@
 // ==============================================================================
-// PULSOPLAY — SERVICE WORKER PWA (STABLE & RESILIENT)
+// RASPANDO LA OLLA — SERVICE WORKER PWA (RESILIENTE Y SEGURO)
 // ==============================================================================
 
-const CACHE_NAME = 'pulsoplay-pwa-v2';
+const CACHE_NAME = 'raspando-la-olla-pwa-v3';
 
-// 1. INSTALACIÓN: Instantánea y libre de errores.
+// 1. INSTALACIÓN: Activación inmediata del Service Worker.
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
@@ -12,16 +12,19 @@ self.addEventListener('install', (event) => {
 // 2. ACTIVACIÓN: Limpieza de versiones obsoletas y toma de control.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            console.log('[PulsoPLAY SW] Eliminando caché obsoleta:', key);
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) => {
+        return Promise.all(
+          keys.map((key) => {
+            if (key !== CACHE_NAME) {
+              console.log('[RaspandoLaOlla SW] Eliminando caché obsoleta:', key);
+              return caches.delete(key);
+            }
+          })
+        );
+      })
+      .then(() => self.clients.claim())
   );
 });
 
@@ -29,7 +32,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // CRÍTICO: Bypassear inmediatamente cualquier método diferente de GET
+  // Bypassear inmediatamente cualquier método diferente de GET
   if (req.method !== 'GET') {
     return;
   }
@@ -41,54 +44,80 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // CRÍTICO: Bypassear completamente peticiones sensibles o de tiempo real:
-  // - Supabase (Auth, Realtime, REST, RPC, Storage, WebSockets)
-  // - WebSockets (ws://, wss://)
-  // - Wallet, KYC, Pagos, Retiros, API
-  if (
-    url.protocol === 'ws:' ||
-    url.protocol === 'wss:' ||
-    url.hostname.includes('supabase') ||
-    url.pathname.includes('/rest/v1') ||
-    url.pathname.includes('/realtime') ||
-    url.pathname.includes('/auth') ||
-    url.pathname.startsWith('/api') ||
-    url.pathname.includes('wallet') ||
-    url.pathname.includes('kyc')
-  ) {
-    return; // Permite el paso directo al navegador sin intervención del SW
+  // Bypassear peticiones no HTTP/HTTPS o extensiones
+  if (!url.protocol.startsWith('http')) {
+    return;
   }
 
-  // Estrategia Network-First con fallback a caché para recursos estáticos del mismo origen
+  // CRÍTICO: Bypassear completamente peticiones dinámicas, sensibles o de Supabase:
+  // - Supabase (Auth, Realtime, REST, RPC, Storage, WebSockets)
+  // - Endpoints API (/api)
+  // - Encabezados de autorización (Authorization)
+  // - Módulos de billetera, KYC, saldo y estado de tablas
+  if (
+    url.hostname.includes('supabase') ||
+    url.pathname.includes('/rest/v1') ||
+    url.pathname.includes('/realtime/v1') ||
+    url.pathname.includes('/auth/v1') ||
+    url.pathname.includes('/storage/v1') ||
+    url.pathname.startsWith('/api') ||
+    url.pathname.includes('wallet') ||
+    url.pathname.includes('kyc') ||
+    url.pathname.includes('balance') ||
+    url.pathname.includes('game_tables') ||
+    req.headers.has('Authorization')
+  ) {
+    return; // Pasa directo al navegador sin intervención del SW
+  }
+
+  // Estrategia Network-First con fallback seguro a Caché
   event.respondWith(
     fetch(req)
       .then((networkResponse) => {
         if (
           networkResponse &&
           networkResponse.status === 200 &&
-          networkResponse.type === 'basic' &&
+          (networkResponse.type === 'basic' || networkResponse.type === 'cors') &&
           (req.destination === 'document' ||
-           req.destination === 'script' ||
-           req.destination === 'style' ||
-           req.destination === 'image' ||
-           req.destination === 'font')
+            req.destination === 'script' ||
+            req.destination === 'style' ||
+            req.destination === 'image' ||
+            req.destination === 'font')
         ) {
           const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(req, responseClone).catch(() => {});
-          });
+          caches
+            .open(CACHE_NAME)
+            .then((cache) => {
+              cache.put(req, responseClone).catch(() => {});
+            })
+            .catch(() => {});
         }
         return networkResponse;
       })
       .catch(async () => {
+        // Buscar en caché la petición exacta
         const cached = await caches.match(req);
         if (cached) {
           return cached;
         }
+
+        // Si es navegación HTML, intentar retornar la página principal
         if (req.mode === 'navigate') {
-          return caches.match('./') || caches.match('index.html');
+          const mainCached = (await caches.match('./')) || (await caches.match('index.html'));
+          if (mainCached) return mainCached;
         }
+
+        // Si es una imagen y no está en caché, intentar retornar logo.svg o favicon.svg
+        if (req.destination === 'image') {
+          const fallbackLogo = (await caches.match('logo.svg')) || (await caches.match('favicon.svg'));
+          if (fallbackLogo) return fallbackLogo;
+        }
+
+        // Garantizar SIEMPRE una respuesta válida en lugar de undefined
+        return new Response('', {
+          status: 404,
+          statusText: 'Not Found',
+        });
       })
   );
 });
-

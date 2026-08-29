@@ -1,7 +1,7 @@
 {
-  "name": "PulsoPLAY — Juegos Multijugador",
-  "short_name": "PulsoPLAY",
-  "description": "Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con PulsoPLAY, Dominó, Truco, Bingo, Atrapaíto y más.",
+  "name": "Raspando La Olla — Juegos Multijugador",
+  "short_name": "Raspando La Olla",
+  "description": "Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con Raspando La Olla, Dominó, Truco, Bingo, Atrapaíto y más.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

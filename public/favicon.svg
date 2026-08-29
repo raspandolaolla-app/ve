@@ -1,42 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
   <defs>
-    <linearGradient id="potGrad" x1="12" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FBBF24" />
+    <linearGradient id="favPotGrad" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#B91C1C" />
+      <stop offset="50%" stop-color="#881337" />
+      <stop offset="100%" stop-color="#4C0519" />
+    </linearGradient>
+    <linearGradient id="favGold" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FEF08A" />
       <stop offset="50%" stop-color="#F59E0B" />
-      <stop offset="100%" stop-color="#D97706" />
-    </linearGradient>
-    <linearGradient id="rimGrad" x1="8" y1="20" x2="56" y2="28" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FDE68A" />
-      <stop offset="100%" stop-color="#F59E0B" />
-    </linearGradient>
-    <linearGradient id="steamGrad" x1="32" y1="6" x2="32" y2="20" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.8" />
-      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#B45309" />
     </linearGradient>
   </defs>
 
-  <!-- Background Circle -->
-  <rect width="64" height="64" rx="16" fill="#090D16" />
-  <rect x="1" y="1" width="62" height="62" rx="15" stroke="#F59E0B" stroke-opacity="0.3" stroke-width="2" />
+  <!-- Background Icon Frame -->
+  <rect width="128" height="128" rx="28" fill="#090D16" />
+  <rect x="2" y="2" width="124" height="124" rx="26" stroke="url(#favGold)" stroke-width="3" fill="none" opacity="0.8" />
 
-  <!-- Steam Waves -->
-  <path d="M22 18 C20 13 24 10 22 6" stroke="url(#steamGrad)" stroke-width="2.5" stroke-linecap="round" fill="none" />
-  <path d="M32 17 C30 11 34 8 32 5" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.9" />
-  <path d="M42 18 C40 13 44 10 42 6" stroke="url(#steamGrad)" stroke-width="2.5" stroke-linecap="round" fill="none" />
+  <!-- Steam -->
+  <path d="M 52 32 C 48 22 56 16 52 8" stroke="#FDE68A" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.8" />
+  <path d="M 64 28 C 60 18 68 12 64 4" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9" />
+  <path d="M 76 32 C 72 22 80 16 76 8" stroke="#FDE68A" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.8" />
 
   <!-- Pot Handles -->
-  <path d="M12 28 C6 28 6 36 12 36" stroke="#D97706" stroke-width="3" stroke-linecap="round" fill="none" />
-  <path d="M52 28 C58 28 58 36 52 36" stroke="#D97706" stroke-width="3" stroke-linecap="round" fill="none" />
+  <path d="M 14 62 C 6 62 6 78 14 78 Z" fill="#4C0519" stroke="url(#favGold)" stroke-width="1.5" />
+  <path d="M 114 62 C 122 62 122 78 114 78 Z" fill="#4C0519" stroke="url(#favGold)" stroke-width="1.5" />
 
-  <!-- Pot Body -->
-  <path d="M14 26 H50 C50 44 44 54 32 54 C20 54 14 44 14 26 Z" fill="url(#potGrad)" />
+  <!-- Main Pot Body -->
+  <circle cx="64" cy="72" r="46" fill="url(#favPotGrad)" stroke="url(#favGold)" stroke-width="3.5" />
 
-  <!-- Pot Rim -->
-  <ellipse cx="32" cy="26" rx="20" ry="4.5" fill="url(#rimGrad)" stroke="#B45309" stroke-width="1" />
-  <ellipse cx="32" cy="26" rx="16" ry="3" fill="#92400E" />
+  <!-- Tilted Lid -->
+  <ellipse cx="80" cy="40" rx="34" ry="13" fill="url(#favPotGrad)" stroke="url(#favGold)" stroke-width="2.5" transform="rotate(16, 80, 40)" />
+  <ellipse cx="80" cy="28" rx="6" ry="3.5" fill="url(#favGold)" transform="rotate(16, 80, 28)" />
 
-  <!-- Sparkle / Star on the Pot -->
-  <path d="M32 35 L33.5 40 L38 41.5 L33.5 43 L32 48 L30.5 43 L26 41.5 L30.5 40 Z" fill="#FFFBEB" />
-  <circle cx="41" cy="34" r="1.5" fill="#FDE68A" />
-  <circle cx="23" cy="46" r="1.2" fill="#FDE68A" />
+  <!-- Spoon Scrape -->
+  <path d="M 38 98 Q 66 96 98 84" stroke="url(#favGold)" stroke-width="4" stroke-linecap="round" fill="none" />
+  <ellipse cx="99" cy="83" rx="6" ry="4" fill="url(#favGold)" transform="rotate(-20, 99, 83)" />
+
+  <!-- Center Card/Star Highlight -->
+  <polygon points="64,56 65.5,60 70,60 66.5,62.5 68,66.5 64,64 60,66.5 61.5,62.5 58,60 62.5,60" fill="#FFFBEB" />
 </svg>

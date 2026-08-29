@@ -301,12 +301,13 @@ export class PaymentRepository {
   }
 
   /**
-   * Completa un retiro con referencia bancaria mediante process_withdrawal_completion.
+   * Completa un retiro con referencia bancaria mediante process_withdrawal_completion y verificación 2FA.
    */
   public static async completeWithdrawal(
     withdrawalId: string,
     bankReference: string,
-    idempotencyKey: string = `comp_wth_${withdrawalId}_${Date.now()}`
+    idempotencyKey: string = `comp_wth_${withdrawalId}_${Date.now()}`,
+    totpCode?: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
@@ -315,6 +316,7 @@ export class PaymentRepository {
       p_withdrawal_id: withdrawalId,
       p_bank_reference: bankReference,
       p_idempotency_key: idempotencyKey,
+      p_totp_code: totpCode ? totpCode.trim() : null,
     });
 
     if (error) {
@@ -326,12 +328,13 @@ export class PaymentRepository {
   }
 
   /**
-   * Rechaza y libera la retención de un retiro mediante process_withdrawal_rejection.
+   * Rechaza y libera la retención de un retiro mediante process_withdrawal_rejection y verificación 2FA.
    */
   public static async rejectWithdrawal(
     withdrawalId: string,
     rejectionReason: string,
-    idempotencyKey: string = `rej_wth_${withdrawalId}_${Date.now()}`
+    idempotencyKey: string = `rej_wth_${withdrawalId}_${Date.now()}`,
+    totpCode?: string
   ): Promise<{ success: boolean; error?: string }> {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
@@ -340,6 +343,7 @@ export class PaymentRepository {
       p_withdrawal_id: withdrawalId,
       p_rejection_reason: rejectionReason,
       p_idempotency_key: idempotencyKey,
+      p_totp_code: totpCode ? totpCode.trim() : null,
     });
 
     if (error) {

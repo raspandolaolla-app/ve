@@ -237,9 +237,10 @@ export class TableRepository {
    * Obtiene la lista de montos de entrada activos para selección en mesas.
    */
   public static async getAvailableEntryFees(gameType?: GameType): Promise<number[]> {
+    const defaultFees = [25, 50, 100, 250, 500, 1000, 2000, 5000];
     const supabase = getSupabaseClient();
     if (!supabase) {
-      return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
+      return defaultFees;
     }
 
     try {
@@ -247,6 +248,8 @@ export class TableRepository {
         .from('entry_fees')
         .select('amount')
         .eq('is_active', true)
+        .gte('amount', 25)
+        .lte('amount', 5000)
         .order('display_order', { ascending: true })
         .order('amount', { ascending: true });
 
@@ -257,12 +260,16 @@ export class TableRepository {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) {
-        return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
+        return defaultFees;
       }
 
-      return data.map((d: any) => Number(d.amount));
+      const filtered = data
+        .map((d: any) => Number(d.amount))
+        .filter((amt: number) => amt >= 25 && amt <= 5000);
+
+      return filtered.length > 0 ? filtered : defaultFees;
     } catch {
-      return [10, 15, 20, 25, 50, 100, 250, 500, 1000, 2000];
+      return defaultFees;
     }
   }
 
@@ -285,12 +292,17 @@ export class TableRepository {
     const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
     const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
 
+    const entryFeeNum = Number(payload.entryFee || 0);
+    if (entryFeeNum < 25 || entryFeeNum > 5000) {
+      throw new Error('INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.');
+    }
+
     // Invocar exclusivamente la RPC segura create_game_table_secure
     const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {
       p_game_type: dbGameType,
       p_name: tableName,
       p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
-      p_entry_fee: Number(payload.entryFee || 0),
+      p_entry_fee: entryFeeNum,
       p_max_players: Number(payload.maxPlayers || 2),
       p_config: payload.config || {},
     });

@@ -35,6 +35,14 @@ export interface ContentBannerItem {
   updatedAt?: string;
 }
 
+function cleanBannerImageUrl(rawUrl?: string | null): string {
+  if (!rawUrl) return '/logo.svg';
+  if (rawUrl.includes('photo-1518709268805') || rawUrl.includes('unsplash')) {
+    return '/logo.svg';
+  }
+  return rawUrl;
+}
+
 export class BannerRepository {
   /**
    * Obtiene los banners activos para una ubicación determinada.
@@ -72,7 +80,7 @@ export class BannerRepository {
         id: row.id,
         title: row.title,
         description: row.description,
-        imageUrl: row.image_url,
+        imageUrl: cleanBannerImageUrl(row.image_url),
         videoUrl: row.video_url,
         mediaType: row.video_url ? 'video' : 'image',
         buttonText: row.button_text,
@@ -113,7 +121,7 @@ export class BannerRepository {
         id: row.id,
         title: row.title,
         description: row.description,
-        imageUrl: row.image_url,
+        imageUrl: cleanBannerImageUrl(row.image_url),
         videoUrl: row.video_url,
         mediaType: row.video_url ? 'video' : 'image',
         buttonText: row.button_text,
@@ -144,7 +152,7 @@ export class BannerRepository {
       const payload = {
         title: banner.title || 'Sin Título',
         description: banner.description || null,
-        image_url: banner.imageUrl || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+        image_url: cleanBannerImageUrl(banner.imageUrl),
         video_url: banner.videoUrl || null,
         button_text: banner.buttonText || null,
         target_action: banner.targetAction || 'polla',

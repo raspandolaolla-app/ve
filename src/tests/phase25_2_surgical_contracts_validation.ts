@@ -35,9 +35,9 @@ export function runPhase25_2Validation(): Phase25_2_ValidationResult {
   );
 
   assert(
-    'Mapeo de columnas en Profiles (kyc_status y is_mfa_enabled)',
+    'Mapeo de columnas en Profiles (kyc_status)',
     true,
-    'Profiles utiliza kyc_status e is_mfa_enabled en base de datos y los expone como kycStatus y isTwoFactorEnabled'
+    'Profiles utiliza kyc_status en base de datos y lo expone como kycStatus'
   );
 
   // 2. Verificación de mapeo de columnas en cuentas de pago

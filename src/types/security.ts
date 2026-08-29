@@ -26,10 +26,3 @@ export interface SecurityEvent {
   timestamp: string;
   resolved: boolean;
 }
-
-export interface MfaEnrollmentState {
-  isEnrolled: boolean;
-  factorId?: string;
-  qrCodeUri?: string;
-  secret?: string;
-}

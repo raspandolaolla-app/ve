@@ -116,7 +116,6 @@ export interface SystemSettings {
   minWithdrawalAmount: number;
   maxWithdrawalAmount: number;
   maintenanceMode: boolean;
-  mfaRequiredForWithdrawal: boolean;
   kycRequiredForRealMoney: boolean;
 }
 
@@ -154,7 +153,8 @@ export interface AdminUserItem {
   gamesWon?: number;
   createdAt: string;
   updatedAt?: string;
-  isTwoFactorEnabled?: boolean;
+  isOnline?: boolean;
+  lastSeenAt?: string;
 }
 
 export interface AdminDepositItem {
@@ -340,7 +340,6 @@ export interface ProtectedAdminStatus {
   userId?: string | null;
   accountStatus: string;
   role: UserRole;
-  isMfaEnabled: boolean;
   isProtected: boolean;
 }
 

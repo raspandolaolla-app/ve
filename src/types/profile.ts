@@ -56,7 +56,6 @@ export interface UserProfile {
   accountStatus: AccountStatus;
   identityVerificationStatus: VerificationStatus;
   humanVerificationStatus: VerificationStatus;
-  twoFactorEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

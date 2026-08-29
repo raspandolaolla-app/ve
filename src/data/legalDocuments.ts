@@ -91,9 +91,9 @@ export const LEGAL_DOCUMENTS: Record<string, LegalDocument> = {
         ],
       },
       {
-        title: '8. Seguridad de la Cuenta y Verificación en Dos Pasos (2FA)',
+        title: '8. Seguridad de la Cuenta',
         paragraphs: [
-          'El usuario es el único custodio de su cuenta y debe notificar de inmediato cualquier actividad sospechosa o acceso no autorizado. Se recomienda enfáticamente activar mecanismos de autenticación en dos pasos (2FA/TOTP) para operaciones sensibles como retiros de fondos.',
+          'El usuario es el único custodio de su cuenta y debe notificar de inmediato cualquier actividad sospechosa o acceso no autorizado.',
           'La plataforma implementa controles perimetrales y de base de datos para la salvaguarda de la integridad de las cuentas.',
         ],
       },

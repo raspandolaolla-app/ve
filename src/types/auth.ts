@@ -7,8 +7,6 @@ export type AuthState = 'loading' | 'unauthenticated' | 'authenticated' | 'error
 export interface AuthSession {
   userId: string;
   email: string | null;
-  aal: 'aal1' | 'aal2';
-  hasMfaEnrolled: boolean;
   expiresAt?: number;
 }
 

@@ -79,7 +79,7 @@ INSERT INTO public.content_banners (
 ) VALUES (
   '🐾 COMPRA TU POLLA VENEZOLANA',
   'Selecciona tus 6 animalitos y participa en el sorteo diario. ¡Turno Mañana y Tarde con pozo acumulado!',
-  'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+  '/logo.svg',
   'COMPRAR POLLA',
   'polla',
   10,

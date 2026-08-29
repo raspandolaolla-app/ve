@@ -3,6 +3,7 @@
 // ==============================================================================
 
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { getAssetUrl } from '../../utils/assetUtils';
 
 export type ContentBannerLocation =
   | 'HOME'
@@ -36,11 +37,7 @@ export interface ContentBannerItem {
 }
 
 function cleanBannerImageUrl(rawUrl?: string | null): string {
-  if (!rawUrl) return '/logo.svg';
-  if (rawUrl.includes('photo-1518709268805') || rawUrl.includes('unsplash')) {
-    return '/logo.svg';
-  }
-  return rawUrl;
+  return getAssetUrl(rawUrl);
 }
 
 export class BannerRepository {

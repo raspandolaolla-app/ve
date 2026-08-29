@@ -8,9 +8,11 @@ export type AuditCategory =
   | 'SYSTEM'
   | 'MULTIPLAYER'
   | 'GAMES'
-  | 'CONCURRENCY';
+  | 'CONCURRENCY'
+  | 'BLOCKED_TABLES'
+  | 'POLLA_POOL_CALCULATION';
 
-export type AuditTestStatus = 'PASS' | 'FAIL' | 'WARNING' | 'RUNNING' | 'PENDING';
+export type AuditTestStatus = 'PASS' | 'FAIL' | 'WARNING' | 'RUNNING' | 'PENDING' | 'NO_PROBADO';
 
 export interface AuditLogEntry {
   id: string;
@@ -35,6 +37,12 @@ export interface GameEngineTestReport {
   pass: boolean;
   latencyMs: number;
   rulesVerified: string[];
+  enginePass: boolean;
+  fullFlowPass: boolean;
+  turnsExecuted?: number;
+  winnerDetected?: boolean;
+  settlementChecked?: boolean;
+  tableCleaned?: boolean;
   message: string;
   errorDetails?: string;
 }

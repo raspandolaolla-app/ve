@@ -294,7 +294,25 @@ export interface PollaBlockWinner {
   winnerName: string | null;
   winnerTicketId: string | null;
   hits: number;
+  totalCollectedBs?: number;
   prizeBs: number;
+  commissionBs?: number;
+  totalTickets?: number;
+  isSettled?: boolean;
+}
+
+export interface PollaShiftPoolSummary {
+  drawDate: string;
+  block: PollaBlockType;
+  totalTickets: number;
+  totalCollectedBs: number;
+  prize90Bs: number;
+  commission10Bs: number;
+  isSettled: boolean;
+  winnerUserId: string | null;
+  winnerName: string | null;
+  winnerTicketId: string | null;
+  settledAt: string | null;
 }
 
 export interface PollaFixture {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import { BcvProvider } from './context/BcvContext';
 import { PresenceService } from './services/PresenceService';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -152,7 +153,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <BcvProvider>
+        <AppContent />
+      </BcvProvider>
     </AuthProvider>
   );
 }

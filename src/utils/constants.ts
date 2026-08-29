@@ -20,6 +20,8 @@ export const FINANCIAL_RULES = {
   MINIMUM_LEGAL_AGE: 18,
   DEFAULT_CURRENCY: 'VES' as const,
   CURRENCY_SYMBOL: 'Bs.',
+  MIN_ENTRY_FEE_BS: 25,
+  MAX_ENTRY_FEE_BS: 5000,
 } as const;
 
 export const VENEZUELAN_STATES: readonly VenezuelanState[] = [
@@ -58,8 +60,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     minPlayers: 2,
     maxPlayers: 2,
     allowedModes: ['1v1'],
-    minEntryFee: 10,
-    maxEntryFee: 1000,
+    minEntryFee: 25,
+    maxEntryFee: 5000,
     isActive: true,
   },
   {
@@ -69,8 +71,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     minPlayers: 2,
     maxPlayers: 2,
     allowedModes: ['1v1'],
-    minEntryFee: 10,
-    maxEntryFee: 1000,
+    minEntryFee: 25,
+    maxEntryFee: 5000,
     isActive: true,
     requiresCommitReveal: true,
   },
@@ -81,8 +83,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     minPlayers: 2,
     maxPlayers: 2,
     allowedModes: ['1v1'],
-    minEntryFee: 20,
-    maxEntryFee: 2000,
+    minEntryFee: 25,
+    maxEntryFee: 5000,
     isActive: true,
   },
   {
@@ -114,8 +116,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     minPlayers: 2,
     maxPlayers: 100,
     allowedModes: ['mass_participation'],
-    minEntryFee: 10,
-    maxEntryFee: 500,
+    minEntryFee: 25,
+    maxEntryFee: 5000,
     isActive: true,
   },
   {
@@ -125,8 +127,8 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     minPlayers: 2,
     maxPlayers: 6,
     allowedModes: ['1v1', '2v2', '1v3', '1v4'],
-    minEntryFee: 15,
-    maxEntryFee: 1500,
+    minEntryFee: 25,
+    maxEntryFee: 5000,
     isActive: true,
   },
 ] as const;
@@ -141,7 +143,7 @@ export const GLOBAL_DRAWS_METADATA: readonly GameMetadata[] = [
     maxPlayers: 999999,
     allowedModes: ['mass_participation'],
     minEntryFee: 250,
-    maxEntryFee: 250,
+    maxEntryFee: 5000,
     isActive: true,
   },
 ] as const;

@@ -14,6 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BannerRepository, type ContentBannerItem } from '../../services/repositories/BannerRepository';
 import { VideoAdPlayer } from './VideoAdPlayer';
+import { getAssetUrl } from '../../utils/assetUtils';
 
 interface MediaBannerProps {
   location?: string;
@@ -191,10 +192,10 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
             <div className="relative w-full md:w-80 h-48 sm:h-52 shrink-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-inner group flex items-center justify-center">
               {/* Logo Oficial de fondo durante carga/fallback */}
               <div className="absolute inset-0 z-0 bg-slate-950 flex items-center justify-center p-4 select-none pointer-events-none">
-                <img src="/logo.svg" alt="Logo Oficial Raspando La Olla" className="w-16 h-16 object-contain opacity-60 animate-pulse" />
+                <img src={getAssetUrl('logo.svg')} alt="Logo Oficial Raspando La Olla" className="w-16 h-16 object-contain opacity-60 animate-pulse" />
               </div>
               <img
-                src={current.imageUrl || '/logo.svg'}
+                src={getAssetUrl(current.imageUrl)}
                 alt={current.title}
                 className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 referrerPolicy="no-referrer"

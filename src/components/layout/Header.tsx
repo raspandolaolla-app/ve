@@ -6,7 +6,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { InstallPWAButton } from '../common/InstallPWAButton';
 import { Button } from '../common/Button';
-import { Flame, LogIn, LogOut, User, Shield, Wallet, Grid, Lock, Loader2 } from 'lucide-react';
+import { getAssetUrl } from '../../utils/assetUtils';
+import { LogIn, LogOut, User, Shield, Wallet, Grid, Lock, Loader2 } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
@@ -28,9 +29,9 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             onClick={() => onNavigate('home')}
             className="flex items-center gap-3 cursor-pointer select-none group"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 p-0.5 shadow-md shadow-amber-950/50 flex items-center justify-center">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center group-hover:bg-slate-900 transition-colors">
-                <Flame className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 p-0.5 shadow-md shadow-amber-950/50 flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center group-hover:bg-slate-900 transition-colors p-0.5">
+                <img src={getAssetUrl('logo.svg')} alt="Logo Raspando La Olla" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
               </div>
             </div>
             <div>

@@ -143,11 +143,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
   const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
 
+  const lastLoadedUserIdRef = React.useRef<string | null>(null);
+
   const supabase = getSupabaseClient();
 
   const handleSession = async (currentSession: Session | null) => {
     if (!currentSession || !currentSession.user) {
       console.log('[AUTH] Usuario desconectado (sin sesión activa)');
+      lastLoadedUserIdRef.current = null;
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -161,7 +164,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const authUser = currentSession.user;
-      console.log('[AUTH] Usuario actual:', authUser.email || authUser.id);
       setUser(authUser);
 
       const parsedSession: AuthSession = {
@@ -172,13 +174,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         expiresAt: currentSession.expires_at,
       };
       setSession(parsedSession);
-      console.log('[AUTH] Sesión obtenida. Vence:', currentSession.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleTimeString('es-VE') : 'N/A');
 
       // Comprobar estado de aceptación de términos v1.0
       const isTermsAccepted = TermsService.hasAcceptedCurrentTerms(authUser.id, authUser.user_metadata);
       setHasAcceptedTerms(isTermsAccepted);
       const record = TermsService.getAcceptanceRecord(authUser.id);
       setTermsRecord(record);
+
+      // Evitar reconsuiltar perfil y rol repetidamente si ya están cargados para el mismo usuario
+      if (lastLoadedUserIdRef.current === authUser.id && profile !== null) {
+        setState('authenticated');
+        setIsSigningIn(false);
+        setError(null);
+        return;
+      }
+
+      console.log('[AUTH] Usuario actual:', authUser.email || authUser.id);
+      console.log('[AUTH] Sesión obtenida. Vence:', currentSession.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleTimeString('es-VE') : 'N/A');
+
+      lastLoadedUserIdRef.current = authUser.id;
 
       // Cargar perfil y rol de forma segura sin romper la sesión en caso de latencia o error de red
       let fetchedProfile: UserProfile | null = null;

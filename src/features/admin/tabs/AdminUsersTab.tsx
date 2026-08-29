@@ -44,7 +44,6 @@ export function AdminUsersTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
-  const [presenceFilter, setPresenceFilter] = useState<string>('ALL');
   const [selectedUser, setSelectedUser] = useState<AdminUserItem | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [statusReason, setStatusReason] = useState('');
@@ -54,8 +53,6 @@ export function AdminUsersTab({
     currentUserRole === 'SUPER_ADMIN' &&
     currentUserEmail !== null &&
     AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === currentUserEmail.toLowerCase());
-
-  const onlineUsersCount = users.filter((u) => u.isOnline).length;
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -67,12 +64,8 @@ export function AdminUsersTab({
 
     const matchesStatus = statusFilter === 'ALL' || u.accountStatus === statusFilter;
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-    const matchesPresence =
-      presenceFilter === 'ALL' ||
-      (presenceFilter === 'ONLINE' && u.isOnline) ||
-      (presenceFilter === 'OFFLINE' && !u.isOnline);
 
-    return matchesSearch && matchesStatus && matchesRole && matchesPresence;
+    return matchesSearch && matchesStatus && matchesRole;
   });
 
   const handleApplyStatusChange = async (newStatus: 'ACTIVE' | 'SUSPENDED' | 'BLOCKED') => {
@@ -138,17 +131,6 @@ export function AdminUsersTab({
 
           <div className="flex items-center gap-3 w-full md:w-auto">
             <select
-              id="select-filter-presence"
-              value={presenceFilter}
-              onChange={(e) => setPresenceFilter(e.target.value)}
-              className="bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50"
-            >
-              <option value="ALL">Presencia (Todos)</option>
-              <option value="ONLINE">🟢 En línea ({onlineUsersCount})</option>
-              <option value="OFFLINE">⚪ Desconectados</option>
-            </select>
-
-            <select
               id="select-filter-status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -181,20 +163,12 @@ export function AdminUsersTab({
         id="card-users-table"
         className="bg-slate-900/90 border-slate-800 overflow-hidden"
         header={
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
               <Users className="w-4 h-4 text-amber-400" />
               <span>Directorio de Usuarios ({filteredUsers.length})</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-[11px]">
-                Registrados: <strong className="text-white">{users.length}</strong>
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Online: <strong>{onlineUsersCount}</strong>
-              </span>
-            </div>
+            <span className="text-xs text-slate-500">Supervisión en Tiempo Real</span>
           </div>
         }
       >
@@ -222,16 +196,11 @@ export function AdminUsersTab({
                   <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="py-3 px-3">
                       <div>
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-                          {u.isOnline ? (
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" title="En línea (Online)" />
-                          ) : (
-                            <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" title="Desconectado (Offline)" />
-                          )}
-                          <span>{u.firstName} {u.lastName}</span>
+                        <div className="font-semibold text-slate-200">
+                          {u.firstName} {u.lastName}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono pl-3.5">{u.email}</div>
-                        {u.state && <div className="text-[10px] text-slate-500 pl-3.5">{u.state}</div>}
+                        <div className="text-[11px] text-slate-400 font-mono">{u.email}</div>
+                        {u.state && <div className="text-[10px] text-slate-500">{u.state}</div>}
                       </div>
                     </td>
 

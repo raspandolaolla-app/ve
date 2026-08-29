@@ -32,6 +32,17 @@ export interface TOTPValidationResponse {
   message?: string;
 }
 
+function formatTOTPErrorMessage(rawMsg: string): string {
+  if (!rawMsg) return 'Error de verificación TOTP.';
+  if (rawMsg.includes('NO_SECRET_FOUND')) {
+    return 'No se ha encontrado un secreto 2FA generado. Por favor haz clic en "Activar 2FA" para escanear el código QR antes de validar.';
+  }
+  if (rawMsg.includes('INVALID_TOTP_CODE')) {
+    return 'El código 2FA ingresado es incorrecto o ha expirado. Verifica que la fecha y hora automáticas de tu dispositivo estén activadas.';
+  }
+  return rawMsg;
+}
+
 export class SecurityRepository {
   /**
    * Genera un nuevo secreto TOTP y código QR para enrollment
@@ -105,39 +116,52 @@ export class SecurityRepository {
   static async verifyAndEnableTOTP(code: string): Promise<TOTPVerificationResponse> {
     const supabase = getSupabaseClient();
     if (!supabase) {
+      console.log('[2FA] TOTP verification started - Client unavailable');
       return { success: false, message: 'Servicio Supabase no disponible' };
     }
 
+    console.log('[2FA] TOTP verification started');
+
     try {
-      if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
+      if (!code || code.trim().length !== 6 || !/^\d+$/.test(code.trim())) {
+        console.log('[2FA] Verification result: failure (invalid format)');
         throw new Error('El código debe tener 6 dígitos numéricos');
       }
       
+      const cleanCode = code.trim();
+
       // 1. Intentar verify_and_enable_totp
-      const { data, error } = await supabase.rpc('verify_and_enable_totp', { p_code: code });
+      const { data, error } = await supabase.rpc('verify_and_enable_totp', { p_code: cleanCode });
       
       if (!error && data) {
+        const isOk = Boolean(data.success);
+        console.log('[2FA] Verification result:', isOk ? 'success' : 'failure');
         return {
-          success: Boolean(data.success),
-          message: data.message || (data.success ? '2FA activado correctamente' : 'Código inválido'),
+          success: isOk,
+          message: data.message || (isOk ? '2FA activado correctamente' : 'Código inválido o ha expirado'),
         };
       }
 
       // 2. Fallback a enable_2fa
-      const { data: legacyData, error: legacyError } = await supabase.rpc('enable_2fa', { p_code: code });
+      const { data: legacyData, error: legacyError } = await supabase.rpc('enable_2fa', { p_code: cleanCode });
       if (legacyError) {
+        console.log('[2FA] Verification result: failure (RPC error)');
         throw new Error(legacyError.message || 'Error verificando código TOTP');
       }
 
+      const isLegacyOk = Boolean(legacyData?.success);
+      console.log('[2FA] Verification result:', isLegacyOk ? 'success' : 'failure');
       return {
-        success: Boolean(legacyData?.success),
+        success: isLegacyOk,
         message: legacyData?.message || '2FA activado con éxito',
       };
     } catch (error: any) {
-      console.error('[SecurityRepository] Error verificando código 2FA:', error.message);
+      console.log('[2FA] Verification result: failure');
+      const formatted = formatTOTPErrorMessage(error.message || '');
+      console.error('[SecurityRepository] Error verificando código 2FA:', formatted);
       return {
         success: false,
-        message: error.message || 'Error verificando código TOTP',
+        message: formatted,
       };
     }
   }

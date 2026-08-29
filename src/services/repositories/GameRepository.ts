@@ -405,36 +405,5 @@ export class GameRepository {
       console.warn('[GameRepository] Error en limpieza de mesas huérfanas:', err);
     }
   }
-
-  /**
-   * Alias de compatibilidad para inicializar/recuperar sesión en useGameEngine
-   */
-  public static async getOrCreateSession(
-    tableId: string,
-    gameType: GameType,
-    firstTurnUserId?: string,
-    initialState?: Record<string, unknown>
-  ): Promise<GameSession | null> {
-    return this.createOrGetSession(tableId, gameType, initialState || {}, firstTurnUserId);
-  }
-
-  /**
-   * Obtiene la secuencia de acciones registradas para una sesión
-   */
-  public static async getActions(sessionId: string): Promise<any[]> {
-    const supabase = getSupabaseClient();
-    if (!supabase || !sessionId) return [];
-    try {
-      const { data, error } = await supabase
-        .from('game_actions')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('sequence_number', { ascending: true });
-      if (error || !data) return [];
-      return data;
-    } catch {
-      return [];
-    }
-  }
 }
 

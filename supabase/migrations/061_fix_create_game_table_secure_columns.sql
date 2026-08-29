@@ -1,58 +1,8 @@
 -- ==============================================================================
--- RASPANDO LA OLLA — MIGRACIÓN 058: LÍMITES DE MONTOS (25 Bs - 5000 Bs) Y TASA BCV
+-- RASPANDO LA OLLA — MIGRACIÓN 061: CORRECCIÓN DE COLUMNAS EN create_game_table_secure
+-- Soluciona definitivamente el error 42703 (column "name" of relation "game_tables" does not exist)
 -- ==============================================================================
 
--- 1. ACTUALIZACIÓN DE CATALOGO entry_fees (Mínimo 25 Bs, Máximo 5000 Bs)
-UPDATE public.entry_fees
-SET is_active = false
-WHERE amount < 25.00 OR amount > 5000.00;
-
--- Asegurar montos estándar entre 25 y 5000 Bs.
-INSERT INTO public.entry_fees (amount, display_order, is_active)
-SELECT v.amount, v.display_order, true
-FROM (VALUES 
-  (25.00, 1),
-  (50.00, 2),
-  (100.00, 3),
-  (250.00, 4),
-  (500.00, 5),
-  (1000.00, 6),
-  (2000.00, 7),
-  (5000.00, 8)
-) AS v(amount, display_order)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.entry_fees ef WHERE ef.amount = v.amount AND ef.game_type IS NULL
-);
-
--- 2. FUNCIÓN DE VALIDACIÓN DE MONTOS (is_valid_entry_fee)
--- Regla General: 25 Bs. <= monto <= 5.000 Bs.
-CREATE OR REPLACE FUNCTION public.is_valid_entry_fee(
-  p_amount NUMERIC,
-  p_game_type game_type_enum DEFAULT NULL
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-BEGIN
-  IF p_amount IS NULL THEN
-    RETURN FALSE;
-  END IF;
-
-  -- 25.00 Bs. <= Monto <= 5.000,00 Bs.
-  IF p_amount < 25.00 OR p_amount > 5000.00 THEN
-    RETURN FALSE;
-  END IF;
-
-  RETURN TRUE;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.is_valid_entry_fee(NUMERIC, game_type_enum) TO authenticated, anon, service_role;
-
--- 3. ACTUALIZACIÓN DE create_game_table_secure CON VALIDACIÓN STRICT 25 Bs - 5000 Bs
 CREATE OR REPLACE FUNCTION public.create_game_table_secure(
   p_game_type TEXT,
   p_name VARCHAR DEFAULT NULL,
@@ -199,51 +149,31 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_game_table_secure(TEXT, VARCHAR, table_visibility_enum, NUMERIC, SMALLINT, JSONB) TO authenticated, service_role;
-
--- 4. RPC PARA GESTIÓN DE TASA OFICIAL BCV EN public.system_settings
-CREATE OR REPLACE FUNCTION public.update_bcv_rate(
-  p_rate NUMERIC,
-  p_source TEXT DEFAULT 'Banco Central de Venezuela',
-  p_status TEXT DEFAULT 'UPDATED'
+-- Sobrecarga para invocación con tipo enum explícito
+CREATE OR REPLACE FUNCTION public.create_game_table_secure(
+  p_game_type game_type_enum,
+  p_name VARCHAR DEFAULT NULL,
+  p_visibility table_visibility_enum DEFAULT 'PUBLIC',
+  p_entry_fee NUMERIC DEFAULT 25.00,
+  p_max_players SMALLINT DEFAULT 2,
+  p_config JSONB DEFAULT '{}'::jsonb
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth
 AS $$
-DECLARE
-  v_payload JSONB;
 BEGIN
-  IF p_rate IS NULL OR p_rate <= 0 THEN
-    RAISE EXCEPTION 'INVALID_BCV_RATE: La tasa de cambio debe ser un número positivo mayor a 0';
-  END IF;
-
-  v_payload := jsonb_build_object(
-    'rate', p_rate,
-    'updated_at', NOW(),
-    'source', p_source,
-    'status', p_status
-  );
-
-  INSERT INTO public.system_settings (key, value, is_public, description, updated_at)
-  VALUES (
-    'bcv_rate',
-    v_payload,
-    true,
-    'Tasa de Cambio Oficial del Banco Central de Venezuela (BCV) para conversión informativa USD',
-    NOW()
-  )
-  ON CONFLICT (key) DO UPDATE
-  SET value = v_payload,
-      updated_at = NOW(),
-      is_public = true;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'bcv_rate', v_payload
+  RETURN public.create_game_table_secure(
+    p_game_type::text,
+    p_name,
+    p_visibility,
+    p_entry_fee,
+    p_max_players,
+    p_config
   );
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.update_bcv_rate(NUMERIC, TEXT, TEXT) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.create_game_table_secure(TEXT, VARCHAR, table_visibility_enum, NUMERIC, SMALLINT, JSONB) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_game_table_secure(game_type_enum, VARCHAR, table_visibility_enum, NUMERIC, SMALLINT, JSONB) TO authenticated, service_role;

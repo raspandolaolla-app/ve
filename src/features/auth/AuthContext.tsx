@@ -195,10 +195,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let fetchedProfile: UserProfile | null = null;
       let fetchedRole: UserRole = 'PLAYER';
 
+      const metadata = authUser.user_metadata || {};
+      const googleAvatar = metadata.avatar_url || metadata.picture || null;
+      const fullName = metadata.full_name || metadata.name || '';
+      const nameParts = fullName.trim().split(' ');
+      const googleFirstName = metadata.given_name || nameParts[0] || '';
+      const googleLastName = metadata.family_name || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
+
+      // Garantizar que exista registro en profiles, wallets y user_roles en Supabase
       try {
-        fetchedProfile = await ProfileRepository.getCurrentProfile(authUser.id);
+        fetchedProfile = await ProfileRepository.ensureProfileExists(
+          authUser.id,
+          authUser.email || '',
+          {
+            firstName: googleFirstName || 'Jugador',
+            lastName: googleLastName || '',
+            avatarUrl: googleAvatar,
+          }
+        );
       } catch (pErr) {
-        console.warn('[AUTH] Error recuperando perfil desde DB, usando metadatos:', pErr);
+        console.warn('[AUTH] Error asegurando perfil en DB, reintentando consulta:', pErr);
+        try {
+          fetchedProfile = await ProfileRepository.getCurrentProfile(authUser.id);
+        } catch {
+          // fallback
+        }
       }
 
       try {
@@ -208,27 +229,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (fetchedProfile) {
-        setProfile(fetchedProfile);
-        console.log('[AUTH] Perfil cargado:', fetchedProfile.firstName, fetchedProfile.lastName);
+        const mergedProfile: UserProfile = {
+          ...fetchedProfile,
+          firstName: googleFirstName || fetchedProfile.firstName || 'Jugador',
+          lastName: googleLastName || fetchedProfile.lastName || '',
+          email: authUser.email || fetchedProfile.email || '',
+          avatarUrl: googleAvatar || fetchedProfile.avatarUrl || null,
+        };
+        setProfile(mergedProfile);
+        console.log('[AUTH] Perfil garantizado y sincronizado con Google:', mergedProfile.firstName, mergedProfile.lastName);
       } else {
-        const metadata = authUser.user_metadata || {};
-        const fullName = metadata.full_name || metadata.name || '';
-        const nameParts = fullName.trim().split(' ');
-        const firstName = metadata.given_name || nameParts[0] || 'Jugador';
-        const lastName = metadata.family_name || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
-        const avatarUrl = metadata.avatar_url || metadata.picture || undefined;
-
         setProfile({
           id: authUser.id,
-          firstName,
-          lastName,
+          firstName: googleFirstName || 'Jugador',
+          lastName: googleLastName || '',
           email: authUser.email || '',
           phoneMasked: '',
           cedulaMasked: '',
           state: 'Distrito Capital',
           birthDate: null,
           isAdult: true,
-          avatarUrl,
+          avatarUrl: googleAvatar,
           accountStatus: 'ACTIVE',
           identityVerificationStatus: 'PENDING',
           humanVerificationStatus: 'VERIFIED',
@@ -236,7 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
-        console.log('[AUTH] Perfil cargado (desde metadatos OAuth)');
+        console.log('[AUTH] Perfil cargado en memoria local');
       }
 
       // Regla de Seguridad Inmutable:

@@ -557,9 +557,9 @@ export function TablesView() {
 
       {/* Modal / Sala de Mesa Activa */}
       {activeTable && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between gap-4 sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 uppercase">
@@ -567,10 +567,10 @@ export function TablesView() {
                   </span>
                   <span className="text-xs font-mono text-slate-400">{activeTable.joinCode}</span>
                 </div>
-                <h2 className="text-xl font-black text-slate-100 mt-1">
+                <h2 className="text-lg sm:text-xl font-black text-slate-100 mt-1">
                   {activeTable.name || `Mesa de ${activeTable.gameType}`}
                 </h2>
-                <p className="text-xs text-slate-400">
+                <p className="text-[11px] sm:text-xs text-slate-400">
                   Modo: {activeTable.mode} | Entrada:{' '}
                   <strong className="text-amber-300 font-mono">{formatBolivares(activeTable.entryFee)}</strong> | Pozo estimado (90%):{' '}
                   <strong className="text-emerald-400 font-mono">
@@ -584,7 +584,7 @@ export function TablesView() {
                   setActiveTable(null);
                   setSeatActionFeedback(null);
                 }}
-                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -741,16 +741,16 @@ export function TablesView() {
 
       {/* Modal Crear Mesa */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-amber-400" />
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
+              <h2 className="text-base sm:text-lg font-black text-slate-100 flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>{createIsPrivate ? 'Crear Mesa Privada ("Trancaíto")' : 'Crear Mesa Pública'}</span>
               </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation"
               >
                 <X className="w-5 h-5" />
               </button>

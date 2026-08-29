@@ -9,6 +9,153 @@ import type { UserProfile, ProfileSetupPayload } from '../../types/profile';
 
 export class ProfileRepository {
   /**
+   * Garantiza la existencia y sincronización completa del perfil, billetera y rol en Supabase
+   * para cualquier usuario recién registrado o autenticado.
+   */
+  public static async ensureProfileExists(
+    userId: string,
+    email: string,
+    metadata?: { firstName?: string; lastName?: string; avatarUrl?: string }
+  ): Promise<UserProfile | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase || !userId) return null;
+
+    try {
+      // 1. Verificar si el perfil existe
+      const { data: existing, error: selectErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const firstName = metadata?.firstName || 'Jugador';
+      const lastName = metadata?.lastName || '';
+      const avatarUrl = metadata?.avatarUrl || null;
+      const displayName = `${firstName} ${lastName}`.trim() || 'Jugador';
+      const now = new Date().toISOString();
+
+      let profileData = existing;
+
+      if (!existing || selectErr) {
+        // Crear perfil nuevo en DB
+        const { data: inserted, error: insertErr } = await supabase
+          .from('profiles')
+          .upsert(
+            {
+              user_id: userId,
+              email: email,
+              first_name: firstName,
+              last_name: lastName,
+              display_name: displayName,
+              avatar_url: avatarUrl,
+              state_venezuela: 'Distrito Capital',
+              account_status: 'ACTIVE',
+              kyc_status: 'UNSUBMITTED',
+              is_online: true,
+              last_seen_at: now,
+              created_at: now,
+              updated_at: now,
+            },
+            { onConflict: 'user_id' }
+          )
+          .select('*')
+          .maybeSingle();
+
+        if (!insertErr && inserted) {
+          profileData = inserted;
+        }
+      } else {
+        // Actualizar datos de presencia y metadatos de Google
+        const updates: Record<string, any> = {
+          is_online: true,
+          last_seen_at: now,
+          updated_at: now,
+        };
+        if (email && !existing.email) updates.email = email;
+        if (firstName && firstName !== 'Jugador' && (!existing.first_name || existing.first_name === 'Jugador')) {
+          updates.first_name = firstName;
+        }
+        if (lastName && !existing.last_name) updates.last_name = lastName;
+        if (avatarUrl && !existing.avatar_url) updates.avatar_url = avatarUrl;
+
+        await supabase.from('profiles').update(updates).eq('user_id', userId);
+        profileData = { ...existing, ...updates };
+      }
+
+      // 2. Garantizar que tenga registro en `wallets`
+      try {
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!walletData) {
+          await supabase.from('wallets').upsert(
+            {
+              user_id: userId,
+              available_balance: 0,
+              held_balance: 0,
+              total_balance: 0,
+              created_at: now,
+              updated_at: now,
+            },
+            { onConflict: 'user_id' }
+          );
+        }
+      } catch (wErr) {
+        console.warn('[ProfileRepository] Error creando wallet inicial:', wErr);
+      }
+
+      // 3. Garantizar que tenga registro en `user_roles`
+      try {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!roleData) {
+          await supabase.from('user_roles').upsert(
+            {
+              user_id: userId,
+              role: 'PLAYER',
+              created_at: now,
+              updated_at: now,
+            },
+            { onConflict: 'user_id' }
+          );
+        }
+      } catch (rErr) {
+        console.warn('[ProfileRepository] Error creando rol inicial:', rErr);
+      }
+
+      if (profileData) {
+        return {
+          id: profileData.user_id || userId,
+          firstName: profileData.first_name || firstName,
+          lastName: profileData.last_name || lastName,
+          email: profileData.email || email,
+          phoneMasked: profileData.phone_number ? `04**-***${profileData.phone_number.slice(-4)}` : '',
+          cedulaMasked: profileData.cedula_last4 ? `V-***${profileData.cedula_last4}` : '',
+          state: (profileData.state_venezuela || 'Distrito Capital') as any,
+          birthDate: profileData.birth_date,
+          isAdult: true,
+          avatarUrl: profileData.avatar_url || avatarUrl,
+          accountStatus: (profileData.account_status?.toLowerCase() === 'active' ? 'active' : 'pending_verification') as any,
+          identityVerificationStatus: (profileData.kyc_status?.toLowerCase() === 'verified' ? 'approved' : 'pending') as any,
+          humanVerificationStatus: 'approved',
+          createdAt: profileData.created_at || now,
+          updatedAt: profileData.updated_at || now,
+        };
+      }
+    } catch (err) {
+      console.error('[ProfileRepository] Error en ensureProfileExists:', err);
+    }
+    return null;
+  }
+
+  /**
    * Asegura y sincroniza atómicamente el perfil, la billetera y el rol del usuario actual
    * mediante la función RPC segura `ensure_current_user_profile`.
    */

@@ -12,6 +12,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { PaymentRepository } from '../../services/repositories/PaymentRepository';
+import { PresenceService } from '../../services/PresenceService';
+import { getSupabaseClient } from '../../lib/supabase/client';
 import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import type {
@@ -207,10 +209,10 @@ export function AdminView() {
 
   useEffect(() => {
     loadAllAdminData();
-    // Auto-refresco pasivo cada 60s
+    // Auto-refresco pasivo en vivo cada 15s para garantizar inmediatez total
     const interval = setInterval(() => {
       loadAllAdminData();
-    }, 60000);
+    }, 15000);
 
     // Reloj Caracas en vivo cada 5s
     const clockInterval = setInterval(async () => {
@@ -220,9 +222,63 @@ export function AdminView() {
       }
     }, 5000);
 
+    // Suscripción en tiempo real a Presencia Global con ventana resiliente de 4 min
+    const unsubPresence = PresenceService.subscribeToOnlineUsers((onlineIds) => {
+      setUsersList((prevUsers) =>
+        prevUsers.map((u) => {
+          const isRecent = u.lastSeenAt ? (Date.now() - new Date(u.lastSeenAt).getTime() < 240000) : false;
+          const isOnline = onlineIds.includes(u.id) || Boolean(u.isOnline) || isRecent;
+          return u.isOnline === isOnline ? u : { ...u, isOnline };
+        })
+      );
+    });
+
+    // Suscripción en tiempo real a cambios en tablas de perfiles, roles y billeteras (Nuevos Registros y Actualizaciones)
+    const supabase = getSupabaseClient();
+    let realtimeChannel: any = null;
+
+    if (supabase && isAuthorized) {
+      realtimeChannel = supabase
+        .channel('admin_live_users_roles_wallets_sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles' },
+          async () => {
+            console.log('[AdminView] Cambio en profiles detectado. Re-sincronizando listado de usuarios...');
+            const freshUsers = await AdminRepository.getUsersList();
+            setUsersList(freshUsers);
+            const freshMetrics = await AdminRepository.getMetrics();
+            setMetrics(freshMetrics);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'user_roles' },
+          async () => {
+            console.log('[AdminView] Cambio en user_roles detectado. Re-sincronizando...');
+            const freshUsers = await AdminRepository.getUsersList();
+            setUsersList(freshUsers);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'wallets' },
+          async () => {
+            console.log('[AdminView] Cambio en wallets detectado. Re-sincronizando...');
+            const freshUsers = await AdminRepository.getUsersList();
+            setUsersList(freshUsers);
+          }
+        )
+        .subscribe();
+    }
+
     return () => {
       clearInterval(interval);
       clearInterval(clockInterval);
+      unsubPresence();
+      if (supabase && realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
     };
   }, [loadAllAdminData, isAuthorized]);
 

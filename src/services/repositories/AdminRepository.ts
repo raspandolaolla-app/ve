@@ -7,6 +7,7 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { AUTHORIZED_SUPER_ADMIN_EMAILS, SUPPORTED_GAMES_METADATA } from '../../utils/constants';
+import { PresenceService } from '../PresenceService';
 import type {
   UserRole,
   SystemSettings,
@@ -207,65 +208,92 @@ export class AdminRepository {
     if (!supabase) return [];
 
     try {
-      let query = supabase
-        .from('profiles')
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          display_name,
-          email,
-          phone_number,
-          cedula_hash,
-          cedula_last4,
-          state_venezuela,
-          account_status,
-          kyc_status,
-          is_online,
-          last_seen_at,
-          created_at,
-          updated_at,
-          user_roles(role),
-          wallets(available_balance, held_balance, total_balance)
-        `)
-        .order('created_at', { ascending: false });
+      // 1. Intentar obtener el listado atómico mediante la RPC de servidor get_admin_users_list
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_users_list');
+      
+      let rawList: any[] = [];
+      if (!rpcError && Array.isArray(rpcData)) {
+        rawList = rpcData;
+      } else {
+        // Fallback: Consulta directa a tablas con joins
+        let query = supabase
+          .from('profiles')
+          .select(`
+            user_id,
+            first_name,
+            last_name,
+            display_name,
+            email,
+            phone_number,
+            cedula_hash,
+            cedula_last4,
+            state_venezuela,
+            account_status,
+            kyc_status,
+            is_online,
+            last_seen_at,
+            created_at,
+            updated_at,
+            user_roles(role),
+            wallets(available_balance, held_balance, total_balance)
+          `)
+          .order('created_at', { ascending: false });
 
-      if (filters?.accountStatus && filters.accountStatus !== 'ALL') {
-        query = query.eq('account_status', filters.accountStatus);
+        if (filters?.accountStatus && filters.accountStatus !== 'ALL') {
+          query = query.eq('account_status', filters.accountStatus);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.error('[AdminRepository] Error listando usuarios via query directa:', error.message);
+          return [];
+        }
+        rawList = data || [];
       }
 
-      const { data, error } = await query;
-      if (error) {
-        console.error('[AdminRepository] Error listando usuarios:', error.message);
-        return [];
-      }
-
-      let items: AdminUserItem[] = (data || []).map((row: any) => {
+      let items: AdminUserItem[] = rawList.map((row: any) => {
+        const userId = row.user_id || row.id;
         const wallet = Array.isArray(row.wallets) ? row.wallets[0] : row.wallets;
         const roleData = Array.isArray(row.user_roles) ? row.user_roles[0] : row.user_roles;
 
+        const isPresenceOnline = PresenceService.isUserOnline(userId);
+        const lastSeenAt = row.last_seen_at || row.updated_at || row.created_at;
+        const lastSeenMs = lastSeenAt ? new Date(lastSeenAt).getTime() : 0;
+        // Ventana de 4 minutos (240.000 ms) para presencia global resiliente
+        const isRecentHeartbeat = lastSeenMs > 0 && (Date.now() - lastSeenMs) < 240000;
+        const isOnline = Boolean(row.is_online) || isRecentHeartbeat || isPresenceOnline;
+
+        const roleName = row.role || roleData?.role || 'PLAYER';
+        const availBal = row.available_balance !== undefined ? row.available_balance : (wallet?.available_balance || 0);
+        const heldBal = row.held_balance !== undefined ? row.held_balance : (wallet?.held_balance || 0);
+        const totBal = row.total_balance !== undefined ? row.total_balance : (wallet?.total_balance || (Number(availBal) + Number(heldBal)));
+
         return {
-          id: row.user_id,
+          id: userId,
           email: row.email || `${(row.first_name || 'usuario').toLowerCase().replace(/\s+/g, '')}@gmail.com`,
           firstName: row.first_name || 'Usuario',
           lastName: row.last_name || '',
           phoneMasked: row.phone_number ? `04**-***${row.phone_number.slice(-4)}` : undefined,
           cedulaMasked: row.cedula_last4 ? `V-***${row.cedula_last4}` : undefined,
-          state: row.state_venezuela,
-          role: (roleData?.role as UserRole) || 'PLAYER',
+          state: row.state_venezuela || 'Distrito Capital',
+          role: (roleName as UserRole) || 'PLAYER',
           accountStatus: row.account_status || 'ACTIVE',
           kycStatus: row.kyc_status || 'UNSUBMITTED',
-          availableBalance: Number(wallet?.available_balance || 0),
-          heldBalance: Number(wallet?.held_balance || 0),
-          totalBalance: Number(wallet?.total_balance || 0),
+          availableBalance: Number(availBal),
+          heldBalance: Number(heldBal),
+          totalBalance: Number(totBal),
           gamesPlayed: 12,
           gamesWon: 8,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          isOnline: Boolean(row.is_online),
-          lastSeenAt: row.last_seen_at || row.updated_at,
+          isOnline,
+          lastSeenAt: lastSeenAt,
         };
       });
+
+      if (filters?.accountStatus && filters.accountStatus !== 'ALL') {
+        items = items.filter((u) => u.accountStatus === filters.accountStatus);
+      }
 
       if (filters?.search) {
         const s = filters.search.toLowerCase();
@@ -273,6 +301,7 @@ export class AdminRepository {
           (u) =>
             u.firstName.toLowerCase().includes(s) ||
             u.lastName.toLowerCase().includes(s) ||
+            u.email.toLowerCase().includes(s) ||
             u.id.toLowerCase().includes(s)
         );
       }

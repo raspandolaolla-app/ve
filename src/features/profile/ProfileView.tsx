@@ -55,13 +55,6 @@ const VENEZUELA_STATES = [
 
 export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
   const { state, user, profile, role, hasAcceptedTerms, termsRecord, isSigningIn, signInWithGoogle, signOut, refreshProfile } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [residenceState, setResidenceState] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   // Estado KYC
   const [userKyc, setUserKyc] = useState<UserKYCStatus | null>(null);
@@ -77,6 +70,14 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
 
   const isAuthenticated = state === 'authenticated' && user !== null;
   const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
+
+  // Datos reales obtenidos desde Google Auth
+  const userMetadata = user?.user_metadata || {};
+  const googleAvatar = profile?.avatarUrl || userMetadata.avatar_url || userMetadata.picture || null;
+  const googleFirstName = userMetadata.given_name || profile?.firstName || user?.email?.split('@')[0] || 'Jugador';
+  const googleLastName = userMetadata.family_name || profile?.lastName || '';
+  const googleFullName = `${googleFirstName} ${googleLastName}`.trim();
+  const googleEmail = user?.email || profile?.email || '';
 
   const loadUserSecurity = useCallback(async () => {
     if (!user) return;
@@ -101,19 +102,15 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
 
   useEffect(() => {
     if (profile) {
-      setFirstName(profile.firstName || '');
-      setLastName(profile.lastName || '');
-      setResidenceState(profile.state || 'Distrito Capital');
-      setBirthDate(profile.birthDate || '');
       if (!kycFullName) {
-        setKycFullName(`${profile.firstName || ''} ${profile.lastName || ''}`.trim());
+        setKycFullName(`${googleFirstName} ${googleLastName}`.trim());
       }
     }
     if (user) {
       loadUserSecurity();
       loadKYC();
     }
-  }, [profile, user, loadUserSecurity, loadKYC]);
+  }, [profile, user, googleFirstName, googleLastName, kycFullName, loadUserSecurity, loadKYC]);
 
   const handleSubmitKYC = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,35 +202,6 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    setSaving(true);
-    setFeedback(null);
-
-    try {
-      const ok = await ProfileRepository.updateProfile(user.id, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        state: residenceState,
-        birthDate: birthDate || undefined,
-      });
-
-      if (ok) {
-        setFeedback({ success: true, message: 'Perfil actualizado correctamente.' });
-        setEditing(false);
-        await refreshProfile();
-      } else {
-        setFeedback({ success: false, message: 'No se pudo guardar la información del perfil. Inténtalo nuevamente.' });
-      }
-    } catch (err: any) {
-      setFeedback({ success: false, message: err.message || 'Error al guardar.' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (!isAuthenticated) {
     return (
       <div id="profile-unauthenticated" className="max-w-md mx-auto py-12 text-center space-y-4">
@@ -264,32 +232,50 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
       <MediaBanner location="PROFILE" />
 
       {/* Encabezado del Perfil */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-6 bg-slate-900/90 border border-slate-800/90 rounded-2xl sm:rounded-3xl shadow-xl">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-xl font-black">
-            {profile?.firstName?.[0] || user.email?.[0]?.toUpperCase() || 'U'}
+          <div className="relative shrink-0">
+            {googleAvatar ? (
+              <img
+                src={googleAvatar}
+                alt={googleFullName}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-amber-500/50 shadow-lg shadow-amber-950/40"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-700/20 border-2 border-amber-500/40 flex items-center justify-center text-amber-400 text-2xl font-black shadow-lg">
+                {googleFirstName[0]?.toUpperCase() || 'U'}
+              </div>
+            )}
+            <div className="absolute -bottom-1 -right-1 bg-slate-950 border border-slate-800 rounded-full p-1 shadow-md" title="Cuenta verificada por Google">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-100">
-              {profile?.firstName ? `${profile.firstName} ${profile.lastName}` : user.email?.split('@')[0]}
-            </h1>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">{user.email}</p>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-100 truncate max-w-full">
+                {googleFullName || 'Usuario Google'}
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase">
+                {role}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">{googleEmail}</p>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
+              <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+              <span>Datos administrados por tu cuenta de Google</span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {!editing && (
-            <Button
-              id="btn-edit-profile"
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(true)}
-              leftIcon={<Edit2 className="w-3.5 h-3.5" />}
-            >
-              Editar Datos
-            </Button>
-          )}
-          <Button id="profile-signout-btn" variant="secondary" size="sm" onClick={signOut}>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <Button id="profile-signout-btn" variant="secondary" size="sm" onClick={signOut} className="touch-manipulation">
             Cerrar Sesión
           </Button>
         </div>
@@ -298,19 +284,6 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
       {/* Botón de Instalación de la Aplicación PWA */}
       <InstallPWAButton variant="profile" />
 
-      {feedback && (
-        <div
-          className={`p-3 rounded-2xl border text-xs flex items-start gap-2 ${
-            feedback.success
-              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
-              : 'bg-red-950/40 border-red-800/60 text-red-300'
-          }`}
-        >
-          <AlertCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-          <span>{feedback.message}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Información Personal */}
         <Card
@@ -318,105 +291,69 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           header={
             <div className="flex items-center justify-between">
               <span className="font-semibold text-sm text-slate-200">Datos Personales</span>
-              <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+              <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Protegido y Encriptado
+                Solo Lectura (Google)
               </span>
             </div>
           }
         >
-          {editing ? (
-            <form onSubmit={handleSaveProfile} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Nombre</label>
-                <input
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Apellido</label>
-                <input
-                  type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Estado de Residencia</label>
-                <select
-                  value={residenceState}
-                  onChange={(e) => setResidenceState(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                >
-                  {VENEZUELA_STATES.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Fecha de Nacimiento</label>
-                <input
-                  type="date"
-                  value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(false)}>
-                  <X className="w-3.5 h-3.5 mr-1" /> Cancelar
-                </Button>
-                <Button type="submit" variant="primary" size="sm" disabled={saving}>
-                  <Check className="w-3.5 h-3.5 mr-1" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Cédula de Identidad</span>
-                <span className="font-mono font-medium text-slate-200">
-                  {profile?.cedulaMasked ? maskCedula(profile.cedulaMasked) : 'Pendiente registro'}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Teléfono Móvil</span>
-                <span className="font-mono font-medium text-slate-200">
-                  {profile?.phoneMasked ? maskPhone(profile.phoneMasked) : 'Pendiente registro'}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Estado de Residencia</span>
-                <span className="font-medium text-slate-200">{profile?.state || 'Venezuela'}</span>
-              </div>
-
-              <div className="flex justify-between py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Fecha de Nacimiento</span>
-                <span className="font-mono font-medium text-slate-200">
-                  {profile?.birthDate ? formatDateVE(profile.birthDate) : 'No configurada'}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-400">Mayoría de Edad (+{FINANCIAL_RULES.MINIMUM_LEGAL_AGE})</span>
-                <span className={`font-semibold ${profile?.isAdult ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {profile?.isAdult ? 'Acreditada' : 'Pendiente de Validación'}
-                </span>
-              </div>
+          <div className="space-y-3 text-xs">
+            <div className="p-3 bg-slate-950 border border-slate-800/80 rounded-2xl text-slate-400 text-[11px] leading-relaxed flex items-start gap-2">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Datos personales administrados por tu cuenta de Google. Tu nombre, correo y foto de perfil no pueden modificarse desde la aplicación.
+              </span>
             </div>
-          )}
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Nombre</span>
+              <span className="font-semibold text-slate-100">{googleFirstName || '---'}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Apellido</span>
+              <span className="font-semibold text-slate-100">{googleLastName || '---'}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Correo Electrónico</span>
+              <span className="font-mono font-medium text-amber-300 break-all text-right max-w-[180px] sm:max-w-none">{googleEmail}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Estado de Cuenta</span>
+              <span className="font-bold text-emerald-400 uppercase flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> ACTIVO
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Cédula de Identidad</span>
+              <span className="font-mono font-medium text-slate-200">
+                {profile?.cedulaMasked ? maskCedula(profile.cedulaMasked) : 'Verificado vía KYC'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Teléfono Móvil</span>
+              <span className="font-mono font-medium text-slate-200">
+                {profile?.phoneMasked ? maskPhone(profile.phoneMasked) : 'Verificado vía KYC'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-slate-400">Estado de Residencia</span>
+              <span className="font-medium text-slate-200">{profile?.state || 'Venezuela'}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2">
+              <span className="text-slate-400">Mayoría de Edad (+{FINANCIAL_RULES.MINIMUM_LEGAL_AGE})</span>
+              <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> Confirmada (+18)
+              </span>
+            </div>
+          </div>
         </Card>
 
         {/* Seguridad de la Cuenta */}

@@ -109,13 +109,13 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
             loop={banners.length === 1}
           />
 
-          {/* Flechas de cambio si hay múltiples anuncios */}
+          {/* Flechas de cambio si hay múltiples anuncios (Solo en desktop sobre el video) */}
           {banners.length > 1 && (
             <>
               <button
                 type="button"
                 onClick={handlePrev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white hover:border-amber-500 transition-all cursor-pointer shadow-lg"
+                className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white hover:border-amber-500 transition-all cursor-pointer shadow-lg"
                 title="Anuncio Anterior"
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -123,7 +123,7 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
               <button
                 type="button"
                 onClick={handleNext}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white hover:border-amber-500 transition-all cursor-pointer shadow-lg"
+                className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white hover:border-amber-500 transition-all cursor-pointer shadow-lg"
                 title="Siguiente Anuncio"
               >
                 <ChevronRight className="w-5 h-5" />
@@ -131,9 +131,9 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
             </>
           )}
 
-          {/* Indicadores de rotación */}
+          {/* Indicadores de rotación sobre el video en desktop */}
           {banners.length > 1 && (
-            <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 px-3 py-1 rounded-full border border-slate-800 backdrop-blur-md">
+            <div className="hidden sm:flex absolute bottom-3 right-3 z-30 items-center gap-1.5 bg-slate-950/85 px-3 py-1 rounded-full border border-slate-800 backdrop-blur-md">
               {banners.map((_, idx) => (
                 <button
                   key={idx}
@@ -141,6 +141,23 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
                   onClick={() => setCurrentIndex(idx)}
                   className={`h-2 rounded-full transition-all ${
                     idx === currentIndex ? 'w-6 bg-amber-400' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                  }`}
+                  title={`Ir al anuncio ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Indicadores de rotación en móvil (fuera del canvas del video) */}
+          {banners.length > 1 && (
+            <div className="sm:hidden flex items-center justify-center gap-1.5 pt-2">
+              {banners.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentIndex(idx)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === currentIndex ? 'w-5 bg-amber-400' : 'w-1.5 bg-slate-700'
                   }`}
                   title={`Ir al anuncio ${idx + 1}`}
                 />

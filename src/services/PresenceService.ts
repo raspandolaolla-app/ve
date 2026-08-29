@@ -83,12 +83,12 @@ class PresenceServiceManager {
     // Registrar actualización en la tabla profiles
     await this.updateProfileOnlineStatus(userId, true);
 
-    // Heartbeat cada 60 segundos
+    // Heartbeat cada 25 segundos
     this.heartbeatInterval = setInterval(() => {
       if (this.currentUserId) {
         this.updateProfileOnlineStatus(this.currentUserId, true);
       }
-    }, 60000);
+    }, 25000);
 
     // Cleanup en cierre de ventana
     if (typeof window !== 'undefined') {
@@ -104,16 +104,17 @@ class PresenceServiceManager {
     if (!supabase || !userId) return;
 
     try {
+      const now = new Date().toISOString();
       await supabase
         .from('profiles')
         .update({
           is_online: isOnline,
-          last_seen_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          last_seen_at: now,
+          updated_at: now,
         })
-        .or(`user_id.eq.${userId},id.eq.${userId}`);
-    } catch {
-      // Ignorar si la columna no existe o falla la actualización
+        .eq('user_id', userId);
+    } catch (err) {
+      console.warn('[PresenceService] Warning al actualizar presencia en profiles:', err);
     }
   }
 

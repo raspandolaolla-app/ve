@@ -514,16 +514,16 @@ export function WalletView() {
 
       {/* Modal Solicitar Recarga */}
       {showDepositModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
+                <ArrowDownLeft className="w-5 h-5 text-emerald-400 shrink-0" />
                 <span>Solicitud de Recarga</span>
               </h2>
               <button
                 onClick={() => setShowDepositModal(false)}
-                className="p-1 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -686,16 +686,16 @@ export function WalletView() {
 
       {/* Modal Solicitar Retiro */}
       {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <ArrowUpRight className="w-5 h-5 text-amber-400" />
+                <ArrowUpRight className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>Solicitud de Retiro</span>
               </h2>
               <button
                 onClick={() => setShowWithdrawModal(false)}
-                className="p-1 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -803,16 +803,16 @@ export function WalletView() {
 
       {/* Modal Registrar Cuenta Pago Móvil */}
       {showAccountModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Building className="w-5 h-5 text-amber-400" />
+                <Building className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>Registrar Pago Móvil</span>
               </h2>
               <button
                 onClick={() => setShowAccountModal(false)}
-                className="p-1 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>

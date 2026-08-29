@@ -77,14 +77,6 @@ class PresenceServiceManager {
             displayName: metadata?.displayName || 'Usuario',
             avatarUrl: metadata?.avatarUrl || '',
           });
-        } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-          console.warn(`[PresenceService] Canal de presencia en estado ${status}. Reintentando suscripción...`);
-          // La desconexión de Realtime NO destruye la sesión Auth. Reintentar reconexión en 3s:
-          setTimeout(() => {
-            if (this.currentUserId === userId) {
-              this.initGlobalPresence(userId, metadata);
-            }
-          }, 3000);
         }
       });
 
@@ -92,7 +84,6 @@ class PresenceServiceManager {
     await this.updateProfileOnlineStatus(userId, true);
 
     // Heartbeat cada 60 segundos
-    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     this.heartbeatInterval = setInterval(() => {
       if (this.currentUserId) {
         this.updateProfileOnlineStatus(this.currentUserId, true);
@@ -101,24 +92,18 @@ class PresenceServiceManager {
 
     // Cleanup en cierre de ventana
     if (typeof window !== 'undefined') {
-      window.removeEventListener('beforeunload', this.handleBeforeUnload);
       window.addEventListener('beforeunload', this.handleBeforeUnload);
     }
   }
 
   /**
-   * Actualiza el estado en la tabla `profiles` usando la función RPC segura update_user_presence y fallback a update
+   * Actualiza el estado en la tabla `profiles` si existe la columna `is_online`
    */
   private async updateProfileOnlineStatus(userId: string, isOnline: boolean): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase || !userId) return;
 
     try {
-      // 1. Intentar RPC segura
-      const { error: rpcErr } = await supabase.rpc('update_user_presence', { p_is_online: isOnline });
-      if (!rpcErr) return;
-
-      // 2. Fallback a UPDATE directo con filtro correcto user_id
       await supabase
         .from('profiles')
         .update({
@@ -126,9 +111,9 @@ class PresenceServiceManager {
           last_seen_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', userId);
+        .or(`user_id.eq.${userId},id.eq.${userId}`);
     } catch {
-      // Ignorar si falla la actualización silenciosa
+      // Ignorar si la columna no existe o falla la actualización
     }
   }
 

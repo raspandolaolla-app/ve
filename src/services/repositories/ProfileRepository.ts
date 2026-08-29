@@ -42,7 +42,6 @@ export class ProfileRepository {
           accountStatus: mappedAccountStatus,
           identityVerificationStatus: mappedKycStatus,
           humanVerificationStatus: 'approved',
-          twoFactorEnabled: Boolean(p.is_mfa_enabled),
           createdAt: p.created_at,
           updatedAt: p.updated_at,
         };
@@ -96,7 +95,6 @@ export class ProfileRepository {
       accountStatus: mappedAccountStatus,
       identityVerificationStatus: mappedKycStatus,
       humanVerificationStatus: 'approved',
-      twoFactorEnabled: Boolean(data.is_mfa_enabled ?? data.two_factor_enabled),
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };

@@ -241,13 +241,6 @@ export function AdminSecurityTab({ currentUserRole, currentUserEmail }: AdminSec
                     </div>
 
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
-                      <span className="text-slate-500 block text-[10px]">Autenticación Doble Factor</span>
-                      <span className={`font-semibold ${admin.isMfaEnabled ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {admin.isMfaEnabled ? 'MFA Habilitado' : 'MFA Pendiente'}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">Recuperación Mutua</span>
                       <span className="font-semibold text-blue-400">Habilitada</span>
                     </div>
@@ -348,7 +341,7 @@ export function AdminSecurityTab({ currentUserRole, currentUserEmail }: AdminSec
                 2. Autenticación y Restablecimiento por Supabase
               </span>
               <p className="text-[11px] text-slate-400">
-                El restablecimiento de contraseñas y tokens MFA se gestiona a través del canal oficial de Supabase Auth mediante correos verificados enviados exclusivamente a la bandeja del titular.
+                El restablecimiento de contraseñas y credenciales de acceso se gestiona a través del canal oficial de Supabase Auth mediante correos verificados enviados exclusivamente a la bandeja del titular.
               </p>
             </div>
           </div>

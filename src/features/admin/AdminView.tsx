@@ -133,7 +133,6 @@ export function AdminView() {
     minWithdrawalAmount: 100,
     maxWithdrawalAmount: 20000,
     maintenanceMode: false,
-    mfaRequiredForWithdrawal: true,
     kycRequiredForRealMoney: true,
   });
 

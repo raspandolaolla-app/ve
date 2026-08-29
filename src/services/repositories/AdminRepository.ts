@@ -146,12 +146,14 @@ export class AdminRepository {
       // Fallback con conteos directos protegidos por RLS
       const [
         { count: usersCount },
+        { count: onlineCount },
         { count: tablesCount },
         { count: depCount },
         { count: withCount },
         { count: ticketsCount },
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_online', true),
         supabase.from('game_tables').select('*', { count: 'exact', head: true }).in('status', ['OPEN', 'STARTING', 'ACTIVE']),
         supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
         supabase.from('withdrawal_requests').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
@@ -161,7 +163,7 @@ export class AdminRepository {
       return {
         registeredUsersCount: usersCount || 0,
         activeUsersCount: usersCount ? Math.ceil(usersCount * 0.4) : 0,
-        connectedUsersCount: 12,
+        connectedUsersCount: onlineCount || 0,
         activeTablesCount: tablesCount || 0,
         activeMatchesCount: tablesCount || 0,
         finishedMatchesCount: 380,
@@ -212,13 +214,15 @@ export class AdminRepository {
           first_name,
           last_name,
           display_name,
+          email,
           phone_number,
           cedula_hash,
           cedula_last4,
           state_venezuela,
           account_status,
           kyc_status,
-          is_mfa_enabled,
+          is_online,
+          last_seen_at,
           created_at,
           updated_at,
           user_roles(role),
@@ -242,7 +246,7 @@ export class AdminRepository {
 
         return {
           id: row.user_id,
-          email: `${(row.first_name || 'usuario').toLowerCase().replace(/\s+/g, '')}@gmail.com`, // Sanitizado
+          email: row.email || `${(row.first_name || 'usuario').toLowerCase().replace(/\s+/g, '')}@gmail.com`,
           firstName: row.first_name || 'Usuario',
           lastName: row.last_name || '',
           phoneMasked: row.phone_number ? `04**-***${row.phone_number.slice(-4)}` : undefined,
@@ -258,7 +262,8 @@ export class AdminRepository {
           gamesWon: 8,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          isTwoFactorEnabled: Boolean(row.is_mfa_enabled),
+          isOnline: Boolean(row.is_online),
+          lastSeenAt: row.last_seen_at || row.updated_at,
         };
       });
 
@@ -297,7 +302,6 @@ export class AdminRepository {
         userId: null,
         accountStatus: 'REQUIRES_MANUAL_CREATION',
         role: 'PLAYER',
-        isMfaEnabled: false,
         isProtected: true,
       }));
     }
@@ -314,7 +318,7 @@ export class AdminRepository {
         const email = AUTHORIZED_SUPER_ADMIN_EMAILS[i];
         const { data: profile } = await supabase
           .from('profiles')
-          .select('user_id, account_status, is_mfa_enabled')
+          .select('user_id, account_status')
           .eq('email', email)
           .maybeSingle();
 
@@ -333,7 +337,6 @@ export class AdminRepository {
             userId: profile.user_id,
             accountStatus: profile.account_status || 'ACTIVE',
             role: (roleData?.role as UserRole) || 'PLAYER',
-            isMfaEnabled: Boolean(profile.is_mfa_enabled),
             isProtected: true,
           });
         } else {
@@ -345,7 +348,6 @@ export class AdminRepository {
             userId: null,
             accountStatus: 'REQUIRES_MANUAL_CREATION',
             role: 'PLAYER',
-            isMfaEnabled: false,
             isProtected: true,
           });
         }
@@ -362,7 +364,6 @@ export class AdminRepository {
         userId: null,
         accountStatus: 'REQUIRES_MANUAL_CREATION',
         role: 'PLAYER',
-        isMfaEnabled: false,
         isProtected: true,
       }));
     }
@@ -1690,7 +1691,6 @@ export class AdminRepository {
         minWithdrawalAmount: 100,
         maxWithdrawalAmount: 20000,
         maintenanceMode: false,
-        mfaRequiredForWithdrawal: true,
         kycRequiredForRealMoney: true,
       };
     }
@@ -1708,7 +1708,6 @@ export class AdminRepository {
           minWithdrawalAmount: 100,
           maxWithdrawalAmount: 20000,
           maintenanceMode: false,
-          mfaRequiredForWithdrawal: true,
           kycRequiredForRealMoney: true,
         };
       }
@@ -1729,7 +1728,6 @@ export class AdminRepository {
         minWithdrawalAmount: Number(settingsMap['WITHDRAWAL_LIMITS']?.min ?? settingsMap['min_withdrawal_amount'] ?? 100),
         maxWithdrawalAmount: Number(settingsMap['WITHDRAWAL_LIMITS']?.max ?? settingsMap['max_withdrawal_amount'] ?? 20000),
         maintenanceMode: Boolean(settingsMap['MAINTENANCE_MODE']?.enabled ?? settingsMap['maintenance_mode'] ?? false),
-        mfaRequiredForWithdrawal: Boolean(settingsMap['SECURITY_POLICIES']?.mfa_required ?? settingsMap['mfa_required_for_withdrawal'] ?? true),
         kycRequiredForRealMoney: Boolean(settingsMap['SECURITY_POLICIES']?.kyc_required ?? settingsMap['kyc_required_for_real_money'] ?? true),
       };
     } catch {
@@ -1742,7 +1740,6 @@ export class AdminRepository {
         minWithdrawalAmount: 100,
         maxWithdrawalAmount: 20000,
         maintenanceMode: false,
-        mfaRequiredForWithdrawal: true,
         kycRequiredForRealMoney: true,
       };
     }
@@ -2609,6 +2606,7 @@ export class AdminRepository {
           payload,
         });
       }
+      await supabase.removeChannel(channel);
     } catch (err) {
       console.warn(`[AdminRepository] No se pudo emitir broadcast Realtime (${event}):`, err);
     }

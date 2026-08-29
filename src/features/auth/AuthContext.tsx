@@ -143,14 +143,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
   const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
 
-  const lastLoadedUserIdRef = React.useRef<string | null>(null);
-
+  const loadedUserIdRef = React.useRef<string | null>(null);
   const supabase = getSupabaseClient();
 
-  const handleSession = async (currentSession: Session | null) => {
+  const handleSession = async (currentSession: Session | null, forceReload = false) => {
     if (!currentSession || !currentSession.user) {
       console.log('[AUTH] Usuario desconectado (sin sesión activa)');
-      lastLoadedUserIdRef.current = null;
+      loadedUserIdRef.current = null;
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -164,13 +163,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const authUser = currentSession.user;
+      const isSameUser = loadedUserIdRef.current === authUser.id;
+
       setUser(authUser);
 
       const parsedSession: AuthSession = {
         userId: authUser.id,
         email: authUser.email || null,
-        aal: (currentSession.user.app_metadata?.aal as 'aal1' | 'aal2') || 'aal1',
-        hasMfaEnrolled: Boolean(authUser.factors && authUser.factors.length > 0),
         expiresAt: currentSession.expires_at,
       };
       setSession(parsedSession);
@@ -181,18 +180,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const record = TermsService.getAcceptanceRecord(authUser.id);
       setTermsRecord(record);
 
-      // Evitar reconsuiltar perfil y rol repetidamente si ya están cargados para el mismo usuario
-      if (lastLoadedUserIdRef.current === authUser.id && profile !== null) {
+      // Evitar recargar perfil innecesariamente si es el mismo usuario y ya está cargado
+      if (isSameUser && !forceReload && profile) {
         setState('authenticated');
         setIsSigningIn(false);
         setError(null);
         return;
       }
 
-      console.log('[AUTH] Usuario actual:', authUser.email || authUser.id);
-      console.log('[AUTH] Sesión obtenida. Vence:', currentSession.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleTimeString('es-VE') : 'N/A');
-
-      lastLoadedUserIdRef.current = authUser.id;
+      console.log('[AUTH] Cargando sesión y perfil para:', authUser.email || authUser.id);
+      loadedUserIdRef.current = authUser.id;
 
       // Cargar perfil y rol de forma segura sin romper la sesión en caso de latencia o error de red
       let fetchedProfile: UserProfile | null = null;

@@ -62,7 +62,6 @@ export function WalletView() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<number>(50);
-  const [totpCode, setTotpCode] = useState<string>('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [withdrawFeedback, setWithdrawFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -204,8 +203,7 @@ export function WalletView() {
       const res = await WalletRepository.requestWithdrawal(
         selectedAccountId,
         Number(withdrawAmount),
-        idempotencyKey,
-        totpCode
+        idempotencyKey
       );
 
       if (res.success) {
@@ -767,24 +765,6 @@ export function WalletView() {
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
                   />
                 </div>
-
-                {profile?.twoFactorEnabled && (
-                  <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-800/40 space-y-1.5">
-                    <label className="block text-xs font-semibold text-amber-300 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Código de Seguridad 2FA (TOTP de 6 dígitos)</span>
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      placeholder="Ingresa los 6 dígitos de tu App Authenticator"
-                      value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 font-mono text-center text-base tracking-widest focus:outline-none focus:border-amber-500"
-                      required
-                    />
-                  </div>
-                )}
 
                 {withdrawFeedback && (
                   <div

@@ -41,7 +41,6 @@ import { CURRENT_TERMS_VERSION } from '../../data/legalDocuments';
 import type { LegalDocId } from '../../types/legal';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { InstallPWAButton } from '../../components/common/InstallPWAButton';
-import { TwoFactorSetup } from './TwoFactorSetup';
 
 interface ProfileViewProps {
   onOpenLegalDoc?: (docId: LegalDocId) => void;
@@ -420,28 +419,21 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           )}
         </Card>
 
-        {/* Seguridad y 2FA */}
+        {/* Seguridad de la Cuenta */}
         <Card
           id="card-security-settings"
           header={
             <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
               <KeyRound className="w-4 h-4 text-amber-400" />
-              <span>Seguridad de la Cuenta y 2FA</span>
+              <span>Seguridad de la Cuenta</span>
             </div>
           }
         >
-          <div className="space-y-4">
-            <TwoFactorSetup
-              isMfaEnabled={profile?.twoFactorEnabled}
-              onStatusChange={refreshProfile}
-            />
-
-            <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-800/30 text-amber-300/90 text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                Los datos de Pago Móvil quedan vinculados de forma confidencial y protegida a tu cuenta.
-              </span>
-            </div>
+          <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-800/30 text-amber-300/90 text-xs flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              Los datos de Pago Móvil quedan vinculados de forma confidencial y protegida a tu cuenta.
+            </span>
           </div>
         </Card>
 

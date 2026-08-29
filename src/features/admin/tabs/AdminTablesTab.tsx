@@ -79,6 +79,7 @@ export function AdminTablesTab({
   const [selectedTable, setSelectedTable] = useState<AdminTableItem | null>(null);
   const [terminateTarget, setTerminateTarget] = useState<AdminTableItem | null>(null);
   const [cleanupTarget, setCleanupTarget] = useState<AdminTableItem | null>(null);
+  const [problemCleanupTarget, setProblemCleanupTarget] = useState<AdminTableItem | null>(null);
   const [blockedCleanupTarget, setBlockedCleanupTarget] = useState<AdminTableItem | null>(null);
   const [showGlobalCleanModal, setShowGlobalCleanModal] = useState(false);
   const [showAutoCleanModal, setShowAutoCleanModal] = useState(false);
@@ -108,6 +109,7 @@ export function AdminTablesTab({
     if (!matchesSearch) return false;
 
     if (statusFilter === 'ALL') return true;
+    if (statusFilter === 'PROBLEMATIC') return Boolean(t.isProblematic);
     if (statusFilter === 'ACTIVE') return (t.status === 'IN_GAME' || t.status === 'FULL') && t.currentPlayers > 0;
     if (statusFilter === 'WAITING') return (t.status === 'WAITING_PLAYERS' || t.status === 'OPEN') && t.currentPlayers > 0;
     if (statusFilter === 'EMPTY') return t.currentPlayers === 0;
@@ -122,6 +124,7 @@ export function AdminTablesTab({
   const totalActiveTablesCount = userMultiplayerTables.filter((t) => (t.status === 'IN_GAME' || t.status === 'FULL') && t.currentPlayers > 0).length;
   const totalEmptyTablesCount = userMultiplayerTables.filter((t) => t.currentPlayers === 0).length;
   const totalOnlinePlayersCount = userMultiplayerTables.reduce((acc, t) => acc + (t.currentPlayers || 0), 0);
+  const totalProblematicTablesCount = userMultiplayerTables.filter((t) => Boolean(t.isProblematic)).length;
   const readyToCleanCount = userMultiplayerTables.filter(
     (t) => t.currentPlayers === 0 || ['CLOSED', 'TERMINATED', 'CANCELLED', 'EXPIRED', 'FINISHED'].includes(t.status)
   ).length;
@@ -378,7 +381,7 @@ export function AdminTablesTab({
       )}
 
       {/* KPI Cards — Resumen Métrico de Mesas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="bg-slate-900/90 border-slate-800 p-3.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>MESAS ACTIVAS</span>
@@ -386,6 +389,19 @@ export function AdminTablesTab({
           </div>
           <div className="text-xl font-black text-emerald-400 mt-1">{totalActiveTablesCount}</div>
           <span className="text-[10px] text-emerald-500/80 font-mono">En juego simultáneo</span>
+        </Card>
+
+        <Card className={`bg-slate-900/90 border-slate-800 p-3.5 ${totalProblematicTablesCount > 0 ? 'border-red-500/50 bg-red-950/20' : ''}`}>
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>MESAS CON PROBLEMAS</span>
+            <ShieldAlert className={`w-4 h-4 ${totalProblematicTablesCount > 0 ? 'text-red-400 animate-pulse' : 'text-slate-500'}`} />
+          </div>
+          <div className={`text-xl font-black mt-1 ${totalProblematicTablesCount > 0 ? 'text-red-400' : 'text-slate-300'}`}>
+            {totalProblematicTablesCount}
+          </div>
+          <span className="text-[10px] text-red-400/80 font-mono">
+            {totalProblematicTablesCount > 0 ? 'Requieren intervención' : 'Sin alertas de bloqueo'}
+          </span>
         </Card>
 
         <Card className="bg-slate-900/90 border-slate-800 p-3.5">
@@ -434,6 +450,7 @@ export function AdminTablesTab({
           <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
             {[
               { id: 'ALL', label: 'Todas' },
+              { id: 'PROBLEMATIC', label: `⚠️ PROBLEMAS (${totalProblematicTablesCount})`, alert: totalProblematicTablesCount > 0 },
               { id: 'ACTIVE', label: '🟢 Activas' },
               { id: 'WAITING', label: '🟡 Esperando' },
               { id: 'EMPTY', label: '⚪ Sin Jugadores' },
@@ -448,7 +465,11 @@ export function AdminTablesTab({
                 onClick={() => setStatusFilter(st.id)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   statusFilter === st.id
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow-xs'
+                    ? st.id === 'PROBLEMATIC'
+                      ? 'bg-red-500 text-white font-bold shadow-xs'
+                      : 'bg-amber-500 text-slate-950 font-bold shadow-xs'
+                    : st.alert
+                    ? 'bg-red-950/60 border border-red-500/40 text-red-300 hover:bg-red-900/60 font-bold'
                     : 'bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -533,13 +554,31 @@ export function AdminTablesTab({
                   const isClosedOrTerminated = t.status === 'CLOSED' || t.status === 'TERMINATED' || t.status === 'FINISHED' || t.status === 'CANCELLED';
 
                   return (
-                    <tr key={t.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={t.id}
+                      className={`hover:bg-slate-800/40 transition-colors ${
+                        t.isProblematic ? 'bg-red-950/20 border-l-2 border-l-red-500' : ''
+                      }`}
+                    >
                       {/* Juego */}
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-100">{t.gameName}</div>
+                        <div className="font-semibold text-slate-100 flex items-center gap-1.5">
+                          <span>{t.gameName}</span>
+                          {t.isProblematic && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-red-500/20 text-red-300 border border-red-500/40 shrink-0">
+                              <AlertTriangle className="w-2.5 h-2.5 text-red-400" />
+                              PROBLEMA
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-500 font-mono">
                           {new Date(t.createdAt).toLocaleTimeString('es-VE')}
                         </div>
+                        {t.isProblematic && t.problemReasons && t.problemReasons.length > 0 && (
+                          <div className="text-[10px] text-red-400/90 font-mono mt-0.5 max-w-xs truncate">
+                            {t.problemReasons[0]}
+                          </div>
+                        )}
                       </td>
 
                       {/* Código de Mesa */}
@@ -569,6 +608,11 @@ export function AdminTablesTab({
                         {t.playersList && t.playersList.length > 0 && (
                           <div className="text-[10px] text-slate-400 truncate max-w-[140px]">
                             {t.playersList.map((p) => p.userName).join(', ')}
+                          </div>
+                        )}
+                        {t.duplicatePlayers && t.duplicatePlayers.length > 0 && (
+                          <div className="text-[10px] text-red-400 font-bold truncate max-w-[140px]" title={t.duplicatePlayers.join('; ')}>
+                            ⚠️ Duplicado: {t.duplicatePlayers.join(', ')}
                           </div>
                         )}
                       </td>
@@ -601,47 +645,63 @@ export function AdminTablesTab({
                       {/* Acciones */}
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Botón VER */}
-                          <Button
-                            id={`btn-view-table-${t.id}`}
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7 px-2 border-slate-700 hover:border-slate-600 text-slate-300"
-                            onClick={() => setSelectedTable(t)}
-                            leftIcon={<Eye className="w-3 h-3" />}
-                          >
-                            Ver
-                          </Button>
-
-                          {/* Botón TERMINAR (Si no está cerrada) */}
-                          {!isClosedOrTerminated && (
+                          {/* Botón LIMPIAR MESA BLOQUEADA */}
+                          {t.isProblematic ? (
                             <Button
-                              id={`btn-terminate-table-${t.id}`}
+                              id={`btn-clean-blocked-table-${t.id}`}
                               variant="outline"
                               size="sm"
-                              className="text-xs h-7 px-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                              onClick={() => {
-                                setTerminateTarget(t);
-                                setTerminateReason('');
-                                setRefundPlayers(t.currentPlayers > 0 && t.entryFee > 0);
-                              }}
-                              leftIcon={<Ban className="w-3 h-3" />}
+                              className="text-xs h-7 px-2.5 border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20 font-bold"
+                              onClick={() => setProblemCleanupTarget(t)}
+                              leftIcon={<Trash2 className="w-3.5 h-3.5 text-red-400" />}
                             >
-                              Terminar
+                              🧹 LIMPIAR MESA BLOQUEADA
                             </Button>
-                          )}
+                          ) : (
+                            <>
+                              {/* Botón VER */}
+                              <Button
+                                id={`btn-view-table-${t.id}`}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 px-2 border-slate-700 hover:border-slate-600 text-slate-300"
+                                onClick={() => setSelectedTable(t)}
+                                leftIcon={<Eye className="w-3 h-3" />}
+                              >
+                                Ver
+                              </Button>
 
-                          {/* Botón LIMPIAR */}
-                          <Button
-                            id={`btn-cleanup-table-${t.id}`}
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7 px-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                            onClick={() => handleInitiateCleanup(t)}
-                            leftIcon={<Trash2 className="w-3 h-3" />}
-                          >
-                            Limpiar
-                          </Button>
+                              {/* Botón TERMINAR (Si no está cerrada) */}
+                              {!isClosedOrTerminated && (
+                                <Button
+                                  id={`btn-terminate-table-${t.id}`}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs h-7 px-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                  onClick={() => {
+                                    setTerminateTarget(t);
+                                    setTerminateReason('');
+                                    setRefundPlayers(t.currentPlayers > 0 && t.entryFee > 0);
+                                  }}
+                                  leftIcon={<Ban className="w-3 h-3" />}
+                                >
+                                  Terminar
+                                </Button>
+                              )}
+
+                              {/* Botón LIMPIAR */}
+                              <Button
+                                id={`btn-cleanup-table-${t.id}`}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 px-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                                onClick={() => handleInitiateCleanup(t)}
+                                leftIcon={<Trash2 className="w-3 h-3" />}
+                              >
+                                Limpiar
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1168,6 +1228,106 @@ export function AdminTablesTab({
                 leftIcon={<Sparkles className="w-3.5 h-3.5" />}
               >
                 Ejecutar Política
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: CONFIRMACIÓN DE LIMPIEZA DE MESA CON PROBLEMAS / BLOQUEADA */}
+      {problemCleanupTarget && (
+        <div
+          id="modal-problem-cleanup-confirm"
+          className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+        >
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3 text-red-400">
+              <ShieldAlert className="w-6 h-6 shrink-0" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">
+                  Limpiar Mesa Bloqueada #{problemCleanupTarget.trackingCode}
+                </h3>
+                <p className="text-[11px] text-slate-400 font-mono">Herramienta Segura de Depuración de Estado</p>
+              </div>
+            </div>
+
+            <div className="bg-red-950/40 border border-red-500/30 p-3 rounded-xl space-y-2 text-xs text-red-200">
+              <span className="font-bold block flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                Diagnóstico de Problemas Detectados:
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-[11px] font-mono">
+                {problemCleanupTarget.problemReasons?.map((reason, idx) => (
+                  <li key={idx}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5 text-slate-300">
+              <div><strong className="text-slate-400">Juego:</strong> {problemCleanupTarget.gameName}</div>
+              <div><strong className="text-slate-400">Estado Actual:</strong> {problemCleanupTarget.status}</div>
+              <div><strong className="text-slate-400">Jugadores Registrados:</strong> {problemCleanupTarget.currentPlayers} / {problemCleanupTarget.maxPlayers}</div>
+              {problemCleanupTarget.duplicatePlayers && problemCleanupTarget.duplicatePlayers.length > 0 && (
+                <div className="text-red-300"><strong className="text-red-400">Jugadores Duplicados:</strong> {problemCleanupTarget.duplicatePlayers.join(', ')}</div>
+              )}
+            </div>
+
+            <div className="p-3 bg-amber-950/30 border border-amber-500/20 rounded-xl text-[11px] text-amber-300/90 leading-relaxed space-y-1">
+              <span className="font-semibold block text-amber-200">Garantía de Integridad Financiera:</span>
+              <ol className="list-decimal list-inside space-y-1 text-[10px]">
+                <li>Libera todos los asientos ocupados por jugadores duplicados/bloqueados.</li>
+                <li>Si la partida no inició y existía dinero retenido, procesa un reembolso automático a la billetera.</li>
+                <li>Finaliza la mesa en estado TERMINATED.</li>
+                <li>NO elimina historial, transacciones legítimas ni entradas contables (ledger).</li>
+              </ol>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-slate-300 border-slate-700"
+                onClick={() => setProblemCleanupTarget(null)}
+                disabled={actionLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="flex-1 font-bold bg-red-600 hover:bg-red-500 text-white"
+                onClick={async () => {
+                  setActionLoading(true);
+                  setFeedbackMessage(null);
+                  try {
+                    const res = await onCleanupTable(problemCleanupTarget.id);
+                    if (res.success) {
+                      setFeedbackMessage({
+                        type: 'success',
+                        text: `Mesa Bloqueada #${problemCleanupTarget.trackingCode} limpiada exitosamente. Asientos liberados y fondos reajustados.`,
+                      });
+                      setProblemCleanupTarget(null);
+                      setSelectedTable(null);
+                      onRefresh();
+                    } else {
+                      setFeedbackMessage({
+                        type: 'error',
+                        text: res.error || 'Error al ejecutar la limpieza de la mesa bloqueada.',
+                      });
+                    }
+                  } catch (err: any) {
+                    setFeedbackMessage({
+                      type: 'error',
+                      text: err.message || 'Excepción durante la limpieza.',
+                    });
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                disabled={actionLoading}
+                leftIcon={actionLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              >
+                {actionLoading ? 'Procesando...' : 'Confirmar Limpieza de Mesa'}
               </Button>
             </div>
           </div>

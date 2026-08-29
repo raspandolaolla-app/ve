@@ -859,7 +859,8 @@ export class AdminRepository {
         })
         .map((row: any) => {
           const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === row.game_type || g.id === row.game_id);
-          const players = (row.game_table_players || []).map((p: any) => {
+          const rawPlayers = row.game_table_players || [];
+          const players = rawPlayers.map((p: any) => {
             const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
             const isDiscon = p.status === 'DISCONNECTED' || p.status === 'LEFT';
             return {
@@ -869,8 +870,68 @@ export class AdminRepository {
               isReady: p.status === 'READY' || p.status === 'PLAYING',
               isOnline: !isDiscon,
               lastSeenAt: p.left_at || p.updated_at || p.joined_at,
+              status: p.status || 'JOINED',
             };
           });
+
+          // Filtrar jugadores con estatus activo (excluyendo 'LEFT')
+          const activePlayers = players.filter(
+            (p: any) => p.status === 'JOINED' || p.status === 'READY' || p.status === 'PLAYING'
+          );
+
+          // Detección de duplicados por usuario
+          const activeUserSeatsMap: Record<string, number[]> = {};
+          activePlayers.forEach((p: any) => {
+            if (p.userId) {
+              if (!activeUserSeatsMap[p.userId]) activeUserSeatsMap[p.userId] = [];
+              activeUserSeatsMap[p.userId].push(p.seatNumber);
+            }
+          });
+
+          const duplicateUserIds = Object.keys(activeUserSeatsMap).filter(
+            (uid) => activeUserSeatsMap[uid].length > 1
+          );
+
+          const duplicatePlayersList = duplicateUserIds.map((uid) => {
+            const pl = activePlayers.find((p: any) => p.userId === uid);
+            const seatsStr = activeUserSeatsMap[uid].join(', ');
+            return pl ? `${pl.userName} (Asientos ${seatsStr})` : uid;
+          });
+
+          // Diagnóstico de problemas en la mesa
+          const problemReasons: string[] = [];
+          if (duplicateUserIds.length > 0) {
+            problemReasons.push(`Jugador duplicado en múltiples asientos (${duplicatePlayersList.join('; ')})`);
+          }
+
+          const rawStatus = (row.status || '').toUpperCase();
+          const activeCount = activePlayers.length;
+          const dbCount = Number(row.current_players_count ?? activeCount);
+
+          if (
+            dbCount !== activeCount &&
+            !['CLOSED', 'TERMINATED', 'CANCELLED', 'FINISHED', 'EXPIRED'].includes(rawStatus)
+          ) {
+            problemReasons.push(`Inconsistencia en contador de jugadores (DB: ${dbCount}, Reales: ${activeCount})`);
+          }
+
+          if (
+            ['IN_GAME', 'FULL', 'WAITING', 'WAITING_PLAYERS', 'OPEN'].includes(rawStatus) &&
+            activeCount === 0
+          ) {
+            problemReasons.push('Mesa fantasma/abandonada sin jugadores activos');
+          }
+
+          if (rawStatus === 'FULL' && activeCount < (row.max_players || 4)) {
+            problemReasons.push(`Estado marcado FULL con asientos libres (${activeCount}/${row.max_players || 4})`);
+          }
+
+          if (rawStatus === 'IN_GAME' && activeCount < 2) {
+            problemReasons.push(`Mesa marcándose en juego con solo ${activeCount} jugador(es)`);
+          }
+
+          const isProblematic = problemReasons.length > 0;
+          const occupiedSeatsList = activePlayers.map((p: any) => p.seatNumber);
 
           const updatedAt = row.updated_at || row.created_at;
           const lastActivityAt = row.last_activity_at || updatedAt;
@@ -878,9 +939,8 @@ export class AdminRepository {
           const inactivityMinutes = Math.max(0, Math.floor(diffMs / 60000));
 
           let mappedStatus: AdminTableItem['status'] = 'WAITING_PLAYERS';
-          const rawStatus = (row.status || '').toUpperCase();
           if (rawStatus === 'OPEN' || rawStatus === 'WAITING' || rawStatus === 'WAITING_PLAYERS') {
-            mappedStatus = players.length === 0 ? 'WAITING_PLAYERS' : 'WAITING_PLAYERS';
+            mappedStatus = activeCount === 0 ? 'WAITING_PLAYERS' : 'WAITING_PLAYERS';
           } else if (rawStatus === 'IN_GAME' || rawStatus === 'ACTIVE' || rawStatus === 'PLAYING') {
             mappedStatus = 'IN_GAME';
           } else if (rawStatus === 'FULL') {
@@ -906,8 +966,8 @@ export class AdminRepository {
             trackingCode: row.invite_code || row.tracking_code || `TRK-${row.id.slice(0, 6).toUpperCase()}`,
             status: mappedStatus,
             entryFee: Number(row.entry_fee || 0),
-            currentPot: Number(row.entry_fee * (row.current_players_count || players.length)),
-            currentPlayers: row.current_players_count ?? players.length,
+            currentPot: Number(row.entry_fee * (row.current_players_count || activeCount)),
+            currentPlayers: activeCount,
             maxPlayers: row.max_players || 4,
             isPrivate: row.visibility === 'PRIVATE' || Boolean(row.is_private),
             creatorId: row.host_user_id || row.created_by,
@@ -919,6 +979,10 @@ export class AdminRepository {
             currentTurn: row.current_turn || null,
             spectatorsCount: Number(row.spectators_count || 0),
             playersList: players,
+            isProblematic,
+            problemReasons,
+            duplicatePlayers: duplicatePlayersList,
+            occupiedSeatsList,
           };
         });
 
@@ -1190,7 +1254,23 @@ export class AdminRepository {
         return { success: false, error: 'Mesa no encontrada.' };
       }
 
-      // 2. Intentar llamada a RPC server-side SECURITY DEFINER
+      // 2. Intentar llamada a RPC de limpieza segura de mesas con problemas/bloqueadas
+      const { data: probData, error: probErr } = await supabase.rpc('admin_fix_and_cleanup_problematic_table', {
+        p_table_id: tableId,
+        p_reason: 'Limpieza administrativa de mesa bloqueada',
+      });
+
+      if (!probErr && probData?.success) {
+        await this.sendBroadcastEvent(tableId, 'TABLE_CLOSED', {
+          tableId,
+          status: 'TERMINATED',
+          reason: 'Mesa con problemas corregida y limpiada por administración',
+          cleanedAt: new Date().toISOString(),
+        });
+        return { success: true, cleanedItemsCount: (probData.cleaned_seats || 0) + (probData.refunded_count || 0) };
+      }
+
+      // 3. Fallback al RPC tradicional
       const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_cleanup_game_table', {
         p_table_id: tableId,
       });

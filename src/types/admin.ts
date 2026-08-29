@@ -252,7 +252,12 @@ export interface AdminTableItem {
     isReady: boolean;
     isOnline?: boolean;
     lastSeenAt?: string;
+    status?: string;
   }>;
+  isProblematic?: boolean;
+  problemReasons?: string[];
+  duplicatePlayers?: string[];
+  occupiedSeatsList?: number[];
 }
 
 export interface AdminMatchItem {

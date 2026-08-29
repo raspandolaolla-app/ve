@@ -11,6 +11,7 @@ import type { PollaBlockType, PollaTicket, PollaDrawResultItem, PollaBlockWinner
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../../components/common/Button';
 import { generatePollaTicketPng } from '../../../utils/pollaPngGenerator';
+import { RngService } from '../../../services/rng/RngService';
 
 export const PollaBoard: React.FC = () => {
   const { profile, refreshProfile } = useAuth();
@@ -111,7 +112,13 @@ export const PollaBoard: React.FC = () => {
 
   // Selección rápida aleatoria de 6 animalitos distintos
   const handleRandomFill = () => {
-    const shuffled = [...ANIMALITOS_CATALOG].sort(() => Math.random() - 0.5);
+    const shuffled = [...ANIMALITOS_CATALOG];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = RngService.getRandomIntSecure(0, i);
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
     const random6 = shuffled.slice(0, 6).map((a) => a.code);
     setSelectedAnimalCodes(random6);
     setActionMessage(null);
@@ -179,7 +186,7 @@ export const PollaBoard: React.FC = () => {
     }
   };
 
-  const genId = () => Math.random().toString(36).substring(2, 9);
+  const genId = () => RngService.getRandomIntSecure(100000, 999999).toString();
 
   const handleDownloadTicketPng = (ticket: PollaTicket) => {
     const playerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : 'JUGADOR';

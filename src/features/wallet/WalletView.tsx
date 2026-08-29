@@ -22,6 +22,7 @@ import { Button } from '../../components/common/Button';
 import { formatBolivares, maskPhone, maskCedula } from '../../utils/formatters';
 import { FINANCIAL_RULES } from '../../utils/constants';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { useBcvRate } from '../../context/BcvContext';
 import {
   Wallet,
   ArrowDownLeft,
@@ -42,6 +43,7 @@ import {
 
 export function WalletView() {
   const { state, user, profile, role, isSigningIn, signInWithGoogle } = useAuth();
+  const { rateInfo, refreshRate, formatUsd } = useBcvRate();
   const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -62,6 +64,7 @@ export function WalletView() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<number>(50);
+  const [withdrawTotpCode, setWithdrawTotpCode] = useState<string>('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [withdrawFeedback, setWithdrawFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -203,7 +206,8 @@ export function WalletView() {
       const res = await WalletRepository.requestWithdrawal(
         selectedAccountId,
         Number(withdrawAmount),
-        idempotencyKey
+        idempotencyKey,
+        withdrawTotpCode
       );
 
       if (res.success) {
@@ -319,7 +323,37 @@ export function WalletView() {
         </div>
       </div>
 
-      {/* Tarjetas de Saldo Real */}
+      {/* Banner Informativo Tasa Oficial BCV */}
+      <div className="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md">
+        <div className="flex items-center gap-2 text-slate-200">
+          <span className={`w-2.5 h-2.5 rounded-full ${rateInfo.status === 'UPDATED' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+          <span className="font-semibold">Tasa Oficial BCV:</span>
+          <span className="font-mono font-bold text-amber-400 text-sm">
+            1 USD = {rateInfo.rate.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+          <span>Actualización: <strong className="text-slate-300 font-mono">{rateInfo.formattedTimestamp}</strong></span>
+          <span className="text-slate-500">• {rateInfo.source}</span>
+          <button
+            onClick={() => refreshRate()}
+            className="text-amber-400 hover:text-amber-300 hover:underline flex items-center gap-1 font-semibold cursor-pointer ml-auto sm:ml-0"
+            title="Actualizar tasa BCV"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Actualizar
+          </button>
+        </div>
+      </div>
+
+      {rateInfo.errorMessage && (
+        <div className="p-2.5 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs text-amber-300 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{rateInfo.errorMessage}</span>
+        </div>
+      )}
+
+      {/* Tarjetas de Saldo Real con Conversión Informativa USD */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card id="card-available-balance" className="border-amber-500/30 bg-gradient-to-b from-amber-950/20 to-slate-900">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
@@ -328,7 +362,10 @@ export function WalletView() {
           <div className="text-2xl sm:text-3xl font-black text-slate-100 font-mono">
             {loading && !balance ? '...' : formatBolivares(balance?.availableBalance || 0)}
           </div>
-          <span className="text-[11px] text-emerald-400 mt-2 block flex items-center gap-1">
+          <div className="text-xs font-mono text-slate-400 mt-1 font-semibold">
+            {formatUsd(balance?.availableBalance || 0)}
+          </div>
+          <span className="text-[11px] text-emerald-400 mt-2 block flex items-center gap-1 border-t border-slate-800/60 pt-1.5">
             <ShieldCheck className="w-3.5 h-3.5" />
             Listo para jugar o retirar
           </span>
@@ -341,7 +378,10 @@ export function WalletView() {
           <div className="text-2xl sm:text-3xl font-black text-slate-300 font-mono">
             {loading && !balance ? '...' : formatBolivares(balance?.heldBalance || 0)}
           </div>
-          <span className="text-[11px] text-slate-400 mt-2 block flex items-center gap-1">
+          <div className="text-xs font-mono text-slate-400 mt-1 font-semibold">
+            {formatUsd(balance?.heldBalance || 0)}
+          </div>
+          <span className="text-[11px] text-slate-400 mt-2 block flex items-center gap-1 border-t border-slate-800/60 pt-1.5">
             <Lock className="w-3.5 h-3.5" />
             En mesas activas o retiros
           </span>
@@ -354,7 +394,10 @@ export function WalletView() {
           <div className="text-2xl sm:text-3xl font-black text-slate-100 font-mono">
             {loading && !balance ? '...' : formatBolivares(balance?.totalBalance || 0)}
           </div>
-          <span className="text-[11px] text-slate-400 mt-2 block flex items-center gap-1">
+          <div className="text-xs font-mono text-slate-400 mt-1 font-semibold">
+            {formatUsd(balance?.totalBalance || 0)}
+          </div>
+          <span className="text-[11px] text-slate-400 mt-2 block flex items-center gap-1 border-t border-slate-800/60 pt-1.5">
             <Clock className="w-3.5 h-3.5" />
             Patrimonio total en cuenta
           </span>
@@ -503,8 +546,13 @@ export function WalletView() {
                     {tx.description || tx.reference} • {new Date(tx.createdAt).toLocaleString('es-VE')}
                   </div>
                 </div>
-                <div className="text-right font-mono font-bold text-slate-200">
-                  {formatBolivares(tx.amount)}
+                <div className="text-right">
+                  <div className="font-mono font-bold text-slate-200">
+                    {formatBolivares(tx.amount)}
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400 font-semibold" title="Equivalente informativo según tasa BCV actual">
+                    {formatUsd(tx.amount)}
+                  </div>
                 </div>
               </div>
             ))}
@@ -542,12 +590,16 @@ export function WalletView() {
                 <label className="block font-medium text-slate-300 mb-1">Monto en Bolívares (Bs.)</label>
                 <input
                   type="number"
-                  min={10}
+                  min={25}
                   max={50000}
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
                 />
+                <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                  <span>Equivalente informativo:</span>
+                  <span className="font-mono font-semibold text-slate-200">{formatUsd(depositAmount)}</span>
+                </div>
               </div>
 
               <div>
@@ -758,13 +810,38 @@ export function WalletView() {
                   </label>
                   <input
                     type="number"
-                    min={20}
+                    min={25}
                     max={balance?.availableBalance || 10000}
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
                   />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>Equivalente informativo:</span>
+                    <span className="font-mono font-semibold text-amber-300">{formatUsd(withdrawAmount)}</span>
+                  </div>
                 </div>
+
+                {profile?.isMfaEnabled && (
+                  <div>
+                    <label className="block font-medium text-amber-300 mb-1 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Código Autenticador (2FA) *</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={12}
+                      placeholder="000000"
+                      value={withdrawTotpCode}
+                      onChange={(e) => setWithdrawTotpCode(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-amber-500/50 rounded-xl text-slate-100 font-mono text-center font-bold tracking-widest text-base focus:outline-none focus:border-amber-400"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Ingresa el código de 6 dígitos de tu app de autenticación o un código de recuperación de emergencia.
+                    </p>
+                  </div>
+                )}
 
                 {withdrawFeedback && (
                   <div

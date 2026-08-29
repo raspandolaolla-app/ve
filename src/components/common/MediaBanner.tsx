@@ -188,11 +188,15 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
 
           <div className="relative z-10 flex flex-col md:flex-row items-stretch gap-6 p-6 sm:p-8 min-h-[220px]">
             {/* Contenedor de Imagen */}
-            <div className="relative w-full md:w-80 h-48 sm:h-52 shrink-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-inner group">
+            <div className="relative w-full md:w-80 h-48 sm:h-52 shrink-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-inner group flex items-center justify-center">
+              {/* Logo Oficial de fondo durante carga/fallback */}
+              <div className="absolute inset-0 z-0 bg-slate-950 flex items-center justify-center p-4 select-none pointer-events-none">
+                <img src="/logo.svg" alt="Logo Oficial Raspando La Olla" className="w-16 h-16 object-contain opacity-60 animate-pulse" />
+              </div>
               <img
-                src={current.imageUrl}
+                src={current.imageUrl || '/logo.svg'}
                 alt={current.title}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 referrerPolicy="no-referrer"
               />
             </div>

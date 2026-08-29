@@ -9,6 +9,7 @@
 // 5. 3 contra 3 (6 jugadores, 6 colores, 2 equipos)
 // ==============================================================================
 
+import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type {
   AtrapaitoState,
@@ -250,7 +251,7 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
     }
 
     if (action.actionType === 'ROLL_DICE') {
-      const dice = (action.actionData.diceValue as number) || Math.floor(Math.random() * 6) + 1;
+      const dice = (action.actionData.diceValue as number) || RngService.getRandomIntSecure(1, 6);
       const consecutiveSixes = dice === 6 ? state.consecutiveSixes + 1 : 0;
 
       if (consecutiveSixes === 3) {

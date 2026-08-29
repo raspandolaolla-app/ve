@@ -19,6 +19,7 @@ import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
 import { formatBolivares } from '../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { useBcvRate } from '../../context/BcvContext';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
@@ -76,11 +77,12 @@ export function TablesView() {
   const [createMode, setCreateMode] = useState<GameMode>('1v1');
   const [createName, setCreateName] = useState('');
   const [createEntryFee, setCreateEntryFee] = useState<number>(50);
+  const { formatUsd } = useBcvRate();
   const [createMaxPlayers, setCreateMaxPlayers] = useState<number>(4);
   const [createIsPrivate, setCreateIsPrivate] = useState<boolean>(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [availableFees, setAvailableFees] = useState<number[]>([20, 50, 100, 250, 500, 1000, 2000]);
+  const [availableFees, setAvailableFees] = useState<number[]>([25, 50, 100, 250, 500, 1000, 2000, 5000]);
 
   // Modal de Reglas Oficiales
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -797,10 +799,14 @@ export function TablesView() {
 
               {/* Costo de Entrada con Montos Oficiales Dinámicos */}
               <div>
-                <label className="block font-medium text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>Costo de Entrada (Bs.)</span>
+                <label className="block font-medium text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Monto de participación</span>
                   <span className="text-[10px] text-amber-400 font-mono font-bold">90% al Ganador / 10% Plataforma</span>
                 </label>
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span>Mínimo: <strong className="text-slate-200 font-mono">25 Bs.</strong> | Máximo: <strong className="text-slate-200 font-mono">5.000 Bs.</strong></span>
+                  <span className="text-slate-400 font-mono text-[11px]">{formatUsd(createEntryFee)}</span>
+                </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {availableFees.map((fee) => (
                     <button
@@ -819,17 +825,23 @@ export function TablesView() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Monto Personalizado (Bs.)</label>
                     <input
                       type="number"
                       value={createEntryFee}
-                      min={1}
-                      max={10000}
+                      min={25}
+                      max={5000}
                       onChange={(e) => setCreateEntryFee(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
+                      className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-slate-100 font-mono focus:outline-none ${
+                        createEntryFee < 25 || createEntryFee > 5000
+                          ? 'border-red-500 text-red-300'
+                          : 'border-slate-700 focus:border-amber-500'
+                      }`}
                     />
                   </div>
 
                   <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Máx Jugadores</label>
                     <input
                       type="number"
                       value={createMaxPlayers}
@@ -840,6 +852,11 @@ export function TablesView() {
                     />
                   </div>
                 </div>
+                {(createEntryFee < 25 || createEntryFee > 5000) && (
+                  <p className="mt-1.5 text-xs text-red-400 font-medium">
+                    El monto de participación debe estar entre 25 Bs. y 5.000 Bs.
+                  </p>
+                )}
               </div>
 
               {/* Privacidad */}
@@ -867,7 +884,7 @@ export function TablesView() {
                 <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" disabled={creating}>
+                <Button type="submit" variant="primary" disabled={creating || createEntryFee < 25 || createEntryFee > 5000}>
                   {creating ? 'Creando Mesa...' : 'Publicar Mesa'}
                 </Button>
               </div>

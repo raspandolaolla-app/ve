@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
+import { TwoFactorModal } from '../../../components/common/TwoFactorModal';
 import { formatBolivares } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import type { AdminWithdrawalItem } from '../../../types/admin';
@@ -23,8 +24,8 @@ import {
 
 interface AdminWithdrawalsTabProps {
   withdrawals: AdminWithdrawalItem[];
-  onCompleteWithdrawal: (withdrawalId: string, bankReference: string) => Promise<{ success: boolean; error?: string }>;
-  onRejectWithdrawal: (withdrawalId: string, reason: string) => Promise<{ success: boolean; error?: string }>;
+  onCompleteWithdrawal: (withdrawalId: string, bankReference: string, totpCode?: string) => Promise<{ success: boolean; error?: string }>;
+  onRejectWithdrawal: (withdrawalId: string, reason: string, totpCode?: string) => Promise<{ success: boolean; error?: string }>;
   onRefresh: () => void;
 }
 
@@ -42,6 +43,11 @@ export function AdminWithdrawalsTab({
   const [rejectReason, setRejectReason] = useState('');
   const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Modal 2FA de confirmación
+  const [show2faModal, setShow2faModal] = useState(false);
+  const [pendingActionType, setPendingActionType] = useState<'COMPLETE' | 'REJECT' | null>(null);
+  const [mfaError, setMfaError] = useState<string | null>(null);
+
   const filteredWithdrawals = withdrawals.filter((w) => {
     const matchesSearch =
       w.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -53,47 +59,61 @@ export function AdminWithdrawalsTab({
     return matchesSearch && matchesStatus;
   });
 
-  const handleComplete = async (withdrawalId: string) => {
+  const initiateComplete = () => {
     if (!bankReference.trim()) {
       alert('Debe ingresar el número de referencia bancaria de la transferencia / Pago Móvil.');
       return;
     }
-    setActionLoading(true);
-    setActionResult(null);
-    try {
-      const res = await onCompleteWithdrawal(withdrawalId, bankReference.trim());
-      if (res.success) {
-        setActionResult({
-          success: true,
-          message: 'Retiro liquidado exitosamente. Saldo retenido debitado y registrado en el ledger.',
-        });
-        setSelectedWithdrawal(null);
-        setBankReference('');
-        onRefresh();
-      } else {
-        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible completar el retiro.') });
-      }
-    } finally {
-      setActionLoading(false);
-    }
+    setMfaError(null);
+    setPendingActionType('COMPLETE');
+    setShow2faModal(true);
   };
 
-  const handleReject = async (withdrawalId: string) => {
-    const reason = rejectReason.trim() || 'Datos de cuenta bancaria o Pago Móvil inválidos';
+  const initiateReject = () => {
+    setMfaError(null);
+    setPendingActionType('REJECT');
+    setShow2faModal(true);
+  };
+
+  const handleExecute2faAction = async (totpCode: string) => {
+    if (!selectedWithdrawal || !pendingActionType) return;
+
     setActionLoading(true);
+    setMfaError(null);
     setActionResult(null);
+
     try {
-      const res = await onRejectWithdrawal(withdrawalId, reason);
-      if (res.success) {
-        setActionResult({
-          success: true,
-          message: 'Retiro rechazado. El saldo retenido ha sido liberado automáticamente a la billetera del usuario.',
-        });
-        setSelectedWithdrawal(null);
-        setRejectReason('');
-        onRefresh();
-      } else {
-        setActionResult({ success: false, message: sanitizeUserErrorMessage(res.error, 'No fue posible rechazar el retiro.') });
+      if (pendingActionType === 'COMPLETE') {
+        const res = await onCompleteWithdrawal(selectedWithdrawal.id, bankReference.trim(), totpCode);
+        if (res.success) {
+          setActionResult({
+            success: true,
+            message: 'Retiro liquidado exitosamente. Saldo retenido debitado y registrado en el ledger.',
+          });
+          setSelectedWithdrawal(null);
+          setBankReference('');
+          setShow2faModal(false);
+          setPendingActionType(null);
+          onRefresh();
+        } else {
+          setMfaError(sanitizeUserErrorMessage(res.error, 'No fue posible completar el retiro. Verifique su código 2FA.'));
+        }
+      } else if (pendingActionType === 'REJECT') {
+        const reason = rejectReason.trim() || 'Datos de cuenta bancaria o Pago Móvil inválidos';
+        const res = await onRejectWithdrawal(selectedWithdrawal.id, reason, totpCode);
+        if (res.success) {
+          setActionResult({
+            success: true,
+            message: 'Retiro rechazado. El saldo retenido ha sido liberado automáticamente a la billetera del usuario.',
+          });
+          setSelectedWithdrawal(null);
+          setRejectReason('');
+          setShow2faModal(false);
+          setPendingActionType(null);
+          onRefresh();
+        } else {
+          setMfaError(sanitizeUserErrorMessage(res.error, 'No fue posible rechazar el retiro. Verifique su código 2FA.'));
+        }
       }
     } finally {
       setActionLoading(false);
@@ -351,7 +371,7 @@ export function AdminWithdrawalsTab({
                     size="sm"
                     className="flex-1 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10"
                     isLoading={actionLoading}
-                    onClick={() => handleReject(selectedWithdrawal.id)}
+                    onClick={initiateReject}
                     leftIcon={<X className="w-3.5 h-3.5" />}
                   >
                     Rechazar y Liberar Saldo
@@ -362,7 +382,7 @@ export function AdminWithdrawalsTab({
                     size="sm"
                     className="flex-1 text-xs"
                     isLoading={actionLoading}
-                    onClick={() => handleComplete(selectedWithdrawal.id)}
+                    onClick={initiateComplete}
                     leftIcon={<Check className="w-3.5 h-3.5" />}
                   >
                     Confirmar Pago Transferido
@@ -373,6 +393,33 @@ export function AdminWithdrawalsTab({
           </div>
         </div>
       )}
+
+      {/* Modal de Verificación 2FA */}
+      <TwoFactorModal
+        isOpen={show2faModal}
+        title={pendingActionType === 'COMPLETE' ? 'Autorización 2FA — Liquidación de Retiro' : 'Autorización 2FA — Rechazo de Retiro'}
+        actionDescription={
+          selectedWithdrawal ? (
+            pendingActionType === 'COMPLETE' ? (
+              <span>
+                Confirma la liquidación del retiro por <strong className="text-amber-300">{formatBolivares(selectedWithdrawal.amount)}</strong> para el usuario <strong className="text-slate-100">{selectedWithdrawal.userName}</strong> con referencia bancaria <strong className="text-amber-300">{bankReference}</strong>.
+              </span>
+            ) : (
+              <span>
+                Confirma el rechazo del retiro por <strong className="text-amber-300">{formatBolivares(selectedWithdrawal.amount)}</strong> para el usuario <strong className="text-slate-100">{selectedWithdrawal.userName}</strong> y la devolución del saldo a su billetera.
+              </span>
+            )
+          ) : ''
+        }
+        isLoading={actionLoading}
+        errorMessage={mfaError}
+        onConfirm={handleExecute2faAction}
+        onCancel={() => {
+          setShow2faModal(false);
+          setPendingActionType(null);
+          setMfaError(null);
+        }}
+      />
     </div>
   );
 }

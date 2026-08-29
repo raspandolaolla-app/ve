@@ -4,6 +4,7 @@
 // Baraja española de 40 cartas, vira, perico, perica, cantos y bazas.
 // ==============================================================================
 
+import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type { TrucoState, TrucoCard, TrucoSuit, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
@@ -30,8 +31,14 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
       });
     });
 
-    // Barajar
-    const shuffled = [...deck].sort(() => Math.random() - 0.5);
+    // Barajar Fisher-Yates con RNG Criptográfico
+    const shuffled = [...deck];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = RngService.getRandomIntSecure(0, i);
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
 
     // Sacar Vira
     const vira = shuffled.pop()!;

@@ -4,6 +4,7 @@
 // Dominó tradicional con tren de juego, paso, trancaíto y conteo de puntos.
 // ==============================================================================
 
+import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type { DominoState, DominoTile, DominoPlacedTile, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
@@ -25,8 +26,14 @@ export class DominoEngine implements IGameEngine<DominoState> {
     const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
     const playerOrder = sortedPlayers.map((p) => p.userId);
 
-    // Barajar fichas
-    const shuffled = [...ALL_28_TILES].sort(() => Math.random() - 0.5);
+    // Barajar fichas con Fisher-Yates RNG Criptográfico
+    const shuffled = [...ALL_28_TILES];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = RngService.getRandomIntSecure(0, i);
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
 
     const hands: Record<string, DominoTile[]> = {};
     const playerNames: Record<string, string> = {};

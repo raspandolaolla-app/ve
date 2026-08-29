@@ -85,6 +85,11 @@ export const AdminGameManualsTab: React.FC = () => {
     e.preventDefault();
     if (!editingManual || !editingConfig) return;
 
+    if (editingConfig.minEntryFee < 25 || editingConfig.maxEntryFee > 5000 || editingConfig.minEntryFee > editingConfig.maxEntryFee) {
+      setError('El monto mínimo debe ser al menos 25 Bs. y el máximo como límite 5.000 Bs.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {

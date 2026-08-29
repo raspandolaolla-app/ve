@@ -4,6 +4,7 @@
 // Cartones 5x5, 4x4 y 3x9, balotera secuencial, marcaje de números y validación.
 // ==============================================================================
 
+import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
@@ -116,7 +117,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
         };
       }
 
-      const nextBall = available[Math.floor(Math.random() * available.length)];
+      const nextBall = (action.actionData?.ball as number) || available[RngService.getRandomIntSecure(0, available.length - 1)];
       const updatedDrawn = [...state.drawnBalls, nextBall];
 
       const updatedState: BingoState = {
@@ -182,7 +183,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
     const getRandomDistinct = (min: number, max: number, count: number): number[] => {
       const nums: number[] = [];
       while (nums.length < count) {
-        const n = Math.floor(Math.random() * (max - min + 1)) + min;
+        const n = RngService.getRandomIntSecure(min, max);
         if (!nums.includes(n)) nums.push(n);
       }
       return nums.sort((a, b) => a - b);

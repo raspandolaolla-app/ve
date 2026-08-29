@@ -60,8 +60,9 @@ export const AdminEntryFeesTab: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingFee || !editingFee.amount || editingFee.amount <= 0) {
-      setError('El monto debe ser un número positivo.');
+    const amt = Number(editingFee?.amount || 0);
+    if (!editingFee || amt < 25 || amt > 5000) {
+      setError('El monto de entrada debe estar entre 25 Bs. y 5.000 Bs.');
       return;
     }
 

@@ -105,7 +105,7 @@ export function AdminLobbyContentTab() {
       setEditingBanner((prev) => ({
         ...prev,
         imageUrl: isVideo
-          ? prev?.imageUrl || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80'
+          ? prev?.imageUrl || '/logo.svg'
           : result.publicUrl,
         videoUrl: isVideo ? result.publicUrl : prev?.videoUrl || null,
         mediaType: isVideo ? 'video' : 'image',
@@ -634,7 +634,7 @@ export function AdminLobbyContentTab() {
                           setEditingBanner((prev) => ({
                             ...prev,
                             videoUrl: val,
-                            imageUrl: prev?.imageUrl || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+                            imageUrl: prev?.imageUrl || '/logo.svg',
                           }));
                         } else {
                           setEditingBanner((prev) => ({ ...prev, imageUrl: val }));
@@ -650,11 +650,14 @@ export function AdminLobbyContentTab() {
               {(editingBanner.imageUrl || editingBanner.videoUrl) && (
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                   <div className="text-[10px] uppercase font-mono text-amber-400">Previsualización del Archivo</div>
-                  <div className="aspect-video w-full rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                  <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-slate-950 flex items-center justify-center">
+                    <div className="absolute inset-0 z-0 bg-slate-950 flex items-center justify-center p-3 select-none pointer-events-none">
+                      <img src="/logo.svg" alt="Logo Oficial" className="w-12 h-12 object-contain opacity-60" />
+                    </div>
                     {editingBanner.mediaType === 'video' && editingBanner.videoUrl ? (
-                      <video src={editingBanner.videoUrl} controls className="w-full h-full object-contain" />
+                      <video src={editingBanner.videoUrl} poster={editingBanner.imageUrl || '/logo.svg'} controls className="relative z-10 w-full h-full object-contain" />
                     ) : (
-                      <img src={editingBanner.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <img src={editingBanner.imageUrl || '/logo.svg'} alt="Preview" className="relative z-10 w-full h-full object-cover" />
                     )}
                   </div>
                 </div>
@@ -825,8 +828,11 @@ export function AdminLobbyContentTab() {
             ) : (
               <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950 p-6 shadow-xl">
                 <div className="flex flex-col md:flex-row items-stretch gap-5">
-                  <div className="relative w-full md:w-64 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-black shrink-0">
-                    <img src={previewBanner.imageUrl} alt={previewBanner.title} className="w-full h-full object-cover" />
+                  <div className="relative w-full md:w-64 aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0 flex items-center justify-center">
+                    <div className="absolute inset-0 z-0 bg-slate-950 flex items-center justify-center p-3 select-none pointer-events-none">
+                      <img src="/logo.svg" alt="Logo Oficial" className="w-12 h-12 object-contain opacity-60" />
+                    </div>
+                    <img src={previewBanner.imageUrl || '/logo.svg'} alt={previewBanner.title} className="relative z-10 w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 flex flex-col justify-between space-y-2">

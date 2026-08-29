@@ -46,6 +46,9 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
 
+  const isInvalidPoster = !posterUrl || posterUrl.includes('unsplash') || posterUrl.includes('photo-1518709268805');
+  const effectivePosterUrl = isInvalidPoster ? '/logo.svg' : posterUrl;
+
   // Suscribir al estado de preferencia de audio global
   useEffect(() => {
     const unsubscribe = adAudioPreference.subscribe((mutedState) => {
@@ -161,19 +164,26 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
       </button>
 
       {/* REPRODUCTOR DE VIDEO SIN CONTROLES NATIVOS Y SIN OVERLAYS SOBRE EL VIDEO EN MÓVIL */}
-      <div className="relative w-full aspect-video sm:aspect-[21/9] bg-black flex items-center justify-center overflow-hidden">
+      <div className="relative w-full aspect-video sm:aspect-[21/9] bg-slate-950 flex items-center justify-center overflow-hidden">
+        {/* LOGO OFICIAL DE FONDO COMO PLACEHOLDER / CARGA */}
+        <div className="absolute inset-0 z-0 bg-slate-950 flex flex-col items-center justify-center p-4 select-none pointer-events-none">
+          <img
+            src="/logo.svg"
+            alt="Logo Oficial Raspando La Olla"
+            className="w-16 h-16 sm:w-24 sm:h-24 object-contain opacity-80 animate-pulse"
+          />
+        </div>
+
         {hasError ? (
-          <div className="p-6 text-center space-y-2">
+          <div className="relative z-10 p-6 text-center space-y-3 flex flex-col items-center justify-center h-full w-full bg-slate-950/90">
+            <img src="/logo.svg" alt={title || 'Publicidad'} className="w-16 h-16 sm:w-20 sm:h-20 object-contain opacity-70" />
             <p className="text-xs text-amber-400 font-semibold">No se pudo cargar el video publicitario</p>
-            {posterUrl && (
-              <img src={posterUrl} alt={title || 'Publicidad'} className="w-full h-full object-cover rounded-xl" />
-            )}
           </div>
         ) : (
           <video
             ref={videoRef}
             src={src}
-            poster={posterUrl}
+            poster={effectivePosterUrl}
             autoPlay
             muted={isMuted}
             // NOTA: NO colocar el atributo 'loop' para asegurar que el evento 'ended' sea emitido por el navegador
@@ -183,7 +193,7 @@ export const VideoAdPlayer: React.FC<VideoAdPlayerProps> = ({
             controlsList="nofullscreen noremoteplayback nodownload noplaybackrate"
             onEnded={handleVideoEnded}
             onError={() => setHasError(true)}
-            className="w-full h-full object-contain sm:object-cover pointer-events-none select-none"
+            className="relative z-10 w-full h-full object-contain sm:object-cover pointer-events-none select-none"
           />
         )}
 

@@ -292,12 +292,12 @@ export function AdminView() {
   };
 
   // Handlers para Retiros
-  const handleCompleteWithdrawal = async (withdrawalId: string, bankRef: string) => {
-    return await PaymentRepository.completeWithdrawal(withdrawalId, bankRef);
+  const handleCompleteWithdrawal = async (withdrawalId: string, bankRef: string, totpCode?: string) => {
+    return await PaymentRepository.completeWithdrawal(withdrawalId, bankRef, undefined, totpCode);
   };
 
-  const handleRejectWithdrawal = async (withdrawalId: string, reason: string) => {
-    return await PaymentRepository.rejectWithdrawal(withdrawalId, reason);
+  const handleRejectWithdrawal = async (withdrawalId: string, reason: string, totpCode?: string) => {
+    return await PaymentRepository.rejectWithdrawal(withdrawalId, reason, undefined, totpCode);
   };
 
   // Handler para Usuarios y Roles

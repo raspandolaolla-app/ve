@@ -11,6 +11,7 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { GameSession, GameActionPayload } from '../../../types/games';
 import { getGameEngine } from '../engines';
 import { GameRepository } from '../../../services/repositories/GameRepository';
+import { RngService } from '../../../services/rng/RngService';
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
@@ -348,16 +349,35 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   };
 
-  // Manejador central de acciones de juego con anti-double click
+  // Manejador central de acciones de juego con anti-double click y Server-Authoritative RNG
   const handleGameAction = useCallback(
     async (actionType: string, actionData: Record<string, unknown>) => {
       if (!gameState || !session || isSubmittingAction) return;
+
+      const finalActionData = { ...actionData };
+
+      // Si la acción requiere aleatoriedad (RNG), obtener resultado autoritativo de Supabase con pgcrypto
+      if (actionType === 'ROLL_DICE' && !finalActionData.diceValue) {
+        const rngRes = await RngService.rollDiceSecure(session.id);
+        if (rngRes.success) {
+          finalActionData.diceValue = rngRes.diceValue;
+          finalActionData.rngEventId = rngRes.eventId;
+          finalActionData.commitmentHash = rngRes.commitmentHash;
+        }
+      } else if (actionType === 'DRAW_BALL' && !finalActionData.ball) {
+        const rngRes = await RngService.drawBingoBallSecure(session.id);
+        if (rngRes.success && rngRes.ball) {
+          finalActionData.ball = rngRes.ball;
+          finalActionData.rngEventId = rngRes.eventId;
+          finalActionData.commitmentHash = rngRes.commitmentHash;
+        }
+      }
 
       const payload: GameActionPayload = {
         sessionId: session.id,
         userId: currentUserId,
         actionType,
-        actionData,
+        actionData: finalActionData,
         clientTimestamp: Date.now(),
       };
 

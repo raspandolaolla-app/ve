@@ -4,6 +4,7 @@
 // Pronósticos deportivos, puntuación por acierto exacto/resultado y tabla de líderes.
 // ==============================================================================
 
+import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type { PollaState, PollaFixture, PollaPrediction, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
@@ -103,8 +104,8 @@ export class PollaEngine implements IGameEngine<PollaState> {
     if (action.actionType === 'RESOLVE_MATCHES') {
       // Generar resultados oficiales
       const updatedFixtures = state.fixtures.map((f) => {
-        const homeScore = Math.floor(Math.random() * 6);
-        const awayScore = Math.floor(Math.random() * 6);
+        const homeScore = RngService.getRandomIntSecure(0, 5);
+        const awayScore = RngService.getRandomIntSecure(0, 5);
         return {
           ...f,
           result: {

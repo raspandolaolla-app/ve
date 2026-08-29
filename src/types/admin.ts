@@ -23,6 +23,7 @@ export type AdminTabId =
   | 'support'
   | 'notifications'
   | 'audit'
+  | 'system-test'
   | 'settings'
   | 'security'
   | 'maintenance'
@@ -226,6 +227,7 @@ export interface AdminLedgerEntryItem {
 export interface AdminTableItem {
   id: string;
   gameId: string;
+  gameType?: string;
   gameName: string;
   trackingCode: string;
   status: 'WAITING_PLAYERS' | 'FULL' | 'IN_GAME' | 'FINISHED' | 'CANCELLED' | 'PAUSED' | 'CLOSED' | 'TERMINATED' | 'EXPIRED' | 'OPEN';

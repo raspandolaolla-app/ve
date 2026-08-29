@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+    <linearGradient id="potGrad" x1="60" y1="70" x2="140" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="rimGrad" x1="50" y1="65" x2="150" y2="85" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="steamGrad" x1="100" y1="20" x2="100" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.2" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Card -->
+  <rect width="200" height="200" rx="36" fill="url(#bgGrad)" />
+  <rect x="3" y="3" width="194" height="194" rx="33" stroke="url(#goldGrad)" stroke-width="3" stroke-opacity="0.6" />
+
+  <!-- Steam Waves -->
+  <path d="M70 50 C65 35 75 28 70 18" stroke="url(#steamGrad)" stroke-width="5" stroke-linecap="round" fill="none" />
+  <path d="M100 48 C95 32 105 24 100 15" stroke="#FBBF24" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.9" />
+  <path d="M130 50 C125 35 135 28 130 18" stroke="url(#steamGrad)" stroke-width="5" stroke-linecap="round" fill="none" />
+
+  <!-- Pot Handles -->
+  <path d="M42 85 C24 85 24 108 42 108" stroke="#D97706" stroke-width="7" stroke-linecap="round" fill="none" />
+  <path d="M158 85 C176 85 176 108 158 108" stroke="#D97706" stroke-width="7" stroke-linecap="round" fill="none" />
+
+  <!-- Pot Body -->
+  <path d="M48 80 H152 C152 135 135 160 100 160 C65 160 48 135 48 80 Z" fill="url(#potGrad)" />
+
+  <!-- Pot Rim -->
+  <ellipse cx="100" cy="80" rx="55" ry="12" fill="url(#rimGrad)" stroke="#B45309" stroke-width="2" />
+  <ellipse cx="100" cy="80" rx="46" ry="8" fill="#92400E" />
+
+  <!-- Sparkles on the Pot -->
+  <path d="M100 105 L104 118 L117 122 L104 126 L100 139 L96 126 L83 122 L96 118 Z" fill="#FFFBEB" />
+  <circle cx="128" cy="100" r="3.5" fill="#FDE68A" />
+  <circle cx="72" cy="132" r="3" fill="#FDE68A" />
+
+  <!-- Text Branding -->
+  <text x="100" y="182" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="13" fill="#FBBF24" letter-spacing="2">
+    RASPANDO LA OLLA
+  </text>
+</svg>

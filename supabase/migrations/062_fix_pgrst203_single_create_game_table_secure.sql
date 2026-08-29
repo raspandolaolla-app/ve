@@ -1,8 +1,16 @@
 -- ==============================================================================
--- RASPANDO LA OLLA — MIGRACIÓN 061: CORRECCIÓN DE COLUMNAS EN create_game_table_secure
--- Soluciona definitivamente el error 42703 (column "name" of relation "game_tables" does not exist)
+-- RASPANDO LA OLLA — MIGRACIÓN 062: RESOLUCIÓN DEFINITIVA PGRST203
+-- Elimina la sobrecarga ambigua create_game_table_secure(game_type_enum, ...)
+-- Garantiza la existencia de una ÚNICA firma pública para PostgREST:
+-- public.create_game_table_secure(p_game_type TEXT, ...)
 -- ==============================================================================
 
+-- 1. ELIMINAR CUALQUIER SOBRECARGA AMBIGUA EXISTENTE DE LA FUNCIÓN
+DROP FUNCTION IF EXISTS public.create_game_table_secure(public.game_type_enum, character varying, public.table_visibility_enum, numeric, smallint, jsonb);
+DROP FUNCTION IF EXISTS public.create_game_table_secure(public.game_type_enum, varchar, table_visibility_enum, numeric, smallint, jsonb);
+DROP FUNCTION IF EXISTS public.create_game_table_secure(public.game_type_enum, varchar, table_visibility_enum, numeric, integer, jsonb);
+
+-- 2. CREAR LA ÚNICA Y DEFINITIVA FUNCIÓN CANÓNICA
 CREATE OR REPLACE FUNCTION public.create_game_table_secure(
   p_game_type TEXT,
   p_name VARCHAR DEFAULT NULL,
@@ -29,11 +37,13 @@ DECLARE
   v_code_candidate VARCHAR(32);
   v_active_table_count INT;
 BEGIN
+  -- 1. Verificar Autenticación de Usuario
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED: Debes iniciar sesión para crear una mesa';
   END IF;
 
+  -- 2. Verificar Estado del Perfil
   SELECT account_status INTO v_profile_status
   FROM public.profiles
   WHERE user_id = v_user_id;
@@ -49,9 +59,10 @@ BEGIN
     RAISE EXCEPTION 'ACCOUNT_BLOCKED: Tu cuenta no está autorizada para crear mesas';
   END IF;
 
+  -- 3. Normalización Segura de p_game_type a game_type_enum (Acepta 'DOMINO_VENEZOLANO', 'domino_venezolano', 'tic_tac_toe', etc.)
   v_enum_game_type := public.fn_normalize_game_type_enum(p_game_type);
 
-  -- Bloquear si el usuario ya participa en una mesa activa del mismo juego
+  -- 4. Prevenir creación si ya tiene mesa activa en ese mismo juego
   SELECT COUNT(*) INTO v_active_table_count
   FROM public.game_table_players gtp
   JOIN public.game_tables gt ON gt.id = gtp.table_id
@@ -66,7 +77,7 @@ BEGIN
     RAISE EXCEPTION 'ALREADY_IN_ACTIVE_TABLE: Ya te encuentras participando en una mesa activa de este juego. Debes salir o terminar esa mesa antes de crear otra.';
   END IF;
 
-  -- VALIDACIÓN DE RANGO MONETARIO RIGUROSO (25 Bs <= monto <= 5.000 Bs)
+  -- 5. Validación de Rango Monetario (25 Bs <= monto <= 5.000 Bs)
   IF p_entry_fee < 25.00 OR p_entry_fee > 5000.00 THEN
     RAISE EXCEPTION 'INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.';
   END IF;
@@ -75,16 +86,17 @@ BEGIN
     RAISE EXCEPTION 'INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.';
   END IF;
 
+  -- 6. Validación de Rango de Jugadores
   IF p_max_players < 2 OR p_max_players > 1000 THEN
     RAISE EXCEPTION 'INVALID_PLAYERS_COUNT: Cantidad de jugadores inválida (mínimo 2, máximo 1000)';
   END IF;
 
   v_min_players := CASE 
-    WHEN p_max_players = 4 THEN 2 
-    WHEN p_max_players > 4 THEN 2
+    WHEN p_max_players >= 4 THEN 2
     ELSE p_max_players 
   END;
 
+  -- 7. Generación de Código de Invitación Único
   LOOP
     v_code_attempts := v_code_attempts + 1;
     IF p_visibility = 'PRIVATE' THEN
@@ -104,10 +116,11 @@ BEGIN
     END IF;
   END LOOP;
 
-  v_table_name := COALESCE(NULLIF(trim(p_name), ''), 'Mesa ' || p_game_type);
+  v_table_name := COALESCE(NULLIF(trim(p_name), ''), 'Mesa de ' || p_game_type);
   v_expires_at := NOW() + INTERVAL '24 hours';
   v_table_id := gen_random_uuid();
 
+  -- 8. Inserción en public.game_tables respetando el esquema real (almacenando el nombre dentro de config JSONB)
   INSERT INTO public.game_tables (
     id,
     host_user_id,
@@ -149,4 +162,6 @@ BEGIN
 END;
 $$;
 
+-- 3. PERMISOS DE EJECUCIÓN EXCLUSIVOS E INISAMBIGUOS
+REVOKE ALL ON FUNCTION public.create_game_table_secure(TEXT, VARCHAR, table_visibility_enum, NUMERIC, SMALLINT, JSONB) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_game_table_secure(TEXT, VARCHAR, table_visibility_enum, NUMERIC, SMALLINT, JSONB) TO authenticated, service_role;

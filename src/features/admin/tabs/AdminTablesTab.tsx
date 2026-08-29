@@ -49,13 +49,14 @@ interface AdminTablesTabProps {
     tableId: string,
     reason: string,
     refundPlayers: boolean
-  ) => Promise<{ success: boolean; error?: string; refundedCount?: number }>;
+  ) => Promise<{ success: boolean; error?: string; refundedCount?: number; errorCode?: string }>;
   onDisconnectPlayer?: (
     tableId: string,
     userId: string,
     reason?: string
   ) => Promise<{ success: boolean; refunded?: boolean; error?: string }>;
-  onCleanupTable: (tableId: string) => Promise<{ success: boolean; cleanedItemsCount?: number; error?: string }>;
+  onCleanupTable: (tableId: string) => Promise<{ success: boolean; cleanedItemsCount?: number; error?: string; errorCode?: string }>;
+  onCleanupAllEmptyTables?: () => Promise<{ success: boolean; processedCount?: number; error?: string }>;
   onAutoCleanTables: (inactiveMinutes?: number) => Promise<{ success: boolean; expiredTablesCount?: number; error?: string }>;
   onRefresh: () => void;
 }
@@ -67,6 +68,7 @@ export function AdminTablesTab({
   onTerminateTable,
   onDisconnectPlayer,
   onCleanupTable,
+  onCleanupAllEmptyTables,
   onAutoCleanTables,
   onRefresh,
 }: AdminTablesTabProps) {
@@ -77,6 +79,8 @@ export function AdminTablesTab({
   const [selectedTable, setSelectedTable] = useState<AdminTableItem | null>(null);
   const [terminateTarget, setTerminateTarget] = useState<AdminTableItem | null>(null);
   const [cleanupTarget, setCleanupTarget] = useState<AdminTableItem | null>(null);
+  const [blockedCleanupTarget, setBlockedCleanupTarget] = useState<AdminTableItem | null>(null);
+  const [showGlobalCleanModal, setShowGlobalCleanModal] = useState(false);
   const [showAutoCleanModal, setShowAutoCleanModal] = useState(false);
 
   // Formularios y Feedback
@@ -86,8 +90,15 @@ export function AdminTablesTab({
   const [autoCleanInactiveMinutes, setAutoCleanInactiveMinutes] = useState(15);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Excluir juegos globales sin mesa de usuario (Polla Venezolana)
+  const userMultiplayerTables = tables.filter((t) => {
+    const gameId = (t.gameType || '').toLowerCase();
+    const gameName = (t.gameName || '').toLowerCase();
+    return !gameId.includes('polla') && !gameName.includes('polla');
+  });
+
   // Filtrado de Mesas Activas y Registradas
-  const filteredTables = tables.filter((t) => {
+  const filteredTables = userMultiplayerTables.filter((t) => {
     const matchesSearch =
       t.trackingCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.gameName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,9 +108,9 @@ export function AdminTablesTab({
     if (!matchesSearch) return false;
 
     if (statusFilter === 'ALL') return true;
-    if (statusFilter === 'ACTIVE') return t.status === 'IN_GAME' || t.status === 'FULL';
-    if (statusFilter === 'WAITING') return t.status === 'WAITING_PLAYERS' || t.status === 'OPEN';
-    if (statusFilter === 'EMPTY') return t.currentPlayers === 0 && t.status !== 'CLOSED' && t.status !== 'TERMINATED';
+    if (statusFilter === 'ACTIVE') return (t.status === 'IN_GAME' || t.status === 'FULL') && t.currentPlayers > 0;
+    if (statusFilter === 'WAITING') return (t.status === 'WAITING_PLAYERS' || t.status === 'OPEN') && t.currentPlayers > 0;
+    if (statusFilter === 'EMPTY') return t.currentPlayers === 0;
     if (statusFilter === 'EXPIRED') return t.status === 'EXPIRED';
     if (statusFilter === 'TERMINATED') return t.status === 'TERMINATED' || t.status === 'CANCELLED';
     if (statusFilter === 'CLOSED') return t.status === 'CLOSED' || t.status === 'FINISHED';
@@ -107,18 +118,28 @@ export function AdminTablesTab({
     return t.status === statusFilter;
   });
 
-  // Cálculo de Métricas Clave de Mesas
-  const totalTables = tables.length;
-  const activeGameTables = tables.filter((t) => t.status === 'IN_GAME' || t.status === 'FULL').length;
-  const waitingTables = tables.filter((t) => t.status === 'WAITING_PLAYERS' || t.status === 'OPEN').length;
-  const emptyTables = tables.filter((t) => t.currentPlayers === 0 && t.status !== 'CLOSED' && t.status !== 'TERMINATED').length;
-  const totalPotAccumulated = tables.reduce((acc, t) => acc + (t.currentPot || 0), 0);
+  // Cálculo de Métricas Clave de Mesas (Excluye Polla)
+  const totalActiveTablesCount = userMultiplayerTables.filter((t) => (t.status === 'IN_GAME' || t.status === 'FULL') && t.currentPlayers > 0).length;
+  const totalEmptyTablesCount = userMultiplayerTables.filter((t) => t.currentPlayers === 0).length;
+  const totalOnlinePlayersCount = userMultiplayerTables.reduce((acc, t) => acc + (t.currentPlayers || 0), 0);
+  const readyToCleanCount = userMultiplayerTables.filter(
+    (t) => t.currentPlayers === 0 || ['CLOSED', 'TERMINATED', 'CANCELLED', 'EXPIRED', 'FINISHED'].includes(t.status)
+  ).length;
+
+  // Intentar Limpieza de Mesa Individual
+  const handleInitiateCleanup = (t: AdminTableItem) => {
+    if (t.currentPlayers > 0 && ['IN_GAME', 'FULL', 'WAITING_PLAYERS', 'OPEN', 'STARTING', 'PAUSED'].includes(t.status)) {
+      setBlockedCleanupTarget(t);
+    } else {
+      setCleanupTarget(t);
+    }
+  };
 
   // Ejecutar Terminación de Mesa
   const handleConfirmTerminate = async () => {
     if (!terminateTarget) return;
 
-    const reason = terminateReason.trim() || 'Terminación administrativa por operador/supervisión';
+    const reason = terminateReason.trim() || 'Terminación administrativa por operador';
     setActionLoading(true);
     setFeedbackMessage(null);
 
@@ -128,11 +149,12 @@ export function AdminTablesTab({
         success: boolean;
         error?: string;
         refundedCount?: number;
+        errorCode?: string;
       };
       if (res.success) {
         setFeedbackMessage({
           type: 'success',
-          text: `Mesa ${terminateTarget.trackingCode} terminada exitosamente.${
+          text: `Mesa #${terminateTarget.trackingCode} terminada exitosamente.${
             res.refundedCount ? ` Se reembolsaron ${res.refundedCount} jugadores.` : ''
           }`,
         });
@@ -141,9 +163,14 @@ export function AdminTablesTab({
         setTerminateReason('');
         onRefresh();
       } else {
+        const isConcurrencyError =
+          res.errorCode === 'MESA_YA_PROCESADA' ||
+          (res.error && res.error.includes('MESA_YA_PROCESADA'));
         setFeedbackMessage({
           type: 'error',
-          text: sanitizeUserErrorMessage(res.error, 'No fue posible terminar la mesa.'),
+          text: isConcurrencyError
+            ? '⚠️ Esta mesa ya fue procesada por otro administrador.'
+            : sanitizeUserErrorMessage(res.error, 'No fue posible terminar la mesa.'),
         });
       }
     } catch (err: any) {
@@ -156,7 +183,7 @@ export function AdminTablesTab({
     }
   };
 
-  // Ejecutar Limpieza de Datos Temporales
+  // Ejecutar Limpieza de Mesa Individual
   const handleConfirmCleanup = async () => {
     if (!cleanupTarget) return;
 
@@ -168,15 +195,20 @@ export function AdminTablesTab({
       if (res.success) {
         setFeedbackMessage({
           type: 'success',
-          text: `Limpieza ejecutada en mesa ${cleanupTarget.trackingCode}. Se depuraron ${res.cleanedItemsCount || 0} registros temporales sin alterar la contabilidad.`,
+          text: `Mesa #${cleanupTarget.trackingCode} depurada exitosamente. Se eliminó la entidad temporal sin modificar la contabilidad ni el historial.`,
         });
         setCleanupTarget(null);
         setSelectedTable(null);
         onRefresh();
       } else {
+        const isConcurrencyError =
+          res.errorCode === 'MESA_YA_PROCESADA' ||
+          (res.error && res.error.includes('MESA_YA_PROCESADA'));
         setFeedbackMessage({
           type: 'error',
-          text: sanitizeUserErrorMessage(res.error, 'No se pudo limpiar la mesa.'),
+          text: isConcurrencyError
+            ? '⚠️ Esta mesa ya fue procesada por otro administrador.'
+            : sanitizeUserErrorMessage(res.error, 'No se pudo limpiar la mesa.'),
         });
       }
     } catch (err: any) {
@@ -189,7 +221,51 @@ export function AdminTablesTab({
     }
   };
 
-  // Ejecutar Limpieza Automática Masiva de Mesas Inactivas
+  // Ejecutar Limpieza Global de Mesas Vacías
+  const handleConfirmGlobalClean = async () => {
+    setActionLoading(true);
+    setFeedbackMessage(null);
+
+    try {
+      if (onCleanupAllEmptyTables) {
+        const res = await onCleanupAllEmptyTables();
+        if (res.success) {
+          setFeedbackMessage({
+            type: 'success',
+            text: `Limpieza completada: ${res.processedCount || 0} mesas procesadas.`,
+          });
+          setShowGlobalCleanModal(false);
+          onRefresh();
+          return;
+        }
+      }
+
+      // Fallback a autoClean
+      const res = await onAutoCleanTables(0);
+      if (res.success) {
+        setFeedbackMessage({
+          type: 'success',
+          text: `Limpieza completada: ${res.expiredTablesCount || 0} mesas procesadas.`,
+        });
+        setShowGlobalCleanModal(false);
+        onRefresh();
+      } else {
+        setFeedbackMessage({
+          type: 'error',
+          text: sanitizeUserErrorMessage(res.error, 'Error al ejecutar la limpieza global de mesas.'),
+        });
+      }
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: 'error',
+        text: err.message || 'Error al ejecutar la limpieza global.',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Ejecutar Limpieza Automática por Umbral de Inactividad
   const handleConfirmAutoClean = async () => {
     setActionLoading(true);
     setFeedbackMessage(null);
@@ -221,6 +297,13 @@ export function AdminTablesTab({
 
   // Renderizador de Badges de Estado Visual
   const renderStatusBadge = (status: AdminTableItem['status'], playersCount: number) => {
+    if (playersCount === 0 && status !== 'TERMINATED' && status !== 'CLOSED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-800 text-slate-300 border border-slate-700">
+          ⚪ MESA VACÍA
+        </span>
+      );
+    }
     if (status === 'IN_GAME' || status === 'FULL') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -230,13 +313,6 @@ export function AdminTablesTab({
       );
     }
     if (status === 'WAITING_PLAYERS' || status === 'OPEN') {
-      if (playersCount === 0) {
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700">
-            ⚪ SIN JUGADORES
-          </span>
-        );
-      }
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -302,52 +378,41 @@ export function AdminTablesTab({
       )}
 
       {/* KPI Cards — Resumen Métrico de Mesas */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="bg-slate-900/90 border-slate-800 p-3.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Mesas Totales</span>
-            <TableIcon className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-xl font-black text-slate-100 mt-1">{totalTables}</div>
-          <span className="text-[10px] text-slate-500 font-mono">En catálogo activo</span>
-        </Card>
-
-        <Card className="bg-slate-900/90 border-slate-800 p-3.5">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Partidas Activas</span>
+            <span>MESAS ACTIVAS</span>
             <Activity className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-xl font-black text-emerald-400 mt-1">{activeGameTables}</div>
+          <div className="text-xl font-black text-emerald-400 mt-1">{totalActiveTablesCount}</div>
           <span className="text-[10px] text-emerald-500/80 font-mono">En juego simultáneo</span>
         </Card>
 
         <Card className="bg-slate-900/90 border-slate-800 p-3.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>En Espera</span>
-            <Users className="w-4 h-4 text-amber-400" />
+            <span>MESAS VACÍAS</span>
+            <UserX className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-xl font-black text-amber-400 mt-1">{waitingTables}</div>
-          <span className="text-[10px] text-amber-500/80 font-mono">Aguardando jugadores</span>
+          <div className="text-xl font-black text-slate-200 mt-1">{totalEmptyTablesCount}</div>
+          <span className="text-[10px] text-slate-500 font-mono">Sin jugadores en sala</span>
         </Card>
 
         <Card className="bg-slate-900/90 border-slate-800 p-3.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Sin Jugadores</span>
-            <UserX className="w-4 h-4 text-slate-500" />
+            <span>JUGADORES ONLINE</span>
+            <Users className="w-4 h-4 text-indigo-400" />
           </div>
-          <div className="text-xl font-black text-slate-300 mt-1">{emptyTables}</div>
-          <span className="text-[10px] text-slate-500 font-mono">Candidatas a cierre</span>
+          <div className="text-xl font-black text-indigo-300 mt-1">{totalOnlinePlayersCount}</div>
+          <span className="text-[10px] text-indigo-400/80 font-mono">Conectados en mesas</span>
         </Card>
 
-        <Card className="bg-slate-900/90 border-slate-800 p-3.5 col-span-2 md:col-span-1">
+        <Card className="bg-slate-900/90 border-slate-800 p-3.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Pozo Acumulado</span>
-            <DollarSign className="w-4 h-4 text-amber-400" />
+            <span>PARA LIMPIAR</span>
+            <Trash2 className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-lg font-black text-amber-300 font-mono mt-1">
-            {formatBolivares(totalPotAccumulated)}
-          </div>
-          <span className="text-[10px] text-slate-500 font-mono">En fondos retenidos</span>
+          <div className="text-xl font-black text-amber-400 mt-1">{readyToCleanCount}</div>
+          <span className="text-[10px] text-amber-500/80 font-mono">Vacías / Terminadas</span>
         </Card>
       </div>
 
@@ -392,14 +457,25 @@ export function AdminTablesTab({
             ))}
 
             <Button
+              id="btn-trigger-global-clean"
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 ml-auto border-amber-500/40 text-amber-400 hover:bg-amber-500/10 font-bold"
+              onClick={() => setShowGlobalCleanModal(true)}
+              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+            >
+              🧹 LIMPIAR MESAS VACÍAS
+            </Button>
+
+            <Button
               id="btn-trigger-autoclean"
               variant="outline"
               size="sm"
-              className="text-xs h-7 ml-auto border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              className="text-xs h-7 border-slate-700 text-slate-300 hover:bg-slate-800"
               onClick={() => setShowAutoCleanModal(true)}
-              leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}
             >
-              Limpieza Auto
+              Auto-Limpieza
             </Button>
           </div>
         </div>
@@ -561,7 +637,7 @@ export function AdminTablesTab({
                             variant="outline"
                             size="sm"
                             className="text-xs h-7 px-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                            onClick={() => setCleanupTarget(t)}
+                            onClick={() => handleInitiateCleanup(t)}
                             leftIcon={<Trash2 className="w-3 h-3" />}
                           >
                             Limpiar
@@ -899,6 +975,131 @@ export function AdminTablesTab({
                 leftIcon={<Trash2 className="w-3.5 h-3.5" />}
               >
                 Ejecutar Limpieza
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3.5: ADVERTENCIA - MESA CON JUGADORES (NO ELIMINABLE DIRECTAMENTE) */}
+      {blockedCleanupTarget && (
+        <div
+          id="modal-table-blocked-cleanup"
+          className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+        >
+          <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3 text-amber-400">
+              <ShieldAlert className="w-6 h-6 shrink-0" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">
+                  Mesa Con Jugadores Conectados
+                </h3>
+                <p className="text-[11px] text-amber-400/80 font-mono">Restricción de Seguridad Server-Side</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-2 leading-relaxed">
+              <p>
+                Esta mesa (<strong className="text-amber-300">#{blockedCleanupTarget.trackingCode}</strong>) tiene{' '}
+                <strong className="text-white">{blockedCleanupTarget.currentPlayers} jugador(es) conectado(s)</strong>.
+              </p>
+              <p className="text-[11px] text-amber-300/90">
+                No puede eliminarse directamente. Para depurar esta sala de forma segura, primero debes terminarla para desconectar a los jugadores y procesar reembolsos si aplican.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                id="btn-close-blocked-cleanup"
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs border-slate-800 text-slate-400"
+                onClick={() => setBlockedCleanupTarget(null)}
+              >
+                Entendido
+              </Button>
+
+              <Button
+                id="btn-goto-terminate-from-blocked"
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs text-red-400 border-red-500/40 hover:bg-red-500/10 font-bold"
+                onClick={() => {
+                  const target = blockedCleanupTarget;
+                  setBlockedCleanupTarget(null);
+                  setTerminateTarget(target);
+                  setTerminateReason('');
+                  setRefundPlayers(target.entryFee > 0);
+                }}
+                leftIcon={<Ban className="w-3.5 h-3.5" />}
+              >
+                Terminar Mesa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3.6: CONFIRMACIÓN DE LIMPIEZA GLOBAL DE MESAS VACÍAS */}
+      {showGlobalCleanModal && (
+        <div
+          id="modal-table-global-clean-confirm"
+          className="fixed inset-0 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+        >
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3 text-amber-400">
+              <Trash2 className="w-6 h-6 shrink-0" />
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">
+                  Limpieza Global de Mesas Vacías
+                </h3>
+                <p className="text-[11px] text-slate-400 font-mono">Depuración Segura Multijugador</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300">
+              <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Mesas vacías a limpiar:</span>
+                  <span className="font-mono font-bold text-amber-300">{totalEmptyTablesCount}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Mesas finalizadas/cerradas a limpiar:</span>
+                  <span className="font-mono font-bold text-slate-300">{Math.max(0, readyToCleanCount - totalEmptyTablesCount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-400 border-t border-slate-850 pt-1.5">
+                  <span>Mesas activas con jugadores:</span>
+                  <span className="font-mono font-bold text-emerald-400">{totalActiveTablesCount} (se mantendrán intactas)</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                Se encontraron <strong className="text-amber-300">{readyToCleanCount}</strong> mesas que pueden limpiarse. Esta acción depurará únicamente las entidades temporales de mesas vacías o terminadas. Los registros de contabilidad, monederos y partidas finalizadas no serán alterados.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                id="btn-cancel-global-clean"
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs border-slate-800 text-slate-400"
+                onClick={() => setShowGlobalCleanModal(false)}
+                disabled={actionLoading}
+              >
+                CANCELAR
+              </Button>
+
+              <Button
+                id="btn-confirm-global-clean"
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 font-bold"
+                isLoading={actionLoading}
+                onClick={handleConfirmGlobalClean}
+                leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+              >
+                CONFIRMAR LIMPIEZA
               </Button>
             </div>
           </div>

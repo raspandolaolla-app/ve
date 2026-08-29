@@ -50,6 +50,7 @@ import { AdminAnnouncementsTab } from './tabs/AdminAnnouncementsTab';
 import { AdminSupportTab } from './tabs/AdminSupportTab';
 import { AdminNotificationsTab } from './tabs/AdminNotificationsTab';
 import { AdminAuditTab } from './tabs/AdminAuditTab';
+import { AdminSystemTestTab } from './tabs/AdminSystemTestTab';
 import { AdminSettingsTab } from './tabs/AdminSettingsTab';
 import { AdminSecurityTab } from './tabs/AdminSecurityTab';
 import { AdminMaintenanceTab } from './tabs/AdminMaintenanceTab';
@@ -78,6 +79,7 @@ import {
   MessageSquare,
   Bell,
   FileCheck2,
+  FlaskConical,
   Settings,
   BarChart3,
   RefreshCw,
@@ -275,6 +277,10 @@ export function AdminView() {
     return await AdminRepository.cleanupTable(tableId);
   };
 
+  const handleCleanupAllEmptyTables = async () => {
+    return await AdminRepository.cleanupAllEmptyTables();
+  };
+
   const handleDisconnectPlayer = async (tableId: string, userId: string, reason?: string) => {
     return await AdminRepository.disconnectPlayer(tableId, userId, reason);
   };
@@ -366,6 +372,7 @@ export function AdminView() {
       badge: notificationsList.filter((n) => !n.isRead).length || undefined,
     },
     { id: 'audit', label: 'Auditoría', icon: FileCheck2 },
+    { id: 'system-test', label: '🧪 AUDITORÍA Y TEST', icon: FlaskConical },
     { id: 'settings', label: 'Ajustes', icon: Settings },
     { id: 'security', label: 'Seguridad', icon: ShieldCheck, superAdminOnly: true },
     { id: 'maintenance', label: 'Mantenimiento', icon: Wrench, superAdminOnly: true },
@@ -517,6 +524,7 @@ export function AdminView() {
             onTerminateTable={handleTerminateTable}
             onDisconnectPlayer={handleDisconnectPlayer}
             onCleanupTable={handleCleanupTable}
+            onCleanupAllEmptyTables={handleCleanupAllEmptyTables}
             onAutoCleanTables={handleAutoCleanTables}
             onRefresh={loadAllAdminData}
           />
@@ -554,6 +562,14 @@ export function AdminView() {
 
         {activeTab === 'audit' && (
           <AdminAuditTab logs={auditLogsList} onRefresh={loadAllAdminData} />
+        )}
+
+        {activeTab === 'system-test' && (
+          <AdminSystemTestTab
+            userEmail={userEmail}
+            userRole={role || 'ADMIN'}
+            isSuperAdmin={isSuperAdmin}
+          />
         )}
 
         {activeTab === 'settings' && (

@@ -1340,6 +1340,60 @@ export class AdminRepository {
   }
 
   /**
+   * Ejecuta la limpieza global masiva de mesas vacías o finalizadas.
+   */
+  public static async cleanupAllEmptyTables(): Promise<{
+    success: boolean;
+    processedCount?: number;
+    error?: string;
+  }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, processedCount: 0, error: 'El servicio no está disponible.' };
+
+    try {
+      // 1. Intentar llamadas a RPC server-side admin_cleanup_empty_tables
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_cleanup_empty_tables');
+      if (!rpcErr && rpcData?.success) {
+        return { success: true, processedCount: rpcData.processed_count || 0 };
+      }
+
+      // 2. Fallback manual en cliente RLS: eliminar mesas vacías o cerradas
+      const { data: emptyTables } = await supabase
+        .from('game_tables')
+        .select('id')
+        .or('current_players_count.eq.0,status.in.(CLOSED,TERMINATED,CANCELLED,EXPIRED,FINISHED)');
+
+      if (!emptyTables || emptyTables.length === 0) {
+        return { success: true, processedCount: 0 };
+      }
+
+      const tableIds = emptyTables.map((t) => t.id);
+      await supabase.from('game_table_players').delete().in('table_id', tableIds);
+      const { error: delErr } = await supabase.from('game_tables').delete().in('id', tableIds);
+
+      if (delErr) {
+        return { success: false, processedCount: 0, error: delErr.message };
+      }
+
+      await this.recordAdminAudit({
+        action: 'LIMPIEZA_MASIVA',
+        resourceType: 'GAME_TABLE_BATCH',
+        resourceId: 'GLOBAL_CLEANUP',
+        severity: 'INFO',
+        metadata: {
+          cleaned_count: tableIds.length,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      return { success: true, processedCount: tableIds.length };
+    } catch (err: any) {
+      console.error('[AdminRepository] Error en limpieza masiva de mesas vacías:', err);
+      return { success: false, processedCount: 0, error: err.message || 'Error al ejecutar limpieza masiva.' };
+    }
+  }
+
+  /**
    * Política de limpieza automática para mesas abandonadas o inactivas.
    * Marca como EXPIRED/CLOSED las mesas WAITING sin jugadores con inactividad > inactiveMinutes.
    */

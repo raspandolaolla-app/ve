@@ -365,6 +365,7 @@ export interface AtrapaitoPiece {
 export interface AtrapaitoPlayer {
   userId: string;
   name: string;
+  avatarUrl?: string;
   colors: AtrapaitoColor[];
   team: 'A' | 'B' | null;
   seat: number;

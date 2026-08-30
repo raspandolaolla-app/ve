@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
-import type { BingoState, BingoCard75, BingoVariant } from '../../../types/games';
+import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant } from '../../../types/games';
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { BcvRepository } from '../../../services/repositories/BcvRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
@@ -120,6 +120,52 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     return () => clearInterval(interval);
   }, [table.config?.scheduled_start_at]);
 
+  // Función auxiliar robusta para distribuir los 15 números del Bingo 90 en una grilla de 3x9
+  const buildBingo90Rows = (numbers: number[]): (number | null)[][] => {
+    const sorted = [...numbers].sort((a, b) => a - b);
+    const finalGrid: (number | null)[][] = Array.from({ length: 3 }, () => Array(9).fill(null));
+
+    const chunk1 = sorted.slice(0, 5);
+    const chunk2 = sorted.slice(5, 10);
+    const chunk3 = sorted.slice(10, 15);
+    const chunks = [chunk1, chunk2, chunk3];
+
+    chunks.forEach((chunk, r) => {
+      chunk.forEach((n) => {
+        let colIdx = Math.floor(n / 10);
+        if (colIdx > 8) colIdx = 8;
+
+        if (finalGrid[r][colIdx] !== null) {
+          let placed = false;
+          for (let offset = 1; offset < 9; offset++) {
+            if (colIdx - offset >= 0 && finalGrid[r][colIdx - offset] === null) {
+              finalGrid[r][colIdx - offset] = n;
+              placed = true;
+              break;
+            }
+            if (colIdx + offset < 9 && finalGrid[r][colIdx + offset] === null) {
+              finalGrid[r][colIdx + offset] = n;
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) {
+            for (let c = 0; c < 9; c++) {
+              if (finalGrid[r][c] === null) {
+                finalGrid[r][c] = n;
+                break;
+              }
+            }
+          }
+        } else {
+          finalGrid[r][colIdx] = n;
+        }
+      });
+    });
+
+    return finalGrid;
+  };
+
   // Cargar/comprar cartones para el usuario si no los tiene aún
   const handleBuyCards = async (count: number) => {
     if (!currentUserId || !table.id) return;
@@ -135,29 +181,74 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
 
       setCardsPurchasedCount((prevCount) => prevCount + count);
 
-      // Actualizar estado local de cartones
-      const userCards75: BingoCard75[] = (res.cards || []).map((c: any) => ({
-        b: c.b || [1, 2, 3, 4, 5],
-        i: c.i || [16, 17, 18, 19, 20],
-        n: c.n || [31, 32, 'FREE', 33, 34],
-        g: c.g || [46, 47, 48, 49, 50],
-        o: c.o || [61, 62, 63, 64, 65],
-        marked: c.marked || [
-          [false, false, false, false, false],
-          [false, false, false, false, false],
-          [false, false, true, false, false],
-          [false, false, false, false, false],
-          [false, false, false, false, false],
-        ],
-      }));
+      if (variant === '75') {
+        const userCards75: BingoCard75[] = (res.cards || []).map((c: any) => ({
+          b: c.b || [1, 2, 3, 4, 5],
+          i: c.i || [16, 17, 18, 19, 20],
+          n: c.n || [31, 32, 'FREE', 33, 34],
+          g: c.g || [46, 47, 48, 49, 50],
+          o: c.o || [61, 62, 63, 64, 65],
+          marked: c.marked || [
+            [false, false, false, false, false],
+            [false, false, false, false, false],
+            [false, false, true, false, false],
+            [false, false, false, false, false],
+            [false, false, false, false, false],
+          ],
+        }));
 
-      setBingoState((prevState) => ({
-        ...prevState,
-        cards: {
-          ...prevState.cards,
-          [currentUserId]: [...(prevState.cards[currentUserId] || []), ...userCards75],
-        },
-      }));
+        setBingoState((prevState) => ({
+          ...prevState,
+          cards: {
+            ...prevState.cards,
+            [currentUserId]: [...(prevState.cards[currentUserId] || []), ...userCards75],
+          },
+        }));
+      } else if (variant === '80') {
+        const userCards80: BingoCard80[] = (res.cards || []).map((c: any) => ({
+          grid: c.grid || [
+            [1, 2, 3, 4],
+            [21, 22, 23, 24],
+            [41, 42, 43, 44],
+            [61, 62, 63, 64]
+          ],
+          marked: c.marked || [
+            [false, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false],
+          ],
+        }));
+
+        setBingoState((prevState) => ({
+          ...prevState,
+          cards80: {
+            ...prevState.cards80,
+            [currentUserId]: [...(prevState.cards80?.[currentUserId] || []), ...userCards80],
+          },
+        }));
+      } else if (variant === '90') {
+        const userCards90: BingoCard90[] = (res.cards || []).map((c: any) => {
+          const numbers = c.numbers || [1, 2, 3, 4, 5, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25];
+          const rows = buildBingo90Rows(numbers);
+          return {
+            rows,
+            marked: c.marked || [
+              Array(9).fill(false),
+              Array(9).fill(false),
+              Array(9).fill(false),
+            ],
+          };
+        });
+
+        setBingoState((prevState) => ({
+          ...prevState,
+          cards90: {
+            ...prevState.cards90,
+            [currentUserId]: [...(prevState.cards90?.[currentUserId] || []), ...userCards90],
+          },
+        }));
+      }
     } catch (err: any) {
       setPurchaseError(err.message || 'Error al procesar compra.');
     } finally {
@@ -240,20 +331,52 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     if (!currentUserId || bingoState.winnerUserId) return;
 
     setBingoState((prev) => {
-      const userCards = prev.cards[currentUserId] || [];
-      if (userCards.length === 0) return prev;
+      if (variant === '75') {
+        const userCards = prev.cards[currentUserId] || [];
+        if (userCards.length === 0) return prev;
 
-      const updatedCards = userCards.map((card) => {
-        const newMarked = card.marked.map((rArr, rIdx) =>
-          rArr.map((mVal, cIdx) => (rIdx === row && cIdx === col ? !mVal : mVal))
-        );
-        return { ...card, marked: newMarked };
-      });
+        const updatedCards = userCards.map((card) => {
+          const newMarked = card.marked.map((rArr, rIdx) =>
+            rArr.map((mVal, cIdx) => (rIdx === row && cIdx === col ? !mVal : mVal))
+          );
+          return { ...card, marked: newMarked };
+        });
 
-      return {
-        ...prev,
-        cards: { ...prev.cards, [currentUserId]: updatedCards },
-      };
+        return {
+          ...prev,
+          cards: { ...prev.cards, [currentUserId]: updatedCards },
+        };
+      } else if (variant === '80') {
+        const userCards80 = prev.cards80?.[currentUserId] || [];
+        if (userCards80.length === 0) return prev;
+
+        const updatedCards = userCards80.map((card) => {
+          const newMarked = card.marked.map((rArr, rIdx) =>
+            rArr.map((mVal, cIdx) => (rIdx === row && cIdx === col ? !mVal : mVal))
+          );
+          return { ...card, marked: newMarked };
+        });
+
+        return {
+          ...prev,
+          cards80: { ...prev.cards80, [currentUserId]: updatedCards },
+        };
+      } else {
+        const userCards90 = prev.cards90?.[currentUserId] || [];
+        if (userCards90.length === 0) return prev;
+
+        const updatedCards = userCards90.map((card) => {
+          const newMarked = card.marked.map((rArr, rIdx) =>
+            rArr.map((mVal, cIdx) => (rIdx === row && cIdx === col ? !mVal : mVal))
+          );
+          return { ...card, marked: newMarked };
+        });
+
+        return {
+          ...prev,
+          cards90: { ...prev.cards90, [currentUserId]: updatedCards },
+        };
+      }
     });
   };
 

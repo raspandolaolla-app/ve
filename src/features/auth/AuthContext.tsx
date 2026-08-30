@@ -147,6 +147,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseClient();
 
   const handleSession = async (currentSession: Session | null, forceReload = false) => {
+    if (typeof window !== 'undefined' && window.localStorage.getItem('playwright-mock-auth')) {
+      console.log('[AUTH] Ignorando handleSession debido a sesión mock de Playwright activa');
+      return;
+    }
+
     if (!currentSession || !currentSession.user) {
       console.log('[AUTH] Usuario desconectado (sin sesión activa)');
       loadedUserIdRef.current = null;
@@ -296,6 +301,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // 0. Autenticación Mock de Playwright para pruebas E2E sin Google OAuth
+    if (typeof window !== 'undefined') {
+      const mockAuthStr = window.localStorage.getItem('playwright-mock-auth');
+      if (mockAuthStr) {
+        try {
+          const mockData = JSON.parse(mockAuthStr);
+          setUser(mockData.user);
+          setSession(mockData.session);
+          setProfile(mockData.profile);
+          setRole(mockData.role || 'PLAYER');
+          setHasAcceptedTerms(true);
+          setState('authenticated');
+          setIsSigningIn(false);
+          console.log('[AUTH] E2E Playwright Mock Auth inicializado con éxito');
+          return;
+        } catch (e) {
+          console.error('[AUTH] Error al cargar sesión mock de Playwright:', e);
+        }
+      }
+    }
+
     // 1. Detectar errores de retorno OAuth en parámetros de URL
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
@@ -327,6 +353,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Obtener sesión inicial (procesa automáticamente código PKCE en URL con detectSessionInUrl)
     supabase.auth.getSession().then(({ data: { session: initialSession }, error: sessionError }) => {
+      if (typeof window !== 'undefined' && window.localStorage.getItem('playwright-mock-auth')) {
+        console.log('[AUTH] Ignorando resultado de getSession debido a sesión mock de Playwright activa');
+        return;
+      }
+
       if (sessionError) {
         console.error('[AUTH] Error de sesión inicial:', sessionError.message);
         if (sessionError.message.toLowerCase().includes('expired') || sessionError.message.toLowerCase().includes('jwt')) {
@@ -353,6 +384,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. Suscribirse a cambios en el estado de autenticación de Supabase
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, updatedSession) => {
+        if (typeof window !== 'undefined' && window.localStorage.getItem('playwright-mock-auth')) {
+          console.log('[AUTH] Ignorando evento onAuthStateChange debido a sesión mock de Playwright activa');
+          return;
+        }
         console.log(`[AUTH] Sesión cambió. Evento: ${event}`, updatedSession?.user?.email || '');
 
         if (event === 'SIGNED_OUT') {
@@ -460,6 +495,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     console.log('[AUTH] Logout solicitado');
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('playwright-mock-auth');
+    }
     if (!supabase) return;
     try {
       try {

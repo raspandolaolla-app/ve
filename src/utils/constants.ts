@@ -142,6 +142,17 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     maxEntryFee: 5000,
     isActive: true,
   },
+  {
+    id: 'chess',
+    name: 'Ajedrez',
+    shortDescription: 'El clásico juego de mesa estratégico para dos jugadores en tiempo real.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    allowedModes: ['1v1'],
+    minEntryFee: 25,
+    maxEntryFee: 5000,
+    isActive: true,
+  },
 ] as const;
 
 // Sorteos Diarios Globales Permanentes (Sin Mesa, Sin Creador, Sin Matchmaking)

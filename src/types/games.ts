@@ -11,7 +11,8 @@ export type GameType =
   | 'bingo'            // Bingo Online
   | 'polla_venezolana' // Polla Venezolana
   | 'atrapaito'        // Atrapaíto
-  | 'una_olla';        // UNA-OLLA
+  | 'una_olla'         // UNA-OLLA
+  | 'chess';           // AJEDREZ
 
 export type GameMode = '1v1' | '2v2' | '1v3' | '1v4' | 'mass_participation';
 
@@ -458,5 +459,24 @@ export interface UnaOllaState {
     skipNext?: boolean;
     colorChosen?: UnaOllaColor;
   };
+}
+
+// ------------------------------------------------------------------------------
+// 10. AJEDREZ (CHESS)
+// ------------------------------------------------------------------------------
+export interface ChessState {
+  fen: string; // Forsyth-Edwards Notation for the chess board state
+  playerWhiteUserId: string; // User ID playing White (usually host)
+  playerBlackUserId: string; // User ID playing Black (usually guest)
+  moveHistory: {
+    from: string;
+    to: string;
+    san: string;
+    userId: string;
+    timestamp: number;
+  }[];
+  winnerUserId: string | null;
+  isDraw: boolean;
+  drawReason?: 'stalemate' | 'threefold_repetition' | 'insufficient_material' | 'fifty_moves' | 'mutual_agreement';
 }
 

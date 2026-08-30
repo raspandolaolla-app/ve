@@ -611,6 +611,70 @@ export class TableRepository {
   }
 
   /**
+   * Registra de forma segura la foto del ganador de Bingo en la sesión.
+   */
+  public static async registerWinnerPhoto(
+    sessionId: string,
+    photoUrl: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servidor no disponible.' };
+
+    try {
+      const { data, error } = await supabase.rpc('rpc_register_bingo_winner_photo', {
+        p_session_id: sessionId,
+        p_photo_url: photoUrl,
+      });
+
+      if (error || (data && data.success === false)) {
+        return { success: false, error: data?.error || error?.message || 'Error al guardar la foto.' };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error en el servidor.' };
+    }
+  }
+
+  /**
+   * Obtiene el historial de ganadores dedicado de "Bingo La Olla" (últimos 7 días, máx 100).
+   */
+  public static async getBingoWinnerHistory(): Promise<Array<{
+    id: string;
+    sessionId: string;
+    userId: string;
+    winnerName: string;
+    prizeBs: number;
+    photoUrl: string | null;
+    createdAt: string;
+  }>> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('bingo_winner_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error || !data) return [];
+
+      return data.map((d: any) => ({
+        id: d.id,
+        sessionId: d.session_id,
+        userId: d.user_id,
+        winnerName: d.winner_name,
+        prizeBs: Number(d.prize_bs),
+        photoUrl: d.photo_url,
+        createdAt: d.created_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Obtiene la lista de montos de entrada activos para selección en mesas.
    */
   public static async getAvailableEntryFees(gameType?: GameType): Promise<number[]> {

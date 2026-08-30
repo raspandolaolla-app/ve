@@ -51,6 +51,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     winnerName: string;
     winnerAvatar?: string;
     prizeBs: number;
+    winnerPhotoUrl?: string;
   } | null>(null);
 
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
@@ -58,12 +59,45 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
   const [isClaimingBingo, setIsClaimingBingo] = useState<boolean>(false);
   const [claimError, setClaimError] = useState<string | null>(null);
 
+  // ID de Sesión para sorteo automático y foto
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Sorteo automático del Host
+  const [isAutoDrawing, setIsAutoDrawing] = useState<boolean>(false);
+  const [drawIntervalMs, setDrawIntervalMs] = useState<number>(5000);
+
+  // Estados de captura de fotografía del ganador
+  const [photoCountdown, setPhotoCountdown] = useState<number | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [photoUploaded, setPhotoUploaded] = useState<boolean>(false);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const isHost = table.hostUserId === currentUserId;
+
   // Cargar Tasa BCV
   useEffect(() => {
     BcvRepository.getBcvRate().then((res) => {
       if (res?.rate) setBcvRate(res.rate);
     });
   }, []);
+
+  // Obtener sessionId en mount
+  useEffect(() => {
+    const fetchSessionId = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase || !table.id) return;
+      const { data } = await supabase
+        .from('game_sessions')
+        .select('id')
+        .eq('table_id', table.id)
+        .maybeSingle();
+      if (data?.id) {
+        setSessionId(data.id);
+      }
+    };
+    fetchSessionId();
+  }, [table.id]);
 
   // Sincronizar temporizador server-authoritative
   useEffect(() => {
@@ -138,7 +172,31 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   }, [currentUserId]);
 
-  // Suscripción Realtime a game_sessions para balotas e inicio de sorteo
+  // Sorteo automático - EXCLUSIVO PARA EL HOST (ANFITRIÓN)
+  useEffect(() => {
+    if (!isHost || !isAutoDrawing || !sessionId || bingoState.winnerUserId || bingoState.status === 'finished') {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const { RngService } = await import('../../../services/rng/RngService');
+        const res = await RngService.drawBingoBallSecure(sessionId);
+        if (!res.success) {
+          console.warn('[BingoGame] Sorteo automático finalizado o con error:', res.error);
+          if (res.error?.includes('todas las balotas')) {
+            setIsAutoDrawing(false);
+          }
+        }
+      } catch (err) {
+        console.error('[BingoGame] Error en sorteo automático:', err);
+      }
+    }, drawIntervalMs);
+
+    return () => clearInterval(interval);
+  }, [isAutoDrawing, drawIntervalMs, sessionId, isHost, bingoState.winnerUserId, bingoState.status]);
+
+  // Suscripción Realtime a game_sessions para balotas, inicio de sorteo y fotos de ganadores
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase || !table.id) return;
@@ -164,6 +222,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
                 winnerName: newState.winnerName || 'Jugador Ganador',
                 winnerAvatar: newState.winnerAvatar,
                 prizeBs: newState.winnerPoolBs || 0,
+                winnerPhotoUrl: newState.winnerPhotoUrl, // Sincronización Realtime instantánea de foto!
               });
             }
           }
@@ -206,7 +265,6 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     setClaimError(null);
 
     try {
-      // Buscar ID de sesión asociado a la mesa
       const supabase = getSupabaseClient();
       if (!supabase) return;
 
@@ -216,13 +274,13 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
         .eq('table_id', table.id)
         .maybeSingle();
 
-      const sessionId = session?.id;
-      if (!sessionId) {
+      const sid = session?.id;
+      if (!sid) {
         setClaimError('No se encontró la sesión de juego activa.');
         return;
       }
 
-      const res = await TableRepository.claimBingo(sessionId);
+      const res = await TableRepository.claimBingo(sid);
       if (!res.success) {
         setClaimError(res.error || 'Canto de Bingo no válido.');
         return;
@@ -250,8 +308,140 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
   const isGameOver = Boolean(bingoState.winnerUserId || winnerInfo);
   const isWinner = (winnerInfo?.winnerUserId || bingoState.winnerUserId) === currentUserId;
 
+  // Iniciar cuenta regresiva de 7 segundos si el usuario es el ganador
+  useEffect(() => {
+    if (isGameOver && isWinner && photoCountdown === null && !photoUploaded) {
+      setPhotoCountdown(7);
+    }
+  }, [isGameOver, isWinner]);
+
+  // Loop de cuenta regresiva de 7 segundos
+  useEffect(() => {
+    if (!isGameOver || !isWinner || photoCountdown === null) return;
+    if (photoCountdown === 0) {
+      triggerCameraCapture();
+      setPhotoCountdown(null);
+      return;
+    }
+
+    const t = setTimeout(() => {
+      setPhotoCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearTimeout(t);
+  }, [isGameOver, isWinner, photoCountdown]);
+
+  const triggerCameraCapture = () => {
+    const input = document.getElementById('camera-input') as HTMLInputElement;
+    if (input) {
+      input.click();
+    }
+  };
+
+  // Compresión de imagen y subida a Supabase Storage con registro transaccional
+  const compressAndUploadPhoto = async (file: File) => {
+    if (!sessionId || !currentUserId) return;
+    setIsUploadingPhoto(true);
+    setPhotoError(null);
+
+    try {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 640;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('No se pudo inicializar contexto Canvas.');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            setPhotoError('Fallo en la compresión de fotografía.');
+            setIsUploadingPhoto(false);
+            return;
+          }
+
+          try {
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Servidor no disponible.');
+
+            const filePath = `${table.id}/${currentUserId}/${Date.now()}.jpg`;
+
+            const { data, error } = await supabase.storage
+              .from('bingo-winners')
+              .upload(filePath, blob, {
+                contentType: 'image/jpeg',
+                cacheControl: '3600',
+                upsert: true,
+              });
+
+            if (error) {
+              console.error('[BingoGame] Error al subir foto:', error);
+              throw new Error(error.message || 'Error al guardar archivo en Storage.');
+            }
+
+            const { data: urlData } = supabase.storage
+              .from('bingo-winners')
+              .getPublicUrl(filePath);
+
+            const photoUrl = urlData.publicUrl;
+
+            // Registrar en base de datos de la sesión
+            const dbRes = await TableRepository.registerWinnerPhoto(sessionId, photoUrl);
+            if (!dbRes.success) {
+              throw new Error(dbRes.error || 'Error al asociar foto al ganador.');
+            }
+
+            setUploadedPhotoUrl(photoUrl);
+            setPhotoUploaded(true);
+          } catch (err: any) {
+            setPhotoError(err.message || 'Error al procesar subida.');
+          } finally {
+            setIsUploadingPhoto(false);
+          }
+        }, 'image/jpeg', 0.85);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setPhotoError(err.message || 'Error al abrir archivo.');
+      setIsUploadingPhoto(false);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center p-4 max-w-2xl mx-auto space-y-4">
+      {/* Input de cámara oculto */}
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        id="camera-input"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            compressAndUploadPhoto(file);
+          }
+        }}
+      />
+
       {/* Botón de Salida y Encabezado de la Sala */}
       <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
         <button
@@ -269,6 +459,63 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
           </div>
         </div>
       </div>
+
+      {/* PANEL DE CONTROL PARA EL HOST (ANFITRIÓN) */}
+      {isHost && !isGameOver && (
+        <div id="host-draw-panel" className="w-full bg-slate-950 border-2 border-amber-500/40 rounded-2xl p-4 flex flex-col space-y-3 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Radio className={`w-4 h-4 ${isAutoDrawing ? 'text-red-500 animate-ping' : 'text-slate-500'}`} />
+              <span className="text-xs font-black text-slate-100 uppercase tracking-wider font-mono">
+                Panel de Sorteo del Anfitrión
+              </span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold border border-amber-500/30">
+              Host
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400">Velocidad:</span>
+              <select
+                value={drawIntervalMs}
+                onChange={(e) => setDrawIntervalMs(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg p-1.5 focus:ring-1 focus:ring-amber-500 font-mono focus:outline-none"
+              >
+                <option value={3000}>3 Segundos</option>
+                <option value={5000}>5 Segundos (Recomendado)</option>
+                <option value={7000}>7 Segundos</option>
+                <option value={10000}>10 Segundos</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={isAutoDrawing ? 'danger' : 'primary'}
+                className="font-black text-[11px] py-2 px-4 rounded-xl shadow-md"
+                onClick={() => setIsAutoDrawing(!isAutoDrawing)}
+              >
+                {isAutoDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
+              </Button>
+
+              <Button
+                variant="secondary"
+                disabled={isAutoDrawing}
+                className="font-black text-[11px] py-2 px-4 rounded-xl border border-slate-700 hover:bg-slate-800"
+                onClick={async () => {
+                  const { RngService } = await import('../../../services/rng/RngService');
+                  if (sessionId) {
+                    await RngService.drawBingoBallSecure(sessionId);
+                  }
+                }}
+              >
+                🔮 Extraer 1 Bola
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Comprar Cartones Adicionales si las ventas siguen abiertas */}
       {!isSalesClosed && !isGameOver && (
@@ -325,16 +572,32 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
             <div className="relative inline-block">
-              <div className="w-20 h-20 rounded-full mx-auto border-4 border-amber-400 overflow-hidden shadow-2xl">
-                {winnerInfo.winnerAvatar ? (
+              {/* Contenedor de Foto Real del Ganador o Avatar */}
+              <div className="w-40 h-40 rounded-full mx-auto border-4 border-amber-400 overflow-hidden shadow-2xl bg-slate-950 relative flex items-center justify-center">
+                {winnerInfo.winnerPhotoUrl ? (
+                  <img
+                    src={winnerInfo.winnerPhotoUrl}
+                    alt={winnerInfo.winnerName}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : winnerInfo.winnerAvatar ? (
                   <img src={winnerInfo.winnerAvatar} alt={winnerInfo.winnerName} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-amber-500 flex items-center justify-center text-slate-950 font-black text-2xl">
+                  <div className="w-full h-full bg-slate-900 flex items-center justify-center text-slate-500 font-black text-4xl">
                     🏆
                   </div>
                 )}
+
+                {/* Overlay de Carga */}
+                {isUploadingPhoto && (
+                  <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-amber-400 text-xs space-y-1">
+                    <RefreshCw className="w-6 h-6 animate-spin text-amber-500" />
+                    <span>Guardando foto...</span>
+                  </div>
+                )}
               </div>
-              <div className="absolute -bottom-2 right-0 bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded-full uppercase shadow">
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
                 ¡BINGO!
               </div>
             </div>
@@ -343,12 +606,45 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
               <div className="text-2xl font-black text-amber-400 uppercase tracking-tight">
                 {isWinner ? '¡FELICIDADES! ¡GANASTE!' : '¡TENEMOS UN GANADOR!'}
               </div>
-              <p className="text-sm font-bold text-slate-100">{winnerInfo.winnerName}</p>
+              <p className="text-sm font-extrabold text-slate-100">{winnerInfo.winnerName}</p>
               <p className="text-xs text-slate-400 font-mono">
-                Premio Acreditado: <strong className="text-emerald-400 font-bold">{winnerInfo.prizeBs.toFixed(2)} Bs</strong>
+                Premio Acreditado: <strong className="text-emerald-400 font-black">{winnerInfo.prizeBs.toFixed(2)} Bs</strong>
                 <span className="text-slate-500 ml-1">({BcvRepository.formatUsdCompact(winnerInfo.prizeBs, bcvRate)})</span>
               </p>
             </div>
+
+            {/* Bloque de Captura de Fotografía para el Ganador */}
+            {isWinner && (
+              <div className="border border-slate-800 bg-slate-950/50 rounded-2xl p-4 space-y-3">
+                {photoCountdown !== null && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-amber-300 uppercase tracking-wider animate-pulse">
+                      ¡Prepárate para tu foto de victoria!
+                    </p>
+                    <div className="text-4xl font-black text-amber-400 font-mono">
+                      {photoCountdown}
+                    </div>
+                  </div>
+                )}
+
+                {photoError && (
+                  <p className="text-[11px] text-red-400 font-mono">{photoError}</p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={triggerCameraCapture}
+                    disabled={isUploadingPhoto}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all"
+                  >
+                    📸 TOMAR FOTO DE VICTORIA
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  La foto será visible públicamente en el Historial de Ganadores de Bingo.
+                </p>
+              </div>
+            )}
 
             <Button variant="primary" onClick={onLeave} className="w-full py-3.5 text-slate-950 font-black text-sm">
               Volver al Lobby de Sorteos

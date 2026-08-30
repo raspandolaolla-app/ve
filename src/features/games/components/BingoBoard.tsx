@@ -39,6 +39,111 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const cardCount = Math.max(userCards75.length, userCards80.length, userCards90.length, 1);
   const playerName = (state.playerNames[currentUserId] || 'JUGADOR').toUpperCase();
 
+  const getMissingCount = (): number => {
+    if (variant === '75' && userCards75[activeCardIndex]) {
+      const card = userCards75[activeCardIndex];
+      const isCellMatched = (row: number, col: number): boolean => {
+        if (row === 2 && col === 2) return true; // FREE
+        let val: number | 'FREE' = 0;
+        if (col === 0) val = card.b[row];
+        else if (col === 1) val = card.i[row];
+        else if (col === 2) val = card.n[row];
+        else if (col === 3) val = card.g[row];
+        else if (col === 4) val = card.o[row];
+        return state.drawnBalls.includes(val as number) || card.marked[row][col];
+      };
+
+      let minMissing = 5;
+
+      // Rows
+      for (let r = 0; r < 5; r++) {
+        let missing = 0;
+        for (let c = 0; c < 5; c++) {
+          if (!isCellMatched(r, c)) missing++;
+        }
+        if (missing < minMissing) minMissing = missing;
+      }
+
+      // Cols
+      for (let c = 0; c < 5; c++) {
+        let missing = 0;
+        for (let r = 0; r < 5; r++) {
+          if (!isCellMatched(r, c)) missing++;
+        }
+        if (missing < minMissing) minMissing = missing;
+      }
+
+      // Diag1
+      let d1 = 0;
+      for (let i = 0; i < 5; i++) {
+        if (!isCellMatched(i, i)) d1++;
+      }
+      if (d1 < minMissing) minMissing = d1;
+
+      // Diag2
+      let d2 = 0;
+      for (let i = 0; i < 5; i++) {
+        if (!isCellMatched(i, 4 - i)) d2++;
+      }
+      if (d2 < minMissing) minMissing = d2;
+
+      return minMissing;
+    }
+
+    if (variant === '80' && userCards80[activeCardIndex]) {
+      const card = userCards80[activeCardIndex];
+      let minMissing = 4;
+
+      const isCellMatched = (row: number, col: number): boolean => {
+        const val = card.grid[col]?.[row];
+        if (!val) return false;
+        return state.drawnBalls.includes(val) || (card.marked[row]?.[col] || false);
+      };
+
+      // Rows
+      for (let r = 0; r < 4; r++) {
+        let missing = 0;
+        for (let c = 0; c < 4; c++) {
+          if (!isCellMatched(r, c)) missing++;
+        }
+        if (missing < minMissing) minMissing = missing;
+      }
+
+      // Cols
+      for (let c = 0; c < 4; c++) {
+        let missing = 0;
+        for (let r = 0; r < 4; r++) {
+          if (!isCellMatched(r, c)) missing++;
+        }
+        if (missing < minMissing) minMissing = missing;
+      }
+
+      return minMissing;
+    }
+
+    if (variant === '90' && userCards90[activeCardIndex]) {
+      const card = userCards90[activeCardIndex];
+      let totalNumbers = 0;
+      let totalMatched = 0;
+
+      card.rows.forEach((rowArr, rowIdx) => {
+        rowArr.forEach((val, colIdx) => {
+          if (val !== null) {
+            totalNumbers++;
+            const isMatched = state.drawnBalls.includes(val) || (card.marked[rowIdx]?.[colIdx] || false);
+            if (isMatched) totalMatched++;
+          }
+        });
+      });
+
+      return totalNumbers - totalMatched;
+    }
+
+    return 5;
+  };
+
+  const missingToWin = getMissingCount();
+
   const totalPool = state.totalPoolBs || 0;
   const winnerPool = state.winnerPoolBs || Math.round(totalPool * 0.90 * 100) / 100;
   const systemFee = state.systemFeeBs || Math.round(totalPool * 0.10 * 100) / 100;
@@ -171,9 +276,16 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       {variant === '75' && userCards75[activeCardIndex] && (
         <div id="bingo-card-75" className="w-full max-w-[340px] bg-slate-950 border-2 border-amber-500/40 rounded-2xl p-3 shadow-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-amber-400 uppercase font-mono">
-              Cartón #{activeCardIndex + 1} de {cardCount}
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-bold text-amber-400 uppercase font-mono">
+                Cartón #{activeCardIndex + 1} de {cardCount}
+              </span>
+              {missingToWin === 1 && (
+                <span className="text-[9px] bg-red-600 text-white font-extrabold px-1.5 py-0.5 rounded animate-pulse shadow-sm">
+                  ⚠️ A 1 BALOTA
+                </span>
+              )}
+            </div>
             <span className="text-[10px] text-slate-400 font-mono uppercase">
               BINGO 75
             </span>
@@ -233,9 +345,16 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       {variant === '80' && userCards80[activeCardIndex] && (
         <div id="bingo-card-80" className="w-full max-w-[320px] bg-slate-950 border-2 border-orange-500/40 rounded-2xl p-3 shadow-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-orange-400 uppercase font-mono">
-              Cartón #{activeCardIndex + 1} de {cardCount}
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-bold text-orange-400 uppercase font-mono">
+                Cartón #{activeCardIndex + 1} de {cardCount}
+              </span>
+              {missingToWin === 1 && (
+                <span className="text-[9px] bg-red-600 text-white font-extrabold px-1.5 py-0.5 rounded animate-pulse shadow-sm">
+                  ⚠️ A 1 BALOTA
+                </span>
+              )}
+            </div>
             <span className="text-[10px] text-slate-400 font-mono uppercase">
               BINGO 80 (4x4)
             </span>
@@ -275,9 +394,16 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       {variant === '90' && userCards90[activeCardIndex] && (
         <div id="bingo-card-90" className="w-full bg-slate-950 border-2 border-yellow-500/40 rounded-2xl p-3 shadow-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-yellow-400 uppercase font-mono">
-              Cartón #{activeCardIndex + 1} de {cardCount}
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-bold text-yellow-400 uppercase font-mono">
+                Cartón #{activeCardIndex + 1} de {cardCount}
+              </span>
+              {missingToWin === 1 && (
+                <span className="text-[9px] bg-red-600 text-white font-extrabold px-1.5 py-0.5 rounded animate-pulse shadow-sm">
+                  ⚠️ A 1 BALOTA
+                </span>
+              )}
+            </div>
             <span className="text-[10px] text-slate-400 font-mono uppercase">
               BINGO 90 (15 Números)
             </span>

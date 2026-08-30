@@ -71,11 +71,40 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
     },
   });
 
-  // Cargar Tasa BCV
+  const [bingoWinnersHistory, setBingoWinnersHistory] = useState<any[]>([]);
+
+  const loadBingoWinnersHistory = async () => {
+    const data = await TableRepository.getBingoWinnerHistory();
+    setBingoWinnersHistory(data);
+  };
+
+  // Cargar Tasa BCV y Historial
   useEffect(() => {
     BcvRepository.getBcvRate().then((res) => {
       if (res?.rate) setBcvRate(res.rate);
     });
+    loadBingoWinnersHistory();
+  }, []);
+
+  // Suscripción Realtime para el historial de ganadores de Bingo
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('bingo_winners_history_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bingo_winner_history' },
+        () => {
+          loadBingoWinnersHistory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Cargar/sincronizar mesas automáticas de Bingo
@@ -319,6 +348,79 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* SECCIÓN: HISTORIAL DE GANADORES BINGO LA OLLA */}
+      <div id="bingo-la-olla-history" className="mt-8 pt-6 border-t border-slate-800/60">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-400 animate-pulse" />
+              <h3 className="text-lg font-black text-slate-100 uppercase tracking-wide">
+                🏆 HISTORIAL DE GANADORES “BINGO LA OLLA”
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Fotos, nombres y premios en tiempo real de los últimos 7 días (máx. 100)
+            </p>
+          </div>
+        </div>
+
+        {bingoWinnersHistory.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center text-slate-400 text-xs">
+            <Trophy className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+            No hay ganadores registrados en los últimos 7 días.<br />
+            ¡Sé el primero en reclamar Bingo y tomar tu foto de victoria!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {bingoWinnersHistory.map((w) => (
+              <div
+                key={w.id}
+                className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4 relative overflow-hidden"
+              >
+                {/* Visualizador de la foto o avatar del ganador */}
+                <div className="w-full h-44 rounded-xl bg-slate-950 overflow-hidden relative border border-slate-800">
+                  {w.photoUrl ? (
+                    <img
+                      src={w.photoUrl}
+                      alt={w.winnerName}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-slate-600">
+                      <Trophy className="w-12 h-12 text-slate-800 mb-1 animate-pulse" />
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Foto pendiente</span>
+                    </div>
+                  )}
+                  {/* Badge de Premio en la foto */}
+                  <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-emerald-500/90 text-slate-950 text-xs font-black font-mono shadow-md">
+                    +{w.prizeBs.toFixed(2)} Bs
+                  </div>
+                </div>
+
+                {/* Info del Ganador */}
+                <div className="mt-3 flex flex-col justify-between flex-1">
+                  <div>
+                    <div className="text-sm font-extrabold text-slate-100 truncate uppercase">
+                      {w.winnerName}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      {new Date(w.createdAt).toLocaleDateString('es-VE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

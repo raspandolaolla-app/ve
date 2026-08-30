@@ -10,7 +10,8 @@ export type GameType =
   | 'truco_venezolano' // Truco Venezolano
   | 'bingo'            // Bingo Online
   | 'polla_venezolana' // Polla Venezolana
-  | 'atrapaito';       // Atrapaíto
+  | 'atrapaito'        // Atrapaíto
+  | 'una_olla';        // UNA-OLLA
 
 export type GameMode = '1v1' | '2v2' | '1v3' | '1v4' | 'mass_participation';
 
@@ -404,5 +405,57 @@ export interface AtrapaitoState {
   turnUserId: string;
   turnStartedAt: number;
   turnDeadlineAt: number;
+}
+
+// ------------------------------------------------------------------------------
+// 9. UNA-OLLA (JUEGO DE CARTAS MULTIJUGADOR)
+// ------------------------------------------------------------------------------
+export type UnaOllaColor = 'red' | 'blue' | 'green' | 'yellow';
+export type UnaOllaCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';
+
+export interface UnaOllaCard {
+  id: string; // ID único criptográfico ej: "card_red_7_1"
+  color: UnaOllaColor | 'wild';
+  type: UnaOllaCardType;
+  number?: number; // 0..9
+}
+
+export interface UnaOllaPlayerState {
+  userId: string;
+  name: string;
+  avatarUrl?: string;
+  seat: number;
+  hand: UnaOllaCard[];
+  cardCount: number;
+  lives: number; // 3, 2, 1, 0
+  inactivityCount: number; // 0 (10s), 1 (20s), 2 (30s), 3 (10s final), 4 (ELIMINADO)
+  status: 'active' | 'eliminated' | 'winner';
+  hasCalledUnaOlla: boolean;
+  unaOllaRequired: boolean;
+}
+
+export interface UnaOllaState {
+  players: Record<string, UnaOllaPlayerState>;
+  playerOrder: string[]; // userIds en orden de asiento
+  currentTurnUserId: string;
+  direction: 1 | -1; // 1 = sentido horario, -1 = antihorario
+  topCard: UnaOllaCard;
+  currentColor: UnaOllaColor;
+  drawPileCount: number;
+  discardPile: UnaOllaCard[];
+  turnStartedAt: number;
+  turnDeadlineAt: number;
+  lives: Record<string, number>;
+  inactivityStaircase: Record<string, number>;
+  unaOllaCalls: Record<string, number>;
+  status: 'WAITING' | 'READY' | 'STARTING' | 'PLAYING' | 'ROUND_FINISHED' | 'GAME_FINISHED' | 'CANCELLED';
+  winnerUserId: string | null;
+  roundWinnerUserId: string | null;
+  lastActionLog: string | null;
+  activeEffects?: {
+    pendingDraws?: number;
+    skipNext?: boolean;
+    colorChosen?: UnaOllaColor;
+  };
 }
 

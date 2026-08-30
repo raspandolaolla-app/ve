@@ -274,19 +274,59 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
-  if (lower.includes('seat_taken') || lower.includes('table_full') || lower.includes('asiento ocupado') || lower.includes('mesa llena')) {
+  if (lower.includes('code_not_found') || lower.includes('código de trancaíto no encontrado')) {
+    return {
+      category: 'NOT_FOUND',
+      userMessage: 'Código de Trancaíto no encontrado.',
+      safeCode: 'CODE_NOT_FOUND',
+    };
+  }
+
+  if (lower.includes('empty_code') || lower.includes('introduce el código')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Introduce el código de la mesa.',
+      safeCode: 'EMPTY_CODE',
+    };
+  }
+
+  if (lower.includes('table_full') || lower.includes('esta mesa ya está completa')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Esta mesa ya está completa.',
+      safeCode: 'TABLE_FULL',
+    };
+  }
+
+  if (lower.includes('game_already_started') || lower.includes('esta partida ya comenzó')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Esta partida ya comenzó y no acepta nuevos jugadores.',
+      safeCode: 'GAME_ALREADY_STARTED',
+    };
+  }
+
+  if (lower.includes('already_joined') || lower.includes('already_in_table') || lower.includes('ya estás dentro de esta mesa')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Ya estás dentro de esta mesa.',
+      safeCode: 'ALREADY_JOINED',
+    };
+  }
+
+  if (lower.includes('table_closed') || lower.includes('esta mesa ya no está disponible')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Esta mesa ya no está disponible.',
+      safeCode: 'TABLE_CLOSED',
+    };
+  }
+
+  if (lower.includes('seat_taken') || lower.includes('asiento ocupado')) {
     return {
       category: 'INVALID_OPERATION',
       userMessage: 'El asiento seleccionado ya fue ocupado o la mesa alcanzó su capacidad máxima.',
       safeCode: 'SEAT_TAKEN',
-    };
-  }
-
-  if (lower.includes('table_not_waiting') || lower.includes('already_started') || lower.includes('partida en curso')) {
-    return {
-      category: 'INVALID_OPERATION',
-      userMessage: 'La mesa ya ha iniciado su partida o no está disponible.',
-      safeCode: 'TABLE_ALREADY_STARTED',
     };
   }
 

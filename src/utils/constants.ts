@@ -131,6 +131,17 @@ export const SUPPORTED_GAMES_METADATA: readonly GameMetadata[] = [
     maxEntryFee: 5000,
     isActive: true,
   },
+  {
+    id: 'una_olla',
+    name: 'UNA-OLLA',
+    shortDescription: 'Juego de cartas multijugador por turnos con colores, números, cartas especiales y botón UNA-OLLA.',
+    minPlayers: 2,
+    maxPlayers: 4,
+    allowedModes: ['1v1', '1v3', '1v4'],
+    minEntryFee: 25,
+    maxEntryFee: 5000,
+    isActive: true,
+  },
 ] as const;
 
 // Sorteos Diarios Globales Permanentes (Sin Mesa, Sin Creador, Sin Matchmaking)

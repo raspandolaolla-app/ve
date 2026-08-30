@@ -107,6 +107,9 @@ export function getGameDisplayName(gameType?: string | null): string {
   if (clean === 'polla_venezolana' || clean === 'polla') {
     return 'Polla Venezolana';
   }
+  if (clean === 'una_olla' || clean === 'una_olla_card_game' || clean === 'una-olla') {
+    return 'UNA-OLLA';
+  }
 
   return gameType.replace(/_/g, ' ');
 }

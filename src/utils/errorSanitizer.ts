@@ -391,6 +391,40 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
+  // 10.5 Mapeos específicos de sesiones de juego (Fase 6)
+  if (code === '22p02' || lower.includes('22p02') || lower.includes('session_status_enum') || lower.includes('invalid input value for enum')) {
+    console.error('[DATABASE_CONFIG_ERROR] Error de configuración de sesión de base de datos:', rawMsg);
+    return {
+      category: 'UNKNOWN_ERROR',
+      userMessage: 'Error de configuración de sesión.',
+      safeCode: 'SESSION_CONFIG_ERROR',
+    };
+  }
+
+  if (lower.includes('session already started') || lower.includes('partida ya está iniciada') || lower.includes('ya comenzó') || lower.includes('session_already_started') || lower.includes('only_host_can_start')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'La partida ya está iniciada. Sincronizando con la mesa...',
+      safeCode: 'SESSION_ALREADY_STARTED',
+    };
+  }
+
+  if (lower.includes('session_not_found') || lower.includes('sesión no encontrada') || lower.includes('no se encontró la sesión') || lower.includes('table_not_found')) {
+    return {
+      category: 'NOT_FOUND',
+      userMessage: 'No se encontró la sesión de esta mesa.',
+      safeCode: 'SESSION_NOT_FOUND',
+    };
+  }
+
+  if (lower.includes('conexión perdida') || lower.includes('connection lost') || lower.includes('websocket') || lower.includes('disconnected')) {
+    return {
+      category: 'NETWORK_ERROR',
+      userMessage: 'Conexión perdida. Intentando reconectar...',
+      safeCode: 'CONNECTION_LOST',
+    };
+  }
+
   // 11. Errores de servidor, de esquema y no clasificados (42703, 42P01, PGRST204, PGRST205, 500, 502, 503)
   // NOTA: NUNCA mostrar "El sistema se está actualizando" para estos errores técnicos.
   return {

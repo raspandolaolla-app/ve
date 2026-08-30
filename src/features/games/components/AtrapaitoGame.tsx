@@ -198,24 +198,24 @@ export function AtrapaitoGame({
   const estimatedPrize = table.entryFee * table.maxPlayers * (FINANCIAL_RULES.WINNER_PERCENT / 100);
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 max-w-4xl mx-auto space-y-6">
+    <div className="flex flex-col items-center justify-center p-4 max-w-4xl mx-auto space-y-6 w-full rounded-3xl bg-gradient-to-br from-[#0c0316] via-[#140828] to-[#06010d] text-white border border-purple-500/10 p-6 shadow-2xl">
       {/* Header Info */}
-      <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+      <div className="w-full bg-[#170a2d]/50 backdrop-blur-md border border-purple-500/10 rounded-3xl p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-100">Atrapaíto Criollo</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-black text-white">Atrapaíto Criollo</h2>
+              <p className="text-xs text-purple-300">
                 Pozo: <strong className="text-emerald-400 font-mono">{formatBolivares(estimatedPrize)}</strong> (90%)
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-950 border border-slate-800 text-amber-400 font-mono font-bold text-sm">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#090114] border border-purple-500/10 text-amber-400 font-mono font-bold text-sm">
               <Timer className="w-4 h-4 text-amber-400" />
               <span>{state.timeLeft}s</span>
             </div>
@@ -230,9 +230,9 @@ export function AtrapaitoGame({
         </div>
 
         {/* Marcador en vivo */}
-        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+        <div className="mt-4 pt-3 border-t border-purple-500/10 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Tu Puntaje:</span>
+            <span className="text-purple-300">Tu Puntaje:</span>
             <span className="font-mono font-bold text-emerald-400 text-sm">{myScore} pts</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
               Combo x{combo}
@@ -241,7 +241,7 @@ export function AtrapaitoGame({
 
           <div className="flex items-center gap-3">
             {players.map((p) => (
-              <div key={p.userId} className="font-mono text-slate-300 text-[11px]">
+              <div key={p.userId} className="font-mono text-purple-200 text-[11px]">
                 {p.displayName}: <strong className="text-amber-400">{state.scores?.[p.userId] || 0}</strong>
               </div>
             ))}
@@ -250,14 +250,14 @@ export function AtrapaitoGame({
       </div>
 
       {/* Arena de Reflejos */}
-      <div className="w-full h-[380px] bg-slate-950 border-4 border-slate-800 rounded-3xl relative overflow-hidden shadow-2xl select-none">
+      <div className="w-full h-[380px] bg-[#090114] border-4 border-purple-950 rounded-3xl relative overflow-hidden shadow-2xl select-none">
         {!state.isRunning && !isGameOver ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-slate-950/90 z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#090114]/90 z-10">
             <div className="p-4 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
               <Coins className="w-10 h-10 animate-bounce" />
             </div>
-            <h3 className="text-base font-bold text-slate-100">Prepárate para atrapar tokens criollos</h3>
-            <p className="text-xs text-slate-400 max-w-sm">
+            <h3 className="text-base font-bold text-white">Prepárate para atrapar tokens criollos</h3>
+            <p className="text-xs text-purple-300 max-w-sm">
               Haz clic o pulsa rápidamente las monedas y fichas que aparezcan en pantalla para sumar puntos antes de que acabe el tiempo.
             </p>
           </div>
@@ -284,26 +284,26 @@ export function AtrapaitoGame({
 
       {/* Overlay de Resultado */}
       {isGameOver && (
-        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className="w-full bg-[#170a2d]/50 backdrop-blur-md border border-purple-500/10 rounded-3xl p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
           {state.isTie ? (
             <div>
               <div className="text-3xl font-black text-amber-400 mb-1">¡EMPATE EN PUNTOS!</div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-purple-300">
                 Ambos participantes obtuvieron la misma puntuación. Reembolso del 100%.
               </p>
             </div>
           ) : isWinner ? (
             <div>
               <div className="text-3xl font-black text-emerald-400 mb-1">¡MÁXIMO PUNTAJE! 🏆</div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-purple-300">
                 Has ganado con {myScore} puntos y te llevas:{' '}
                 <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
               </p>
             </div>
           ) : (
             <div>
-              <div className="text-3xl font-black text-slate-300 mb-1">RONDA FINALIZADA</div>
-              <p className="text-xs text-slate-400">Otro participante acumuló más puntos de reflejos.</p>
+              <div className="text-3xl font-black text-purple-300 mb-1">RONDA FINALIZADA</div>
+              <p className="text-xs text-purple-400">Otro participante acumuló más puntos de reflejos.</p>
             </div>
           )}
 

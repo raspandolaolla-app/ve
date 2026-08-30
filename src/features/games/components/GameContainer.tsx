@@ -429,7 +429,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
           if (result.isDraw) {
             // Empate oficial -> Refund RPC
-            const idempotencyKey = `refund_${session.id}_${Date.now()}`;
+            const idempotencyKey = `refund_${session.id}`;
             await GameRepository.refundSession(
               session.id,
               'Empate oficial en partida',
@@ -448,7 +448,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
           } else if (result.winnerUserId) {
             // Victoria oficial -> Settle RPC
-            const idempotencyKey = `settle_${session.id}_${Date.now()}`;
+            const idempotencyKey = `settle_${session.id}_${result.winnerUserId}`;
             const settlement = await GameRepository.settleSession(
               session.id,
               [result.winnerUserId],
@@ -572,14 +572,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             currentUserId={currentUserId}
             turnExpiresAt={session?.turnExpiresAt}
             sessionId={session?.id}
-            table={table}
-            players={currentPlayers}
-            realtimeStatus={realtimeStatus}
-            onlineUsers={onlineUsers}
-            onExit={onExit}
-            onPlayAgain={onPlayAgain}
             onRollDice={() => handleGameAction('ROLL_DICE', {})}
             onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
+            players={currentPlayers}
           />
         );
 
@@ -706,10 +701,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 const score2 = gameState.scores[pIds[1]] || 0;
                 return `Marcador Final: ${name1} [${score1}] - [${score2}] ${name2}`;
               }
-            }
-            if (table.gameType === 'atrapaito') {
-              const winnerName = settlementResult?.winnerName || gameState?.playerNames?.[gameState?.winnerUserId || ''] || 'Ganador';
-              return `¡Todas las fichas en la META! • Ganador: ${winnerName.toUpperCase()}`;
             }
             return undefined;
           })()}

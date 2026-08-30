@@ -16,6 +16,7 @@ import { BingoGame } from './components/BingoGame';
 import { PollaGame } from './components/PollaGame';
 import { AtrapaitoGame } from './components/AtrapaitoGame';
 import { UnaOllaGame } from './components/UnaOllaGame';
+import { ChessGame } from './components/ChessGame';
 import { ArrowLeft, Users, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 
@@ -116,6 +117,16 @@ export function GameArena({
         case 'olla':
           return (
             <UnaOllaGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'chess':
+        case 'ajedrez':
+          return (
+            <ChessGame
               table={table}
               players={players}
               currentUserId={currentUserId}

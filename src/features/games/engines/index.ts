@@ -13,6 +13,7 @@ import { BingoEngine } from './BingoEngine';
 import { PollaEngine } from './PollaEngine';
 import { AtrapaitoEngine } from './AtrapaitoEngine';
 import { UnaOllaEngine } from './UnaOllaEngine';
+import { ChessEngine } from './ChessEngine';
 
 export * from './GameEngine';
 export * from './TicTacToeEngine';
@@ -24,6 +25,7 @@ export * from './BingoEngine';
 export * from './PollaEngine';
 export * from './AtrapaitoEngine';
 export * from './UnaOllaEngine';
+export * from './ChessEngine';
 
 export function getGameEngine(gameType: GameType | string): IGameEngine<any> {
   const clean = (gameType || '').toLowerCase().trim();
@@ -48,6 +50,9 @@ export function getGameEngine(gameType: GameType | string): IGameEngine<any> {
       return new PollaEngine();
     case 'atrapaito':
       return new AtrapaitoEngine();
+    case 'chess':
+    case 'ajedrez':
+      return new ChessEngine();
     default:
       throw new Error(`Motor de juego no soportado: ${gameType}`);
   }

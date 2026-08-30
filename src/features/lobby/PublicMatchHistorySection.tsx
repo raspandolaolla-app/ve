@@ -100,6 +100,7 @@ export const PublicMatchHistorySection: React.FC = () => {
       case 'bingo': return 'Bingo Criollo';
       case 'polla_venezolana': return 'Polla Deportiva';
       case 'atrapaito': return 'Atrapaíto';
+      case 'una_olla': return 'UNA-OLLA';
       default: return type.replace(/_/g, ' ');
     }
   };

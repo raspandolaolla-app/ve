@@ -132,5 +132,47 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.start_game_session_secure(UUID) TO authenticated, service_role, anon;
 
+-- ==============================================================================
+-- DIAGNÓSTICOS DE ENUMS PARA LAS PRUEBAS
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_game_type_enum_values()
+RETURNS text[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_values text[];
+BEGIN
+  SELECT COALESCE(array_agg(enumlabel::text), '{}'::text[]) INTO v_values
+  FROM pg_enum
+  WHERE enumtypid = 'game_type_enum'::regtype;
+  
+  RETURN v_values;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_game_type_enum_values() TO authenticated, service_role, anon;
+
+CREATE OR REPLACE FUNCTION public.get_supported_game_types()
+RETURNS text[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_values text[];
+BEGIN
+  SELECT COALESCE(array_agg(enumlabel::text), '{}'::text[]) INTO v_values
+  FROM pg_enum
+  WHERE enumtypid = 'game_type_enum'::regtype;
+  
+  RETURN v_values;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_supported_game_types() TO authenticated, service_role, anon;
+
 -- Notificar a PostgREST para actualizar el cache del esquema
 NOTIFY pgrst, 'reload schema';

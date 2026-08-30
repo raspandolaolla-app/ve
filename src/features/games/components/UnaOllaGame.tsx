@@ -239,6 +239,9 @@ export function UnaOllaGame({
     setTimeout(() => setActionNotice(null), 3000);
   };
 
+  // Estado de modal de reglas
+  const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
+
   // Asignar asientos relativos a la mesa (Bottom, Top, Left, Right)
   const totalPlayersCount = players.length;
   const myPlayerIndex = Math.max(0, players.findIndex((p) => p.userId === currentUserId));
@@ -254,53 +257,110 @@ export function UnaOllaGame({
   const leftPlayer = totalPlayersCount >= 3 ? getPlayerAtRelativeSeat(1) : null;
   const rightPlayer = totalPlayersCount === 4 ? getPlayerAtRelativeSeat(3) : null;
 
+  // Componente interno para renderizar pila de cartas 3D boca abajo con sombra
+  const CardPileBack = ({ count, glowColor }: { count: number; glowColor?: string }) => {
+    const cards = Array.from({ length: Math.min(3, count) });
+    return (
+      <div className={`relative w-11 h-16 sm:w-14 sm:h-20 transition-all duration-300 ${glowColor ? 'drop-shadow-[0_0_12px_rgba(34,197,94,0.7)]' : ''}`}>
+        {cards.map((_, idx) => (
+          <div
+            key={idx}
+            className="absolute border border-slate-100/90 rounded-lg bg-gradient-to-br from-blue-700 via-blue-800 to-blue-950 shadow-md"
+            style={{
+              width: '100%',
+              height: '100%',
+              top: `-${idx * 2}px`,
+              left: `${idx * 1.5}px`,
+              zIndex: idx,
+              boxShadow: '0 4px 8px rgba(0,0,0,0.5), inset 0 1.5px 3px rgba(255, 255, 255, 0.25)',
+            }}
+          >
+            {/* Elipse Central mini */}
+            <div className="absolute inset-[15%] bg-gradient-to-br from-orange-500 to-red-600 rounded-[50%/60%] border border-amber-400/40 flex items-center justify-center transform -rotate-12">
+              <span className="text-[6px] font-black text-white scale-[0.8] leading-none">UO</span>
+            </div>
+          </div>
+        ))}
+        {count > 0 && (
+          <div className="absolute -bottom-2 -right-2 bg-slate-950 border border-slate-800 text-amber-400 text-[9px] font-black font-mono rounded-full px-1.5 py-0.5 z-20 shadow">
+            {count}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Renderizador de caja de jugador (Avatar, Vidas, Cartas, Turno)
   const renderPlayerBox = (
     playerObj: TablePlayer | null,
-    position: 'TOP' | 'LEFT' | 'RIGHT' | 'BOTTOM'
+    corner: 'BOTTOM_LEFT' | 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_RIGHT'
   ) => {
-    if (!playerObj) return <div className="w-28 h-20 border border-slate-800/40 rounded-2xl bg-slate-950/20" />;
+    const actualUser = playerObj;
+    const pState = actualUser ? state.players?.[actualUser.userId] : undefined;
+    const isCurrentTurn = actualUser ? (activeTurnUser === actualUser.userId) : false;
+    const isMe = corner === 'BOTTOM_LEFT';
+    const isEliminated = pState ? (pState.status === 'eliminated') : false;
+    const cardCount = pState ? pState.cardCount : 6;
+    const lives = pState ? pState.lives : 3;
+    const hasCalled = pState ? pState.hasCalledUnaOlla : false;
+    const canBeChallenged = actualUser && cardCount === 1 && !hasCalled && !isMe && isPlaying;
 
-    const pState = state.players?.[playerObj.userId];
-    const isCurrentTurn = activeTurnUser === playerObj.userId;
-    const isMe = playerObj.userId === currentUserId;
-    const isEliminated = pState?.status === 'eliminated';
-    const cardCount = pState?.cardCount ?? 7;
-    const lives = pState?.lives ?? 3;
-    const hasCalled = pState?.hasCalledUnaOlla;
-    const canBeChallenged = cardCount === 1 && !hasCalled && !isMe && isPlaying;
+    const profile = {
+      BOTTOM_LEFT: {
+        name: 'Gust',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+      },
+      TOP_LEFT: {
+        name: 'Tanuja',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+      },
+      TOP_RIGHT: {
+        name: 'Harsh',
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
+      },
+      BOTTOM_RIGHT: {
+        name: 'Shubho',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
+      }
+    }[corner];
 
     return (
       <div
-        className={`relative flex flex-col items-center p-2.5 rounded-2xl border transition-all duration-300 backdrop-blur-md shadow-xl ${
+        className={`relative flex flex-col items-center p-3 rounded-2xl border transition-all duration-300 backdrop-blur-md shadow-xl ${
           isCurrentTurn
-            ? 'bg-gradient-to-b from-amber-500/20 via-slate-900/90 to-slate-950 border-amber-400 ring-2 ring-amber-400/50 shadow-amber-500/20 scale-105 z-20'
+            ? 'bg-gradient-to-b from-amber-500/10 via-slate-900/95 to-slate-950 border-amber-400 ring-2 ring-amber-400/40 shadow-amber-500/25 scale-105 z-20'
             : isEliminated
             ? 'bg-slate-950/80 border-red-900/40 opacity-50 grayscale'
-            : 'bg-slate-900/80 border-slate-800'
-        }`}
+            : 'bg-slate-900/90 border-slate-800'
+        } ${corner === 'TOP_RIGHT' ? 'shadow-[0_0_20px_rgba(16,185,129,0.15)]' : ''}`}
       >
+        {/* Glow halo verde sobre la pila para Harsh (Top-Right) */}
+        {corner === 'TOP_RIGHT' && isPlaying && (
+          <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-2xl animate-pulse pointer-events-none shadow-[inset_0_0_12px_rgba(16,185,129,0.3)]" />
+        )}
+
         {/* Indicador de Turno */}
         {isCurrentTurn && isPlaying && (
-          <div className="absolute -top-3 px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-md animate-bounce">
+          <div className="absolute -top-3 px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow-md animate-bounce">
             {isMe ? '¡TU TURNO!' : 'JUGANDO'}
           </div>
         )}
 
         {/* Indicador de UNA-OLLA gritado */}
         {hasCalled && (
-          <div className="absolute -top-3 right-0 px-2 py-0.5 rounded-full bg-red-600 text-amber-300 text-[9px] font-black uppercase tracking-wider shadow-md animate-pulse">
+          <div className="absolute -top-3 right-0 px-2 py-0.5 rounded-full bg-red-600 text-amber-300 text-[8px] font-black uppercase tracking-wider shadow-md animate-pulse">
             🔥 UNA-OLLA
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          {/* Avatar del Jugador */}
+          {/* Avatar del Jugador fotorrealista */}
           <div className="relative">
             <img
-              src={playerObj.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
-              alt={playerObj.displayName}
-              className={`w-10 h-10 rounded-full object-cover border-2 shadow-inner ${
+              src={profile.avatar}
+              alt={profile.name}
+              referrerPolicy="no-referrer"
+              className={`w-11 h-11 rounded-full object-cover border-2 shadow-inner ${
                 isCurrentTurn ? 'border-amber-400' : 'border-slate-700'
               }`}
             />
@@ -311,20 +371,21 @@ export function UnaOllaGame({
             )}
           </div>
 
-          <div className="text-left">
+          <div className="text-left min-w-[70px]">
+            {/* Nombre del jugador en ROJO */}
             <div className="flex items-center gap-1">
-              <span className="text-xs font-bold text-slate-100 truncate max-w-[90px]">
-                {playerObj.displayName}
+              <span className="text-xs font-black text-red-500 tracking-wide uppercase font-serif truncate max-w-[85px]">
+                {profile.name}
               </span>
               {isMe && <span className="text-[9px] text-amber-400 font-mono">(Tú)</span>}
             </div>
 
             {/* Vidas ❤️❤️❤️ */}
-            <div className="flex items-center gap-0.5 mt-0.5" title={`${lives} vidas restantes`}>
+            <div className="flex items-center gap-0.5 mt-1" title={`${lives} vidas restantes`}>
               {[1, 2, 3].map((lvl) => (
                 <span
                   key={lvl}
-                  className={`text-xs transition-transform ${lvl <= lives ? 'scale-100' : 'opacity-20 scale-75'}`}
+                  className={`text-[10px] transition-transform ${lvl <= lives ? 'scale-100' : 'opacity-20 scale-75'}`}
                 >
                   ❤️
                 </span>
@@ -333,24 +394,21 @@ export function UnaOllaGame({
           </div>
         </div>
 
-        {/* Contador y Pilas de Cartas (Para Oponentes) */}
+        {/* Contador y Pilas de Cartas boca abajo para Oponentes */}
         {!isMe && (
-          <div className="mt-2 flex items-center gap-1.5 pt-1 border-t border-slate-800/80 w-full justify-between">
-            <div className="flex items-center gap-1 text-[11px] font-mono text-amber-300 font-bold">
-              <span>🎴</span>
-              <span>{cardCount} {cardCount === 1 ? 'carta' : 'cartas'}</span>
-            </div>
+          <div className="mt-3 flex flex-col items-center gap-2 pt-2 border-t border-slate-800/80 w-full">
+            <CardPileBack count={cardCount} glowColor={corner === 'TOP_RIGHT' ? 'rgba(16,185,129,0.5)' : undefined} />
 
-            {/* Botón de Desafío de Penalización (+2) */}
+            {/* Botón de Desafío de Penalización */}
             {canBeChallenged && (
               <button
                 type="button"
-                onClick={() => handleChallengeUnaOlla(playerObj.userId)}
-                className="text-[9px] font-black bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded-full border border-red-400 shadow animate-pulse cursor-pointer flex items-center gap-1"
-                title="Desafiar por no cantar UNA-OLLA (+2 cartas)"
+                onClick={() => actualUser && handleChallengeUnaOlla(actualUser.userId)}
+                className="mt-1 text-[8px] font-black bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded-full border border-red-400 shadow animate-pulse cursor-pointer flex items-center gap-1"
+                title="Desafiar por no cantar UNA-OLLA"
               >
                 <AlertTriangle className="w-2.5 h-2.5" />
-                <span>DESAFÍAR</span>
+                <span>DESAFIAR</span>
               </button>
             )}
           </div>
@@ -375,165 +433,247 @@ export function UnaOllaGame({
         </div>
       )}
 
-      {/* MESA ESTILO 3D (FIELTRO VERDE Y BORDE DE DEPTHTH) */}
-      <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] min-h-[420px] sm:min-h-[500px] rounded-[40px] border-8 border-slate-900 shadow-2xl overflow-hidden bg-gradient-to-b from-emerald-900 via-emerald-800 to-emerald-950 p-4 flex flex-col justify-between">
-        {/* Textura y Relevo Fieltro Verde */}
-        <div
-          className="absolute inset-0 opacity-15 pointer-events-none"
-          style={{
-            backgroundImage: `radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3) 1px, transparent 1px)`,
-            backgroundSize: '16px 16px',
-          }}
-        />
+      {/* MESA ESTILO FOTORREALISTA DE MADERA OSCURA Y DAMASCO */}
+      <div
+        className="relative w-full aspect-[16/10] min-h-[500px] rounded-[48px] border-[14px] border-[#3a2012] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] overflow-hidden bg-gradient-to-br from-[#22120b] via-[#140b06] to-[#0a0503] p-6 flex flex-col justify-between"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.9) 100%),
+            repeating-linear-gradient(45deg, rgba(212, 175, 55, 0.015) 0px, rgba(212, 175, 55, 0.015) 1px, transparent 1px, transparent 30px),
+            repeating-linear-gradient(-45deg, rgba(212, 175, 55, 0.015) 0px, rgba(212, 175, 55, 0.015) 1px, transparent 1px, transparent 30px)
+          `,
+        }}
+      >
+        {/* Luces Ambientales (Spotlights) en el centro y la mano */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.12),transparent_45%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_85%,rgba(245,158,11,0.08),transparent_35%)] pointer-events-none" />
 
         {/* LOGO CENTRAL EN RELIEVE: UNA-OLLA */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-20">
-          <div className="w-64 h-32 rounded-full border-4 border-amber-400/40 flex items-center justify-center transform -rotate-12">
-            <h1 className="text-4xl sm:text-6xl font-black text-amber-300 tracking-tighter uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)]">
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-[0.08]">
+          <div className="w-80 h-40 rounded-full border-4 border-amber-400/40 flex items-center justify-center transform -rotate-12">
+            <h1 className="text-5xl sm:text-7xl font-black text-amber-300 tracking-tighter uppercase font-serif">
               UNA-OLLA
             </h1>
           </div>
         </div>
 
-        {/* JUGADOR SUPERIOR (TOP) */}
-        <div className="flex justify-center z-10">
-          {renderPlayerBox(topPlayer, 'TOP')}
+        {/* INTERFAZ PERIFÉRICA: BOTONES DE INFORMACIÓN ('i') Y MENÚ (TRES LÍNEAS) EN CÍRCULOS BLANCOS */}
+        <div className="absolute top-4 left-4 z-30">
+          <button
+            type="button"
+            onClick={() => setShowRulesModal(true)}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-neutral-100 text-slate-800 shadow-xl flex items-center justify-center font-bold text-base sm:text-lg border border-neutral-200 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+            title="Información"
+          >
+            i
+          </button>
         </div>
 
-        {/* CENTRO: JUGADOR IZQUIERDO, ZONA CENTRAL (MAZO Y DESCARTE), JUGADOR DERECHO */}
-        <div className="flex items-center justify-between gap-2 z-10 px-2 sm:px-8">
-          {/* Jugador Izquierdo */}
-          <div className="w-32">{renderPlayerBox(leftPlayer, 'LEFT')}</div>
+        <div className="absolute top-4 right-4 z-30">
+          <button
+            type="button"
+            onClick={onLeave}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-neutral-100 text-slate-800 shadow-xl flex items-center justify-center font-bold text-lg border border-neutral-200 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+            title="Volver al Lobby"
+          >
+            <div className="flex flex-col space-y-1 w-3.5 sm:w-4 items-center">
+              <div className="w-3.5 sm:w-4 h-0.5 bg-slate-800 rounded"></div>
+              <div className="w-3.5 sm:w-4 h-0.5 bg-slate-800 rounded"></div>
+              <div className="w-3.5 sm:w-4 h-0.5 bg-slate-800 rounded"></div>
+            </div>
+          </button>
+        </div>
 
-          {/* ZONA CENTRAL: MAZO Y PILA DE DESCARTE */}
-          <div className="flex flex-col items-center gap-3 bg-slate-950/60 p-4 rounded-3xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
-            {/* Indicador de Color Activo y Dirección */}
-            <div className="flex items-center gap-3 text-xs font-bold text-slate-200">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700">
-                <span>Color:</span>
-                <span
-                  className={`w-3.5 h-3.5 rounded-full border border-white shadow ${
-                    state.currentColor === 'red'
-                      ? 'bg-red-600'
-                      : state.currentColor === 'blue'
-                      ? 'bg-blue-600'
-                      : state.currentColor === 'green'
-                      ? 'bg-emerald-600'
-                      : 'bg-amber-400'
-                  }`}
-                />
-              </div>
+        {/* FILA SUPERIOR: TANUJA Y HARSH */}
+        <div className="flex items-start justify-between z-10 w-full">
+          {/* Tanuja (Arriba a la Izquierda) */}
+          {renderPlayerBox(leftPlayer, 'TOP_LEFT')}
 
-              <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-slate-900 border border-slate-700 font-mono text-amber-300">
-                <span className={`transform transition-transform ${state.direction === 1 ? 'rotate-0' : 'rotate-180'}`}>
-                  🔄
-                </span>
-                <span>{state.direction === 1 ? 'Horario' : 'Antihorario'}</span>
-              </div>
+          {/* Harsh (Arriba a la Derecha) con halo verde */}
+          {renderPlayerBox(topPlayer, 'TOP_RIGHT')}
+        </div>
+
+        {/* CENTRO: MAZO Y PILA DE DESCARTE CON HALO AZUL */}
+        <div className="flex flex-col items-center gap-2 bg-slate-950/40 p-3 sm:p-4 rounded-[24px] border border-slate-800/60 backdrop-blur-md shadow-2xl self-center">
+          {/* Indicador de Color Activo y Dirección */}
+          <div className="flex items-center gap-3 text-[10px] sm:text-xs font-bold text-slate-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-800">
+              <span>Color:</span>
+              <span
+                className={`w-3 h-3 rounded-full border border-white/60 shadow ${
+                  state.currentColor === 'red'
+                    ? 'bg-red-600'
+                    : state.currentColor === 'blue'
+                    ? 'bg-blue-600'
+                    : state.currentColor === 'green'
+                    ? 'bg-emerald-600'
+                    : 'bg-amber-400'
+                }`}
+              />
             </div>
 
-            {/* Mazo de Robo y Pila de Descarte */}
-            <div className="flex items-center gap-6">
-              {/* Mazo de Robo */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="relative cursor-pointer group" onClick={handleDrawCard}>
-                  <UnaOllaCardComponent isBack size="md" className="group-hover:scale-105 transition-transform" />
-                  <div className="absolute -bottom-2 px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black font-mono shadow">
-                    {state.drawPileCount} cartas
-                  </div>
-                </div>
-                <span className="text-[10px] text-slate-300 font-bold uppercase mt-1">MAZO</span>
-              </div>
-
-              {/* Pila de Descarte */}
-              <div className="flex flex-col items-center gap-1">
-                <UnaOllaCardComponent card={state.topCard} size="md" />
-                <span className="text-[10px] text-slate-300 font-bold uppercase mt-1">DESCARTE</span>
-              </div>
-            </div>
-
-            {/* Cronómetro de Turno Activo */}
-            {isPlaying && (
-              <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400 bg-slate-900/90 px-3.5 py-1 rounded-full border border-amber-500/30">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                <span>Tiempo: {timeLeft}s</span>
-              </div>
-            )}
-          </div>
-
-          {/* Jugador Derecho */}
-          <div className="w-32">{renderPlayerBox(rightPlayer, 'RIGHT')}</div>
-        </div>
-
-        {/* JUGADOR INFERIOR (BOTTOM / USUARIO ACTUAL) */}
-        <div className="flex flex-col items-center gap-2 z-10 w-full">
-          {renderPlayerBox(bottomPlayer, 'BOTTOM')}
-        </div>
-      </div>
-
-      {/* CONTROLES DE MANO PRIVADA DEL JUGADOR ACTUAL */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-2xl space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-            <span>🎴 Tu Mano Privada ({myPlayerState?.hand?.length || 0} cartas):</span>
-            {isMyTurn && isPlaying && (
-              <span className="text-emerald-400 font-bold animate-pulse">
-                ¡Es tu turno de jugar! Haz clic en una carta válida.
+            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-800 font-mono text-amber-300">
+              <span className={`transform transition-transform ${state.direction === 1 ? 'rotate-0' : 'rotate-180'}`}>
+                🔄
               </span>
-            )}
+              <span>{state.direction === 1 ? 'Horario' : 'Antihorario'}</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Botón de Robar Carta */}
-            {isMyTurn && isPlaying && (
-              <Button size="sm" variant="secondary" onClick={handleDrawCard}>
-                Robar Carta del Mazo
-              </Button>
-            )}
-          </div>
-        </div>
+          {/* Mazo de Robo y Pila de Descarte */}
+          <div className="flex items-center gap-6 sm:gap-8 mt-1">
+            {/* Mazo de Robo */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="relative cursor-pointer group" onClick={handleDrawCard}>
+                <UnaOllaCardComponent isBack size="md" className="group-hover:scale-105 transition-transform" />
+                <div className="absolute -bottom-2 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black font-mono shadow">
+                  {state.drawPileCount}
+                </div>
+              </div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 font-mono">MAZO</span>
+            </div>
 
-        {/* Abanico de Cartas Interactivas */}
-        <div className="flex items-center justify-center gap-2 overflow-x-auto p-2 pb-4 scrollbar-thin scrollbar-thumb-slate-700">
-          {myPlayerState?.hand && myPlayerState.hand.length > 0 ? (
-            myPlayerState.hand.map((c) => {
-              const isPlayable = isMyTurn && isPlaying && UnaOllaEngine.canPlayCard(c, state.topCard, state.currentColor);
-              return (
-                <div key={c.id}>
+            {/* Pila de Descarte con Halo Azul, mostrando Azul 8 encima de una Verde */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="relative w-16 h-24 flex items-center justify-center">
+                {/* Carta Verde inferior (rotada ligeramente) */}
+                <div className="absolute transform -rotate-12 translate-y-1 pointer-events-none scale-95 opacity-60">
                   <UnaOllaCardComponent
-                    card={c}
+                    card={{ id: 'under_green_card', color: 'green', type: 'number', number: 4 }}
                     size="md"
-                    isPlayable={isPlayable}
-                    isSelected={selectedCardId === c.id}
-                    onClick={() => handleSelectCard(c)}
                   />
                 </div>
-              );
-            })
-          ) : (
-            <div className="text-xs text-slate-400 py-4 font-mono">
-              Esperando el inicio de la partida para recibir tus cartas...
+                {/* Azul 8 superior (rotada un poco para fotorrealismo) */}
+                <div className="absolute transform rotate-6 drop-shadow-[0_0_15px_rgba(59,130,246,0.85)]">
+                  <UnaOllaCardComponent card={state.topCard} size="md" />
+                </div>
+              </div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 font-mono">DESCARTE</span>
+            </div>
+          </div>
+
+          {/* Cronómetro de Turno Activo */}
+          {isPlaying && (
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-mono font-bold text-amber-400 bg-slate-900/90 px-3 py-0.5 rounded-full border border-amber-500/20 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              <span>Tiempo: {timeLeft}s</span>
             </div>
           )}
         </div>
+
+        {/* FILA INFERIOR: GUST Y SHUBHO CON LA MANO DE JUEGO INTEGRADA */}
+        <div className="flex items-end justify-between gap-4 z-10 w-full">
+          {/* Gust (Bottom-Left) y mano privada extendiéndose */}
+          <div className="flex items-end gap-3 max-w-[70%]">
+            {renderPlayerBox(bottomPlayer, 'BOTTOM_LEFT')}
+
+            {/* Mano Privada Interactiva de Gust */}
+            <div className="relative flex flex-col gap-1 p-2 rounded-2xl bg-amber-400/[0.02] border border-amber-500/10 shadow-[0_0_30px_rgba(245,158,11,0.04)]">
+              <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-300 px-1 border-b border-slate-800/50 pb-0.5">
+                <span>🎴 Tu Mano Privada ({myPlayerState?.hand?.length || 0}):</span>
+                {isMyTurn && isPlaying && (
+                  <span className="text-emerald-400 font-black animate-pulse">¡Tu turno! Haz clic.</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto p-1 max-w-[200px] sm:max-w-[320px] md:max-w-[420px] scrollbar-thin scrollbar-thumb-slate-800">
+                {myPlayerState?.hand && myPlayerState.hand.length > 0 ? (
+                  myPlayerState.hand.map((c) => {
+                    const isPlayable = isMyTurn && isPlaying && UnaOllaEngine.canPlayCard(c, state.topCard, state.currentColor);
+                    return (
+                      <div key={c.id} className="transition-transform duration-200">
+                        <UnaOllaCardComponent
+                          card={c}
+                          size="sm"
+                          isPlayable={isPlayable}
+                          isSelected={selectedCardId === c.id}
+                          onClick={() => handleSelectCard(c)}
+                        />
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-[9px] text-slate-400 py-3 px-2 font-mono">
+                    Esperando inicio de partida...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Botón Ovalado Una-Olla y Shubho (Bottom-Right) */}
+          <div className="flex items-center gap-3">
+            {/* Botón Ovalado Una-Olla */}
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCallUnaOlla}
+                disabled={!isPlaying || !myPlayerState}
+                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-full bg-gradient-to-r from-orange-500 via-red-600 to-red-800 border border-amber-400 text-white font-black text-[11px] sm:text-xs uppercase tracking-wider shadow-[0_6px_16px_rgba(220,38,38,0.4),inset_0_1.5px_3px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Una-Olla
+              </button>
+              <span className="text-[8px] text-slate-400 uppercase tracking-widest font-mono font-bold">Botón</span>
+            </div>
+
+            {/* Shubho (Abajo a la derecha) */}
+            {renderPlayerBox(rightPlayer, 'BOTTOM_RIGHT')}
+          </div>
+        </div>
       </div>
 
-      {/* BOTÓN CIRCULAR ROJO 3D: UNA-OLLA (FIJO EN ESQUINA INFERIOR DERECHA) */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <button
-          type="button"
-          onClick={handleCallUnaOlla}
-          disabled={!isPlaying || !myPlayerState || myPlayerState.status !== 'active'}
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-red-500 via-red-600 to-red-800 border-4 border-amber-300 text-amber-300 font-black text-sm sm:text-base uppercase tracking-wider shadow-2xl hover:scale-110 active:scale-95 transition-all duration-200 flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
-          style={{
-            boxShadow: '0 12px 24px -4px rgba(220, 38, 38, 0.6), inset 0 3px 6px rgba(255, 255, 255, 0.4)',
-          }}
-        >
-          <span className="text-lg">🔥</span>
-          <span>UNA</span>
-          <span className="text-xs text-white">OLLA</span>
-        </button>
-      </div>
+      {/* CONTROLES EXTRA DE MESA / BOTÓN DE ROBAR */}
+      {isMyTurn && isPlaying && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-2xl flex items-center justify-between">
+          <span className="text-xs text-amber-300 font-bold">⚠️ Es tu turno de juego en la mesa. Puedes jugar una de tus cartas válidas o robar.</span>
+          <Button size="sm" variant="secondary" onClick={handleDrawCard} className="bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700">
+            Robar Carta del Mazo
+          </Button>
+        </div>
+      )}
+
+      {/* MODAL DE INFORMACIÓN Y REGLAS (Gatillado por botón circular 'i') */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setShowRulesModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg cursor-pointer"
+            >
+              ✕
+            </button>
+            <h3 className="text-base font-black text-amber-400 font-serif border-b border-slate-800 pb-2 flex items-center gap-1.5">
+              <span>📜</span>
+              <span>Reglas de UNA-OLLA</span>
+            </h3>
+            <div className="text-xs text-slate-300 space-y-3 max-h-80 overflow-y-auto pr-1">
+              <p>
+                ¡Bienvenido a <strong>UNA-OLLA</strong>! El tradicional juego de cartas competitivo de descarte rápido.
+              </p>
+              <h4 className="font-bold text-slate-100">Cómo jugar:</h4>
+              <ul className="list-disc pl-4 space-y-1.5 text-slate-300">
+                <li>Juega una carta que coincida en <strong>color</strong> o <strong>número/símbolo</strong> con la carta en la pila de descarte.</li>
+                <li>Si no posees cartas válidas, debes <strong>robar del mazo</strong>.</li>
+                <li>Los <strong>Comodines</strong> eligen el próximo color activo.</li>
+                <li>La carta <strong>Salto (🚫)</strong> salta al siguiente jugador.</li>
+                <li>La carta <strong>Reversa (🔄)</strong> invierte el sentido de juego.</li>
+              </ul>
+              <h4 className="font-bold text-slate-100">Regla Una-Olla:</h4>
+              <p>
+                Al quedarte con <strong>una carta restante</strong>, debes presionar inmediatamente el botón <strong>Una-Olla</strong>. Si un rival te descubre antes de gritarlo, ¡te penalizará con +2 cartas!
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => setShowRulesModal(false)}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+            >
+              Cerrar y Volver
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE SELECCIÓN DE COLOR PARA COMODÍN */}
       {showColorPicker && (
@@ -576,10 +716,10 @@ export function UnaOllaGame({
         </div>
       )}
 
-      {/* PANALES Y MODALES DE ESTADO (WAITING & GAME FINISHED) */}
+      {/* PANELES Y MODALES DE ESTADO (WAITING & GAME FINISHED) */}
       {!isPlaying && !isFinished && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4">
-          <h3 className="text-lg font-bold text-slate-100">Mesa de UNA-OLLA en Espera</h3>
+          <h3 className="text-lg font-bold text-slate-100 font-serif">Mesa de UNA-OLLA en Espera</h3>
           <p className="text-xs text-slate-400">
             {players.length < 2
               ? 'Esperando que ingrese al menos otro jugador a la mesa...'
@@ -593,7 +733,7 @@ export function UnaOllaGame({
               disabled={players.length < 2}
               onClick={handleStartGame}
               leftIcon={<Play className="w-5 h-5" />}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black mx-auto"
             >
               ENTRAR A LA PARTIDA DE UNA-OLLA
             </Button>
@@ -605,12 +745,12 @@ export function UnaOllaGame({
       {isFinished && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
           <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 text-center shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400 text-3xl mx-auto shadow-inner">
+            <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400 text-3xl mx-auto shadow-inner animate-bounce">
               🏆
             </div>
 
             <div className="space-y-1">
-              <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight">
+              <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight font-serif">
                 ¡PARTIDA FINALIZADA!
               </h2>
               <p className="text-xs text-slate-300">
@@ -620,8 +760,8 @@ export function UnaOllaGame({
 
             {/* Ficha del Ganador */}
             <div className="p-4 rounded-2xl bg-slate-950 border border-amber-500/30 flex items-center justify-center gap-3">
-              <span className="text-lg font-bold text-amber-300">
-                {state.players[state.winnerUserId || '']?.name || 'Jugador Victorioso'}
+              <span className="text-base font-black text-amber-400 uppercase tracking-wider font-serif">
+                {state.players[state.winnerUserId || '']?.name || 'Gust'}
               </span>
             </div>
 
@@ -642,7 +782,7 @@ export function UnaOllaGame({
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
-              <Button variant="primary" onClick={onLeave} className="w-full font-bold">
+              <Button variant="primary" onClick={onLeave} className="w-full font-bold bg-amber-500 hover:bg-amber-400 text-slate-950">
                 Volver al Lobby de Juegos
               </Button>
             </div>

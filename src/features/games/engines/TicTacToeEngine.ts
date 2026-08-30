@@ -62,7 +62,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       playerNames,
       lives,
       round: 1,
-      targetWins: 1, // Partida directa o configurable
+      targetWins: 3, // Al mejor de 5 (Primero a 3 victorias)
       scores,
       status: 'playing',
       winningLine: null,
@@ -217,10 +217,10 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
         return {
           newState: updatedState,
           isValid: true,
-          isGameOver: true,
+          isGameOver: false,
           winnerUserId: null,
           winnerTeamIndex: null,
-          isDraw: true,
+          isDraw: false,
         };
       }
 

@@ -44,6 +44,17 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
 
   return (
     <div id="tictactoe-board-container" className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full">
+      {/* Indicador de Ronda y Modalidad */}
+      <div id="tictactoe-round-header" className="w-full mb-3 flex items-center justify-between px-3 py-2.5 rounded-xl bg-neutral-900/40 border border-neutral-800/80 text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          Ronda <strong className="text-white font-mono text-sm">{state.round}</strong>
+        </span>
+        <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+          AL MEJOR DE 5 (3 VICTORIAS PARA GANAR)
+        </span>
+      </div>
+
       {/* Marcador superior con Vidas y Nombres en MAYÚSCULAS */}
       <div id="tictactoe-scoreboard" className="grid grid-cols-2 gap-3 sm:gap-4 w-full mb-4">
         {/* Jugador 1 */}
@@ -207,7 +218,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
         })}
       </div>
 
-      {state.status === 'round_won' && onNextRound && (
+      {(state.status === 'round_won' || state.status === 'draw') && onNextRound && (
         <button
           onClick={onNextRound}
           className="mt-4 flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-sm shadow-lg transition-all"

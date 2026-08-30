@@ -17,7 +17,7 @@ import { TableRepository } from '../../services/repositories/TableRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
-import { formatBolivares } from '../../utils/formatters';
+import { formatBolivares, getGameDisplayName } from '../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import { useBcvRate } from '../../context/BcvContext';
 import type { GameTable, TablePlayer } from '../../types/tables';
@@ -325,6 +325,21 @@ export function TablesView() {
         players={inGameData.players}
         currentUserId={user?.id || ''}
         onExit={() => setInGameData(null)}
+        onPlayAgain={() => {
+          const gameType = inGameData.table.gameType;
+          const entryFee = inGameData.table.entryFee;
+          const maxPlayers = inGameData.table.maxPlayers;
+          const isPrivate = inGameData.table.isPrivate || false;
+          
+          setInGameData(null);
+          
+          setCreateGameType(gameType);
+          setCreateEntryFee(entryFee);
+          setCreateMaxPlayers(maxPlayers);
+          setCreateIsPrivate(isPrivate);
+          setCreateName(`Mesa de ${getGameDisplayName(gameType)}`);
+          setShowCreateModal(true);
+        }}
       />
     );
   }

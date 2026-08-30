@@ -39,14 +39,14 @@ export function UnaOllaCardComponent({
         type="button"
         onClick={onClick}
         disabled={!onClick}
-        className={`relative select-none flex flex-col items-center justify-center bg-slate-950 border-2 border-slate-100 shadow-xl transition-all duration-200 ${sizeClasses} ${className}`}
+        className={`relative select-none flex flex-col items-center justify-center bg-gradient-to-br from-blue-700 via-blue-800 to-blue-950 border-2 border-slate-100 shadow-xl transition-all duration-200 ${sizeClasses} ${className}`}
         style={{
           boxShadow: '0 8px 16px -2px rgba(0, 0, 0, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
         }}
       >
-        {/* Óvalo Rojo Central */}
-        <div className="w-[85%] h-[65%] bg-gradient-to-br from-red-600 to-red-800 rounded-full border border-amber-300 flex items-center justify-center shadow-inner transform -rotate-12">
-          <span className="font-black text-amber-300 tracking-tighter text-[10px] sm:text-xs uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+        {/* Elipse Naranja/Roja Central */}
+        <div className="w-[85%] h-[65%] bg-gradient-to-br from-orange-500 to-red-600 rounded-[50%/60%] border border-amber-300 flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),0_2px_4px_rgba(0,0,0,0.5)] transform -rotate-12">
+          <span className="font-black text-white tracking-tighter text-[9px] sm:text-[11px] uppercase drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">
             UNA-OLLA
           </span>
         </div>

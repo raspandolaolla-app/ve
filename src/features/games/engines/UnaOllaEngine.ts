@@ -125,10 +125,25 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
     const livesMap: Record<string, number> = {};
     const inactivityMap: Record<string, number> = {};
 
-    // Repartir 7 cartas a cada jugador
+    // Repartir cartas a cada jugador
     for (const p of sortedPlayers) {
-      const hand = currentDeck.slice(0, 7);
-      currentDeck = currentDeck.slice(7);
+      let hand: UnaOllaCard[] = [];
+      if (p.userId === hostUserId || sortedPlayers.indexOf(p) === 0) {
+        // Seed exactly the 6 cards requested for the user (Gust):
+        // Azul 6, Verde 5, Verde Skip, Verde 7, Reversa Roja, Comodín multicolor
+        hand = [
+          { id: `card_blue_6_seed_${p.userId}`, color: 'blue', type: 'number', number: 6 },
+          { id: `card_green_5_seed_${p.userId}`, color: 'green', type: 'number', number: 5 },
+          { id: `card_green_skip_seed_${p.userId}`, color: 'green', type: 'skip' },
+          { id: `card_green_7_seed_${p.userId}`, color: 'green', type: 'number', number: 7 },
+          { id: `card_red_reverse_seed_${p.userId}`, color: 'red', type: 'reverse' },
+          { id: `card_wild_seed_${p.userId}`, color: 'wild', type: 'wild' },
+        ];
+      } else {
+        // Oponentes reciben 7 cartas normales
+        hand = currentDeck.slice(0, 7);
+        currentDeck = currentDeck.slice(7);
+      }
 
       playerStates[p.userId] = {
         userId: p.userId,
@@ -141,30 +156,30 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
         inactivityCount: 0,
         status: 'active',
         hasCalledUnaOlla: false,
-        unaOllaRequired: false,
+        unaOllaRequired: hand.length === 1,
       };
 
       livesMap[p.userId] = 3;
       inactivityMap[p.userId] = 0;
     }
 
-    // Obtener carta inicial de descarte (evitar iniciar con +4 o comodín)
-    let topCardIndex = 0;
-    while (
-      topCardIndex < currentDeck.length &&
-      (currentDeck[topCardIndex].color === 'wild' || currentDeck[topCardIndex].type === 'wild_draw4')
-    ) {
-      topCardIndex++;
-    }
+    // Carta superior: Azul 8
+    const topCard: UnaOllaCard = {
+      id: 'card_top_blue_8_seed',
+      color: 'blue',
+      type: 'number',
+      number: 8,
+    };
 
-    if (topCardIndex >= currentDeck.length) topCardIndex = 0;
+    // Carta inferior: Verde 4 (boca abajo o indistinta en el descarte)
+    const greenUnderCard: UnaOllaCard = {
+      id: 'card_under_green_4_seed',
+      color: 'green',
+      type: 'number',
+      number: 4,
+    };
 
-    const topCard = currentDeck[topCardIndex];
-    currentDeck.splice(topCardIndex, 1);
-
-    const initialColor: UnaOllaColor =
-      topCard.color !== 'wild' ? (topCard.color as UnaOllaColor) : 'red';
-
+    const initialColor: UnaOllaColor = 'blue';
     const now = Date.now();
     const firstTurn = playerOrder[0] || hostUserId;
 
@@ -175,8 +190,8 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
       direction: 1,
       topCard,
       currentColor: initialColor,
-      drawPileCount: currentDeck.length,
-      discardPile: [topCard],
+      drawPileCount: Math.max(40, currentDeck.length),
+      discardPile: [topCard, greenUnderCard],
       turnStartedAt: now,
       turnDeadlineAt: now + 10000, // 10s base
       lives: livesMap,
@@ -185,7 +200,7 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
       status: 'PLAYING',
       winnerUserId: null,
       roundWinnerUserId: null,
-      lastActionLog: `Partida iniciada. Carta inicial: ${topCard.type === 'number' ? topCard.number : topCard.type} ${initialColor.toUpperCase()}`,
+      lastActionLog: 'Partida de UNA-OLLA iniciada con éxito. ¡Suerte!',
       activeEffects: {},
     };
   }

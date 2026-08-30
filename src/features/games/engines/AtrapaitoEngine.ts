@@ -124,6 +124,7 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
       playerMap[p.userId] = {
         userId: p.userId,
         name: pName,
+        avatarUrl: p.avatarUrl,
         colors: colorsAssigned[p.userId] || ['yellow'],
         team: teamsAssigned[p.userId] || null,
         seat: p.seatNumber || idx + 1,

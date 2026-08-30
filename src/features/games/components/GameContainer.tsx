@@ -33,6 +33,7 @@ interface GameContainerProps {
   players: TablePlayer[];
   currentUserId: string;
   onExit: () => void;
+  onPlayAgain?: () => void;
 }
 
 export const GameContainer: React.FC<GameContainerProps> = ({
@@ -40,9 +41,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   players: initialPlayers,
   currentUserId,
   onExit,
+  onPlayAgain,
 }) => {
   const [session, setSession] = useState<GameSession | null>(null);
   const [gameState, setGameState] = useState<any>(null);
+  const [showResults, setShowResults] = useState(true);
   const [currentPlayers, setCurrentPlayers] = useState<TablePlayer[]>(initialPlayers);
   const [isSettling, setIsSettling] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
@@ -569,6 +572,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             currentUserId={currentUserId}
             turnExpiresAt={session?.turnExpiresAt}
             sessionId={session?.id}
+            table={table}
+            players={currentPlayers}
+            realtimeStatus={realtimeStatus}
+            onlineUsers={onlineUsers}
+            onExit={onExit}
+            onPlayAgain={onPlayAgain}
             onRollDice={() => handleGameAction('ROLL_DICE', {})}
             onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
           />
@@ -676,7 +685,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       {/* Modal de Liquidación 90/10 o Reembolso */}
       {settlementResult && (
         <SettlementModal
-          isOpen={true}
+          isOpen={showResults}
           winnerName={settlementResult.winnerName}
           isWinner={settlementResult.isWinner}
           isDraw={settlementResult.isDraw}
@@ -684,7 +693,40 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           prizePool={settlementResult.prizePool}
           platformFee={settlementResult.platformFee}
           onReturnToLobby={onExit}
+          onPlayAgain={onPlayAgain}
+          onBackToTable={() => setShowResults(false)}
+          gameType={table.gameType}
+          scoreSummary={(() => {
+            if (table.gameType === 'tic_tac_toe' && gameState?.scores) {
+              const pIds = Object.keys(gameState.playerSymbols || {});
+              if (pIds.length >= 2) {
+                const name1 = (gameState.playerNames?.[pIds[0]] || 'X').toUpperCase();
+                const score1 = gameState.scores[pIds[0]] || 0;
+                const name2 = (gameState.playerNames?.[pIds[1]] || 'O').toUpperCase();
+                const score2 = gameState.scores[pIds[1]] || 0;
+                return `Marcador Final: ${name1} [${score1}] - [${score2}] ${name2}`;
+              }
+            }
+            if (table.gameType === 'atrapaito') {
+              const winnerName = settlementResult?.winnerName || gameState?.playerNames?.[gameState?.winnerUserId || ''] || 'Ganador';
+              return `¡Todas las fichas en la META! • Ganador: ${winnerName.toUpperCase()}`;
+            }
+            return undefined;
+          })()}
         />
+      )}
+
+      {/* Botón flotante para reabrir resultados */}
+      {settlementResult && !showResults && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => setShowResults(true)}
+            className="flex items-center space-x-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs shadow-2xl transition-all border border-amber-400/40 animate-pulse uppercase tracking-wider"
+          >
+            <Trophy className="w-4 h-4" />
+            <span>Ver Resultados</span>
+          </button>
+        </div>
       )}
 
       {/* Modal de Confirmación de Abandono de Mesa */}

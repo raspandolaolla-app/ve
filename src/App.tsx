@@ -7,6 +7,7 @@ import { Footer } from './components/layout/Footer';
 import { SafeDevelopmentBanner } from './components/layout/SafeDevelopmentBanner';
 import { AnnouncementBanner } from './components/common/AnnouncementBanner';
 import { InactivityWarningModal } from './components/common/InactivityWarningModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { GameRulesModal } from './features/games/GameRulesModal';
@@ -152,10 +153,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BcvProvider>
-        <AppContent />
-      </BcvProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BcvProvider>
+          <AppContent />
+        </BcvProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

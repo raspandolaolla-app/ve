@@ -35,99 +35,122 @@ export function GameArena({
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const renderGameComponent = () => {
-    switch (table.gameType) {
-      case 'tic_tac_toe':
-        return (
-          <TicTacToeGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'rock_paper_scissors':
-        return (
-          <RockPaperScissorsGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'checkers':
-        return (
-          <CheckersGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'domino_venezolano':
-        return (
-          <DominoGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'truco_venezolano':
-        return (
-          <TrucoGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'bingo':
-        return (
-          <BingoGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'polla_venezolana':
-        return (
-          <PollaGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'atrapaito':
-        return (
-          <AtrapaitoGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      case 'una_olla':
-        return (
-          <UnaOllaGame
-            table={table}
-            players={players}
-            currentUserId={currentUserId}
-            onLeave={onLeaveTable}
-          />
-        );
-      default:
-        return (
-          <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
-            <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
-            <h3 className="text-base font-bold text-slate-100">Juego en proceso de preparación</h3>
-            <p className="text-xs text-slate-400">El motor para este tipo de juego está inicializándose.</p>
-            <Button variant="outline" onClick={onLeaveTable}>
-              Volver al Lobby
-            </Button>
-          </div>
-        );
+    try {
+      const cleanType = (table.gameType || '').toLowerCase().trim();
+      switch (cleanType) {
+        case 'tic_tac_toe':
+          return (
+            <TicTacToeGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'rock_paper_scissors':
+          return (
+            <RockPaperScissorsGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'checkers':
+          return (
+            <CheckersGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'domino_venezolano':
+          return (
+            <DominoGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'truco_venezolano':
+          return (
+            <TrucoGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'bingo':
+          return (
+            <BingoGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'polla_venezolana':
+          return (
+            <PollaGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'atrapaito':
+          return (
+            <AtrapaitoGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        case 'una_olla':
+        case 'una-olla':
+        case 'una_olla_card_game':
+        case 'olla':
+          return (
+            <UnaOllaGame
+              table={table}
+              players={players}
+              currentUserId={currentUserId}
+              onLeave={onLeaveTable}
+            />
+          );
+        default:
+          return (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-4 max-w-md mx-auto">
+              <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
+              <h3 className="text-base font-bold text-slate-100">Juego en proceso de preparación</h3>
+              <p className="text-xs text-slate-400">El motor para este tipo de juego ({table.gameType}) está inicializándose.</p>
+              <Button variant="outline" onClick={onLeaveTable}>
+                Volver al Lobby
+              </Button>
+            </div>
+          );
+      }
+    } catch (err) {
+      console.error('[GameArena] Error de inicialización del motor de juego:', err);
+      return (
+        <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-4 max-w-md mx-auto my-6 shadow-2xl">
+          <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
+          <h3 className="text-base font-bold text-slate-100">No se pudo iniciar el juego</h3>
+          <p className="text-xs text-slate-400 font-mono bg-slate-950 px-3 py-1.5 rounded-lg inline-block border border-slate-800">
+            Código de error: GAME_ENGINE_INIT_FAILED
+          </p>
+          <p className="text-xs text-slate-400">
+            Ocurrió un inconveniente al cargar la sala de juego. Puedes volver a la mesa sin perder tu sesión.
+          </p>
+          <Button variant="outline" onClick={onLeaveTable}>
+            Volver a la Mesa
+          </Button>
+        </div>
+      );
     }
   };
 

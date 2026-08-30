@@ -12,6 +12,7 @@ import { TrucoEngine } from './TrucoEngine';
 import { BingoEngine } from './BingoEngine';
 import { PollaEngine } from './PollaEngine';
 import { AtrapaitoEngine } from './AtrapaitoEngine';
+import { UnaOllaEngine } from './UnaOllaEngine';
 
 export * from './GameEngine';
 export * from './TicTacToeEngine';
@@ -22,9 +23,15 @@ export * from './TrucoEngine';
 export * from './BingoEngine';
 export * from './PollaEngine';
 export * from './AtrapaitoEngine';
+export * from './UnaOllaEngine';
 
-export function getGameEngine(gameType: GameType): IGameEngine<any> {
-  switch (gameType) {
+export function getGameEngine(gameType: GameType | string): IGameEngine<any> {
+  const clean = (gameType || '').toLowerCase().trim();
+  if (clean === 'una_olla' || clean === 'una-olla' || clean === 'una_olla_card_game' || clean === 'olla') {
+    return new UnaOllaEngine();
+  }
+
+  switch (clean) {
     case 'tic_tac_toe':
       return new TicTacToeEngine();
     case 'rock_paper_scissors':

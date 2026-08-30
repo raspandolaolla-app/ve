@@ -25,6 +25,7 @@ import { TrucoBoard } from './TrucoBoard';
 import { BingoBoard } from './BingoBoard';
 import { PollaBoard } from './PollaBoard';
 import { AtrapaitoBoard } from './AtrapaitoBoard';
+import { UnaOllaGame } from './UnaOllaGame';
 import { SettlementModal } from './SettlementModal';
 
 interface GameContainerProps {
@@ -62,7 +63,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const isSettledRef = useRef(false);
 
   // Instancia del motor determinista para este tipo de juego
-  const engine = useMemo(() => getGameEngine(table.gameType), [table.gameType]);
+  const engine = useMemo(() => {
+    try {
+      return getGameEngine(table.gameType);
+    } catch (err) {
+      console.error('[GameContainer] Error al instanciar el motor de juego:', err);
+      return null;
+    }
+  }, [table.gameType]);
 
   // Recargar dinámicamente los jugadores reales con sus perfiles de Supabase
   const refreshPlayers = useCallback(async () => {
@@ -568,6 +576,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             sessionId={session?.id}
             onRollDice={() => handleGameAction('ROLL_DICE', {})}
             onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
+          />
+        );
+
+      case 'una_olla':
+      case 'una-olla':
+      case 'una_olla_card_game':
+        return (
+          <UnaOllaGame
+            table={table}
+            players={currentPlayers}
+            currentUserId={currentUserId}
+            onLeave={onExit}
           />
         );
 

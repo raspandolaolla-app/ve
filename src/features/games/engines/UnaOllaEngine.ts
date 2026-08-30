@@ -7,16 +7,19 @@
 // botón y regla UNA-OLLA con penalizaciones idempotentes.
 // ==============================================================================
 
-import type { TablePlayer } from '../../../types/tables';
+import type { GameTable, TablePlayer } from '../../../types/tables';
 import type {
   UnaOllaCard,
   UnaOllaColor,
   UnaOllaCardType,
   UnaOllaState,
   UnaOllaPlayerState,
+  GameActionPayload,
 } from '../../../types/games';
+import type { IGameEngine, ActionResult } from './GameEngine';
 
-export class UnaOllaEngine {
+export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
+  public readonly gameType = 'una_olla';
   /**
    * Genera una baraja completa de UNA-OLLA (108 cartas con IDs únicos)
    */
@@ -656,6 +659,110 @@ export class UnaOllaEngine {
       lives: nextLivesMap,
       inactivityStaircase: nextInactivityMap,
       lastActionLog: actionMessage,
+    };
+  }
+
+  // ==============================================================================
+  // MÉTODOS DE LA INTERFAZ IGameEngine
+  // ==============================================================================
+
+  public initialize(table: GameTable, players: TablePlayer[]): UnaOllaState {
+    return UnaOllaEngine.initGameState(players, table.hostUserId);
+  }
+
+  public validateAction(state: UnaOllaState, action: GameActionPayload): { valid: boolean; reason?: string } {
+    if (!state) return { valid: false, reason: 'Estado no inicializado' };
+    if (state.status === 'GAME_FINISHED') return { valid: false, reason: 'La partida ha finalizado' };
+    if (action.userId !== state.currentTurnUserId) {
+      if (action.actionType === 'CALL_UNA_OLLA' || action.actionType === 'CHALLENGE_UNA_OLLA') {
+        return { valid: true };
+      }
+      return { valid: false, reason: 'No es tu turno de juego' };
+    }
+    return { valid: true };
+  }
+
+  public applyAction(state: UnaOllaState, action: GameActionPayload): ActionResult<UnaOllaState> {
+    const userId = action.userId;
+    const data = action.actionData || {};
+    let newState = state;
+
+    switch (action.actionType) {
+      case 'PLAY_CARD': {
+        const cardObj = data.card;
+        const cardId = typeof cardObj === 'string' ? cardObj : (cardObj as any)?.id || (data.cardId as string);
+        const chosenColor = data.chosenColor as UnaOllaColor;
+        if (cardId) {
+          const res = UnaOllaEngine.playCard(state, userId, cardId, chosenColor);
+          if (res.nextState) {
+            newState = res.nextState;
+          }
+        }
+        break;
+      }
+      case 'DRAW_CARD': {
+        const res = UnaOllaEngine.drawCard(state, userId);
+        if (res.nextState) {
+          newState = res.nextState;
+        }
+        break;
+      }
+      case 'CALL_UNA_OLLA': {
+        const res = UnaOllaEngine.callUnaOlla(state, userId);
+        if (res.nextState) {
+          newState = res.nextState;
+        }
+        break;
+      }
+      case 'CHALLENGE_UNA_OLLA': {
+        const targetUserId = data.targetUserId as string;
+        if (targetUserId) {
+          const res = UnaOllaEngine.challengeUnaOlla(state, userId, targetUserId);
+          if (res.nextState) {
+            newState = res.nextState;
+          }
+        }
+        break;
+      }
+      case 'TURN_TIMEOUT':
+      case 'HANDLE_TIMEOUT': {
+        newState = UnaOllaEngine.handleTurnTimeout(state);
+        break;
+      }
+      default:
+        break;
+    }
+
+    const isGameOver = newState.status === 'GAME_FINISHED';
+    return {
+      newState,
+      isValid: true,
+      isGameOver,
+      winnerUserId: newState.winnerUserId || null,
+      winnerTeamIndex: null,
+      isDraw: false,
+    };
+  }
+
+  public getSanitizedStateForPlayer(state: UnaOllaState, userId: string): UnaOllaState {
+    if (!state || !state.players) return state;
+    const sanitizedPlayers: Record<string, UnaOllaPlayerState> = {};
+
+    for (const pId of Object.keys(state.players)) {
+      const p = state.players[pId];
+      if (pId === userId) {
+        sanitizedPlayers[pId] = p;
+      } else {
+        sanitizedPlayers[pId] = {
+          ...p,
+          hand: [],
+        };
+      }
+    }
+
+    return {
+      ...state,
+      players: sanitizedPlayers,
     };
   }
 }

@@ -36,12 +36,12 @@ const testCases: TestCase[] = [
     },
   },
 
-  // 3. Cada uno de los 8 juegos
+  // 3. Todos los juegos soportados
   {
     id: 3,
-    name: '3. Soporte Integral: Los 8 juegos soportados en Frontend y DB',
+    name: '3. Soporte Integral: Todos los juegos soportados en Frontend y DB (incluyendo UNA_OLLA)',
     run: () => {
-      const allEightGames: Array<{ ui: GameType; db: string }> = [
+      const allSupportedGames: Array<{ ui: GameType; db: string }> = [
         { ui: 'domino_venezolano', db: 'DOMINO_VENEZOLANO' },
         { ui: 'truco_venezolano', db: 'TRUCO_VENEZOLANO' },
         { ui: 'tic_tac_toe', db: 'TRES_EN_RAYA' },
@@ -50,9 +50,10 @@ const testCases: TestCase[] = [
         { ui: 'bingo', db: 'BINGO' },
         { ui: 'polla_venezolana', db: 'POLLA_VENEZOLANA' },
         { ui: 'atrapaito', db: 'ATRAPAITO' },
+        { ui: 'una_olla', db: 'UNA_OLLA' },
       ];
 
-      return allEightGames.every(
+      return allSupportedGames.every(
         (g) =>
           GameRepository.mapGameTypeToDbEnum(g.ui) === g.db &&
           GameRepository.mapDbEnumToGameType(g.db) === g.ui

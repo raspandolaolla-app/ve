@@ -9,6 +9,8 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { InstallPWAButton } from '../../components/common/InstallPWAButton';
+import { PublicMatchHistorySection } from './PublicMatchHistorySection';
+import { BingoLobbySection } from './BingoLobbySection';
 import { Users, Coins, Sparkles, Play, Award, Sun, Moon, ArrowRight } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
@@ -16,9 +18,10 @@ interface LobbyViewProps {
   onSelectGame: (game: GameMetadata) => void;
   onJoinTrancaito: () => void;
   onNavigateTab?: (tab: string) => void;
+  onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
 }
 
-export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: LobbyViewProps) {
+export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab, onSelectBingoVariant }: LobbyViewProps) {
   const pollaMetadata = GLOBAL_DRAWS_METADATA[0];
   const [onlineCount, setOnlineCount] = useState<number>(PresenceService.getOnlineUserIds().length);
 
@@ -166,12 +169,25 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
         </div>
       </div>
 
+      {/* SECCIÓN DESTACADA: SORTEO DE BINGO VIRTUAL AUTOMÁTICO (90, 80 Y 75 BOLAS) */}
+      <BingoLobbySection
+        onlineCount={onlineCount}
+        onSelectBingoVariant={(variant, tableId) => {
+          if (onSelectBingoVariant) {
+            onSelectBingoVariant(variant, tableId);
+          } else {
+            const bingoMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === 'bingo');
+            if (bingoMeta) onSelectGame(bingoMeta);
+          }
+        }}
+      />
+
       {/* CATÁLOGO DE JUEGOS CON MESAS Y SALAS */}
       <div id="section-table-games" className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-100">🎮 Juegos con Mesas y Salas</h2>
-            <p className="text-xs text-slate-400">7 juegos multijugador por turnos en tiempo real con validación server-side</p>
+            <p className="text-xs text-slate-400">8 juegos multijugador por turnos en tiempo real con validación server-side</p>
           </div>
         </div>
 
@@ -224,6 +240,9 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab }: Lobb
           ))}
         </div>
       </div>
+
+      {/* HISTORIAL PÚBLICO DE PARTIDAS FINALIZADAS EN TIEMPO REAL */}
+      <PublicMatchHistorySection />
 
       {/* SECCIONES ADICIONALES DE CONTENIDO: PROMOCIONES E INFORMACIÓN */}
       <MediaBanner location="PROMOTIONS" onNavigateTab={onNavigateTab} />

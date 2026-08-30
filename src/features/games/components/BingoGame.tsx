@@ -1,359 +1,359 @@
 // ==============================================================================
-// RASPANDO LA OLLA — BINGO ONLINE CRILLO
-// ==============================================================================
-// Cartón 5x5 (B-I-N-G-O), bombo extractor de balotas sincronizado, marcado interactivo,
-// validación criptográfica de líneas/cartón lleno y liquidación de pozo.
+// RASPANDO LA OLLA — JUEGO DE SORTEO DE BINGO VIRTUAL AUTOMÁTICO
+// Modos 90, 80 y 75 Bolas — Realtime, Cartones Únicos, Cierre a 10s y Winner Modal
 // ==============================================================================
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
-import { useGameEngine } from '../useGameEngine';
+import type { BingoState, BingoCard75, BingoVariant } from '../../../types/games';
+import { TableRepository } from '../../../services/repositories/TableRepository';
+import { BcvRepository } from '../../../services/repositories/BcvRepository';
+import { getSupabaseClient } from '../../../lib/supabase/client';
+import { BingoBoard } from './BingoBoard';
 import { Button } from '../../../components/common/Button';
-import { Trophy, RefreshCw, Sparkles, CheckCircle2, Disc } from 'lucide-react';
-import { formatBolivares } from '../../../utils/formatters';
-import { FINANCIAL_RULES } from '../../../utils/constants';
+import { Trophy, RefreshCw, Sparkles, CheckCircle2, ShoppingBag, ShieldCheck, ArrowLeft, Radio, Lock } from 'lucide-react';
 
-interface BingoCard {
-  B: number[]; // 5 números (1-15)
-  I: number[]; // 5 números (16-30)
-  N: (number | 'FREE')[]; // 5 números (31-45, centro FREE)
-  G: number[]; // 5 números (46-60)
-  O: number[]; // 5 números (61-75)
-}
-
-interface BingoState {
-  drawnBalls: number[];
-  currentBall: number | null;
-  winnerUserId: string | null;
-  winningPattern: string | null;
-}
-
-// Genera un cartón de bingo aleatorio balanceado
-function generateBingoCard(): BingoCard {
-  const getUniqueRandoms = (min: number, max: number, count: number) => {
-    const set = new Set<number>();
-    while (set.size < count) {
-      set.add(Math.floor(Math.random() * (max - min + 1)) + min);
-    }
-    return Array.from(set);
-  };
-
-  const nCol = getUniqueRandoms(31, 45, 4);
-  const nFormatted: (number | 'FREE')[] = [nCol[0], nCol[1], 'FREE', nCol[2], nCol[3]];
-
-  return {
-    B: getUniqueRandoms(1, 15, 5),
-    I: getUniqueRandoms(16, 30, 5),
-    N: nFormatted,
-    G: getUniqueRandoms(46, 60, 5),
-    O: getUniqueRandoms(61, 75, 5),
-  };
-}
-
-export function BingoGame({
-  table,
-  players,
-  currentUserId,
-  onLeave,
-}: {
+interface BingoGameProps {
   table: GameTable;
   players: TablePlayer[];
   currentUserId?: string;
   onLeave: () => void;
-}) {
-  const [myCard] = useState<BingoCard>(() => generateBingoCard());
-  const [markedCells, setMarkedCells] = useState<Set<string>>(new Set(['N-2'])); // El centro FREE está marcado
+}
 
-  const initialBingoState: BingoState = {
+export function BingoGame({ table, players, currentUserId = '', onLeave }: BingoGameProps) {
+  const variant: BingoVariant = (table.config?.variant as BingoVariant) || '75';
+  const totalBalls = variant === '90' ? 90 : variant === '80' ? 80 : 75;
+
+  const [bcvRate, setBcvRate] = useState<number>(50);
+  const [buyingCards, setBuyingCards] = useState<boolean>(false);
+  const [cardsPurchasedCount, setCardsPurchasedCount] = useState<number>(0);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+
+  // Estado del Bingo
+  const [bingoState, setBingoState] = useState<BingoState>({
+    variant,
     drawnBalls: [],
     currentBall: null,
+    cards: {},
+    cardsPurchased: {},
+    playerNames: {},
     winnerUserId: null,
-    winningPattern: null,
-  };
-
-  const {
-    gameState,
-    isHost,
-    isSettling,
-    dispatchAction,
-  } = useGameEngine({
-    table,
-    players,
-    currentUserId,
-    initialState: initialBingoState,
+    status: 'in_progress',
+    callIntervalMs: 3500,
+    totalBalls,
+    totalPoolBs: table.entryFee || 10,
+    winnerPoolBs: Math.round((table.entryFee || 10) * 0.90 * 100) / 100,
+    systemFeeBs: Math.round((table.entryFee || 10) * 0.10 * 100) / 100,
   });
 
-  const state = (gameState as unknown as BingoState) || initialBingoState;
-  const drawnBalls = state.drawnBalls || [];
+  const [winnerInfo, setWinnerInfo] = useState<{
+    winnerUserId: string;
+    winnerName: string;
+    winnerAvatar?: string;
+    prizeBs: number;
+  } | null>(null);
 
-  // Marcar/Desmarcar casilla en el cartón
-  const toggleMark = (col: string, rowIdx: number, val: number | 'FREE') => {
-    if (val === 'FREE' || state.winnerUserId) return;
-    const key = `${col}-${rowIdx}`;
-    setMarkedCells((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+  const [isSalesClosed, setIsSalesClosed] = useState<boolean>(false);
+  const [isClaimingBingo, setIsClaimingBingo] = useState<boolean>(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+
+  // Cargar Tasa BCV
+  useEffect(() => {
+    BcvRepository.getBcvRate().then((res) => {
+      if (res?.rate) setBcvRate(res.rate);
+    });
+  }, []);
+
+  // Sincronizar temporizador server-authoritative
+  useEffect(() => {
+    const scheduledStartStr = table.config?.scheduled_start_at;
+    if (!scheduledStartStr) return;
+
+    const interval = setInterval(() => {
+      const scheduledStart = new Date(String(scheduledStartStr));
+      const diffMs = scheduledStart.getTime() - Date.now();
+      const secs = Math.max(0, Math.floor(diffMs / 1000));
+
+      setCountdownSeconds(secs);
+      if (secs <= 10 && secs > 0) {
+        setIsSalesClosed(true);
+      } else {
+        setIsSalesClosed(false);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [table.config?.scheduled_start_at]);
+
+  // Cargar/comprar cartones para el usuario si no los tiene aún
+  const handleBuyCards = async (count: number) => {
+    if (!currentUserId || !table.id) return;
+    setBuyingCards(true);
+    setPurchaseError(null);
+
+    try {
+      const res = await TableRepository.buyBingoCards(table.id, count, variant, table.entryFee || 10);
+      if (!res.success) {
+        setPurchaseError(res.error || 'Error al comprar cartones.');
+        return;
+      }
+
+      setCardsPurchasedCount((prevCount) => prevCount + count);
+
+      // Actualizar estado local de cartones
+      const userCards75: BingoCard75[] = (res.cards || []).map((c: any) => ({
+        b: c.b || [1, 2, 3, 4, 5],
+        i: c.i || [16, 17, 18, 19, 20],
+        n: c.n || [31, 32, 'FREE', 33, 34],
+        g: c.g || [46, 47, 48, 49, 50],
+        o: c.o || [61, 62, 63, 64, 65],
+        marked: c.marked || [
+          [false, false, false, false, false],
+          [false, false, false, false, false],
+          [false, false, true, false, false],
+          [false, false, false, false, false],
+          [false, false, false, false, false],
+        ],
+      }));
+
+      setBingoState((prevState) => ({
+        ...prevState,
+        cards: {
+          ...prevState.cards,
+          [currentUserId]: [...(prevState.cards[currentUserId] || []), ...userCards75],
+        },
+      }));
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Error al procesar compra.');
+    } finally {
+      setBuyingCards(false);
+    }
+  };
+
+  // Auto-comprar 1 cartón por defecto al ingresar a la mesa si aún no posee cartones
+  useEffect(() => {
+    if (currentUserId && cardsPurchasedCount === 0 && !isSalesClosed) {
+      handleBuyCards(1);
+    }
+  }, [currentUserId]);
+
+  // Suscripción Realtime a game_sessions para balotas e inicio de sorteo
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !table.id) return;
+
+    const channel = supabase
+      .channel(`bingo_session_${table.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_sessions', filter: `table_id=eq.${table.id}` },
+        (payload: any) => {
+          const newState = payload.new?.current_state;
+          if (newState) {
+            setBingoState((prev) => ({
+              ...prev,
+              drawnBalls: newState.drawnBalls || prev.drawnBalls,
+              currentBall: newState.currentBall ?? prev.currentBall,
+              winnerUserId: newState.winnerUserId || prev.winnerUserId,
+            }));
+
+            if (newState.winnerUserId) {
+              setWinnerInfo({
+                winnerUserId: newState.winnerUserId,
+                winnerName: newState.winnerName || 'Jugador Ganador',
+                winnerAvatar: newState.winnerAvatar,
+                prizeBs: newState.winnerPoolBs || 0,
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [table.id]);
+
+  // Manejo de marcado interactivo de números en el cartón
+  const handleMarkNumber = (row: number, col: number) => {
+    if (!currentUserId || bingoState.winnerUserId) return;
+
+    setBingoState((prev) => {
+      const userCards = prev.cards[currentUserId] || [];
+      if (userCards.length === 0) return prev;
+
+      const updatedCards = userCards.map((card) => {
+        const newMarked = card.marked.map((rArr, rIdx) =>
+          rArr.map((mVal, cIdx) => (rIdx === row && cIdx === col ? !mVal : mVal))
+        );
+        return { ...card, marked: newMarked };
+      });
+
+      return {
+        ...prev,
+        cards: { ...prev.cards, [currentUserId]: updatedCards },
+      };
     });
   };
 
-  // Host saca la siguiente balota del bombo
-  const handleDrawNextBall = async () => {
-    if (!isHost || state.winnerUserId || isSettling) return;
+  // Reclamo atómico server-authoritative de Bingo (rpc_claim_bingo_secure)
+  const handleClaimBingo = async () => {
+    if (!currentUserId || isClaimingBingo || bingoState.winnerUserId) return;
 
-    const availableBalls: number[] = [];
-    for (let i = 1; i <= 75; i++) {
-      if (!drawnBalls.includes(i)) availableBalls.push(i);
+    setIsClaimingBingo(true);
+    setClaimError(null);
+
+    try {
+      // Buscar ID de sesión asociado a la mesa
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      const { data: session } = await supabase
+        .from('game_sessions')
+        .select('id')
+        .eq('table_id', table.id)
+        .maybeSingle();
+
+      const sessionId = session?.id;
+      if (!sessionId) {
+        setClaimError('No se encontró la sesión de juego activa.');
+        return;
+      }
+
+      const res = await TableRepository.claimBingo(sessionId);
+      if (!res.success) {
+        setClaimError(res.error || 'Canto de Bingo no válido.');
+        return;
+      }
+
+      setWinnerInfo({
+        winnerUserId: res.winnerUserId || currentUserId,
+        winnerName: res.winnerName || 'Jugador Ganador',
+        winnerAvatar: res.winnerAvatar,
+        prizeBs: res.prizeBs || bingoState.winnerPoolBs,
+      });
+
+      setBingoState((prev) => ({
+        ...prev,
+        winnerUserId: res.winnerUserId || currentUserId,
+        status: 'bingo_won',
+      }));
+    } catch (err: any) {
+      setClaimError(err.message || 'Error al cantar Bingo.');
+    } finally {
+      setIsClaimingBingo(false);
     }
-
-    if (availableBalls.length === 0) return;
-
-    const nextBall = availableBalls[Math.floor(Math.random() * availableBalls.length)];
-    const newDrawn = [...drawnBalls, nextBall];
-
-    const nextState: BingoState = {
-      ...state,
-      drawnBalls: newDrawn,
-      currentBall: nextBall,
-    };
-
-    await dispatchAction(
-      'DRAW_BALL',
-      { ball: nextBall },
-      nextState as unknown as Record<string, unknown>,
-      null
-    );
   };
 
-  // Comprobar si el cartón tiene una línea completa válida
-  const checkBingoWin = () => {
-    const cols = ['B', 'I', 'N', 'G', 'O'] as const;
-
-    // Verificar filas
-    for (let r = 0; r < 5; r++) {
-      let fullRow = true;
-      for (const c of cols) {
-        const val = myCard[c][r];
-        if (val !== 'FREE' && (!markedCells.has(`${c}-${r}`) || !drawnBalls.includes(val as number))) {
-          fullRow = false;
-          break;
-        }
-      }
-      if (fullRow) return 'Línea Horizontal';
-    }
-
-    // Verificar columnas
-    for (const c of cols) {
-      let fullCol = true;
-      for (let r = 0; r < 5; r++) {
-        const val = myCard[c][r];
-        if (val !== 'FREE' && (!markedCells.has(`${c}-${r}`) || !drawnBalls.includes(val as number))) {
-          fullCol = false;
-          break;
-        }
-      }
-      if (fullCol) return 'Línea Vertical';
-    }
-
-    // Verificar diagonales
-    let diag1 = true;
-    let diag2 = true;
-    for (let i = 0; i < 5; i++) {
-      const c1 = cols[i];
-      const val1 = myCard[c1][i];
-      if (val1 !== 'FREE' && (!markedCells.has(`${c1}-${i}`) || !drawnBalls.includes(val1 as number))) {
-        diag1 = false;
-      }
-
-      const c2 = cols[4 - i];
-      const val2 = myCard[c2][i];
-      if (val2 !== 'FREE' && (!markedCells.has(`${c2}-${i}`) || !drawnBalls.includes(val2 as number))) {
-        diag2 = false;
-      }
-    }
-
-    if (diag1 || diag2) return 'Línea Diagonal';
-
-    return null;
-  };
-
-  // Cantar Bingo
-  const handleCallBingo = async () => {
-    if (state.winnerUserId || isSettling) return;
-
-    const pattern = checkBingoWin();
-    if (!pattern) {
-      alert('Tu cartón aún no cumple con una línea completa de números cantados.');
-      return;
-    }
-
-    const nextState: BingoState = {
-      ...state,
-      winnerUserId: currentUserId || null,
-      winningPattern: pattern,
-    };
-
-    await dispatchAction(
-      'CLAIM_BINGO',
-      { pattern, userId: currentUserId },
-      nextState as unknown as Record<string, unknown>,
-      null,
-      currentUserId || null,
-      false
-    );
-  };
-
-  const isGameOver = Boolean(state.winnerUserId);
-  const isWinner = state.winnerUserId === currentUserId;
-  const estimatedPrize = table.entryFee * table.maxPlayers * (FINANCIAL_RULES.WINNER_PERCENT / 100);
+  const isGameOver = Boolean(bingoState.winnerUserId || winnerInfo);
+  const isWinner = (winnerInfo?.winnerUserId || bingoState.winnerUserId) === currentUserId;
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 max-w-4xl mx-auto space-y-6">
-      {/* Header Info */}
-      <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-slate-100">Bingo Online Criollo</h2>
-              <p className="text-xs text-slate-400">
-                Pozo: <strong className="text-emerald-400 font-mono">{formatBolivares(estimatedPrize)}</strong> (90%)
-              </p>
-            </div>
+    <div className="flex flex-col items-center justify-center p-4 max-w-2xl mx-auto space-y-4">
+      {/* Botón de Salida y Encabezado de la Sala */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
+        <button
+          onClick={onLeave}
+          className="flex items-center space-x-1.5 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4 text-amber-400" />
+          <span>Volver al Lobby</span>
+        </button>
+
+        <div className="text-right font-mono">
+          <span className="text-[10px] text-slate-400 uppercase">MESA PÚBLICA DE BINGO</span>
+          <div className="text-xs font-bold text-amber-400 uppercase">
+            {variant} BOLAS (Bs. {table.entryFee || 10})
+          </div>
+        </div>
+      </div>
+
+      {/* Comprar Cartones Adicionales si las ventas siguen abiertas */}
+      {!isSalesClosed && !isGameOver && (
+        <div className="w-full bg-slate-950 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-xs text-slate-300 font-mono">
+            <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Mis Cartones: <strong>{cardsPurchasedCount}</strong> (Máx. 20)</span>
           </div>
 
-          {/* Última balota */}
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-[10px] text-slate-400 font-mono uppercase">Última Balota</div>
-              <div className="text-2xl font-black text-amber-400 font-mono">
-                {state.currentBall !== null ? `#${state.currentBall}` : '—'}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleBuyCards(1)}
+              disabled={buyingCards || cardsPurchasedCount >= 20}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50"
+            >
+              +1 Cartón ({table.entryFee || 10} Bs)
+            </button>
+            <button
+              onClick={() => handleBuyCards(3)}
+              disabled={buyingCards || cardsPurchasedCount >= 18}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50"
+            >
+              +3 Cartones
+            </button>
+          </div>
+        </div>
+      )}
+
+      {purchaseError && (
+        <div className="w-full p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-mono">
+          {purchaseError}
+        </div>
+      )}
+
+      {claimError && (
+        <div className="w-full p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-mono animate-bounce">
+          {claimError}
+        </div>
+      )}
+
+      {/* Tablero de Bingo Multimodal */}
+      <BingoBoard
+        state={bingoState}
+        currentUserId={currentUserId}
+        onMarkNumber={handleMarkNumber}
+        onClaimBingo={handleClaimBingo}
+        isSalesClosed={isSalesClosed}
+        countdownSeconds={countdownSeconds}
+        bcvRate={bcvRate}
+      />
+
+      {/* MODAL / OVERLAY DE GANADOR DE BINGO */}
+      {isGameOver && winnerInfo && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="relative inline-block">
+              <div className="w-20 h-20 rounded-full mx-auto border-4 border-amber-400 overflow-hidden shadow-2xl">
+                {winnerInfo.winnerAvatar ? (
+                  <img src={winnerInfo.winnerAvatar} alt={winnerInfo.winnerName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-amber-500 flex items-center justify-center text-slate-950 font-black text-2xl">
+                    🏆
+                  </div>
+                )}
+              </div>
+              <div className="absolute -bottom-2 right-0 bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded-full uppercase shadow">
+                ¡BINGO!
               </div>
             </div>
 
-            {isHost && !isGameOver && (
-              <Button size="sm" variant="primary" onClick={handleDrawNextBall}>
-                <Disc className="w-4 h-4 mr-1.5" />
-                Extraer Balota
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Balotas Extraídas */}
-        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          <span className="text-slate-400 whitespace-nowrap">Balotas ({drawnBalls.length}):</span>
-          {drawnBalls.length === 0 ? (
-            <span className="text-slate-500 italic">Esperando que el anfitrión extraiga la primera balota...</span>
-          ) : (
-            drawnBalls.slice(-12).reverse().map((ball, idx) => (
-              <span
-                key={idx}
-                className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs font-mono shrink-0 shadow ${
-                  idx === 0
-                    ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 animate-pulse'
-                    : 'bg-slate-800 text-slate-200 border border-slate-700'
-                }`}
-              >
-                {ball}
-              </span>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Cartón de Bingo 5x5 */}
-      <div className="w-full max-w-md bg-slate-950 border-4 border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-        {/* Encabezado B I N G O */}
-        <div className="grid grid-cols-5 gap-2 text-center font-black text-xl text-amber-400 font-mono">
-          <span>B</span>
-          <span>I</span>
-          <span>N</span>
-          <span>G</span>
-          <span>O</span>
-        </div>
-
-        {/* Cuadrícula de 25 casillas */}
-        <div className="grid grid-cols-5 gap-2">
-          {(['B', 'I', 'N', 'G', 'O'] as const).map((col) => (
-            <div key={col} className="flex flex-col gap-2">
-              {myCard[col].map((val, rowIdx) => {
-                const isFree = val === 'FREE';
-                const key = `${col}-${rowIdx}`;
-                const isMarked = markedCells.has(key) || isFree;
-                const wasDrawn = isFree || (typeof val === 'number' && drawnBalls.includes(val));
-
-                return (
-                  <button
-                    key={rowIdx}
-                    id={`bingo-cell-${col}-${rowIdx}`}
-                    disabled={isGameOver || isSettling}
-                    onClick={() => toggleMark(col, rowIdx, val)}
-                    className={`h-14 sm:h-16 rounded-xl border flex flex-col items-center justify-center font-black text-base transition-all select-none ${
-                      isFree
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-mono'
-                        : isMarked
-                        ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/10'
-                        : wasDrawn
-                        ? 'bg-slate-900 border-amber-500/60 text-slate-100 hover:bg-slate-800 animate-pulse'
-                        : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800/80'
-                    }`}
-                  >
-                    <span>{val}</span>
-                    {isMarked && !isFree && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-
-        {/* Botón de Cantar Bingo */}
-        {!isGameOver && (
-          <Button
-            variant="primary"
-            onClick={handleCallBingo}
-            className="w-full py-4 text-base font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 shadow-xl"
-          >
-            <Sparkles className="w-5 h-5 mr-2" />
-            ¡CANTAR BINGO!
-          </Button>
-        )}
-      </div>
-
-      {/* Overlay de Resultado */}
-      {isGameOver && (
-        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-          {isWinner ? (
-            <div>
-              <div className="text-3xl font-black text-emerald-400 mb-1">¡BINGO GANADOR! 🏆</div>
-              <p className="text-xs text-slate-300">
-                Has completado tu cartón con ({state.winningPattern}) y ganas:{' '}
-                <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
+            <div className="space-y-1">
+              <div className="text-2xl font-black text-amber-400 uppercase tracking-tight">
+                {isWinner ? '¡FELICIDADES! ¡GANASTE!' : '¡TENEMOS UN GANADOR!'}
+              </div>
+              <p className="text-sm font-bold text-slate-100">{winnerInfo.winnerName}</p>
+              <p className="text-xs text-slate-400 font-mono">
+                Premio Acreditado: <strong className="text-emerald-400 font-bold">{winnerInfo.prizeBs.toFixed(2)} Bs</strong>
+                <span className="text-slate-500 ml-1">({BcvRepository.formatUsdCompact(winnerInfo.prizeBs, bcvRate)})</span>
               </p>
             </div>
-          ) : (
-            <div>
-              <div className="text-3xl font-black text-slate-300 mb-1">BINGO FINALIZADO</div>
-              <p className="text-xs text-slate-400">Otro jugador cantó bingo primero.</p>
-            </div>
-          )}
 
-          {isSettling && (
-            <div className="text-xs text-amber-300 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Liquidando premio 90/10 en Supabase...</span>
-            </div>
-          )}
-
-          <Button variant="primary" onClick={onLeave} className="w-full py-3">
-            Volver al Lobby de Mesas
-          </Button>
+            <Button variant="primary" onClick={onLeave} className="w-full py-3.5 text-slate-950 font-black text-sm">
+              Volver al Lobby de Sorteos
+            </Button>
+          </div>
         </div>
       )}
     </div>

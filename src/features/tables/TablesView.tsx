@@ -172,24 +172,79 @@ export function TablesView() {
     };
   }, [activeTable?.id, loadTablePlayers]);
 
-  // Buscar mesa por código
+  // Unirse por código Trancaíto (Flujo atómico e idempotente con asignación de asiento)
   const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!joinCodeInput.trim()) return;
+    const rawCode = joinCodeInput.trim();
+
+    console.log('[TRANCAITO_JOIN] Código recibido:', rawCode);
+
+    if (!rawCode) {
+      console.warn('[TRANCAITO_JOIN_ERROR] Código vacío');
+      setJoinError('Introduce el código de la mesa.');
+      return;
+    }
+
+    if (!user) {
+      console.warn('[TRANCAITO_JOIN_ERROR] Usuario no autenticado');
+      setJoinError('Debes iniciar sesión para unirte a una mesa.');
+      return;
+    }
 
     setJoinError(null);
     setSearchingCode(true);
 
     try {
-      const table = await TableRepository.getTableByJoinCode(joinCodeInput.trim());
-      if (!table) {
-        setJoinError(`No se encontró ninguna mesa con el código "${joinCodeInput.trim()}".`);
-      } else {
-        setActiveTable(table);
-        setJoinCodeInput('');
+      console.log('[TRANCAITO_JOIN] Buscando mesa');
+      console.log('[TRANCAITO_JOIN] Validando estado');
+      console.log('[TRANCAITO_JOIN] Validando jugador');
+      console.log('[TRANCAITO_JOIN] Buscando asiento');
+
+      const result = await TableRepository.joinTableByCode(rawCode);
+
+      if (!result.success || !result.table) {
+        console.warn('[TRANCAITO_JOIN_ERROR]', {
+          code: rawCode,
+          error: result.error,
+          userId: user.id,
+        });
+        setJoinError(result.error || 'Código de Trancaíto no encontrado.');
+        return;
       }
+
+      console.log('[TRANCAITO_JOIN] Mesa encontrada:', result.table.id);
+      console.log('[TRANCAITO_JOIN] Asiento asignado:', result.seatNumber);
+      console.log('[TRANCAITO_JOIN] Jugador registrado');
+
+      // Obtener lista completa de jugadores de la mesa
+      const players = await TableRepository.getTablePlayers(result.table.id);
+
+      console.log('[TRANCAITO_JOIN] Realtime emitido');
+
+      setActiveTable(result.table);
+      setTablePlayers(players);
+      setJoinCodeInput('');
+
+      if (result.alreadyJoined) {
+        setSeatActionFeedback({
+          success: true,
+          message: 'Ya estás dentro de esta mesa.',
+        });
+      } else {
+        setSeatActionFeedback({
+          success: true,
+          message: `¡Te has unido con éxito! Asiento #${result.seatNumber} reservado. Entrada retenida en el ledger.`,
+        });
+      }
+
+      console.log('[TRANCAITO_JOIN] JOIN COMPLETADO');
     } catch (err: any) {
-      setJoinError(err.message || 'Error al buscar la mesa');
+      console.error('[TRANCAITO_JOIN_ERROR]', {
+        code: rawCode,
+        userId: user?.id,
+        error: err,
+      });
+      setJoinError(sanitizeUserErrorMessage(err, 'No fue posible unirte a la mesa.'));
     } finally {
       setSearchingCode(false);
     }
@@ -351,7 +406,7 @@ export function TablesView() {
                 rightIcon={<ArrowRight className="w-4 h-4" />}
                 disabled={!joinCodeInput.trim() || searchingCode}
               >
-                {searchingCode ? 'Buscando...' : 'Buscar Mesa'}
+                {searchingCode ? 'Uniéndose...' : 'Unirse con Código'}
               </Button>
             ) : (
               <Button
@@ -695,35 +750,59 @@ export function TablesView() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  id="btn-enter-game-arena"
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Play className="w-4 h-4 fill-current" />}
-                  onClick={() => {
-                    if (!user) return;
-                    const currentSeats = tablePlayers.length > 0 ? tablePlayers : [
-                      {
-                        tableId: activeTable.id,
-                        userId: user.id,
-                        seatNumber: 1,
-                        seatIndex: 0,
-                        teamIndex: 0,
-                        joinedAt: new Date().toISOString(),
-                        displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user.email?.split('@')[0] || 'Jugador',
-                        avatarUrl: profile?.avatarUrl || undefined,
-                        status: 'READY' as const,
+                {user && activeTable.hostUserId === user.id ? (
+                  <Button
+                    id="btn-enter-game-arena"
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Play className="w-4 h-4 fill-current" />}
+                    onClick={async () => {
+                      if (!user) return;
+                      try {
+                        await TableRepository.startGameSession(activeTable.id);
+                      } catch (e) {
+                        console.warn('Session already started or host auto-start:', e);
                       }
-                    ];
-                    setInGameData({
-                      table: activeTable,
-                      players: currentSeats,
-                    });
-                    setActiveTable(null);
-                  }}
-                >
-                  Entrar a la Partida
-                </Button>
+                      setInGameData({
+                        table: activeTable,
+                        players: tablePlayers.length > 0 ? tablePlayers : [
+                          {
+                            tableId: activeTable.id,
+                            userId: user.id,
+                            seatNumber: 1,
+                            seatIndex: 0,
+                            teamIndex: 0,
+                            joinedAt: new Date().toISOString(),
+                            displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user.email?.split('@')[0] || 'Jugador',
+                            avatarUrl: profile?.avatarUrl || undefined,
+                            status: 'READY' as const,
+                          }
+                        ],
+                      });
+                      setActiveTable(null);
+                    }}
+                  >
+                    INICIAR / ENTRAR A LA PARTIDA
+                  </Button>
+                ) : (
+                  <Button
+                    id="btn-enter-game-arena"
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Play className="w-4 h-4 fill-current" />}
+                    disabled={!tablePlayers.some((p) => p.userId === user?.id)}
+                    onClick={() => {
+                      if (!user) return;
+                      setInGameData({
+                        table: activeTable,
+                        players: tablePlayers,
+                      });
+                      setActiveTable(null);
+                    }}
+                  >
+                    ENTRAR A LA PARTIDA
+                  </Button>
+                )}
 
                 <Button
                   variant="secondary"

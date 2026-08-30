@@ -22,6 +22,7 @@ export class GameRepository {
       bingo: 'BINGO',
       polla_venezolana: 'POLLA_VENEZOLANA',
       atrapaito: 'ATRAPAITO',
+      una_olla: 'UNA_OLLA',
     };
     return map[gameType] || gameType.toUpperCase();
   }
@@ -39,6 +40,7 @@ export class GameRepository {
       BINGO: 'bingo',
       POLLA_VENEZOLANA: 'polla_venezolana',
       ATRAPAITO: 'atrapaito',
+      UNA_OLLA: 'una_olla',
     };
     return map[dbType] || (dbType.toLowerCase() as GameType);
   }

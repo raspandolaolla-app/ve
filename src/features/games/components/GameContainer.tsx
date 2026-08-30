@@ -559,12 +559,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       case 'polla_venezolana':
         return (
-          <PollaBoard
-            state={gameState}
-            currentUserId={currentUserId}
-            onSubmitPredictions={(predictions) => handleGameAction('SUBMIT_PREDICTIONS', { predictions })}
-            onResolveMatches={() => handleGameAction('RESOLVE_MATCHES', {})}
-          />
+          <PollaBoard />
         );
 
       case 'atrapaito':
@@ -580,8 +575,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
       case 'una_olla':
-      case 'una-olla':
-      case 'una_olla_card_game':
         return (
           <UnaOllaGame
             table={table}

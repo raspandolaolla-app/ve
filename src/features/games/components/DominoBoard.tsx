@@ -113,7 +113,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     if (!isMyTurn) return;
 
     if (state.board.length === 0) {
-      onPlayTile(tile, 'initial');
+      onPlayTile(tile, 'left');
       setSelectedTile(null);
       return;
     }

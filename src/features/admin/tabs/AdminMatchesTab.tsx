@@ -114,14 +114,18 @@ export function AdminMatchesTab({ matches, onRefresh }: AdminMatchesTabProps) {
                     <td className="py-3 px-3">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                          m.status === 'FINISHED'
+                          m.status === 'FINISHED' || (m.status as string) === 'SETTLED' || (m.status as string) === 'COMPLETED'
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                            : m.status === 'IN_PROGRESS'
+                            : m.status === 'IN_PROGRESS' || (m.status as string) === 'ACTIVE'
                             ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
                             : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                         }`}
                       >
-                        {m.status === 'FINISHED' ? 'LIQUIDADA' : m.status === 'IN_PROGRESS' ? 'EN JUEGO' : m.status}
+                        {m.status === 'FINISHED' || (m.status as string) === 'SETTLED' || (m.status as string) === 'COMPLETED'
+                          ? 'LIQUIDADA'
+                          : m.status === 'IN_PROGRESS' || (m.status as string) === 'ACTIVE'
+                          ? 'EN JUEGO'
+                          : m.status}
                       </span>
                     </td>
                   </tr>

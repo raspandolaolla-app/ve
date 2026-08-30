@@ -179,6 +179,7 @@ export class GameRepository {
         finished: 'FINISHED',
         FINISHED: 'FINISHED',
         in_progress: 'ACTIVE',
+        IN_PROGRESS: 'ACTIVE',
         playing: 'ACTIVE',
         ACTIVE: 'ACTIVE',
         SETTLED: 'SETTLED',

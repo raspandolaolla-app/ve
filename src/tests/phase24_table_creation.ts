@@ -819,6 +819,14 @@ export const testCases: TestCase[] = [
     critical: true,
 
     run: async () => {
+      const userId = await authenticateTestUser();
+
+      if (!userId) {
+        throw new Error(
+          'TEST_AUTH_REQUIRED: Se requiere TEST_EMAIL y TEST_PASSWORD para la prueba real.'
+        );
+      }
+
       const client = requireSupabase();
 
       const enumValues = await getGameEnumValues();
@@ -827,14 +835,6 @@ export const testCases: TestCase[] = [
         enumValues.includes('UNA_OLLA'),
         'UNA_OLLA_MISSING_FROM_ENUM: PostgreSQL todavía no reconoce UNA_OLLA.'
       );
-
-      const userId = await authenticateTestUser();
-
-      if (!userId) {
-        throw new Error(
-          'TEST_AUTH_REQUIRED: Se requiere TEST_EMAIL y TEST_PASSWORD para la prueba real.'
-        );
-      }
 
       const walletBefore =
         await getWalletSnapshot(userId);

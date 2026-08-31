@@ -718,6 +718,11 @@ export class TableRepository {
    * Crea una nueva mesa pública o privada de forma segura.
    */
   public static async createTable(payload: CreateTablePayload): Promise<GameTable | null> {
+    const entryFeeNum = Number(payload.entryFee || 0);
+    if (entryFeeNum < 25 || entryFeeNum > 5000) {
+      throw new Error('INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.');
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
@@ -752,11 +757,6 @@ export class TableRepository {
 
     const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
     const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
-
-    const entryFeeNum = Number(payload.entryFee || 0);
-    if (entryFeeNum < 25 || entryFeeNum > 5000) {
-      throw new Error('INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.');
-    }
 
     // Invocar exclusivamente la RPC segura create_game_table_secure
     const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {

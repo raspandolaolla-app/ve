@@ -13,14 +13,16 @@ export class ChessEngine implements IGameEngine<ChessState> {
   public readonly gameType = 'chess';
 
   public initialize(table: GameTable, players: TablePlayer[]): ChessState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const p1 = sortedPlayers[0];
-    const p2 = sortedPlayers[1] || sortedPlayers[0];
+    const uniquePlayers = [...players]
+      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
+      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const p1 = uniquePlayers[0];
+    const p2 = uniquePlayers[1];
 
     return {
       fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      playerWhiteUserId: p1.userId,
-      playerBlackUserId: p2.userId || p1.userId,
+      playerWhiteUserId: p1?.userId || table.hostUserId,
+      playerBlackUserId: p2?.userId || '',
       moveHistory: [],
       winnerUserId: null,
       isDraw: false,

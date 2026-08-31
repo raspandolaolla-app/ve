@@ -681,155 +681,170 @@ export function TablesView() {
 
             {/* Asientos de la Mesa */}
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Asientos de la Mesa ({tablePlayers.length}/{activeTable.maxPlayers})
-              </h3>
+              {(() => {
+                const uniquePlayers = tablePlayers.filter(
+                  (p, index, self) => self.findIndex((other) => other.userId === p.userId) === index
+                );
+                const userAlreadySeated = uniquePlayers.some((p) => p.userId === user?.id);
+                const minRequired = activeTable.minPlayers || 2;
+                const canStart = uniquePlayers.length >= minRequired;
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {Array.from({ length: activeTable.maxPlayers }, (_, i) => i + 1).map((seatNum) => {
-                  const playerAtSeat = tablePlayers.find(
-                    (p) => p.seatNumber === seatNum || p.seatIndex === seatNum - 1
-                  );
-                  const isCurrentPlayer = playerAtSeat?.userId === user?.id;
-                  const isPlayerOnline = playerAtSeat ? onlineUserIds.includes(playerAtSeat.userId) : false;
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Asientos de la Mesa ({uniquePlayers.length}/{activeTable.maxPlayers})
+                      </h3>
+                      {!canStart && (
+                        <span className="text-[11px] text-amber-400 font-medium">
+                          Mínimo requerido: {minRequired} jugadores
+                        </span>
+                      )}
+                    </div>
 
-                  return (
-                    <div
-                      key={seatNum}
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between ${
-                        playerAtSeat
-                          ? isCurrentPlayer
-                            ? 'bg-amber-950/20 border-amber-500/50'
-                            : 'bg-slate-950 border-slate-800'
-                          : 'bg-slate-950/40 border-dashed border-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-mono text-xs font-bold text-slate-300">
-                            #{seatNum}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {Array.from({ length: activeTable.maxPlayers }, (_, i) => i + 1).map((seatNum) => {
+                        const playerAtSeat = uniquePlayers.find(
+                          (p) => p.seatNumber === seatNum || p.seatIndex === seatNum - 1
+                        );
+                        const isCurrentPlayer = playerAtSeat?.userId === user?.id;
+                        const isPlayerOnline = playerAtSeat ? onlineUserIds.includes(playerAtSeat.userId) : false;
+
+                        return (
+                          <div
+                            key={seatNum}
+                            className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                              playerAtSeat
+                                ? isCurrentPlayer
+                                  ? 'bg-amber-950/20 border-amber-500/50'
+                                  : 'bg-slate-950 border-slate-800'
+                                : 'bg-slate-950/40 border-dashed border-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-mono text-xs font-bold text-slate-300">
+                                  #{seatNum}
+                                </div>
+                                {playerAtSeat && (
+                                  <span
+                                    className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${
+                                      isPlayerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
+                                    }`}
+                                    title={isPlayerOnline ? 'En línea' : 'Desconectado'}
+                                  />
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>{playerAtSeat ? playerAtSeat.displayName : 'Asiento Disponible'}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                                  <span>{playerAtSeat ? (isCurrentPlayer ? '(Tú)' : 'Listo') : 'Vacante'}</span>
+                                  {playerAtSeat && (
+                                    <span className={isPlayerOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                                      • {isPlayerOnline ? 'ONLINE' : 'OFFLINE'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              {playerAtSeat ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium">
+                                  Ocupado
+                                </span>
+                              ) : isAuthenticated ? (
+                                userAlreadySeated ? (
+                                  <span className="text-[10px] text-slate-500 font-medium">Ya sentado</span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    className="text-xs py-1 px-3"
+                                    disabled={joiningSeat !== null}
+                                    onClick={() => handleTakeSeat(seatNum)}
+                                  >
+                                    {joiningSeat === seatNum ? 'Ocupando...' : 'Tomar Asiento'}
+                                  </Button>
+                                )
+                              ) : (
+                                <span className="text-[10px] text-slate-500">Inicia sesión</span>
+                              )}
+                            </div>
                           </div>
-                          {playerAtSeat && (
-                            <span
-                              className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${
-                                isPlayerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
-                              }`}
-                              title={isPlayerOnline ? 'En línea' : 'Desconectado'}
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                            <span>{playerAtSeat ? playerAtSeat.displayName : 'Asiento Disponible'}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                            <span>{playerAtSeat ? (isCurrentPlayer ? '(Tú)' : 'Listo') : 'Vacante'}</span>
-                            {playerAtSeat && (
-                              <span className={isPlayerOnline ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                                • {isPlayerOnline ? 'ONLINE' : 'OFFLINE'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Acciones de la Sala */}
+                    <div className="pt-4 border-t border-slate-800 flex items-center justify-between flex-wrap gap-3">
+                      <div className="text-xs text-slate-400">
+                        Comparte este código para invitar: <strong className="text-amber-300 font-mono">{activeTable.joinCode}</strong>
                       </div>
 
-                      <div>
-                        {playerAtSeat ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium">
-                            Ocupado
-                          </span>
-                        ) : isAuthenticated ? (
+                      <div className="flex items-center gap-2">
+                        {user && activeTable.hostUserId === user.id ? (
                           <Button
-                            size="sm"
+                            id="btn-enter-game-arena"
                             variant="primary"
-                            className="text-xs py-1 px-3"
-                            disabled={joiningSeat !== null}
-                            onClick={() => handleTakeSeat(seatNum)}
+                            size="sm"
+                            leftIcon={<Play className="w-4 h-4 fill-current" />}
+                            disabled={!canStart}
+                            onClick={async () => {
+                              if (!user || !canStart) return;
+                              try {
+                                await TableRepository.startGameSession(activeTable.id);
+                              } catch (e) {
+                                console.warn('Session already started or host auto-start:', e);
+                              }
+                              setInGameData({
+                                table: activeTable,
+                                players: uniquePlayers,
+                              });
+                              setActiveTable(null);
+                            }}
                           >
-                            {joiningSeat === seatNum ? 'Ocupando...' : 'Tomar Asiento'}
+                            {canStart
+                              ? 'INICIAR / ENTRAR A LA PARTIDA'
+                              : `Esperando Jugadores (${uniquePlayers.length}/${minRequired})`}
                           </Button>
                         ) : (
-                          <span className="text-[10px] text-slate-500">Inicia sesión</span>
+                          <Button
+                            id="btn-enter-game-arena"
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Play className="w-4 h-4 fill-current" />}
+                            disabled={!userAlreadySeated}
+                            onClick={() => {
+                              if (!user) return;
+                              setInGameData({
+                                table: activeTable,
+                                players: uniquePlayers,
+                              });
+                              setActiveTable(null);
+                            }}
+                          >
+                            ENTRAR A LA PARTIDA
+                          </Button>
                         )}
+
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setActiveTable(null);
+                            setSeatActionFeedback(null);
+                          }}
+                        >
+                          Cerrar Sala
+                        </Button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-      {/* Acciones de la Sala */}
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between flex-wrap gap-3">
-              <div className="text-xs text-slate-400">
-                Comparte este código para invitar: <strong className="text-amber-300 font-mono">{activeTable.joinCode}</strong>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {user && activeTable.hostUserId === user.id ? (
-                  <Button
-                    id="btn-enter-game-arena"
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<Play className="w-4 h-4 fill-current" />}
-                    onClick={async () => {
-                      if (!user) return;
-                      try {
-                        await TableRepository.startGameSession(activeTable.id);
-                      } catch (e) {
-                        console.warn('Session already started or host auto-start:', e);
-                      }
-                      setInGameData({
-                        table: activeTable,
-                        players: tablePlayers.length > 0 ? tablePlayers : [
-                          {
-                            tableId: activeTable.id,
-                            userId: user.id,
-                            seatNumber: 1,
-                            seatIndex: 0,
-                            teamIndex: 0,
-                            joinedAt: new Date().toISOString(),
-                            displayName: profile ? `${profile.firstName} ${profile.lastName}`.trim() : user.email?.split('@')[0] || 'Jugador',
-                            avatarUrl: profile?.avatarUrl || undefined,
-                            status: 'READY' as const,
-                          }
-                        ],
-                      });
-                      setActiveTable(null);
-                    }}
-                  >
-                    INICIAR / ENTRAR A LA PARTIDA
-                  </Button>
-                ) : (
-                  <Button
-                    id="btn-enter-game-arena"
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<Play className="w-4 h-4 fill-current" />}
-                    disabled={!tablePlayers.some((p) => p.userId === user?.id)}
-                    onClick={() => {
-                      if (!user) return;
-                      setInGameData({
-                        table: activeTable,
-                        players: tablePlayers,
-                      });
-                      setActiveTable(null);
-                    }}
-                  >
-                    ENTRAR A LA PARTIDA
-                  </Button>
-                )}
-
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setActiveTable(null);
-                    setSeatActionFeedback(null);
-                  }}
-                >
-                  Cerrar Sala
-                </Button>
-              </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

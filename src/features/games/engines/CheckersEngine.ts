@@ -12,9 +12,14 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
   public readonly gameType = 'checkers';
 
   public initialize(table: GameTable, players: TablePlayer[]): CheckersState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const p1 = sortedPlayers[0];
-    const p2 = sortedPlayers[1] || sortedPlayers[0];
+    const uniquePlayers = [...players]
+      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
+      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const p1 = uniquePlayers[0];
+    const p2 = uniquePlayers[1];
+
+    const p1UserId = p1?.userId || table.hostUserId;
+    const p2UserId = p2?.userId || '';
 
     const board: (CheckersPiece | null)[][] = Array(8)
       .fill(null)
@@ -27,7 +32,7 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
           board[r][c] = {
             id: `p1_${r}_${c}`,
             player: 1,
-            userId: p1.userId,
+            userId: p1UserId,
             isKing: false,
           };
         }
@@ -41,27 +46,28 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
           board[r][c] = {
             id: `p2_${r}_${c}`,
             player: 2,
-            userId: p2.userId,
+            userId: p2UserId,
             isKing: false,
           };
         }
       }
     }
 
+    const capturedCount: Record<string, number> = {};
+    if (p1UserId) capturedCount[p1UserId] = 0;
+    if (p2UserId) capturedCount[p2UserId] = 0;
+
     return {
       board,
-      turnUserId: p1.userId,
+      turnUserId: p1UserId,
       players: [
-        { userId: p1.userId, playerNumber: 1, name: p1.displayName || 'Jugador 1 (Blancas)' },
-        { userId: p2.userId, playerNumber: 2, name: p2.displayName || 'Jugador 2 (Negras)' },
+        { userId: p1UserId, playerNumber: 1, name: p1?.displayName || 'Jugador 1 (Blancas)' },
+        { userId: p2UserId, playerNumber: 2, name: p2?.displayName || 'Jugador 2 (Negras)' },
       ],
-      capturedCount: {
-        [p1.userId]: 0,
-        [p2.userId]: 0,
-      },
+      capturedCount,
       lives: {
-        [p1.userId]: 3,
-        [p2.userId]: 3,
+        [p1UserId]: 3,
+        [p2UserId]: 3,
       },
       status: 'playing',
       winnerUserId: null,

@@ -12,29 +12,34 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
   public readonly gameType = 'rock_paper_scissors';
 
   public initialize(table: GameTable, players: TablePlayer[]): RPSState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const p1 = sortedPlayers[0];
-    const p2 = sortedPlayers[1] || sortedPlayers[0];
+    const uniquePlayers = [...players]
+      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
+      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const p1 = uniquePlayers[0];
+    const p2 = uniquePlayers[1];
+
+    const p1UserId = p1?.userId || table.hostUserId;
+    const p2UserId = p2?.userId || '';
 
     const playerNames: Record<string, string> = {
-      [p1.userId]: p1.displayName || 'Jugador 1',
+      [p1UserId]: p1?.displayName || 'Jugador 1',
     };
-    if (p2) {
-      playerNames[p2.userId] = p2.displayName || 'Jugador 2';
+    if (p2UserId) {
+      playerNames[p2UserId] = p2?.displayName || 'Jugador 2';
     }
 
     const scores: Record<string, number> = {
-      [p1.userId]: 0,
+      [p1UserId]: 0,
     };
-    if (p2 && p2.userId !== p1.userId) {
-      scores[p2.userId] = 0;
+    if (p2UserId) {
+      scores[p2UserId] = 0;
     }
 
     const playerChoices: Record<string, { choice?: RPSChoice; committed: boolean; hash?: string }> = {
-      [p1.userId]: { committed: false },
+      [p1UserId]: { committed: false },
     };
-    if (p2 && p2.userId !== p1.userId) {
-      playerChoices[p2.userId] = { committed: false };
+    if (p2UserId) {
+      playerChoices[p2UserId] = { committed: false };
     }
 
     return {

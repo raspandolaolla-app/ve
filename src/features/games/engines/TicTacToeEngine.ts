@@ -23,41 +23,46 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   public readonly gameType = 'tic_tac_toe';
 
   public initialize(table: GameTable, players: TablePlayer[]): TicTacToeState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const p1 = sortedPlayers[0];
-    const p2 = sortedPlayers[1] || sortedPlayers[0];
+    const uniquePlayers = [...players]
+      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
+      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const p1 = uniquePlayers[0];
+    const p2 = uniquePlayers[1];
+
+    const p1UserId = p1?.userId || table.hostUserId;
+    const p2UserId = p2?.userId || '';
 
     const playerSymbols: Record<string, TicTacToeSymbol> = {
-      [p1.userId]: 'X',
+      [p1UserId]: 'X',
     };
-    if (p2 && p2.userId !== p1.userId) {
-      playerSymbols[p2.userId] = 'O';
+    if (p2UserId) {
+      playerSymbols[p2UserId] = 'O';
     }
 
     const playerNames: Record<string, string> = {
-      [p1.userId]: p1.displayName || 'Jugador 1 (X)',
+      [p1UserId]: p1?.displayName || 'Jugador 1 (X)',
     };
-    if (p2) {
-      playerNames[p2.userId] = p2.displayName || 'Jugador 2 (O)';
+    if (p2UserId) {
+      playerNames[p2UserId] = p2?.displayName || 'Jugador 2 (O)';
     }
 
     const scores: Record<string, number> = {
-      [p1.userId]: 0,
+      [p1UserId]: 0,
     };
-    if (p2 && p2.userId !== p1.userId) {
-      scores[p2.userId] = 0;
+    if (p2UserId) {
+      scores[p2UserId] = 0;
     }
 
     const lives: Record<string, number> = {
-      [p1.userId]: 3,
+      [p1UserId]: 3,
     };
-    if (p2 && p2.userId !== p1.userId) {
-      lives[p2.userId] = 3;
+    if (p2UserId) {
+      lives[p2UserId] = 3;
     }
 
     return {
       board: Array(9).fill(null),
-      turnUserId: p1.userId,
+      turnUserId: p1UserId,
       playerSymbols,
       playerNames,
       lives,

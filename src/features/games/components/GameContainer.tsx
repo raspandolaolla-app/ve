@@ -518,13 +518,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         // 3. Persistir la acción en Supabase (Game Actions)
         await GameRepository.submitAction(payload);
 
+        const nextTurnUserId = (result.newState as any)?.currentTurnUserId || (result.newState as any)?.turnUserId || null;
+        const turnDuration = table.gameType === 'chess' ? 15 : ((result.newState as any)?.turnDurationSeconds || 10);
+
         // 4. Actualizar estado público en Supabase (Game Sessions)
         await GameRepository.updateSessionState(
           session.id,
           result.newState,
-          result.newState.turnUserId || null,
+          nextTurnUserId,
           result.isGameOver ? 'FINISHED' : 'ACTIVE',
-          result.winnerUserId
+          result.winnerUserId,
+          turnDuration
         );
 
         // 5. Liquidación oficial 90/10 en victoria o Reembolso 100% en Empate
@@ -707,6 +711,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onResign={() => handleGameAction('RESIGN', {})}
             onOfferDraw={() => handleGameAction('OFFER_DRAW', {})}
             onAcceptDraw={() => handleGameAction('ACCEPT_DRAW', {})}
+            onTimeout={() => handleGameAction('TIMEOUT', {})}
           />
         );
 

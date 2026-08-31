@@ -43,6 +43,8 @@ export class ChessEngine implements IGameEngine<ChessState> {
       fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       playerWhiteUserId,
       playerBlackUserId,
+      currentTurnUserId: playerWhiteUserId,
+      turnDurationSeconds: 15,
       moveHistory: [],
       winnerUserId: null,
       isDraw: false,
@@ -246,9 +248,14 @@ export class ChessEngine implements IGameEngine<ChessState> {
         },
       ];
 
+      const nextActiveColor = chess.turn();
+      const nextTurnUserId = nextActiveColor === 'w' ? state.playerWhiteUserId : state.playerBlackUserId;
+
       const newState: ChessState = {
         ...state,
         fen: chess.fen(),
+        currentTurnUserId: isGameOver ? undefined : nextTurnUserId,
+        turnDurationSeconds: 15,
         moveHistory: nextHistory,
         winnerUserId,
         isDraw,

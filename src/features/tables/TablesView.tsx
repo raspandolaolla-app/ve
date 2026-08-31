@@ -41,6 +41,7 @@ import {
   Play,
   Loader2,
   BookOpen,
+  Clock,
 } from 'lucide-react';
 import { MediaBanner } from '../../components/common/MediaBanner';
 
@@ -159,7 +160,22 @@ export function TablesView() {
               message: 'Esta mesa ha sido cerrada o terminada por la administración.',
             });
           } else {
+            const updatedTable = { ...activeTable, ...tablePayload.new };
             setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
+
+            // Si el anfitrión inició la partida (estado ACTIVE/IN_PROGRESS), transferir automáticamente a los jugadores sentados a la Arena
+            if (newStatus === 'ACTIVE' || newStatus === 'IN_PROGRESS') {
+              TableRepository.getTablePlayers(activeTable.id).then((freshPlayers) => {
+                const isSeated = freshPlayers.some((p) => p.userId === user?.id && p.status !== 'LEFT');
+                if (isSeated) {
+                  setInGameData({
+                    table: updatedTable,
+                    players: freshPlayers,
+                  });
+                  setActiveTable(null);
+                }
+              });
+            }
           }
         }
       },
@@ -816,7 +832,7 @@ export function TablesView() {
                             }}
                           >
                             {canStart
-                              ? 'INICIAR / ENTRAR A LA PARTIDA'
+                              ? 'INICIAR PARTIDA'
                               : `Esperando Jugadores (${uniquePlayers.length}/${minRequired})`}
                           </Button>
                         ) : (
@@ -824,8 +840,17 @@ export function TablesView() {
                             id="btn-enter-game-arena"
                             variant="primary"
                             size="sm"
-                            leftIcon={<Play className="w-4 h-4 fill-current" />}
-                            disabled={!userAlreadySeated}
+                            leftIcon={
+                              activeTable.status === 'ACTIVE' || activeTable.status === 'IN_PROGRESS' ? (
+                                <Play className="w-4 h-4 fill-current" />
+                              ) : (
+                                <Clock className="w-4 h-4 animate-pulse" />
+                              )
+                            }
+                            disabled={
+                              !userAlreadySeated ||
+                              (activeTable.status !== 'ACTIVE' && activeTable.status !== 'IN_PROGRESS')
+                            }
                             onClick={() => {
                               if (!user) return;
                               setInGameData({
@@ -835,7 +860,13 @@ export function TablesView() {
                               setActiveTable(null);
                             }}
                           >
-                            ENTRAR A LA PARTIDA
+                            {!userAlreadySeated
+                              ? 'Ocupa un puesto para jugar'
+                              : activeTable.status === 'ACTIVE' || activeTable.status === 'IN_PROGRESS'
+                              ? 'ENTRAR A LA PARTIDA'
+                              : canStart
+                              ? 'Esperando inicio del anfitrión...'
+                              : `Esperando Jugadores (${uniquePlayers.length}/${minRequired})`}
                           </Button>
                         )}
 

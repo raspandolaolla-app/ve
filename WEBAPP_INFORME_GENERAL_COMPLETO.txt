@@ -2,9 +2,10 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-08-30 22:45:00 -07:00 (UTC 2026-08-31 05:45:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-08-30 23:10:00 -07:00 (UTC 2026-08-31 06:10:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 082_fix_controlled_game_abandonment_and_settlement.sql (Abandono Controlado Seguro + Liquidación Automática 1v1 y Continuación Multijugador + Modo Inmersivo Fullscreen Responsive)
+ÚLTIMA MIGRACIÓN INTEGRADA: 083_fix_settle_game_session_ambiguity_and_chess_sync.sql (Resolución definitiva de ambigüedad en settle_game_session + Inicio Sincronizado Multijugador en Ajedrez con 15s de turno y reloj de servidor)
+MEJORA UI/UX RECIENTE: Rediseño Visual Profesional de Ajedrez (Temas Madera Clásica/Moderno/Alto Contraste, Piezas Vectoriales 3D HD, Alertas de Jaque/Jaque Mate y Menú Táctil de Promoción)
 ================================================================================
 
 --------------------------------------------------------------------------------
@@ -379,16 +380,16 @@ g) Historial de Migraciones (80 Archivos SQL):
 4. `src/services/repositories/*`           : Abstracción de datos y llamadas RPC server-side.
 5. `src/services/realtime/RealtimeManager.ts`: Sincronización WebSockets multijugador con deduplicación.
 6. `public/sw.js` & `manifest.webmanifest` : Servicio PWA y caché offline.
-7. `supabase/migrations/*.sql` (81)       : Historial reproducible de la base de datos (001 a 081).
+7. `supabase/migrations/*.sql` (83)       : Historial reproducible de la base de datos (001 a 083).
 8. `netlify.toml`, `vite.config.ts`, `index.html`: Configuración de empaquetado y hosting.
 
 --------------------------------------------------------------------------------
 16. RESUMEN EJECUTIVO Y RECOMENDACIONES
 --------------------------------------------------------------------------------
 - Estado Actual: La WebApp RASPANDO LA OLLA 🇻🇪 / PulsoPlay se encuentra 100% operativa, compilando de forma limpia sin errores de TypeScript ni de Linter.
-- Fortalezas: Billetera server-authoritative inmutable con ledger, 10 juegos plenamente integrados con tableros interactivos dedicados (Ajedrez con FIDE/chess.js, Dominó, Truco, Bingo, Polla, Atrapaíto, Damas, Piedra Papel Tijera, La Vieja y UNA-OLLA), validación estricta de asientos multijugador única por user_id, corrección de firma RPC para settle_game_session y refund_game_session con normalización de tipos INTEGER/TEXT, sorteo de Polla Venezolana con comprobantes PNG, PWA funcional, panel administrativo robusto con herramienta de limpieza de mesas por concurrencia y rate-limiting atómico blindado contra TOCTOU.
+- Fortalezas: Billetera server-authoritative inmutable con ledger, 10 juegos plenamente integrados con tableros interactivos dedicados (Ajedrez con FIDE/chess.js, sincronización de inicio de partida bajo demanda del anfitrión, 15s de reloj por turno con sincronización de servidor, Dominó, Truco, Bingo, Polla, Atrapaíto, Damas, Piedra Papel Tijera, La Vieja y UNA-OLLA), validación estricta de asientos multijugador única por user_id, eliminación de sobrecargas conflictivas en settle_game_session asegurando firma RPC limpia en PostgREST, sorteo de Polla Venezolana con comprobantes PNG, PWA funcional, panel administrativo robusto con herramienta de limpieza de mesas por concurrencia y rate-limiting atómico blindado contra TOCTOU.
 - Recomendación de Orden para Futuras Mejoras:
-  1. Mantener las 81 migraciones en `supabase/migrations/` sin borrar archivos directamente del repositorio.
+  1. Mantener las 83 migraciones en `supabase/migrations/` sin borrar archivos directamente del repositorio.
   2. Monitorear los logs forenses de `public.audit_logs` y `public.rng_events` en producción para auditorías periódicas.
   3. Continuar ampliando funciones sobre la estructura modular existente sin modificar la arquitectura base.
 ================================================================================

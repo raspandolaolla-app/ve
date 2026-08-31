@@ -175,6 +175,6 @@ test.describe('Tables Management & Creation - E2E', () => {
 
     // Debe abrirse la sala de espera de la mesa creada
     await expect(page.locator('text=Mesa de Pruebas E2E')).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=TRK-9999')).toBeVisible();
+    await expect(page.locator('text=TRK-9999').first()).toBeVisible();
   });
 });

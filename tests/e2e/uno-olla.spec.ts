@@ -105,7 +105,7 @@ test.describe('UNA-OLLA Game Engine - E2E', () => {
     await viewBtn.click();
 
     // Debe abrirse la sala de espera
-    await expect(page.locator('text=Mesa de Una Olla E2E')).toBeVisible();
+    await expect(page.locator('text=Mesa de Una Olla E2E').first()).toBeVisible();
 
     // Simular el inicio de la sesión del juego en la UI (cambiando el estado de la mesa a ACTIVE o renderizando directamente el GameContainer)
     // En la aplicación, cuando la mesa se activa y el usuario está sentado, se carga el juego.

@@ -37,7 +37,7 @@ export function runPhase251ValidationTests(): { allPassed: boolean; results: Tes
     return !sanitized.includes('actualizando') &&
       !sanitized.includes('mantenimiento') &&
       classified.category === 'UNKNOWN_ERROR' &&
-      sanitized === 'No fue posible completar la operación. Por favor, inténtalo nuevamente en unos instantes.';
+      sanitized === 'No se pudo iniciar la partida. Estamos sincronizando la mesa.';
   });
 
   // 2. Error 42P01 (undefined_table) NO muestra mantenimiento

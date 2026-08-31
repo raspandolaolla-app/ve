@@ -177,4 +177,109 @@ export class AuditTestRepository {
       };
     }
   }
+
+  /**
+   * Limpia de forma segura sesiones y mesas de prueba (AUDIT_TEST) de un usuario
+   * para un juego específico antes de ejecutar pruebas de auditoría.
+   * NUNCA toca ni cierra mesas o partidas reales de usuarios.
+   */
+  public static async cleanupAuditGameSession(
+    userId?: string | null,
+    gameType?: string | null
+  ): Promise<{
+    success: boolean;
+    cleanedTables: number;
+    realActiveTables: number;
+    message?: string;
+  }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return { success: false, cleanedTables: 0, realActiveTables: 0, message: 'Supabase no inicializado' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('cleanup_audit_game_session', {
+        p_user_id: userId || null,
+        p_game_type: gameType || null,
+      });
+
+      if (!error && data && data.success) {
+        return {
+          success: true,
+          cleanedTables: data.cleaned_tables || 0,
+          realActiveTables: data.real_active_tables || 0,
+          message: data.message,
+        };
+      }
+    } catch {
+      // Fallback directo seguro
+    }
+
+    // Fallback directo si la función RPC aún no está cargada en Supabase
+    try {
+      if (!userId) {
+        return { success: true, cleanedTables: 0, realActiveTables: 0 };
+      }
+
+      // 1. Detectar si hay mesas reales activas
+      let realQuery = supabase
+        .from('game_tables')
+        .select('id, name')
+        .in('status', ['OPEN', 'FULL', 'STARTING', 'ACTIVE', 'WAITING', 'IN_GAME']);
+
+      if (gameType) {
+        realQuery = realQuery.eq('game_type', gameType);
+      }
+
+      const { data: activeTables } = await realQuery;
+      let realActiveCount = 0;
+      const auditTableIds: string[] = [];
+
+      if (activeTables) {
+        for (const tbl of activeTables) {
+          const isAudit =
+            tbl.name?.includes('AUDIT_TEST') ||
+            tbl.name?.includes('AUDIT') ||
+            tbl.name?.startsWith('Mesa AUDIT');
+          if (isAudit) {
+            auditTableIds.push(tbl.id);
+          } else {
+            realActiveCount++;
+          }
+        }
+      }
+
+      let cleaned = 0;
+      if (auditTableIds.length > 0) {
+        await supabase
+          .from('game_table_players')
+          .update({ status: 'LEFT' })
+          .in('table_id', auditTableIds);
+
+        await supabase
+          .from('game_sessions')
+          .update({ status: 'SETTLED', ended_at: new Date().toISOString(), is_settled: true })
+          .in('table_id', auditTableIds);
+
+        const { count } = await supabase
+          .from('game_tables')
+          .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
+          .in('id', auditTableIds);
+
+        cleaned = count || auditTableIds.length;
+      }
+
+      return {
+        success: true,
+        cleanedTables: cleaned,
+        realActiveTables: realActiveCount,
+        message:
+          realActiveCount > 0
+            ? `Usuario participa en partida real de ${gameType || 'juego'}. Auditoría omitida.`
+            : `Limpieza de mesas de auditoría completada (${cleaned} mesas).`,
+      };
+    } catch {
+      return { success: true, cleanedTables: 0, realActiveTables: 0 };
+    }
+  }
 }

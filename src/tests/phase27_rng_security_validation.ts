@@ -29,7 +29,7 @@ export function runRngSecurityValidationSuite() {
   // 2. Verificar AtrapaitoEngine con RNG autoritativo
   console.log('\n[2] Probando AtrapaitoEngine ROLL_DICE con Server RNG...');
   const atrapaito = new AtrapaitoEngine();
-  const mockTable: any = { id: 'tbl_1', mode: 'INDIVIDUAL', entryFee: 10, config: {} };
+  const mockTable: any = { id: 'tbl_1', mode: 'INDIVIDUAL', entryFee: 25, config: {} };
   const mockPlayers: any = [
     { userId: 'u1', seatNumber: 1, team: 'RED', displayName: 'Jugador 1' },
     { userId: 'u2', seatNumber: 2, team: 'BLUE', displayName: 'Jugador 2' },

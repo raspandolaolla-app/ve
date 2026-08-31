@@ -468,6 +468,10 @@ export interface ChessState {
   fen: string; // Forsyth-Edwards Notation for the chess board state
   playerWhiteUserId: string; // User ID playing White (usually host)
   playerBlackUserId: string; // User ID playing Black (usually guest)
+  currentTurnUserId?: string; // ID del jugador en turno actual
+  turnExpiresAt?: string; // Timestamp ISO de expiración del turno calculado por servidor
+  turnDurationSeconds?: number; // 15 segundos para ajedrez
+  playerNames?: Record<string, string>;
   moveHistory: {
     from: string;
     to: string;

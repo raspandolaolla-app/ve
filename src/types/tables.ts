@@ -9,6 +9,8 @@ export type TableStatus =
   | 'OPEN'
   | 'FULL'
   | 'IN_GAME'
+  | 'ACTIVE'
+  | 'IN_PROGRESS'
   | 'CLOSED'
   | 'CANCELLED'
   | 'waiting'

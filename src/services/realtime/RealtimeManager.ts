@@ -54,13 +54,16 @@ export class RealtimeManager {
   }
 
   /**
-   * Se suscribe a la lista pública de mesas en el Lobby (cambios en mesas y sesiones).
+   * Se suscribe a la lista pública de mesas en el Lobby (cambios en mesas, sesiones y jugadores).
    */
-  public static subscribeToLobby(onLobbyChange: (payload: any) => void): () => void {
+  public static subscribeToLobby(
+    onLobbyChange: (payload: any) => void,
+    onStatusChange?: (status: string) => void
+  ): () => void {
     const supabase = getSupabaseClient();
     if (!supabase) return () => {};
 
-    const channelName = `lobby_public_tables_${Date.now()}`;
+    const channelName = `public-game-tables-lobby-${Date.now()}`;
     const channel: RealtimeChannel = supabase
       .channel(channelName)
       .on(
@@ -85,7 +88,22 @@ export class RealtimeManager {
           onLobbyChange({ ...payload, sourceTable: 'game_sessions' });
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_table_players',
+        },
+        (payload) => {
+          onLobbyChange({ ...payload, sourceTable: 'game_table_players' });
+        }
+      )
+      .subscribe((status) => {
+        if (onStatusChange) {
+          onStatusChange(status);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

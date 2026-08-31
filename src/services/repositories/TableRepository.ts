@@ -47,18 +47,30 @@ export class TableRepository {
   public static isTableAvailable(t: any): boolean {
     if (!t) return false;
     const status = String(t.status || '').toUpperCase();
-    if (['CLOSED', 'TERMINATED', 'CANCELLED', 'EXPIRED', 'FINISHED', 'ACTIVE', 'FULL', 'IN_GAME', 'COMPLETED'].includes(status)) {
+    if (status !== 'OPEN') {
       return false;
     }
-    if (t.closed_at || t.finished_at) {
+    if (t.closed_at || t.finished_at || t.closedAt || t.finishedAt) {
       return false;
     }
-    if (t.visibility === 'PRIVATE' || Boolean(t.is_private)) {
+    if (t.visibility === 'PRIVATE' || t.visibility === 'private' || Boolean(t.is_private) || Boolean(t.isPrivate)) {
       return false;
     }
-    const currentCount = Number(t.current_players_count || 0);
-    const maxCount = Number(t.max_players || 2);
+    const currentCount = Number(t.current_players_count ?? t.currentPlayersCount ?? 0);
+    const maxCount = Number(t.max_players ?? t.maxPlayers ?? 2);
     if (currentCount >= maxCount) {
+      return false;
+    }
+    const expiresAt = t.expires_at || t.expiresAt;
+    if (expiresAt) {
+      const expTime = new Date(expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= Date.now()) {
+        return false;
+      }
+    }
+    const tableName = String(t.name || t.config?.name || '');
+    const inviteCode = String(t.invite_code || t.inviteCode || t.join_code || t.joinCode || '');
+    if (tableName.includes('AUDIT_TEST') || inviteCode.startsWith('AUDIT')) {
       return false;
     }
     return true;

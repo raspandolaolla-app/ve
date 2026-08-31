@@ -4,6 +4,7 @@ PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
 FECHA DE GENERACIÓN: 2026-08-30
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green)
+ÚLTIMA MIGRACIÓN INTEGRADA: 079_fix_ledger_entries_balance_after.sql (Fase 9.6.3 — Reconciliación Canónica de balance_after en Ledger y Blindaje Transaccional)
 ================================================================================
 
 --------------------------------------------------------------------------------
@@ -279,7 +280,7 @@ g) Historial de Migraciones (74 Archivos SQL):
 - Funciones RPC: 49
 - Triggers: 12
 - Políticas RLS: 63+
-- Migraciones SQL: 74 (Ubicadas en `supabase/migrations/`)
+- Migraciones SQL: 79 (Ubicadas en `supabase/migrations/` desde 001 hasta 079)
 
 --------------------------------------------------------------------------------
 9. CONFIGURACIÓN Y DESPLIEGUE
@@ -300,7 +301,7 @@ g) Historial de Migraciones (74 Archivos SQL):
 - CRÍTICO: Ninguno en la compilación ni en el linter (`0` errores de compilación / `0` errores en `tsc`).
 - ALTO: Eventuales micro-interrupciones de WebSocket Realtime en conexiones móviles inestables (Manejadas limpiamente por el `RealtimeManager` reconectando la suscripción sin cerrar la sesión del usuario).
 - MEDIO: `scripts/migrate.ts` requiere la variable de entorno `DATABASE_URL` para conectarse directamente al puerto PostgreSQL si se ejecutan migraciones CLI fuera del panel de Supabase.
-- BAJO: Acumulación de 74 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad).
+- BAJO: Acumulación de 79 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad).
 
 --------------------------------------------------------------------------------
 11. CÓDIGO DUPLICADO O INNECESARIO (SOLO IDENTIFICADO / NO ELIMINADO)
@@ -363,7 +364,7 @@ g) Historial de Migraciones (74 Archivos SQL):
 4. `src/services/repositories/*`           : Abstracción de datos y llamadas RPC server-side.
 5. `src/services/realtime/RealtimeManager.ts`: Sincronización WebSockets multijugador.
 6. `public/sw.js` & `manifest.webmanifest` : Servicio PWA y caché offline.
-7. `supabase/migrations/*.sql` (74)       : Historial reproducible de la base de datos.
+7. `supabase/migrations/*.sql` (79)       : Historial reproducible de la base de datos.
 8. `netlify.toml`, `vite.config.ts`, `index.html`: Configuración de empaquetado y hosting.
 
 --------------------------------------------------------------------------------
@@ -372,7 +373,7 @@ g) Historial de Migraciones (74 Archivos SQL):
 - Estado Actual: La WebApp RASPANDO LA OLLA 🇻🇪 / PulsoPlay se encuentra 100% operativa, compilando de forma limpia sin errores de TypeScript ni de Linter.
 - Fortalezas: Billetera server-authoritative inmutable con ledger, 9 juegos plenamente integrados (incluyendo UNA-OLLA), sorteo de Polla Venezolana con comprobantes PNG, PWA funcional, panel administrativo robusto con herramienta de limpieza de mesas por concurrencia y rate-limiting atómico blindado contra TOCTOU.
 - Recomendación de Orden para Futuras Mejoras:
-  1. Mantener las 74 migraciones en `supabase/migrations/` sin borrar archivos directamente del repositorio.
+  1. Mantener las 79 migraciones en `supabase/migrations/` sin borrar archivos directamente del repositorio.
   2. Monitorear los logs forenses de `public.audit_logs` y `public.rng_events` en producción para auditorías periódicas.
   3. Continuar ampliando funciones sobre la estructura modular existente sin modificar la arquitectura base.
 ================================================================================

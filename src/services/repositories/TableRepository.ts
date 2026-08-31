@@ -15,22 +15,89 @@ import type { GameType } from '../../types/games';
 
 export class TableRepository {
   /**
-   * Obtiene la lista de mesas públicas activas en el Lobby.
+   * Transforma un registro de base de datos a la interfaz GameTable.
    */
-  public static async getPublicTables(gameType?: GameType): Promise<GameTable[]> {
+  public static mapDbTableToGameTable(t: any): GameTable {
+    const gameType = GameRepository.mapDbEnumToGameType(t.game_type);
+    return {
+      id: t.id,
+      gameType,
+      name: t.name || `Mesa de ${getGameDisplayName(gameType)}`,
+      mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
+      entryFee: Number(t.entry_fee || 0),
+      currency: t.currency || 'VES',
+      minPlayers: Number(t.min_players || 2),
+      maxPlayers: Number(t.max_players || 2),
+      currentPlayersCount: Number(t.current_players_count || 0),
+      status: t.status,
+      hostUserId: t.host_user_id || t.created_by,
+      isPrivate: t.visibility === 'PRIVATE' || Boolean(t.is_private),
+      joinCode: t.invite_code || t.join_code,
+      shareToken: t.share_token || t.invite_code,
+      createdAt: t.created_at,
+      startedAt: t.started_at,
+      finishedAt: t.closed_at || t.finished_at,
+      config: t.config || {},
+    };
+  }
+
+  /**
+   * Evalúa si una mesa cumple los criterios estrictos para ser visible en "Mesas Públicas Disponibles".
+   */
+  public static isTableAvailable(t: any): boolean {
+    if (!t) return false;
+    const status = String(t.status || '').toUpperCase();
+    if (['CLOSED', 'TERMINATED', 'CANCELLED', 'EXPIRED', 'FINISHED', 'ACTIVE', 'FULL', 'IN_GAME', 'COMPLETED'].includes(status)) {
+      return false;
+    }
+    if (t.closed_at || t.finished_at) {
+      return false;
+    }
+    if (t.visibility === 'PRIVATE' || Boolean(t.is_private)) {
+      return false;
+    }
+    const currentCount = Number(t.current_players_count || 0);
+    const maxCount = Number(t.max_players || 2);
+    if (currentCount >= maxCount) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Obtiene la lista de mesas públicas activas y disponibles en el Lobby.
+   */
+  public static async getPublicTables(gameType?: GameType | 'all' | string): Promise<GameTable[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
 
+    const dbGameType = gameType && gameType !== 'all' ? GameRepository.mapGameTypeToDbEnum(gameType as GameType) : null;
+
+    // 1. Intentar consulta vía RPC canónica get_public_available_tables
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_available_tables', {
+        p_game_type: dbGameType || (gameType && gameType !== 'all' ? String(gameType) : null),
+      });
+
+      if (!rpcError && Array.isArray(rpcData)) {
+        return rpcData
+          .filter((t) => TableRepository.isTableAvailable(t))
+          .map((t) => TableRepository.mapDbTableToGameTable(t));
+      }
+    } catch (rpcErr) {
+      console.warn('[TableRepository] RPC get_public_available_tables fallback to query:', rpcErr);
+    }
+
+    // 2. Fallback: Consulta directa en game_tables con filtros estrictos
     let query = supabase
       .from('game_tables')
       .select('*')
-      .eq('visibility', 'PUBLIC')
-      .in('status', ['OPEN', 'STARTING', 'ACTIVE'])
+      .is('closed_at', null)
+      .in('status', ['OPEN', 'WAITING'])
       .order('created_at', { ascending: false });
 
-    if (gameType) {
-      const dbGameType = GameRepository.mapGameTypeToDbEnum(gameType);
-      query = query.eq('game_type', dbGameType);
+    if (dbGameType) {
+      query = query.or(`game_type.eq.${dbGameType},game_type.eq.${dbGameType.toLowerCase()},game_type.eq.${dbGameType.toUpperCase()}`);
     }
 
     const { data, error } = await query;
@@ -41,50 +108,30 @@ export class TableRepository {
 
     if (!data || data.length === 0) return [];
 
-    // Verificación de sesiones finalizadas para excluir mesas fantasma en el Lobby
+    // Verificación adicional de sesiones finalizadas/activas
     const tableIds = data.map((t) => t.id);
     const { data: activeSessions } = await supabase
       .from('game_sessions')
-      .select('table_id, status')
+      .select('table_id, status, is_settled, ended_at')
       .in('table_id', tableIds);
 
-    const finishedTableIds = new Set<string>();
+    const nonAvailableTableIds = new Set<string>();
     if (activeSessions && activeSessions.length > 0) {
       for (const s of activeSessions) {
-        if (['FINISHED', 'SETTLED', 'COMPLETED', 'CANCELLED', 'REFUNDED'].includes(s.status)) {
-          finishedTableIds.add(s.table_id);
-          // Auto-cerrar mesa en segundo plano si quedó marcada como OPEN
-          supabase
-            .from('game_tables')
-            .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
-            .eq('id', s.table_id)
-            .then(() => {});
+        const sStatus = String(s.status || '').toUpperCase();
+        if (
+          s.is_settled === true ||
+          s.ended_at !== null ||
+          ['FINISHED', 'SETTLED', 'COMPLETED', 'CANCELLED', 'REFUNDED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_GAME'].includes(sStatus)
+        ) {
+          nonAvailableTableIds.add(s.table_id);
         }
       }
     }
 
     return data
-      .filter((t) => !finishedTableIds.has(t.id))
-      .map((t) => ({
-        id: t.id,
-        gameType: GameRepository.mapDbEnumToGameType(t.game_type),
-        name: t.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(t.game_type))}`,
-        mode: (t.mode as any) || (t.max_players === 4 ? '2v2' : '1v1'),
-        entryFee: Number(t.entry_fee || 0),
-        currency: t.currency || 'VES',
-        minPlayers: t.min_players,
-        maxPlayers: t.max_players,
-        currentPlayersCount: t.current_players_count || 0,
-        status: t.status,
-        hostUserId: t.host_user_id || t.created_by,
-        isPrivate: t.visibility === 'PRIVATE' || Boolean(t.is_private),
-        joinCode: t.invite_code || t.join_code,
-        shareToken: t.share_token || t.invite_code,
-        createdAt: t.created_at,
-        startedAt: t.started_at,
-        finishedAt: t.closed_at || t.finished_at,
-        config: t.config || {},
-      }));
+      .filter((t) => TableRepository.isTableAvailable(t) && !nonAvailableTableIds.has(t.id))
+      .map((t) => TableRepository.mapDbTableToGameTable(t));
   }
 
   /**

@@ -6,7 +6,24 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Users, Shield, Radio, Trophy, AlertTriangle, Wifi, WifiOff, RefreshCw, LogOut, Clock } from 'lucide-react';
+import {
+  ArrowLeft,
+  Users,
+  Shield,
+  Radio,
+  Trophy,
+  AlertTriangle,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  LogOut,
+  Clock,
+  Maximize2,
+  Minimize2,
+  Expand,
+  Shrink,
+  ShieldCheck,
+} from 'lucide-react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { GameSession, GameActionPayload } from '../../../types/games';
 import { getGameEngine } from '../engines';
@@ -64,7 +81,52 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [botNotice, setBotNotice] = useState<string | null>(null);
+  const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
+  const [isImmersiveMode, setIsImmersiveMode] = useState<boolean>(true);
+  const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
+  const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
+
+  // Detección de orientación y soporte Fullscreen API
+  useEffect(() => {
+    const handleResizeOrOrientation = () => {
+      const isLand = window.innerWidth > window.innerHeight && window.innerWidth < 1024;
+      setIsLandscape(isLand);
+      setIsFullscreenNative(Boolean(document.fullscreenElement));
+    };
+
+    handleResizeOrOrientation();
+    window.addEventListener('resize', handleResizeOrOrientation);
+    window.addEventListener('orientationchange', handleResizeOrOrientation);
+    document.addEventListener('fullscreenchange', handleResizeOrOrientation);
+
+    return () => {
+      window.removeEventListener('resize', handleResizeOrOrientation);
+      window.removeEventListener('orientationchange', handleResizeOrOrientation);
+      document.removeEventListener('fullscreenchange', handleResizeOrOrientation);
+    };
+  }, []);
+
+  // Función para alternar Fullscreen API del navegador
+  const toggleNativeFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        } else if ((document.documentElement as any).webkitRequestFullscreen) {
+          await (document.documentElement as any).webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document.exitFullscreen as any).webkitExitFullscreen) {
+          await (document.exitFullscreen as any).webkitExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('[GameContainer] Fullscreen API no disponible o bloqueada:', err);
+    }
+  };
 
   // Instancia del motor determinista para este tipo de juego
   const engine = useMemo(() => {
@@ -224,7 +286,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           table: 'game_table_players',
           filter: `table_id=eq.${table.id}`,
         },
-        () => {
+        (payload) => {
+          const newRow = payload.new as any;
+          if (newRow && newRow.status === 'LEFT') {
+            const playerLeft = currentPlayers.find((p) => p.userId === newRow.user_id);
+            const playerName = playerLeft?.displayName || 'Un jugador';
+            if (newRow.user_id !== currentUserId) {
+              setAbandonNotice(`⚠️ ${playerName} abandonó la partida.`);
+              setTimeout(() => setAbandonNotice(null), 6000);
+            }
+          }
           refreshPlayers();
         }
       )
@@ -292,23 +363,30 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           if (updated?.status === 'SETTLED' && !isSettledRef.current) {
             isSettledRef.current = true;
             const winnerPlayer = currentPlayers.find((p) => p.userId === updated.winner_user_id);
-            const grossPool = table.entryFee * currentPlayers.length;
+            const isWinner = updated.winner_user_id === currentUserId;
+            const winnerDisplayName = isWinner ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
+            const grossPool = table.entryFee * (currentPlayers.length || 2);
+
             setSettlementResult({
               grossPool,
               prizePool: grossPool * 0.9,
               platformFee: grossPool * 0.1,
-              winnerName: winnerPlayer?.displayName || 'Ganador',
-              isWinner: updated.winner_user_id === currentUserId,
+              winnerName: winnerDisplayName,
+              isWinner,
               isDraw: false,
             });
+
+            if (isWinner) {
+              setAbandonNotice(`🏆 ¡Victoria declarada! Premio 90/10 acreditado.`);
+            }
           } else if (updated?.status === 'CANCELLED' && !isSettledRef.current) {
             isSettledRef.current = true;
-            const grossPool = table.entryFee * currentPlayers.length;
+            const grossPool = table.entryFee * (currentPlayers.length || 2);
             setSettlementResult({
               grossPool,
               prizePool: 0,
               platformFee: 0,
-              winnerName: 'Empate',
+              winnerName: 'Empate / Reembolso',
               isWinner: false,
               isDraw: true,
             });
@@ -641,10 +719,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   };
 
+  const containerClasses = isImmersiveMode
+    ? 'fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-hidden select-none'
+    : 'min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl';
+
   return (
-    <div id="game-arena-container" className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
+    <div id="game-arena-container" className={containerClasses}>
       {/* Barra de Navegación de la Mesa */}
-      <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-3 sticky top-0 z-30 flex items-center justify-between gap-2">
+      <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
           <button
             onClick={onExit}
@@ -668,7 +750,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           </div>
         </div>
 
-        {/* Indicador de Conexión en Vivo y Botón Abandonar */}
+        {/* Indicadores de Conexión, Fullscreen y Abandono */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
           {realtimeStatus === 'CONNECTED' ? (
             <div className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] sm:text-xs font-mono">
@@ -688,6 +770,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             </div>
           )}
 
+          {/* Botón de Pantalla Completa Nativa */}
+          <button
+            id="fullscreen-toggle-btn"
+            onClick={toggleNativeFullscreen}
+            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation"
+            title={isFullscreenNative ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          >
+            {isFullscreenNative ? (
+              <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            ) : (
+              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            )}
+          </button>
+
+          {/* Botón Alternar Modo Inmersivo */}
+          <button
+            id="immersive-toggle-btn"
+            onClick={() => setIsImmersiveMode(!isImmersiveMode)}
+            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation hidden xs:flex items-center"
+            title={isImmersiveMode ? 'Minimizar a vista regular' : 'Modo Inmersivo'}
+          >
+            {isImmersiveMode ? (
+              <Shrink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            ) : (
+              <Expand className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+            )}
+          </button>
+
           <button
             id="abandon-table-btn"
             onClick={() => setShowAbandonModal(true)}
@@ -699,6 +809,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Alerta de Abandono de Jugador */}
+      {abandonNotice && (
+        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-200 px-4 py-2 text-xs font-bold flex items-center justify-center space-x-2 animate-in slide-in-from-top">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{abandonNotice}</span>
+        </div>
+      )}
 
       {/* Alerta de Error Temporal */}
       {errorMsg && (
@@ -717,8 +835,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       )}
 
       {/* Tablero Principal */}
-      <main className="flex-1 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-        {renderBoard()}
+      <main
+        className={`flex-1 flex items-center justify-center overflow-y-auto ${
+          isLandscape ? 'p-1 sm:p-2 max-h-[calc(100vh-48px)]' : 'p-2 sm:p-4'
+        }`}
+      >
+        <div className="w-full h-full flex items-center justify-center max-w-5xl mx-auto">
+          {renderBoard()}
+        </div>
       </main>
 
       {/* Modal de Liquidación 90/10 o Reembolso */}
@@ -772,15 +896,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+              className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
             >
               <div className="flex items-center space-x-3 text-red-400">
-                <AlertTriangle className="w-6 h-6" />
-                <h3 className="text-lg font-bold text-white">¿Seguro que deseas abandonar la mesa?</h3>
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h3 className="text-base sm:text-lg font-bold text-white">¿Está seguro que desea abandonar?</h3>
               </div>
 
-              <p className="text-sm text-neutral-300 leading-relaxed">
-                Si abandonas voluntariamente una partida activa, perderás tu participación y el premio correspondiente será asignado al jugador que permanece en la partida, según las reglas de abandono.
+              <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
+                Si abandonas voluntariamente una partida activa, perderás tu participación y el premio será asignado automáticamente al jugador que permanezca en la mesa, según las reglas de abandono.
               </p>
 
               <div className="flex items-center justify-end space-x-3 pt-2">
@@ -806,7 +930,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                   ) : (
                     <>
                       <LogOut className="w-3.5 h-3.5" />
-                      <span>ABANDONAR</span>
+                      <span>CONFIRMAR ABANDONO</span>
                     </>
                   )}
                 </button>

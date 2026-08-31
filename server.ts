@@ -76,14 +76,14 @@ async function runAutomatedBingoDraws() {
     // 2. EXTRAER SIGUIENTES BALOTAS DE SESIONES ACTIVAS (TEMPORIZADOR AUTÓNOMO)
     // Busca sesiones de juego ACTIVAS de Bingo Automatizado que excedieron su intervalo de sorteo
     const activeQuery = `
-      SELECT gs.id as session_id, gt.id as table_id, gt.config, gs.updated_at
+      SELECT gs.id as session_id, gt.id as table_id, gt.config, gt.updated_at
       FROM public.game_sessions gs
       JOIN public.game_tables gt ON gt.id = gs.table_id
       WHERE gs.status = 'ACTIVE'::public.session_status_enum
         AND gt.game_type = 'BINGO'::public.game_type_enum
         AND (gt.config->>'automated')::boolean IS TRUE
         AND (gs.current_state->>'status') = 'in_progress'
-        AND gs.updated_at <= NOW() - (COALESCE(gt.config->>'call_interval_ms', '3500')::text || ' milliseconds')::interval
+        AND (gt.updated_at IS NULL OR gt.updated_at <= NOW() - (COALESCE(gt.config->>'call_interval_ms', '3500')::text || ' milliseconds')::interval)
       LIMIT 10;
     `;
     const activeRes = await client.query(activeQuery);

@@ -13,16 +13,33 @@ export class ChessEngine implements IGameEngine<ChessState> {
   public readonly gameType = 'chess';
 
   public initialize(table: GameTable, players: TablePlayer[]): ChessState {
-    const uniquePlayers = [...players]
-      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
-      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     const p1 = uniquePlayers[0];
     const p2 = uniquePlayers[1];
 
+    const playerWhiteUserId = p1?.userId || table.hostUserId;
+    const playerBlackUserId = p2?.userId && p2.userId !== playerWhiteUserId ? p2.userId : '';
+
+    if (playerWhiteUserId && playerBlackUserId && playerWhiteUserId === playerBlackUserId) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     return {
       fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      playerWhiteUserId: p1?.userId || table.hostUserId,
-      playerBlackUserId: p2?.userId || '',
+      playerWhiteUserId,
+      playerBlackUserId,
       moveHistory: [],
       winnerUserId: null,
       isDraw: false,

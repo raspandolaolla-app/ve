@@ -13,6 +13,19 @@ export class BingoEngine implements IGameEngine<BingoState> {
   public readonly gameType = 'bingo';
 
   public initialize(table: GameTable, players: TablePlayer[]): BingoState {
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     const cards: Record<string, BingoCard75[]> = {};
     const cardsPurchased: Record<string, number> = {};
     const playerNames: Record<string, string> = {};
@@ -24,7 +37,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
     const cardPrice = table.entryFee || 10.0;
     let totalCardCount = 0;
 
-    players.forEach((p) => {
+    uniquePlayers.forEach((p) => {
       const isHost = p.userId === table.hostUserId;
       // 1 a 20 cartones por jugador
       const count = Math.min(20, Math.max(1, isHost ? 3 : 1));

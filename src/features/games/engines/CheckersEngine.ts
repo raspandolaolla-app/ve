@@ -12,14 +12,28 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
   public readonly gameType = 'checkers';
 
   public initialize(table: GameTable, players: TablePlayer[]): CheckersState {
-    const uniquePlayers = [...players]
-      .filter((p, index, self) => self.findIndex((other) => other.userId === p.userId) === index)
-      .sort((a, b) => a.seatNumber - b.seatNumber);
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     const p1 = uniquePlayers[0];
     const p2 = uniquePlayers[1];
 
     const p1UserId = p1?.userId || table.hostUserId;
-    const p2UserId = p2?.userId || '';
+    const p2UserId = p2?.userId && p2.userId !== p1UserId ? p2.userId : '';
+
+    if (p1UserId && p2UserId && p1UserId === p2UserId) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
 
     const board: (CheckersPiece | null)[][] = Array(8)
       .fill(null)

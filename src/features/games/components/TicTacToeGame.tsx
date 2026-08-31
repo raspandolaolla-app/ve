@@ -39,8 +39,12 @@ export function TicTacToeGame({
   currentUserId?: string;
   onLeave: () => void;
 }) {
-  const p1 = players[0]?.userId || table.hostUserId;
-  const p2 = players[1]?.userId || '';
+  const uniquePlayers = Array.from(
+    new Map(players.map((p) => [p.userId, p])).values()
+  ).sort((a, b) => a.seatNumber - b.seatNumber);
+
+  const p1 = uniquePlayers[0]?.userId || table.hostUserId;
+  const p2 = uniquePlayers[1]?.userId && uniquePlayers[1]?.userId !== p1 ? uniquePlayers[1].userId : '';
 
   const initialGameState: TicTacToeState = {
     board: Array(9).fill(null),
@@ -61,7 +65,7 @@ export function TicTacToeGame({
     dispatchAction,
   } = useGameEngine({
     table,
-    players,
+    players: uniquePlayers,
     currentUserId,
     initialState: initialGameState,
   });

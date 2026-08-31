@@ -136,6 +136,7 @@ export class TableRepository {
       .from('game_table_players')
       .select('*, profiles:user_id(display_name, first_name, last_name, avatar_url)')
       .eq('table_id', tableId)
+      .neq('status', 'LEFT')
       .order('seat_number', { ascending: true });
 
     if (error) {

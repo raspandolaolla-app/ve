@@ -18,12 +18,24 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
   public readonly gameType = 'truco_venezolano';
 
   public initialize(table: GameTable, players: TablePlayer[]): TrucoState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const playerOrder = sortedPlayers.map((p) => p.userId);
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
+    const playerOrder = uniquePlayers.map((p) => p.userId);
 
     const initialPoints: Record<string, number> = {};
     const playerNames: Record<string, string> = {};
-    sortedPlayers.forEach((p, idx) => {
+    uniquePlayers.forEach((p, idx) => {
       initialPoints[p.userId] = 0;
       playerNames[p.userId] = p.displayName || `Jugador ${idx + 1}`;
     });

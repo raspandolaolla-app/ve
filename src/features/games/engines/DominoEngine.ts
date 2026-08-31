@@ -23,8 +23,20 @@ export class DominoEngine implements IGameEngine<DominoState> {
   public readonly gameType = 'domino_venezolano';
 
   public initialize(table: GameTable, players: TablePlayer[]): DominoState {
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const playerOrder = sortedPlayers.map((p) => p.userId);
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
+    const playerOrder = uniquePlayers.map((p) => p.userId);
 
     // Barajar fichas con Fisher-Yates RNG Criptográfico
     const shuffled = [...ALL_28_TILES];
@@ -39,7 +51,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
     const playerNames: Record<string, string> = {};
     const cumulativeScores: Record<string, number> = {};
 
-    sortedPlayers.forEach((p, idx) => {
+    uniquePlayers.forEach((p, idx) => {
       hands[p.userId] = shuffled.slice(idx * 7, (idx + 1) * 7);
       playerNames[p.userId] = p.displayName || `Jugador ${idx + 1}`;
       cumulativeScores[p.userId] = 0;
@@ -55,7 +67,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
     }
 
     const lives: Record<string, number> = {};
-    sortedPlayers.forEach((p) => {
+    uniquePlayers.forEach((p) => {
       lives[p.userId] = 3;
     });
 

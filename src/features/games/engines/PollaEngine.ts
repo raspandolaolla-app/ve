@@ -20,11 +20,24 @@ export class PollaEngine implements IGameEngine<PollaState> {
   public readonly gameType = 'polla_venezolana';
 
   public initialize(table: GameTable, players: TablePlayer[]): PollaState {
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     const playerNames: Record<string, string> = {};
     const predictions: Record<string, PollaPrediction[]> = {};
     const leaderboard: PollaState['leaderboard'] = [];
 
-    players.forEach((p) => {
+    uniquePlayers.forEach((p) => {
       playerNames[p.userId] = p.displayName || `Jugador ${p.seatNumber}`;
       predictions[p.userId] = [];
       leaderboard.push({

@@ -66,15 +66,28 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
   public readonly gameType = 'atrapaito';
 
   public initialize(table: GameTable, players: TablePlayer[]): AtrapaitoState {
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
     const cfg = (table.config || {}) as Record<string, any>;
     const rawMode = (cfg.atrapaitoMode || cfg.mode || table.mode || 'INDIVIDUAL_4') as string;
     let mode: AtrapaitoMode = 'INDIVIDUAL_4';
 
-    if (players.length === 6) {
+    if (uniquePlayers.length === 6) {
       mode = 'THREE_VS_THREE';
-    } else if (players.length === 2) {
+    } else if (uniquePlayers.length === 2) {
       mode = rawMode === 'SIX_PIECES' ? 'SIX_PIECES' : 'ONE_VS_ONE';
-    } else if (players.length === 4) {
+    } else if (uniquePlayers.length === 4) {
       mode = rawMode === 'PAIRS_4' ? 'PAIRS_4' : 'INDIVIDUAL_4';
     }
 
@@ -84,39 +97,39 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
     const playerMap: Record<string, AtrapaitoPlayer> = {};
     const playerNames: Record<string, string> = {};
     const livesMap: Record<string, number> = {};
-    const playerOrder: string[] = players.map((p) => p.userId);
+    const playerOrder: string[] = uniquePlayers.map((p) => p.userId);
 
     const colorsAssigned: Record<string, AtrapaitoColor[]> = {};
     const teamsAssigned: Record<string, 'A' | 'B' | null> = {};
 
     if (mode === 'INDIVIDUAL_4') {
       const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green'];
-      players.forEach((p, idx) => {
+      uniquePlayers.forEach((p, idx) => {
         colorsAssigned[p.userId] = [colors[idx % 4]];
         teamsAssigned[p.userId] = null;
       });
     } else if (mode === 'PAIRS_4') {
       const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green'];
-      players.forEach((p, idx) => {
+      uniquePlayers.forEach((p, idx) => {
         colorsAssigned[p.userId] = [colors[idx % 4]];
         teamsAssigned[p.userId] = idx % 2 === 0 ? 'A' : 'B';
       });
     } else if (mode === 'ONE_VS_ONE' || mode === 'SIX_PIECES') {
-      if (players.length >= 2) {
-        colorsAssigned[players[0].userId] = ['yellow', 'red'];
-        teamsAssigned[players[0].userId] = 'A';
-        colorsAssigned[players[1].userId] = ['blue', 'green'];
-        teamsAssigned[players[1].userId] = 'B';
+      if (uniquePlayers.length >= 2) {
+        colorsAssigned[uniquePlayers[0].userId] = ['yellow', 'red'];
+        teamsAssigned[uniquePlayers[0].userId] = 'A';
+        colorsAssigned[uniquePlayers[1].userId] = ['blue', 'green'];
+        teamsAssigned[uniquePlayers[1].userId] = 'B';
       }
     } else if (mode === 'THREE_VS_THREE') {
       const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green', 'orange', 'cyan'];
-      players.forEach((p, idx) => {
+      uniquePlayers.forEach((p, idx) => {
         colorsAssigned[p.userId] = [colors[idx % 6]];
         teamsAssigned[p.userId] = idx % 2 === 0 ? 'A' : 'B';
       });
     }
 
-    players.forEach((p, idx) => {
+    uniquePlayers.forEach((p, idx) => {
       const pName = p.displayName?.trim() || `Jugador ${idx + 1}`;
       playerNames[p.userId] = pName;
       livesMap[p.userId] = 3;

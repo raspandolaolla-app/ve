@@ -79,7 +79,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const refreshPlayers = useCallback(async () => {
     const updated = await TableRepository.getTablePlayers(table.id);
     if (updated && updated.length > 0) {
-      setCurrentPlayers(updated);
+      const unique = Array.from(new Map(updated.map((p) => [p.userId, p])).values());
+      setCurrentPlayers(unique);
     }
   }, [table.id]);
 
@@ -93,23 +94,41 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         // Limpiar mesas huérfanas en segundo plano
         GameRepository.cleanupOrphanedTables();
 
-        // Asegurar que los perfiles reales de los jugadores estén cargados
+        // Asegurar que los perfiles reales de los jugadores estén cargados y deduplicados
         const latestPlayers = await TableRepository.getTablePlayers(table.id);
-        const activePlayersList = latestPlayers.length > 0 ? latestPlayers : initialPlayers;
-        if (isMounted) {
-          setCurrentPlayers(activePlayersList);
+        const rawPlayersList = latestPlayers.length > 0 ? latestPlayers : initialPlayers;
+
+        // FASE 2: Validación obligatoria de jugadores únicos
+        const uniquePlayers = Array.from(
+          new Map(
+            rawPlayersList.map((player) => [
+              (player as any).user_id || player.userId,
+              player,
+            ])
+          ).values()
+        );
+
+        if (rawPlayersList.length !== uniquePlayers.length) {
+          console.error('[GameContainer] Error: Asientos duplicados detectados en la mesa.');
+          setErrorMsg('Un jugador no puede ocupar dos puestos en la misma mesa');
+          setRealtimeStatus('DISCONNECTED');
+          return;
         }
 
-        // 1. Obtener o crear sesión en base de datos
-        const initialEngineState = engine.initialize(table, activePlayersList);
+        if (isMounted) {
+          setCurrentPlayers(uniquePlayers);
+        }
+
+        // 1. Obtener o crear sesión en base de datos con jugadores deduplicados
+        const initialEngineState = engine.initialize(table, uniquePlayers);
         const activeSession = await GameRepository.createOrGetSession(
           table.id,
           table.gameType,
           initialEngineState,
-          activePlayersList[0]?.userId
+          uniquePlayers[0]?.userId
         );
 
-        console.log('[DEBUG_GAME] activePlayersList:', activePlayersList);
+        console.log('[DEBUG_GAME] uniquePlayers:', uniquePlayers);
         console.log('[DEBUG_GAME] initialEngineState:', initialEngineState);
         console.log('[DEBUG_GAME] activeSession:', activeSession);
 
@@ -120,8 +139,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           // Si la sesión ya estaba liquidada, preparar modal
           if (activeSession.status === 'completed' || (activeSession.status as any) === 'SETTLED' || activeSession.isSettled) {
             isSettledRef.current = true;
-            const winnerPlayer = activePlayersList.find((p) => p.userId === activeSession.winnerUserId);
-            const grossPool = table.entryFee * activePlayersList.length;
+            const winnerPlayer = uniquePlayers.find((p) => p.userId === activeSession.winnerUserId);
+            const grossPool = table.entryFee * uniquePlayers.length;
             setSettlementResult({
               grossPool,
               prizePool: grossPool * 0.9,
@@ -132,7 +151,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
           } else if (activeSession.status === 'abandoned' || (activeSession.status as any) === 'CANCELLED') {
             isSettledRef.current = true;
-            const grossPool = table.entryFee * activePlayersList.length;
+            const grossPool = table.entryFee * uniquePlayers.length;
             setSettlementResult({
               grossPool,
               prizePool: 0,
@@ -151,7 +170,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           
           // Asegurar que playerNames contenga los nombres reales de los perfiles
           const namesMap: Record<string, string> = {};
-          activePlayersList.forEach((p, idx) => {
+          uniquePlayers.forEach((p) => {
             if (p.displayName && p.displayName.trim().length > 0) {
               namesMap[p.userId] = p.displayName.trim();
             }

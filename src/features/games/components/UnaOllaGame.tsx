@@ -243,16 +243,19 @@ export function UnaOllaGame({
   const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
 
   // Asignar asientos relativos a la mesa (Bottom, Top, Left, Right)
-  const totalPlayersCount = players.length;
-  const myPlayerIndex = Math.max(0, players.findIndex((p) => p.userId === currentUserId));
+  const uniquePlayers = Array.from(
+    new Map(players.map((p) => [p.userId, p])).values()
+  ).sort((a, b) => a.seatNumber - b.seatNumber);
+  const totalPlayersCount = uniquePlayers.length;
+  const myPlayerIndex = Math.max(0, uniquePlayers.findIndex((p) => p.userId === currentUserId));
 
   const getPlayerAtRelativeSeat = (offset: number): TablePlayer | null => {
     if (totalPlayersCount === 0) return null;
     const index = (myPlayerIndex + offset) % totalPlayersCount;
-    return players[index] || null;
+    return uniquePlayers[index] || null;
   };
 
-  const bottomPlayer = players[myPlayerIndex] || players[0];
+  const bottomPlayer = uniquePlayers[myPlayerIndex] || uniquePlayers[0];
   const topPlayer = totalPlayersCount === 2 ? getPlayerAtRelativeSeat(1) : getPlayerAtRelativeSeat(2);
   const leftPlayer = totalPlayersCount >= 3 ? getPlayerAtRelativeSeat(1) : null;
   const rightPlayer = totalPlayersCount === 4 ? getPlayerAtRelativeSeat(3) : null;

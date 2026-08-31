@@ -117,18 +117,30 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
     const fullDeck = this.shuffleDeck(this.createDeck());
     let currentDeck = [...fullDeck];
 
-    // Ordenar jugadores por número de asiento
-    const sortedPlayers = [...players].sort((a, b) => a.seatNumber - b.seatNumber);
-    const playerOrder = sortedPlayers.map((p) => p.userId);
+    // Deduplicar y ordenar jugadores por número de asiento
+    const uniquePlayers = Array.from(
+      new Map(
+        players.map((player) => [
+          (player as any).user_id || player.userId,
+          player,
+        ])
+      ).values()
+    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+    if (players.length !== uniquePlayers.length) {
+      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
+    }
+
+    const playerOrder = uniquePlayers.map((p) => p.userId);
 
     const playerStates: Record<string, UnaOllaPlayerState> = {};
     const livesMap: Record<string, number> = {};
     const inactivityMap: Record<string, number> = {};
 
     // Repartir cartas a cada jugador
-    for (const p of sortedPlayers) {
+    for (const p of uniquePlayers) {
       let hand: UnaOllaCard[] = [];
-      if (p.userId === hostUserId || sortedPlayers.indexOf(p) === 0) {
+      if (p.userId === hostUserId || uniquePlayers.indexOf(p) === 0) {
         // Seed exactly the 6 cards requested for the user (Gust):
         // Azul 6, Verde 5, Verde Skip, Verde 7, Reversa Roja, Comodín multicolor
         hand = [

@@ -37,6 +37,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Play,
   Loader2,
   BookOpen,
@@ -682,20 +683,28 @@ export function TablesView() {
             {/* Asientos de la Mesa */}
             <div className="space-y-3">
               {(() => {
-                const uniquePlayers = tablePlayers.filter(
-                  (p, index, self) => self.findIndex((other) => other.userId === p.userId) === index
+                const uniquePlayers = Array.from(
+                  new Map(tablePlayers.map((p) => [p.userId, p])).values()
                 );
+                const hasDuplicatePlayers = uniquePlayers.length !== tablePlayers.length;
                 const userAlreadySeated = uniquePlayers.some((p) => p.userId === user?.id);
                 const minRequired = activeTable.minPlayers || 2;
-                const canStart = uniquePlayers.length >= minRequired;
+                const canStart = uniquePlayers.length >= minRequired && !hasDuplicatePlayers;
 
                 return (
                   <>
+                    {hasDuplicatePlayers && (
+                      <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>Un jugador no puede ocupar dos puestos en la misma mesa</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
                         Asientos de la Mesa ({uniquePlayers.length}/{activeTable.maxPlayers})
                       </h3>
-                      {!canStart && (
+                      {!canStart && !hasDuplicatePlayers && (
                         <span className="text-[11px] text-amber-400 font-medium">
                           Mínimo requerido: {minRequired} jugadores
                         </span>
@@ -705,7 +714,7 @@ export function TablesView() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {Array.from({ length: activeTable.maxPlayers }, (_, i) => i + 1).map((seatNum) => {
                         const playerAtSeat = uniquePlayers.find(
-                          (p) => p.seatNumber === seatNum || p.seatIndex === seatNum - 1
+                          (p) => p.seatNumber === seatNum
                         );
                         const isCurrentPlayer = playerAtSeat?.userId === user?.id;
                         const isPlayerOnline = playerAtSeat ? onlineUserIds.includes(playerAtSeat.userId) : false;

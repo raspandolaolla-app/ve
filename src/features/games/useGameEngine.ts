@@ -49,7 +49,22 @@ export function useGameEngine({
   const initSession = useCallback(async () => {
     setLoading(true);
     try {
-      const defaultTurnUser = players[0]?.userId || table.hostUserId;
+      const uniquePlayers = Array.from(
+        new Map(
+          players.map((player) => [
+            (player as any).user_id || player.userId,
+            player,
+          ])
+        ).values()
+      );
+
+      if (players.length !== uniquePlayers.length) {
+        console.error('[useGameEngine] Error: Un jugador no puede ocupar dos puestos en la misma mesa');
+        setLoading(false);
+        return;
+      }
+
+      const defaultTurnUser = uniquePlayers[0]?.userId || table.hostUserId;
       const active = await GameRepository.getOrCreateSession(
         table.id,
         table.gameType,

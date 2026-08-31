@@ -138,7 +138,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           }
 
           const cardCount = Number(config.cards_sold || (table.currentPlayersCount * 2));
-          const totalBs = (table.entryFee || 10) * Math.max(1, cardCount);
+          const totalBs = (table.entryFee || 25) * Math.max(1, cardCount);
           const winnerBs = Math.round(totalBs * 0.90 * 100) / 100;
 
           updatedMap[v] = {

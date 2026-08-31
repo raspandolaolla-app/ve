@@ -212,7 +212,7 @@ export class TableRepository {
         gameType: 'bingo',
         name: `Sorteo de Bingo Virtual (${variant} Bolas)`,
         mode: '1v1',
-        entryFee: 10,
+        entryFee: 25,
         currency: 'VES',
         minPlayers: 2,
         maxPlayers: 50,
@@ -274,7 +274,7 @@ export class TableRepository {
         gameType: 'bingo',
         name: 'Sorteo de Bingo Virtual',
         mode: '1v1',
-        entryFee: 10,
+        entryFee: 25,
         currency: 'VES',
         minPlayers: 2,
         maxPlayers: 50,
@@ -387,7 +387,7 @@ export class TableRepository {
    */
   public static async getOrCreateAutomatedBingoTable(
     variant: '75' | '80' | '90' = '75',
-    entryFee: number = 10.0
+    entryFee: number = 25.0
   ): Promise<{
     success: boolean;
     tableId?: string;

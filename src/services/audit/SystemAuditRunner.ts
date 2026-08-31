@@ -378,7 +378,7 @@ export class SystemAuditRunner {
         gameType: 'domino_venezolano',
         name: `Mesa ${runId}`,
         mode: '1v1',
-        entryFee: 0,
+        entryFee: 25,
         maxPlayers: 2,
         isPrivate: true,
       });
@@ -630,7 +630,7 @@ export class SystemAuditRunner {
       gameType: 'domino_venezolano',
       name: 'Mesa AUDIT_TEST',
       mode: '1v1',
-      entryFee: 0,
+      entryFee: 25,
       currency: 'VES',
       minPlayers: 2,
       maxPlayers: 2,
@@ -733,7 +733,7 @@ export class SystemAuditRunner {
             gameType: g.type,
             name: `AUDIT_TEST_GAME_${g.type.toUpperCase()}`,
             mode: '1v1',
-            entryFee: 0,
+            entryFee: 25,
             maxPlayers: 2,
             isPrivate: true,
           });

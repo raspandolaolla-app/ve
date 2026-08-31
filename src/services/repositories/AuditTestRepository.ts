@@ -4,6 +4,8 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import type { AuditCleanupSummary } from '../../types/auditTest';
+import { GameRepository } from './GameRepository';
+import type { GameType } from '../../types/games';
 
 export class AuditTestRepository {
   /**
@@ -224,11 +226,12 @@ export class AuditTestRepository {
       // 1. Detectar si hay mesas reales activas
       let realQuery = supabase
         .from('game_tables')
-        .select('id, name')
+        .select('id, name, game_type')
         .in('status', ['OPEN', 'FULL', 'STARTING', 'ACTIVE', 'WAITING', 'IN_GAME']);
 
       if (gameType) {
-        realQuery = realQuery.eq('game_type', gameType);
+        const dbEnum = GameRepository.mapGameTypeToDbEnum(gameType as GameType);
+        realQuery = realQuery.or(`game_type.eq.${gameType},game_type.eq.${dbEnum}`);
       }
 
       const { data: activeTables } = await realQuery;

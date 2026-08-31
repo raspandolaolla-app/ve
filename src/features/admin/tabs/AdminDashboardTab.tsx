@@ -20,6 +20,23 @@ import {
   Activity,
   ArrowRight,
   Zap,
+  Ticket,
+  FileCheck,
+  Coins,
+  Wallet,
+  DollarSign,
+  Dices,
+  BookOpen,
+  Megaphone,
+  Bell,
+  FileCheck2,
+  FlaskConical,
+  Settings,
+  ShieldCheck,
+  Wrench,
+  BarChart3,
+  Image as ImageIcon,
+  Layers,
 } from 'lucide-react';
 
 interface AdminDashboardTabProps {
@@ -28,10 +45,100 @@ interface AdminDashboardTabProps {
 }
 
 export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabProps) {
+  // Directorio completo de las 24 herramientas organizado por categorías
+  const toolDirectory: Array<{
+    category: string;
+    items: Array<{
+      id: AdminTabId;
+      label: string;
+      desc: string;
+      icon: any;
+      badge?: number | string;
+      color: string;
+    }>;
+  }> = [
+    {
+      category: 'General & Analítica',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', desc: 'KPIs y métricas en vivo', icon: Zap, color: 'text-amber-400' },
+        { id: 'reports', label: 'Reportes', desc: 'Rendimiento y balances', icon: BarChart3, color: 'text-emerald-400' },
+        { id: 'activity', label: 'Actividad', desc: 'Sesiones y presencia en vivo', icon: Activity, color: 'text-cyan-400' },
+      ],
+    },
+    {
+      category: 'Usuarios & Cumplimiento',
+      items: [
+        { id: 'users', label: 'Usuarios', desc: 'Cuentas, estados y roles', icon: Users, color: 'text-blue-400' },
+        { id: 'kyc', label: 'Expedientes KYC', desc: 'Verificación de identidad', icon: FileCheck, color: 'text-indigo-400' },
+        {
+          id: 'support',
+          label: 'Soporte',
+          desc: 'Tickets y reclamos',
+          icon: MessageSquare,
+          badge: metrics.pendingTicketsCount > 0 ? `${metrics.pendingTicketsCount} pendientes` : undefined,
+          color: 'text-pink-400',
+        },
+        {
+          id: 'notifications',
+          label: 'Alertas',
+          desc: 'Centro de notificaciones',
+          icon: Bell,
+          color: 'text-amber-400',
+        },
+      ],
+    },
+    {
+      category: 'Finanzas & Billetera',
+      items: [
+        {
+          id: 'deposits',
+          label: 'Recargas',
+          desc: 'Validación de pagos móviles',
+          icon: ArrowDownLeft,
+          badge: metrics.pendingDepositsCount > 0 ? `${metrics.pendingDepositsCount} pendientes` : undefined,
+          color: 'text-emerald-400',
+        },
+        {
+          id: 'withdrawals',
+          label: 'Retiros',
+          desc: 'Liquidaciones bancarias',
+          icon: ArrowUpRight,
+          badge: metrics.pendingWithdrawalsCount > 0 ? `${metrics.pendingWithdrawalsCount} pendientes` : undefined,
+          color: 'text-amber-400',
+        },
+        { id: 'wallets', label: 'Billeteras', desc: 'Fondos y saldos de jugadores', icon: Wallet, color: 'text-purple-400' },
+        { id: 'accounting', label: 'Libro Mayor', desc: 'Contabilidad y ledger', icon: DollarSign, color: 'text-emerald-400' },
+        { id: 'entry-fees', label: 'Montos de Entrada', desc: 'Límites de apuestas y cuotas', icon: Coins, color: 'text-amber-300' },
+      ],
+    },
+    {
+      category: 'Mesas, Juegos & Contenido',
+      items: [
+        { id: 'tables', label: 'Mesas', desc: 'Supervisión y cierre de salas', icon: Table, color: 'text-indigo-400' },
+        { id: 'matches', label: 'Partidas', desc: 'Historial y desenlaces', icon: Gamepad2, color: 'text-sky-400' },
+        { id: 'games', label: 'Juegos', desc: 'Configuración de catálogo', icon: Dices, color: 'text-orange-400' },
+        { id: 'polla', label: 'Polla Venezolana', desc: 'Animalitos y sorteos', icon: Ticket, color: 'text-emerald-400' },
+        { id: 'manuals', label: 'Reglas y Manuales', desc: 'Reglamentos oficiales', icon: BookOpen, color: 'text-slate-300' },
+        { id: 'announcements', label: 'Anuncios', desc: 'Avisos y banners del sistema', icon: Megaphone, color: 'text-amber-400' },
+        { id: 'lobby-content', label: 'Contenido Lobby', desc: 'Banners y multimedia', icon: ImageIcon, color: 'text-pink-400' },
+      ],
+    },
+    {
+      category: 'Seguridad & Sistema',
+      items: [
+        { id: 'audit', label: 'Auditoría', desc: 'Trazabilidad inmutable', icon: FileCheck2, color: 'text-amber-400' },
+        { id: 'system-test', label: 'Auditoría & Test', desc: 'Pruebas automatizadas', icon: FlaskConical, color: 'text-cyan-400' },
+        { id: 'settings', label: 'Ajustes', desc: 'Parámetros del sistema', icon: Settings, color: 'text-slate-300' },
+        { id: 'security', label: 'Seguridad', desc: '2FA y blindaje Super Admin', icon: ShieldCheck, color: 'text-purple-400' },
+        { id: 'maintenance', label: 'Mantenimiento', desc: 'Control de parada operativa', icon: Wrench, color: 'text-rose-400' },
+      ],
+    },
+  ];
+
   return (
     <div className="space-y-6" id="tab-admin-dashboard">
       {/* Resumen Principal de Métricas (KPI Cards) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card id="metric-registered-users" className="bg-slate-900/90 border-slate-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400">Usuarios Registrados</span>
@@ -83,7 +190,7 @@ export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabP
               id="btn-goto-pending-deposits"
               type="button"
               onClick={() => onNavigateTab('deposits')}
-              className="flex items-center gap-1 mt-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer"
+              className="flex items-center gap-1 mt-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer font-semibold"
             >
               <span>Revisar solicitudes</span>
               <ArrowRight className="w-3 h-3" />
@@ -106,7 +213,7 @@ export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabP
               id="btn-goto-pending-withdrawals"
               type="button"
               onClick={() => onNavigateTab('withdrawals')}
-              className="flex items-center gap-1 mt-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer"
+              className="flex items-center gap-1 mt-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer font-semibold"
             >
               <span>Liquidación bancaria</span>
               <ArrowRight className="w-3 h-3" />
@@ -189,7 +296,7 @@ export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabP
           </div>
         }
       >
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
             id="shortcut-users"
             type="button"
@@ -257,6 +364,66 @@ export function AdminDashboardTab({ metrics, onNavigateTab }: AdminDashboardTabP
           </button>
         </div>
       </Card>
+
+      {/* Directorio Completo de Módulos y Herramientas Administrativas */}
+      <Card
+        id="card-admin-full-directory"
+        className="bg-slate-900/90 border-slate-800"
+        header={
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-semibold text-sm text-slate-200">
+              <Layers className="w-4 h-4 text-amber-400" />
+              <span>Directorio Completo de Herramientas Administrativas (24 Módulos)</span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">Acceso 100% Directo</span>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          {toolDirectory.map((cat) => (
+            <div key={cat.category} className="space-y-2.5">
+              <h3 className="text-xs font-bold text-amber-400/90 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                {cat.category}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                {cat.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      id={`directory-btn-${item.id}`}
+                      type="button"
+                      onClick={() => onNavigateTab(item.id)}
+                      className="flex items-start gap-3 p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-amber-500/40 hover:bg-slate-800/60 text-left transition-all group cursor-pointer"
+                    >
+                      <div className={`p-2 rounded-lg bg-slate-900 border border-slate-800 group-hover:border-amber-500/30 shrink-0 ${item.color}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300 transition-colors truncate">
+                            {item.label}
+                          </span>
+                          {item.badge && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
+

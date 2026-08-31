@@ -121,8 +121,64 @@ export function TablesView() {
   useEffect(() => {
     loadPublicTables();
 
-    // Suscripción en tiempo real a las mesas públicas del lobby
-    const unsubscribeLobby = RealtimeManager.subscribeToLobby(() => {
+    // Suscripción en tiempo real a las mesas públicas del lobby (eliminación instantánea 0ms)
+    const unsubscribeLobby = RealtimeManager.subscribeToLobby((payload) => {
+      if (!payload) return;
+
+      const sourceTable = payload.sourceTable || payload.table;
+      const eventType = payload.eventType;
+
+      if (sourceTable === 'game_tables') {
+        const newRecord = payload.new;
+        const oldRecord = payload.old;
+
+        if (eventType === 'DELETE') {
+          if (oldRecord?.id) {
+            setPublicTables((prev) => prev.filter((t) => t.id !== oldRecord.id));
+          }
+        } else if (eventType === 'UPDATE') {
+          if (newRecord?.id) {
+            const isAvailable = TableRepository.isTableAvailable(newRecord);
+            if (!isAvailable) {
+              // Si la mesa fue cerrada, terminada, o ya no está disponible, retirarla de inmediato
+              setPublicTables((prev) => prev.filter((t) => t.id !== newRecord.id));
+            } else {
+              const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
+              const matchesFilter = selectedGameFilter === 'all' || mappedTable.gameType === selectedGameFilter;
+              if (matchesFilter) {
+                setPublicTables((prev) => {
+                  const exists = prev.some((t) => t.id === mappedTable.id);
+                  return exists ? prev.map((t) => (t.id === mappedTable.id ? mappedTable : t)) : [mappedTable, ...prev];
+                });
+              } else {
+                setPublicTables((prev) => prev.filter((t) => t.id !== mappedTable.id));
+              }
+            }
+          }
+        } else if (eventType === 'INSERT') {
+          if (newRecord?.id && TableRepository.isTableAvailable(newRecord)) {
+            const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
+            const matchesFilter = selectedGameFilter === 'all' || mappedTable.gameType === selectedGameFilter;
+            if (matchesFilter) {
+              setPublicTables((prev) => [mappedTable, ...prev.filter((t) => t.id !== mappedTable.id)]);
+            }
+          }
+        }
+      } else if (sourceTable === 'game_sessions') {
+        const sessionRecord = payload.new;
+        const sessionStatus = String(sessionRecord?.status || '').toUpperCase();
+        if (
+          sessionRecord?.table_id &&
+          (sessionRecord.is_settled === true ||
+            sessionRecord.ended_at !== null ||
+            ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_GAME'].includes(sessionStatus))
+        ) {
+          // Si la sesión de una mesa finalizó o se liquidó, excluir inmediatamente la mesa del lobby
+          setPublicTables((prev) => prev.filter((t) => t.id !== sessionRecord.table_id));
+        }
+      }
+
+      // Conciliación en segundo plano
       loadPublicTables();
     });
 

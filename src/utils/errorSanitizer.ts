@@ -314,6 +314,14 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
+  if (lower.includes('already_in_active_table') || lower.includes('ya estás participando en una mesa activa')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Ya estás participando en una mesa activa de este juego. Sal de esa mesa o espera a que finalice antes de crear otra.',
+      safeCode: 'ALREADY_IN_ACTIVE_TABLE',
+    };
+  }
+
   if (lower.includes('table_closed') || lower.includes('esta mesa ya no está disponible')) {
     return {
       category: 'INVALID_OPERATION',

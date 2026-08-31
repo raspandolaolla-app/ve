@@ -109,6 +109,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           activePlayersList[0]?.userId
         );
 
+        console.log('[DEBUG_GAME] activePlayersList:', activePlayersList);
+        console.log('[DEBUG_GAME] initialEngineState:', initialEngineState);
+        console.log('[DEBUG_GAME] activeSession:', activeSession);
+
         if (!isMounted) return;
 
         if (activeSession) {
@@ -164,12 +168,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             ? engine.getSanitizedStateForPlayer(loadedState, currentUserId)
             : loadedState;
 
+          console.log('[DEBUG_GAME] Sanitized Game State for Player:', sanitizedState);
           setGameState(sanitizedState);
         } else {
           // Fallback en memoria si la base de datos está en proceso de asignación
+          console.log('[DEBUG_GAME] Fallback to initialEngineState:', initialEngineState);
           setGameState(initialEngineState);
         }
       } catch (err: any) {
+        console.error('[DEBUG_GAME] Error inside initGame:', err);
         console.error('[GameContainer] Error inicializando partida:', err);
         setErrorMsg(err?.message || 'Error al conectar con la sala de juego');
       }

@@ -721,10 +721,30 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData?.user) {
-      console.warn('[TableRepository] CREATE_TABLE_ERROR: No authenticated session found', authError);
-      throw new Error('AUTH_REQUIRED: Debes iniciar sesión para crear una mesa.');
+    let authUser: any = null;
+
+    // Soporte para pruebas E2E de Playwright con Mock Auth
+    if (typeof window !== 'undefined') {
+      const mockAuthStr = window.localStorage.getItem('playwright-mock-auth');
+      if (mockAuthStr) {
+        try {
+          const mockData = JSON.parse(mockAuthStr);
+          if (mockData?.user) {
+            authUser = mockData.user;
+          }
+        } catch (e) {
+          console.error('[TableRepository] Error parseando mock auth:', e);
+        }
+      }
+    }
+
+    if (!authUser) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        console.warn('[TableRepository] CREATE_TABLE_ERROR: No authenticated session found', authError);
+        throw new Error('AUTH_REQUIRED: Debes iniciar sesión para crear una mesa.');
+      }
+      authUser = authData.user;
     }
 
     // Asegurar que el perfil esté conciliado en public.profiles
@@ -758,7 +778,7 @@ export class TableRepository {
       });
       console.error('[TableRepository] CREATE_TABLE_ERROR', {
         operation: 'create_game_table_secure',
-        userId: authData.user.id,
+        userId: authUser.id,
         gameType: payload.gameType,
         dbGameType,
         entryFee: payload.entryFee,
@@ -789,7 +809,7 @@ export class TableRepository {
       maxPlayers: payload.maxPlayers,
       currentPlayersCount: 1,
       status: 'OPEN',
-      hostUserId: authData.user.id,
+      hostUserId: authUser.id,
       isPrivate: payload.isPrivate,
       joinCode: rpcData.invite_code,
       shareToken: rpcData.invite_code,

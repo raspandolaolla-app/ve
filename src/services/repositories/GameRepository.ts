@@ -31,7 +31,8 @@ export class GameRepository {
   /**
    * Mapea el enum de base de datos PostgreSQL al GameType del frontend
    */
-  public static mapDbEnumToGameType(dbType: string): GameType {
+  public static mapDbEnumToGameType(dbType?: string | null): GameType {
+    if (!dbType) return 'tic_tac_toe';
     const map: Record<string, GameType> = {
       TRES_EN_RAYA: 'tic_tac_toe',
       PIEDRA_PAPEL_TIJERA: 'rock_paper_scissors',

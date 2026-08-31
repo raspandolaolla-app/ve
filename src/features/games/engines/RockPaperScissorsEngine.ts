@@ -8,6 +8,8 @@ import type { IGameEngine, ActionResult } from './GameEngine';
 import type { RPSState, RPSChoice, RPSRoundRecord, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
+import { normalizeRPSState } from '../utils/gameStateGuard';
+
 export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
   public readonly gameType = 'rock_paper_scissors';
 
@@ -229,25 +231,27 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
   }
 
   public getSanitizedStateForPlayer(state: RPSState, userId: string): RPSState {
+    const normalized = normalizeRPSState(state).state;
+
     // Si estamos en fase de selección, ocultar la elección del oponente para evitar trampas
-    if (state.phase === 'selecting') {
+    if (normalized.phase === 'selecting') {
       const sanitizedChoices: Record<string, { choice?: RPSChoice; committed: boolean }> = {};
-      for (const [pId, pData] of Object.entries(state.playerChoices)) {
+      for (const [pId, pData] of Object.entries(normalized.playerChoices || {})) {
         if (pId === userId) {
           sanitizedChoices[pId] = pData;
         } else {
           sanitizedChoices[pId] = {
-            committed: pData.committed,
+            committed: pData?.committed ?? false,
             choice: undefined, // Oculto
           };
         }
       }
       return {
-        ...state,
+        ...normalized,
         playerChoices: sanitizedChoices,
       };
     }
-    return state;
+    return normalized;
   }
 
   public getBotMove(state: RPSState, userId: string): GameActionPayload | null {

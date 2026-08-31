@@ -19,6 +19,8 @@ const ALL_28_TILES: DominoTile[] = [
   [6, 6],
 ];
 
+import { normalizeDominoState } from '../utils/gameStateGuard';
+
 export class DominoEngine implements IGameEngine<DominoState> {
   public readonly gameType = 'domino_venezolano';
 
@@ -368,19 +370,20 @@ export class DominoEngine implements IGameEngine<DominoState> {
   }
 
   public getSanitizedStateForPlayer(state: DominoState, userId: string): DominoState {
+    const normalized = normalizeDominoState(state).state;
     const sanitizedHands: Record<string, DominoTile[]> = {};
 
-    for (const [pId, hand] of Object.entries(state.hands)) {
-      if (pId === userId || state.status === 'round_won' || state.status === 'tranca_won' || state.status === 'game_won') {
-        sanitizedHands[pId] = hand;
+    for (const [pId, hand] of Object.entries(normalized.hands || {})) {
+      if (pId === userId || normalized.status === 'round_won' || normalized.status === 'tranca_won' || normalized.status === 'game_won') {
+        sanitizedHands[pId] = Array.isArray(hand) ? hand : [];
       } else {
         // Ocultar las fichas del rival (reemplazar con fichas boca abajo genéricas)
-        sanitizedHands[pId] = hand.map(() => [-1, -1] as DominoTile);
+        sanitizedHands[pId] = Array.isArray(hand) ? hand.map(() => [-1, -1] as DominoTile) : [];
       }
     }
 
     return {
-      ...state,
+      ...normalized,
       hands: sanitizedHands,
     };
   }

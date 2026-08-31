@@ -14,6 +14,8 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 const SUITS: TrucoSuit[] = ['espadas', 'bastos', 'oros', 'copas'];
 const NUMBERS: TrucoCard['number'][] = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 
+import { normalizeTrucoState } from '../utils/gameStateGuard';
+
 export class TrucoEngine implements IGameEngine<TrucoState> {
   public readonly gameType = 'truco_venezolano';
 
@@ -799,23 +801,24 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
   }
 
   public getSanitizedStateForPlayer(state: TrucoState, userId: string): TrucoState {
+    const normalized = normalizeTrucoState(state).state;
     const sanitizedHands: Record<string, TrucoCard[]> = {};
 
-    for (const [pId, hand] of Object.entries(state.hands)) {
-      if (pId === userId || state.status === 'game_won') {
-        sanitizedHands[pId] = hand;
+    for (const [pId, hand] of Object.entries(normalized.hands || {})) {
+      if (pId === userId || normalized.status === 'game_won') {
+        sanitizedHands[pId] = Array.isArray(hand) ? hand : [];
       } else {
         // Enmascarar las cartas del rival para prevenir espionaje de red
-        sanitizedHands[pId] = hand.map((c) => ({
-          id: `hidden_${c.id}`,
+        sanitizedHands[pId] = Array.isArray(hand) ? hand.map((c) => ({
+          id: `hidden_${c?.id || 'card'}`,
           number: 1,
           suit: 'espadas',
-        }));
+        })) : [];
       }
     }
 
     return {
-      ...state,
+      ...normalized,
       hands: sanitizedHands,
     };
   }

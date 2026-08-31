@@ -33,6 +33,7 @@ import { TableRepository } from '../../../services/repositories/TableRepository'
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
+import { normalizeGameStateByType } from '../utils/gameStateGuard';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
 import { RockPaperScissorsBoard } from './RockPaperScissorsBoard';
@@ -226,10 +227,30 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
 
           // Si la sesión ya tenía un estado guardado, usarlo; de lo contrario el inicial
-          const loadedState: any =
+          const rawLoadedState: any =
             activeSession.currentState && Object.keys(activeSession.currentState).length > 0
               ? activeSession.currentState
               : initialEngineState;
+
+          // Normalizar estado estrictamente por tipo de juego
+          const normalized = normalizeGameStateByType(
+            table.gameType,
+            rawLoadedState,
+            initialEngineState,
+            uniquePlayers
+          );
+
+          if (!normalized.isValid) {
+            console.warn('[GAME_STATE_ERROR]', {
+              gameType: table.gameType,
+              sessionId: activeSession.id,
+              tableId: table.id,
+              userId: currentUserId,
+              missingProperties: normalized.missingProps,
+            });
+          }
+
+          const loadedState = normalized.state;
           
           // Asegurar que playerNames contenga los nombres reales de los perfiles
           const namesMap: Record<string, string> = {};
@@ -254,8 +275,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           setGameState(sanitizedState);
         } else {
           // Fallback en memoria si la base de datos está en proceso de asignación
-          console.log('[DEBUG_GAME] Fallback to initialEngineState:', initialEngineState);
-          setGameState(initialEngineState);
+          const normalizedFallback = normalizeGameStateByType(
+            table.gameType,
+            initialEngineState,
+            initialEngineState,
+            uniquePlayers
+          ).state;
+          console.log('[DEBUG_GAME] Fallback to initialEngineState:', normalizedFallback);
+          setGameState(normalizedFallback);
         }
       } catch (err: any) {
         console.error('[DEBUG_GAME] Error inside initGame:', err);
@@ -354,9 +381,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
 
           if (updated?.current_state) {
+            const normalized = normalizeGameStateByType(
+              table.gameType,
+              updated.current_state,
+              gameState,
+              currentPlayers
+            );
             const sanitized = engine.getSanitizedStateForPlayer
-              ? engine.getSanitizedStateForPlayer(updated.current_state, currentUserId)
-              : updated.current_state;
+              ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
+              : normalized.state;
             setGameState(sanitized);
           }
 

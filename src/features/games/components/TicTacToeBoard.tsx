@@ -27,12 +27,21 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   onPlaceSymbol,
   onNextRound,
 }) => {
-  const isMyTurn = state.turnUserId === currentUserId && state.status === 'playing';
-  const mySymbol = state.playerSymbols[currentUserId] || 'X';
+  const playerSymbols = state?.playerSymbols || {};
+  const playerNames = state?.playerNames || {};
+  const scores = state?.scores || {};
+  const lives = state?.lives || {};
+  const board = Array.isArray(state?.board) ? state.board : Array(9).fill(null);
+  const round = state?.round || 1;
+  const status = state?.status || 'playing';
+  const turnUserId = state?.turnUserId || currentUserId;
 
-  const playerIds = Object.keys(state.playerSymbols);
-  const p1Id = playerIds[0];
-  const p2Id = playerIds[1];
+  const isMyTurn = turnUserId === currentUserId && status === 'playing';
+  const mySymbol = playerSymbols[currentUserId] || 'X';
+
+  const playerIds = Object.keys(playerSymbols);
+  const p1Id = playerIds[0] || currentUserId;
+  const p2Id = playerIds[1] || '';
 
   const handleTimeout = () => {
     if (isMyTurn && sessionId) {
@@ -40,7 +49,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
     }
   };
 
-  const activeTurnName = (state.playerNames[state.turnUserId] || 'OPONENTE').toUpperCase();
+  const activeTurnName = (playerNames[turnUserId] || 'OPONENTE').toUpperCase();
 
   return (
     <div id="tictactoe-board-container" className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full">
@@ -48,7 +57,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
       <div id="tictactoe-round-header" className="w-full mb-3 flex items-center justify-between px-3 py-2.5 rounded-xl bg-neutral-900/40 border border-neutral-800/80 text-xs font-semibold text-neutral-400 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          Ronda <strong className="text-white font-mono text-sm">{state.round}</strong>
+          Ronda <strong className="text-white font-mono text-sm">{round}</strong>
         </span>
         <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
           AL MEJOR DE 5 (3 VICTORIAS PARA GANAR)
@@ -62,7 +71,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           <div
             id="tictactoe-player-1-card"
             className={`p-3.5 rounded-xl border transition-all ${
-              state.turnUserId === p1Id && state.status === 'playing'
+              turnUserId === p1Id && status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
@@ -75,7 +84,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </span>
                   <div className="truncate">
                     <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
-                      {(state.playerNames[p1Id] || 'JUGADOR 1').toUpperCase()}
+                      {(playerNames[p1Id] || 'JUGADOR 1').toUpperCase()}
                     </div>
                     {p1Id === currentUserId && (
                       <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
@@ -84,13 +93,13 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                     )}
                   </div>
                 </div>
-                <span className="text-xl font-black text-white font-mono">{state.scores[p1Id] || 0}</span>
+                <span className="text-xl font-black text-white font-mono">{scores[p1Id] || 0}</span>
               </div>
 
               {/* Vidas */}
               <div className="pt-1 border-t border-neutral-800/80">
                 <PlayerLives
-                  lives={(state.lives && state.lives[p1Id] !== undefined) ? state.lives[p1Id] : 3}
+                  lives={lives[p1Id] !== undefined ? lives[p1Id] : 3}
                   size="sm"
                   showText={false}
                 />
@@ -104,7 +113,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           <div
             id="tictactoe-player-2-card"
             className={`p-3.5 rounded-xl border transition-all ${
-              state.turnUserId === p2Id && state.status === 'playing'
+              turnUserId === p2Id && status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
@@ -117,7 +126,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </span>
                   <div className="truncate">
                     <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
-                      {(state.playerNames[p2Id] || 'JUGADOR 2').toUpperCase()}
+                      {(playerNames[p2Id] || 'JUGADOR 2').toUpperCase()}
                     </div>
                     {p2Id === currentUserId && (
                       <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
@@ -126,13 +135,13 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                     )}
                   </div>
                 </div>
-                <span className="text-xl font-black text-white font-mono">{state.scores[p2Id] || 0}</span>
+                <span className="text-xl font-black text-white font-mono">{scores[p2Id] || 0}</span>
               </div>
 
               {/* Vidas */}
               <div className="pt-1 border-t border-neutral-800/80">
                 <PlayerLives
-                  lives={(state.lives && state.lives[p2Id] !== undefined) ? state.lives[p2Id] : 3}
+                  lives={lives[p2Id] !== undefined ? lives[p2Id] : 3}
                   size="sm"
                   showText={false}
                 />

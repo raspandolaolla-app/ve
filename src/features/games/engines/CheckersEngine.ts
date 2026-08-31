@@ -8,6 +8,8 @@ import type { IGameEngine, ActionResult } from './GameEngine';
 import type { CheckersState, CheckersPiece, CheckersMove, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
+import { normalizeCheckersState } from '../utils/gameStateGuard';
+
 export class CheckersEngine implements IGameEngine<CheckersState> {
   public readonly gameType = 'checkers';
 
@@ -241,7 +243,8 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
   }
 
   public getSanitizedStateForPlayer(state: CheckersState, _userId: string): CheckersState {
-    return state;
+    const normalized = normalizeCheckersState(state);
+    return normalized.state;
   }
 
   public getBotMove(state: CheckersState, userId: string): GameActionPayload | null {

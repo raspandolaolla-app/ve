@@ -12,6 +12,8 @@ import type { ChessState, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import { Chess } from 'chess.js';
 
+import { normalizeChessState } from '../utils/gameStateGuard';
+
 export class ChessEngine implements IGameEngine<ChessState> {
   public readonly gameType = 'chess';
 
@@ -284,6 +286,7 @@ export class ChessEngine implements IGameEngine<ChessState> {
   }
 
   public getSanitizedStateForPlayer(state: ChessState, _userId: string): ChessState {
-    return state;
+    const normalized = normalizeChessState(state);
+    return normalized.state;
   }
 }

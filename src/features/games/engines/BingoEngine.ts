@@ -9,6 +9,8 @@ import type { IGameEngine, ActionResult } from './GameEngine';
 import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant, GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
+import { normalizeBingoState } from '../utils/gameStateGuard';
+
 export class BingoEngine implements IGameEngine<BingoState> {
   public readonly gameType = 'bingo';
 
@@ -178,7 +180,8 @@ export class BingoEngine implements IGameEngine<BingoState> {
   }
 
   public getSanitizedStateForPlayer(state: BingoState, _userId: string): BingoState {
-    return state;
+    const normalized = normalizeBingoState(state);
+    return normalized.state;
   }
 
   public getBotMove(state: BingoState, userId: string): GameActionPayload | null {

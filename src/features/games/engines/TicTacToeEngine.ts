@@ -19,6 +19,8 @@ const WINNING_COMBINATIONS = [
   [2, 4, 6], // Diagonal secundaria
 ];
 
+import { normalizeTicTacToeState } from '../utils/gameStateGuard';
+
 export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   public readonly gameType = 'tic_tac_toe';
 
@@ -296,7 +298,8 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   }
 
   public getSanitizedStateForPlayer(state: TicTacToeState, _userId: string): TicTacToeState {
-    return state; // El tablero de 3 en Raya es de información perfecta y pública
+    const normalized = normalizeTicTacToeState(state);
+    return normalized.state;
   }
 
   private checkWinner(board: (TicTacToeSymbol | null)[]): number[] | null {

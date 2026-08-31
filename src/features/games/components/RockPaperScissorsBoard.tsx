@@ -26,21 +26,27 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   onSubmitChoice,
   onNextRound,
 }) => {
-  const playerIds = Object.keys(state.playerNames);
-  const p1Id = playerIds[0];
-  const p2Id = playerIds[1];
+  const playerNames = state?.playerNames || {};
+  const playerChoices = state?.playerChoices || {};
+  const scores = state?.scores || {};
+  const targetWins = state?.targetWins || 3;
+  const phase = state?.phase || 'selecting';
 
-  const myChoiceData = state.playerChoices[currentUserId];
+  const playerIds = Object.keys(playerNames);
+  const p1Id = playerIds[0] || currentUserId;
+  const p2Id = playerIds[1] || '';
+
+  const myChoiceData = playerChoices[currentUserId];
   const hasCommitted = Boolean(myChoiceData?.committed);
   const mySelectedChoice = myChoiceData?.choice;
 
   const opponentId = playerIds.find((id) => id !== currentUserId) || '';
-  const opponentChoiceData = state.playerChoices[opponentId];
+  const opponentChoiceData = playerChoices[opponentId];
   const opponentHasCommitted = Boolean(opponentChoiceData?.committed);
   const opponentRevealedChoice = opponentChoiceData?.choice;
 
-  const isSelecting = state.phase === 'selecting';
-  const isRoundResult = state.phase === 'round_result' || state.phase === 'match_ended';
+  const isSelecting = phase === 'selecting';
+  const isRoundResult = phase === 'round_result' || phase === 'match_ended';
 
   return (
     <div id="rps-board-container" className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full">

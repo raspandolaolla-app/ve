@@ -73,6 +73,20 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  // Control de audio y silenciador persistente
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    return localStorage.getItem('bingo_audio_muted') === 'true';
+  });
+  const lastPlayedBallRef = React.useRef<number | null>(null);
+
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const newVal = !prev;
+      localStorage.setItem('bingo_audio_muted', String(newVal));
+      return newVal;
+    });
+  };
+
   const isHost = table.hostUserId === currentUserId;
 
   // Cargar Tasa BCV
@@ -263,9 +277,56 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   }, [currentUserId]);
 
-  // Sorteo automático - EXCLUSIVO PARA EL HOST (ANFITRIÓN)
+  // Función para reproducir locución por audio de la balota extraída
+  const playBallAudio = (ball: number) => {
+    if (isMuted) return;
+
+    let letter = '';
+    if (ball <= 15) letter = 'b';
+    else if (ball <= 30) letter = 'i';
+    else if (ball <= 45) letter = 'n';
+    else if (ball <= 60) letter = 'g';
+    else if (ball <= 75) letter = 'o';
+
+    const baseUrl = import.meta.env.BASE_URL || '/';
+
+    if (letter) {
+      const letterAudio = new Audio(`${baseUrl}bingo-audio/${letter}.mp3`);
+      letterAudio.play().then(() => {
+        letterAudio.onended = () => {
+          const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
+          numberAudio.play().catch((err) => console.warn('[Audio] Error al reproducir número:', err));
+        };
+      }).catch((err) => {
+        console.warn('[Audio] Error al reproducir letra, usando fallback de número directo:', err);
+        const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
+        numberAudio.play().catch((nErr) => console.warn('[Audio] Fallback número error:', nErr));
+      });
+    } else {
+      const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
+      numberAudio.play().catch((err) => console.warn('[Audio] Error al reproducir número:', err));
+    }
+  };
+
+  // Reproducir locución de audio cuando cambie la balota actual
   useEffect(() => {
-    if (!isHost || !isAutoDrawing || !sessionId || bingoState.winnerUserId || bingoState.status === 'finished') {
+    const ball = bingoState.currentBall;
+    if (ball !== null && ball !== undefined && ball !== lastPlayedBallRef.current) {
+      lastPlayedBallRef.current = ball;
+      playBallAudio(ball);
+    }
+  }, [bingoState.currentBall, isMuted]);
+
+  // Sorteo automático - Soporte Dual: Host Humano o Autónomo por Clientes en Mesas de Sistema
+  useEffect(() => {
+    if (bingoState.winnerUserId || bingoState.status === 'finished') {
+      return;
+    }
+
+    const isAutomatedTable = Boolean(table.config?.automated);
+    const shouldDraw = (isHost && isAutoDrawing) || (isAutomatedTable && countdownSeconds === 0);
+
+    if (!shouldDraw || !sessionId) {
       return;
     }
 
@@ -274,18 +335,20 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
         const { RngService } = await import('../../../services/rng/RngService');
         const res = await RngService.drawBingoBallSecure(sessionId);
         if (!res.success) {
-          console.warn('[BingoGame] Sorteo automático finalizado o con error:', res.error);
+          // El rate limit del servidor se maneja silenciosamente
           if (res.error?.includes('todas las balotas')) {
-            setIsAutoDrawing(false);
+            if (isHost) {
+              setIsAutoDrawing(false);
+            }
           }
         }
       } catch (err) {
         console.error('[BingoGame] Error en sorteo automático:', err);
       }
-    }, drawIntervalMs);
+    }, isAutomatedTable ? 4500 : drawIntervalMs); // Mayor respiro para mesas de sistema por el rate-limiting del servidor
 
     return () => clearInterval(interval);
-  }, [isAutoDrawing, drawIntervalMs, sessionId, isHost, bingoState.winnerUserId, bingoState.status]);
+  }, [isAutoDrawing, drawIntervalMs, sessionId, isHost, table.config?.automated, countdownSeconds, bingoState.winnerUserId, bingoState.status]);
 
   // Suscripción Realtime a game_sessions para balotas, inicio de sorteo y fotos de ganadores
   useEffect(() => {
@@ -688,6 +751,8 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
         isSalesClosed={isSalesClosed}
         countdownSeconds={countdownSeconds}
         bcvRate={bcvRate}
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
       />
 
       {/* MODAL / OVERLAY DE GANADOR DE BINGO */}

@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Radio, Trophy, Layers, Lock, ShieldCheck } from 'lucide-react';
+import { Sparkles, Radio, Trophy, Layers, Lock, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { BcvRepository } from '../../../services/repositories/BcvRepository';
 import type { BingoState, BingoCard75, BingoCard80, BingoCard90 } from '../../../types/games';
 
@@ -17,6 +17,8 @@ interface BingoBoardProps {
   isSalesClosed?: boolean;
   countdownSeconds?: number | null;
   bcvRate?: number;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 export const BingoBoard: React.FC<BingoBoardProps> = ({
@@ -28,6 +30,8 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   isSalesClosed = false,
   countdownSeconds = null,
   bcvRate = 50,
+  isMuted = false,
+  onToggleMute,
 }) => {
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const variant = state.variant || '75';
@@ -211,6 +215,19 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             <div className="flex items-center space-x-1.5 text-xs text-amber-400 font-bold uppercase font-mono">
               <Radio className="w-3.5 h-3.5 text-red-500 animate-ping" />
               <span>Balotera Server-Authoritative</span>
+              {onToggleMute && (
+                <button
+                  onClick={onToggleMute}
+                  className="ml-2 p-1 rounded bg-slate-800 hover:bg-slate-750 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  title={isMuted ? 'Activar Sonido' : 'Silenciar'}
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-3 h-3 text-red-400" />
+                  ) : (
+                    <Volume2 className="w-3 h-3 text-emerald-400" />
+                  )}
+                </button>
+              )}
             </div>
             <div className="text-xs text-slate-400 font-mono mt-0.5">
               Extraídas: {state.drawnBalls.length} / {state.totalBalls || (variant === '90' ? 90 : variant === '80' ? 80 : 75)}

@@ -108,7 +108,8 @@ export class GameRepository {
     if (existing) return existing;
 
     const dbGameType = this.mapGameTypeToDbEnum(gameType);
-    const initialTurnDeadline = new Date(Date.now() + 10000).toISOString();
+    const turnSeconds = gameType === 'chess' ? 15 : 10;
+    const initialTurnDeadline = new Date(Date.now() + turnSeconds * 1000).toISOString();
 
     const { data, error } = await supabase
       .from('game_sessions')
@@ -158,14 +159,16 @@ export class GameRepository {
     newState: Record<string, unknown>,
     currentTurnUserId?: string | null,
     status?: string,
-    winnerUserId?: string | null
+    winnerUserId?: string | null,
+    turnDurationSeconds?: number
   ): Promise<boolean> {
     const supabase = getSupabaseClient();
     if (!supabase) return false;
 
+    const seconds = turnDurationSeconds || 10;
     const updatePayload: Record<string, unknown> = {
       current_state: newState,
-      turn_deadline_at: new Date(Date.now() + 10000).toISOString(),
+      turn_deadline_at: new Date(Date.now() + seconds * 1000).toISOString(),
     };
 
     if (currentTurnUserId !== undefined) {

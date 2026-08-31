@@ -324,7 +324,9 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
 
     const isAutomatedTable = Boolean(table.config?.automated);
-    const shouldDraw = (isHost && isAutoDrawing) || (isAutomatedTable && countdownSeconds === 0);
+    // Para mesas automatizadas, el sorteo lo maneja 100% el servidor en segundo plano de forma autónoma.
+    // Solo permitimos el interval en el cliente si es un anfitrión humano en una mesa no automatizada.
+    const shouldDraw = isHost && isAutoDrawing && !isAutomatedTable;
 
     if (!shouldDraw || !sessionId) {
       return;
@@ -345,7 +347,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
       } catch (err) {
         console.error('[BingoGame] Error en sorteo automático:', err);
       }
-    }, isAutomatedTable ? 4500 : drawIntervalMs); // Mayor respiro para mesas de sistema por el rate-limiting del servidor
+    }, drawIntervalMs);
 
     return () => clearInterval(interval);
   }, [isAutoDrawing, drawIntervalMs, sessionId, isHost, table.config?.automated, countdownSeconds, bingoState.winnerUserId, bingoState.status]);

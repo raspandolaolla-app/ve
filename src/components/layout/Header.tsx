@@ -1,60 +1,161 @@
 // ==============================================================================
-// RASPANDO LA OLLA — CABECERA PRINCIPAL RESPONSIVE
+// RASPANDO LA OLLA — CABECERA PRINCIPAL RESPONSIVE (MOBILE-FIRST)
 // ==============================================================================
 
+import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useWallet } from '../../context/WalletContext';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { InstallPWAButton } from '../common/InstallPWAButton';
-import { Button } from '../common/Button';
 import { getAssetUrl } from '../../utils/assetUtils';
-import { LogIn, LogOut, User, Shield, Wallet, Grid, Lock, Loader2 } from 'lucide-react';
+import { formatBolivares } from '../../utils/formatters';
+import {
+  LogIn,
+  User,
+  Shield,
+  Wallet,
+  Grid,
+  Lock,
+  Loader2,
+  Eye,
+  EyeOff,
+  Bell,
+  Sparkles,
+  Plus,
+} from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
   onNavigate: (tab: string) => void;
+  onOpenNotifications: () => void;
+  onOpenProfile: () => void;
+  hasUnreadNotifications?: boolean;
 }
 
-export function Header({ currentTab, onNavigate }: HeaderProps) {
-  const { state, user, profile, role, isSigningIn, signInWithGoogle, signOut } = useAuth();
+export function Header({
+  currentTab,
+  onNavigate,
+  onOpenNotifications,
+  onOpenProfile,
+  hasUnreadNotifications = true,
+}: HeaderProps) {
+  const { state, user, profile, role, isSigningIn, signInWithGoogle } = useAuth();
+  const { balance, isBalanceVisible, toggleBalanceVisibility, openDepositModal } = useWallet();
 
   const isAuthenticated = state === 'authenticated' && user !== null;
+  const userAvatar = profile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+  const userFirstName = (profile?.firstName || user?.user_metadata?.given_name || user?.email?.split('@')[0] || 'Jugador').toUpperCase();
+
+  const formattedBalance = isBalanceVisible
+    ? formatBolivares(balance?.availableBalance ?? 0)
+    : 'Bs. ••••••';
 
   return (
-    <header id="app-header" className="bg-slate-950/90 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo & Marca */}
-          <div
-            id="brand-logo"
-            onClick={() => onNavigate('home')}
-            className="flex items-center gap-3 cursor-pointer select-none group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 p-0.5 shadow-md shadow-amber-950/50 flex items-center justify-center overflow-hidden">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center group-hover:bg-slate-900 transition-colors p-0.5">
-                <img src={getAssetUrl('logo.svg')} alt="Logo Raspando La Olla" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+    <header
+      id="app-header"
+      className="bg-[#080B12]/95 border-b border-[#1E2938] sticky top-0 z-40 backdrop-blur-md select-none"
+    >
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+          {/* ========================================================= */}
+          {/* SECCIÓN IZQUIERDA: LOGO + BANDERA VENEZUELA + SALDO       */}
+          {/* ========================================================= */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Logo & Marca */}
+            <div
+              id="brand-logo"
+              onClick={() => onNavigate('home')}
+              className="flex items-center gap-2 cursor-pointer group shrink-0"
+              title="Raspando La Olla - Inicio"
+            >
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#FF8A00] via-[#F5B942] to-[#FF8A00] p-0.5 shadow-md shadow-[#FF8A00]/20 flex items-center justify-center overflow-hidden">
+                <div className="w-full h-full bg-[#080B12] rounded-[10px] flex items-center justify-center group-hover:bg-[#111722] transition-colors p-0.5">
+                  <img
+                    src={getAssetUrl('logo.svg')}
+                    alt="Logo Raspando La Olla"
+                    className="w-full h-full object-contain group-hover:scale-110 transition-transform"
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black tracking-tight text-lg text-slate-100 uppercase">
-                  Raspando <span className="text-amber-400">La Olla</span>
+
+              <div className="hidden xs:flex flex-col">
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="font-black tracking-tight text-sm sm:text-base text-[#F8FAFC] uppercase">
+                    Raspando <span className="text-[#FF8A00]">La Olla</span>
+                  </span>
+                  <span className="text-xs select-none" title="Venezuela">🇻🇪</span>
+                </div>
+                <span className="hidden sm:block text-[9px] text-[#94A3B8] font-medium tracking-wider uppercase mt-0.5">
+                  Mesas & Sorteos en Vivo
                 </span>
               </div>
-              <span className="hidden sm:block text-[10px] text-slate-400 font-medium tracking-wider uppercase">
-                Mesas Online Multijugador
-              </span>
             </div>
+
+            {/* Bandera Venezuela en móvil si no cabe el texto */}
+            <div className="xs:hidden flex items-center text-sm" title="Venezuela">
+              🇻🇪
+            </div>
+
+            {/* Pastilla de Saldo (Mobile & Desktop) */}
+            {isAuthenticated && (
+              <div
+                id="header-balance-pill"
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/40 transition-colors"
+              >
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-wider hidden sm:block">
+                    Saldo Disponible
+                  </span>
+                  <span className="text-xs sm:text-sm font-black font-mono text-[#22C55E] tracking-tight">
+                    {formattedBalance}
+                  </span>
+                </div>
+
+                <button
+                  id="header-toggle-balance-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleBalanceVisibility();
+                  }}
+                  className="p-1 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors ml-0.5"
+                  title={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
+                  aria-label={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
+                >
+                  {isBalanceVisible ? (
+                    <Eye className="w-3.5 h-3.5" />
+                  ) : (
+                    <EyeOff className="w-3.5 h-3.5 text-[#FF8A00]" />
+                  )}
+                </button>
+
+                <button
+                  id="header-quick-deposit-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate('wallet');
+                    openDepositModal();
+                  }}
+                  className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] text-[11px] font-black transition-colors ml-1"
+                  title="Abonar fondos"
+                >
+                  <Plus className="w-3 h-3 stroke-[3]" />
+                  <span>Abonar</span>
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Navegación Principal */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* ========================================================= */}
+          {/* SECCIÓN CENTRAL: NAVEGACIÓN DESKTOP                       */}
+          {/* ========================================================= */}
+          <nav className="hidden lg:flex items-center gap-1">
             <button
               id="nav-home"
               onClick={() => onNavigate('home')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'home'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                  ? 'bg-[#FF8A00]/10 text-[#FF8A00] border border-[#FF8A00]/30'
+                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#111722]'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -64,36 +165,36 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             <button
               id="nav-polla"
               onClick={() => onNavigate('polla')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'polla'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                  ? 'bg-[#FF8A00]/10 text-[#FF8A00] border border-[#FF8A00]/30'
+                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#111722]'
               }`}
             >
-              <span className="text-amber-400 text-sm">🐾</span>
+              <span>🐾</span>
               <span>Polla Venezolana</span>
             </button>
 
             <button
               id="nav-trancaito"
               onClick={() => onNavigate('tables')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'tables'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                  ? 'bg-[#FF8A00]/10 text-[#FF8A00] border border-[#FF8A00]/30'
+                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#111722]'
               }`}
             >
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Trancaíto (Privadas)</span>
+              <Lock className="w-3.5 h-3.5 text-[#F5B942]" />
+              <span>Mesas & Salas</span>
             </button>
 
             <button
               id="nav-wallet"
               onClick={() => onNavigate('wallet')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'wallet'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                  ? 'bg-[#FF8A00]/10 text-[#FF8A00] border border-[#FF8A00]/30'
+                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#111722]'
               }`}
             >
               <Wallet className="w-3.5 h-3.5" />
@@ -104,10 +205,10 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
               <button
                 id="nav-admin"
                 onClick={() => onNavigate('admin')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                   currentTab === 'admin'
                     ? 'bg-red-500/10 text-red-400 border border-red-500/30'
-                    : 'text-slate-300 hover:text-red-300 hover:bg-slate-900'
+                    : 'text-[#94A3B8] hover:text-red-300 hover:bg-[#111722]'
                 }`}
               >
                 <Shield className="w-3.5 h-3.5 text-red-400" />
@@ -116,155 +217,74 @@ export function Header({ currentTab, onNavigate }: HeaderProps) {
             ) : null}
           </nav>
 
-          {/* Estado de Conexión, PWA & Auth */}
-          <div className="flex items-center gap-3">
-            <InstallPWAButton variant="header" />
-            <ConnectionBadge />
+          {/* ========================================================= */}
+          {/* SECCIÓN DERECHA: NOTIFICACIONES + PERFIL / AUTH          */}
+          {/* ========================================================= */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="hidden sm:block">
+              <InstallPWAButton variant="header" />
+            </div>
 
+            <div className="hidden md:block">
+              <ConnectionBadge />
+            </div>
+
+            {/* Campana de Notificaciones */}
+            <button
+              id="header-notifications-btn"
+              onClick={onOpenNotifications}
+              className="relative p-2 rounded-xl bg-[#111722] hover:bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC] border border-[#1E2938] transition-colors"
+              title="Notificaciones"
+              aria-label="Abrir notificaciones"
+            >
+              <Bell className="w-4 h-4" />
+              {hasUnreadNotifications && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF8A00] animate-pulse" />
+              )}
+            </button>
+
+            {/* Botón / Avatar de Perfil o Login */}
             {state === 'loading' ? (
-              <div className="w-8 h-8 rounded-full bg-slate-800 animate-pulse" />
+              <div className="w-8 h-8 rounded-full bg-[#111722] animate-pulse" />
             ) : isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const userAvatar = profile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
-                  return (
-                    <button
-                      id="header-user-profile-btn"
-                      onClick={() => onNavigate('profile')}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition-all text-xs text-slate-200 touch-manipulation"
-                    >
-                      {userAvatar ? (
-                        <img
-                          src={userAvatar}
-                          alt="Perfil Google"
-                          className="w-5 h-5 rounded-full object-cover border border-amber-400/60 shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      )}
-                      <span className="font-medium max-w-[120px] truncate">
-                        {profile?.firstName ? `${profile.firstName} ${profile.lastName}`.trim() : user.email?.split('@')[0]}
-                      </span>
-                    </button>
-                  );
-                })()}
-
-                <Button
-                  id="header-signout-btn"
-                  variant="ghost"
-                  size="sm"
-                  onClick={signOut}
-                  title="Cerrar sesión"
-                >
-                  <LogOut className="w-4 h-4 text-slate-400 hover:text-red-400" />
-                </Button>
-              </div>
+              <button
+                id="header-user-profile-btn"
+                onClick={onOpenProfile}
+                className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all text-xs text-[#F8FAFC]"
+                aria-label="Menú de perfil de usuario"
+              >
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt={userFirstName}
+                    className="w-7 h-7 sm:w-6 sm:h-6 rounded-full object-cover border border-[#FF8A00] shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-7 h-7 sm:w-6 sm:h-6 rounded-full bg-[#171E2A] border border-[#FF8A00] flex items-center justify-center text-xs font-bold text-[#FF8A00] shrink-0">
+                    {userFirstName.charAt(0)}
+                  </div>
+                )}
+                <span className="hidden md:block font-bold max-w-[100px] truncate text-[11px]">
+                  {userFirstName}
+                </span>
+              </button>
             ) : (
-              <Button
+              <button
                 id="header-signin-google-btn"
-                variant="primary"
-                size="sm"
                 onClick={signInWithGoogle}
                 disabled={isSigningIn}
-                leftIcon={
-                  isSigningIn ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                  ) : (
-                    <LogIn className="w-4 h-4" />
-                  )
-                }
-                className="font-semibold shadow-md shadow-amber-950/40"
+                className="px-3 py-1.5 rounded-xl bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] font-black text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-[#FF8A00]/20"
               >
-                {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google'}
-              </Button>
+                {isSigningIn ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <LogIn className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">Ingresar</span>
+              </button>
             )}
           </div>
-        </div>
-
-        {/* Mobile Navigation Tabs */}
-        <div className="flex md:hidden items-center justify-start py-2 border-t border-slate-900 overflow-x-auto gap-1.5 no-scrollbar px-1">
-          <button
-            id="mobile-nav-home"
-            onClick={() => onNavigate('home')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-              currentTab === 'home'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-white bg-slate-900/40 border border-transparent'
-            }`}
-          >
-            <Grid className="w-4 h-4" />
-            <span>Lobby</span>
-          </button>
-
-          <button
-            id="mobile-nav-polla"
-            onClick={() => onNavigate('polla')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-              currentTab === 'polla'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-white bg-slate-900/40 border border-transparent'
-            }`}
-          >
-            <span className="text-amber-400 text-sm">🐾</span>
-            <span>Polla</span>
-          </button>
-
-          <button
-            id="mobile-nav-trancaito"
-            onClick={() => onNavigate('tables')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-              currentTab === 'tables'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-white bg-slate-900/40 border border-transparent'
-            }`}
-          >
-            <Lock className="w-4 h-4 text-amber-400" />
-            <span>Mesas</span>
-          </button>
-
-          <button
-            id="mobile-nav-wallet"
-            onClick={() => onNavigate('wallet')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-              currentTab === 'wallet'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-white bg-slate-900/40 border border-transparent'
-            }`}
-          >
-            <Wallet className="w-4 h-4" />
-            <span>Billetera</span>
-          </button>
-
-          {isAuthenticated && (
-            <button
-              id="mobile-nav-profile"
-              onClick={() => onNavigate('profile')}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-                currentTab === 'profile'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white bg-slate-900/40 border border-transparent'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Perfil</span>
-            </button>
-          )}
-
-          {(role === 'ADMIN' || role === 'SUPER_ADMIN') && (
-            <button
-              id="mobile-nav-admin"
-              onClick={() => onNavigate('admin')}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 min-h-[40px] touch-manipulation ${
-                currentTab === 'admin'
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-red-300 bg-slate-900/40 border border-transparent'
-              }`}
-            >
-              <Shield className="w-4 h-4 text-red-400" />
-              <span>Admin</span>
-            </button>
-          )}
         </div>
       </div>
     </header>

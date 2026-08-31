@@ -222,7 +222,7 @@ export async function runPhase24OperationalTests(): Promise<{
 
   const capacityProtected =
     !canJoinUserD &&
-    seatTakenSanitized === 'El asiento seleccionado ya fue ocupado o la mesa alcanzó su capacidad máxima.';
+    seatTakenSanitized === 'Esta mesa ya está completa.';
 
   addResult(
     '8. CAPACIDAD',

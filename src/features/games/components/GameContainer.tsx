@@ -26,6 +26,7 @@ import { BingoBoard } from './BingoBoard';
 import { PollaBoard } from './PollaBoard';
 import { AtrapaitoBoard } from './AtrapaitoBoard';
 import { UnaOllaGame } from './UnaOllaGame';
+import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 
 interface GameContainerProps {
@@ -611,6 +612,23 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             players={currentPlayers}
             currentUserId={currentUserId}
             onLeave={onExit}
+          />
+        );
+
+      case 'chess':
+        return (
+          <ChessBoard
+            state={gameState}
+            currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
+            players={currentPlayers}
+            onMovePiece={(from, to, promotion) =>
+              handleGameAction('MOVE', { from, to, promotion })
+            }
+            onResign={() => handleGameAction('RESIGN', {})}
+            onOfferDraw={() => handleGameAction('OFFER_DRAW', {})}
+            onAcceptDraw={() => handleGameAction('ACCEPT_DRAW', {})}
           />
         );
 

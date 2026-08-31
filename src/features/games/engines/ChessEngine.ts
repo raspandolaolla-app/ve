@@ -1,7 +1,10 @@
 // ==============================================================================
 // RASPANDO LA OLLA — MOTOR DE JUEGO: AJEDREZ (CHESS)
 // ==============================================================================
-// Motor determinista 1v1 con validación robusta usando chess.js.
+// Motor determinista 1v1 con validación server-authoritative usando chess.js.
+// Reglas FIDE: movimientos legales, jaque, jaque mate, enroque, al paso, coronación,
+// tablas (ahogado, repetición triple, material insuficiente, 50 movimientos, mutuo acuerdo),
+// rendición y tiempo fuera.
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
@@ -58,16 +61,49 @@ export class ChessEngine implements IGameEngine<ChessState> {
       return { valid: false, reason: 'FEN de la partida inválido.' };
     }
 
-    // Turno activo según el color de chess.js ('w' = blancas, 'b' = negras)
-    const activeColor = chess.turn();
-    const expectedTurnUserId = activeColor === 'w' ? state.playerWhiteUserId : state.playerBlackUserId;
-
-    if (action.userId !== expectedTurnUserId) {
-      return { valid: false, reason: 'No es tu turno de jugar.' };
+    // Acciones especiales
+    if (action.actionType === 'RESIGN') {
+      if (action.userId !== state.playerWhiteUserId && action.userId !== state.playerBlackUserId) {
+        return { valid: false, reason: 'Solo los jugadores de la partida pueden rendirse.' };
+      }
+      return { valid: true };
     }
 
+    if (action.actionType === 'TIMEOUT') {
+      // El jugador cuyo tiempo expiró pierde
+      const activeColor = chess.turn();
+      const expectedTurnUserId = activeColor === 'w' ? state.playerWhiteUserId : state.playerBlackUserId;
+      if (action.userId !== expectedTurnUserId) {
+        return { valid: false, reason: 'Solo el jugador en turno puede sufrir tiempo fuera.' };
+      }
+      return { valid: true };
+    }
+
+    if (action.actionType === 'OFFER_DRAW') {
+      if (action.userId !== state.playerWhiteUserId && action.userId !== state.playerBlackUserId) {
+        return { valid: false, reason: 'Solo los jugadores de la partida pueden ofrecer tablas.' };
+      }
+      return { valid: true };
+    }
+
+    if (action.actionType === 'ACCEPT_DRAW') {
+      if (action.userId !== state.playerWhiteUserId && action.userId !== state.playerBlackUserId) {
+        return { valid: false, reason: 'Solo los jugadores de la partida pueden aceptar tablas.' };
+      }
+      return { valid: true };
+    }
+
+    // Movimiento regular
     if (action.actionType === 'MOVE') {
-      const { from, to, promotion } = action.actionData;
+      // Turno activo según el color de chess.js ('w' = blancas, 'b' = negras)
+      const activeColor = chess.turn();
+      const expectedTurnUserId = activeColor === 'w' ? state.playerWhiteUserId : state.playerBlackUserId;
+
+      if (action.userId !== expectedTurnUserId) {
+        return { valid: false, reason: 'No es tu turno de jugar.' };
+      }
+
+      const { from, to, promotion } = action.actionData || {};
       if (typeof from !== 'string' || typeof to !== 'string') {
         return { valid: false, reason: 'Posiciones de origen y destino inválidas.' };
       }
@@ -104,8 +140,63 @@ export class ChessEngine implements IGameEngine<ChessState> {
       };
     }
 
+    // 1. Rendición
+    if (action.actionType === 'RESIGN') {
+      const winnerUserId = action.userId === state.playerWhiteUserId ? state.playerBlackUserId : state.playerWhiteUserId;
+      const newState: ChessState = {
+        ...state,
+        winnerUserId,
+        isDraw: false,
+      };
+      return {
+        newState,
+        isValid: true,
+        isGameOver: true,
+        winnerUserId,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
+
+    // 2. Tiempo Fuera (Timeout)
+    if (action.actionType === 'TIMEOUT') {
+      const winnerUserId = action.userId === state.playerWhiteUserId ? state.playerBlackUserId : state.playerWhiteUserId;
+      const newState: ChessState = {
+        ...state,
+        winnerUserId,
+        isDraw: false,
+      };
+      return {
+        newState,
+        isValid: true,
+        isGameOver: true,
+        winnerUserId,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
+
+    // 3. Tablas de común acuerdo
+    if (action.actionType === 'ACCEPT_DRAW') {
+      const newState: ChessState = {
+        ...state,
+        winnerUserId: null,
+        isDraw: true,
+        drawReason: 'mutual_agreement',
+      };
+      return {
+        newState,
+        isValid: true,
+        isGameOver: true,
+        winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: true,
+      };
+    }
+
+    // 4. Movimiento de Ajedrez
     if (action.actionType === 'MOVE') {
-      const { from, to, promotion } = action.actionData;
+      const { from, to, promotion } = action.actionData || {};
       const chess = new Chess(state.fen);
 
       let moveResult;

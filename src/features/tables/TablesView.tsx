@@ -8,7 +8,7 @@
 // - Asignación de asiento y retención de entrada mediante join_table_transaction()
 // ==============================================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type React from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -50,6 +50,16 @@ export function TablesView() {
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameType | 'all'>('all');
   const [publicTables, setPublicTables] = useState<GameTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
+
+  // Registro de exclusión inmediata de mesas cerradas / en cuarentena para evitar reviviscencia por latencia
+  const recentlyClosedTableIds = useRef<Set<string>>(new Set());
+  const recentlyClosedTimestamps = useRef<Map<string, number>>(new Map());
+  const reconcileTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedGameFilterRef = useRef(selectedGameFilter);
+
+  useEffect(() => {
+    selectedGameFilterRef.current = selectedGameFilter;
+  }, [selectedGameFilter]);
 
   // Unirse por código
   const [joinCodeInput, setJoinCodeInput] = useState('');
@@ -104,25 +114,56 @@ export function TablesView() {
     });
   }, [createGameType]);
 
-  // Cargar mesas públicas
+  // Limpiar IDs de cuarentena expirados (> 30s)
+  const pruneRecentlyClosed = useCallback(() => {
+    const now = Date.now();
+    for (const [id, time] of recentlyClosedTimestamps.current.entries()) {
+      if (now - time > 30000) {
+        recentlyClosedTimestamps.current.delete(id);
+        recentlyClosedTableIds.current.delete(id);
+      }
+    }
+  }, []);
+
+  // Cargar mesas públicas con validación canónica estricta
   const loadPublicTables = useCallback(async () => {
     setLoadingTables(true);
     try {
-      const filter = selectedGameFilter === 'all' ? undefined : selectedGameFilter;
+      pruneRecentlyClosed();
+      const currentFilter = selectedGameFilterRef.current;
+      const filter = currentFilter === 'all' ? undefined : currentFilter;
       const tables = await TableRepository.getPublicTables(filter);
-      setPublicTables(tables);
+      
+      // Filtrar estrictamente contra mesas en cuarentena y validador de disponibilidad
+      const sanitized = tables.filter(
+        (t) => !recentlyClosedTableIds.current.has(t.id) && TableRepository.isTableAvailable(t)
+      );
+      setPublicTables(sanitized);
     } catch (err: any) {
-      console.error('Error cargando mesas:', err);
+      console.error('[LOBBY] Error cargando mesas públicas:', err);
     } finally {
       setLoadingTables(false);
     }
-  }, [selectedGameFilter]);
+  }, [pruneRecentlyClosed]);
 
+  // Reconciliación debounced para absorber ráfagas de eventos Realtime
+  const debouncedReconcile = useCallback(() => {
+    if (reconcileTimerRef.current) {
+      clearTimeout(reconcileTimerRef.current);
+    }
+    reconcileTimerRef.current = setTimeout(() => {
+      loadPublicTables();
+    }, 300);
+  }, [loadPublicTables]);
+
+  // Carga inicial y recarga al cambiar filtro
   useEffect(() => {
     loadPublicTables();
+  }, [selectedGameFilter, loadPublicTables]);
 
-    // Suscripción en tiempo real a las mesas públicas del lobby (eliminación instantánea 0ms)
-    const unsubscribeLobby = RealtimeManager.subscribeToLobby((payload) => {
+  // Suscripción Realtime persistente y resiliente al ciclo de vida del Lobby
+  useEffect(() => {
+    const handleLobbyPayload = (payload: any) => {
       if (!payload) return;
 
       const sourceTable = payload.sourceTable || payload.table;
@@ -131,36 +172,49 @@ export function TablesView() {
       if (sourceTable === 'game_tables') {
         const newRecord = payload.new;
         const oldRecord = payload.old;
+        const tableId = newRecord?.id || oldRecord?.id;
 
         if (eventType === 'DELETE') {
-          if (oldRecord?.id) {
-            setPublicTables((prev) => prev.filter((t) => t.id !== oldRecord.id));
+          if (tableId) {
+            recentlyClosedTableIds.current.add(tableId);
+            recentlyClosedTimestamps.current.set(tableId, Date.now());
+            setPublicTables((prev) => prev.filter((t) => t.id !== tableId));
           }
         } else if (eventType === 'UPDATE') {
           if (newRecord?.id) {
             const isAvailable = TableRepository.isTableAvailable(newRecord);
             if (!isAvailable) {
-              // Si la mesa fue cerrada, terminada, o ya no está disponible, retirarla de inmediato
+              // Si la mesa pasó a terminal/cerrada/llena, eliminar al instante (0ms)
+              recentlyClosedTableIds.current.add(newRecord.id);
+              recentlyClosedTimestamps.current.set(newRecord.id, Date.now());
               setPublicTables((prev) => prev.filter((t) => t.id !== newRecord.id));
             } else {
-              const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
-              const matchesFilter = selectedGameFilter === 'all' || mappedTable.gameType === selectedGameFilter;
-              if (matchesFilter) {
+              // Si la mesa está abierta y no está en cuarentena
+              if (!recentlyClosedTableIds.current.has(newRecord.id)) {
+                const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
+                const currentFilter = selectedGameFilterRef.current;
+                const matchesFilter = currentFilter === 'all' || mappedTable.gameType === currentFilter;
+                
                 setPublicTables((prev) => {
-                  const exists = prev.some((t) => t.id === mappedTable.id);
-                  return exists ? prev.map((t) => (t.id === mappedTable.id ? mappedTable : t)) : [mappedTable, ...prev];
+                  if (matchesFilter) {
+                    const exists = prev.some((t) => t.id === mappedTable.id);
+                    return exists ? prev.map((t) => (t.id === mappedTable.id ? mappedTable : t)) : [mappedTable, ...prev];
+                  } else {
+                    return prev.filter((t) => t.id !== mappedTable.id);
+                  }
                 });
-              } else {
-                setPublicTables((prev) => prev.filter((t) => t.id !== mappedTable.id));
               }
             }
           }
         } else if (eventType === 'INSERT') {
           if (newRecord?.id && TableRepository.isTableAvailable(newRecord)) {
-            const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
-            const matchesFilter = selectedGameFilter === 'all' || mappedTable.gameType === selectedGameFilter;
-            if (matchesFilter) {
-              setPublicTables((prev) => [mappedTable, ...prev.filter((t) => t.id !== mappedTable.id)]);
+            if (!recentlyClosedTableIds.current.has(newRecord.id)) {
+              const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
+              const currentFilter = selectedGameFilterRef.current;
+              const matchesFilter = currentFilter === 'all' || mappedTable.gameType === currentFilter;
+              if (matchesFilter) {
+                setPublicTables((prev) => [mappedTable, ...prev.filter((t) => t.id !== mappedTable.id)]);
+              }
             }
           }
         }
@@ -171,21 +225,54 @@ export function TablesView() {
           sessionRecord?.table_id &&
           (sessionRecord.is_settled === true ||
             sessionRecord.ended_at !== null ||
-            ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_GAME'].includes(sessionStatus))
+            ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_PROGRESS', 'IN_GAME'].includes(sessionStatus))
         ) {
-          // Si la sesión de una mesa finalizó o se liquidó, excluir inmediatamente la mesa del lobby
+          // Si la sesión de una mesa finalizó o se inició la partida, excluir de inmediato del lobby
+          recentlyClosedTableIds.current.add(sessionRecord.table_id);
+          recentlyClosedTimestamps.current.set(sessionRecord.table_id, Date.now());
           setPublicTables((prev) => prev.filter((t) => t.id !== sessionRecord.table_id));
         }
+      } else if (sourceTable === 'game_table_players') {
+        // Conciliar jugadores cuando se ocupan o liberan asientos
+        debouncedReconcile();
       }
 
-      // Conciliación en segundo plano
+      // Reconciliación debounced en segundo plano con la base de datos
+      debouncedReconcile();
+    };
+
+    const handleStatusChange = (status: string) => {
+      if (status === 'SUBSCRIBED') {
+        loadPublicTables();
+      }
+    };
+
+    const unsubscribeLobby = RealtimeManager.subscribeToLobby(handleLobbyPayload, handleStatusChange);
+
+    // Resincronización al recuperar foco de ventana o visibilidad
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadPublicTables();
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    // Intervalo de respaldo pasivo (cada 30s) para contingencias de red
+    const heartbeatTimer = setInterval(() => {
       loadPublicTables();
-    });
+    }, 30000);
 
     return () => {
       unsubscribeLobby();
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      clearInterval(heartbeatTimer);
+      if (reconcileTimerRef.current) {
+        clearTimeout(reconcileTimerRef.current);
+      }
     };
-  }, [loadPublicTables]);
+  }, [loadPublicTables, debouncedReconcile]);
 
   // Cargar jugadores cuando hay una mesa activa abierta
   const loadTablePlayers = useCallback(async (tableId: string) => {
@@ -390,6 +477,13 @@ export function TablesView() {
       setCreating(false);
     }
   };
+
+  const visiblePublicTables = publicTables.filter((table) => {
+    if (recentlyClosedTableIds.current.has(table.id)) return false;
+    if (!TableRepository.isTableAvailable(table)) return false;
+    if (selectedGameFilter !== 'all' && table.gameType !== selectedGameFilter) return false;
+    return true;
+  });
 
   if (inGameData) {
     return (
@@ -618,7 +712,7 @@ export function TablesView() {
         </div>
 
         {/* Lista de Mesas */}
-        {publicTables.length === 0 ? (
+        {visiblePublicTables.length === 0 ? (
           <div className="py-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Users className="w-8 h-8 text-slate-600 mx-auto" />
             <div className="text-slate-400 text-xs">
@@ -640,7 +734,7 @@ export function TablesView() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {publicTables.map((table) => {
+            {visiblePublicTables.map((table) => {
               const gameMeta = SUPPORTED_GAMES_METADATA.find((g) => g.id === table.gameType);
               const isFull = table.currentPlayersCount >= table.maxPlayers;
 

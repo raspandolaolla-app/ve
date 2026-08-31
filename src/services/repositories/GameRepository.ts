@@ -309,8 +309,8 @@ export class GameRepository {
     const { data, error } = await supabase.rpc('settle_game_session', {
       p_session_id: sessionId,
       p_winner_user_ids: winnerUserIds,
-      p_winner_team: winnerTeam,
-      p_idempotency_key: idempotencyKey,
+      p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
+      p_idempotency_key: idempotencyKey || null,
     });
 
     if (error) {

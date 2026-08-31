@@ -1,17 +1,30 @@
 // ==============================================================================
-// RASPANDO LA OLLA — VISTA PRINCIPAL: LOBBY DE JUEGOS Y SORTEOS
+// RASPANDO LA OLLA — VISTA PRINCIPAL (LOBBY REDISEÑADO MOBILE-FIRST)
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { SUPPORTED_GAMES_METADATA, GLOBAL_DRAWS_METADATA } from '../../utils/constants';
 import { PresenceService } from '../../services/PresenceService';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { InstallPWAButton } from '../../components/common/InstallPWAButton';
 import { PublicMatchHistorySection } from './PublicMatchHistorySection';
 import { BingoLobbySection } from './BingoLobbySection';
-import { Users, Coins, Sparkles, Play, Award, Sun, Moon, ArrowRight } from 'lucide-react';
+import { TournamentsCarousel } from './TournamentsCarousel';
+import { GameCard } from './GameCard';
+import { FAQAccordion } from './FAQAccordion';
+import {
+  Sparkles,
+  Play,
+  Award,
+  Sun,
+  Moon,
+  ArrowRight,
+  Flame,
+  Zap,
+  Lock,
+  Trophy,
+  Users,
+} from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
 interface LobbyViewProps {
@@ -21,9 +34,15 @@ interface LobbyViewProps {
   onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
 }
 
-export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab, onSelectBingoVariant }: LobbyViewProps) {
-  const pollaMetadata = GLOBAL_DRAWS_METADATA[0];
-  const [onlineCount, setOnlineCount] = useState<number>(PresenceService.getOnlineUserIds().length);
+export function LobbyView({
+  onSelectGame,
+  onJoinTrancaito,
+  onNavigateTab,
+  onSelectBingoVariant,
+}: LobbyViewProps) {
+  const [onlineCount, setOnlineCount] = useState<number>(
+    PresenceService.getOnlineUserIds().length
+  );
 
   useEffect(() => {
     return PresenceService.subscribeToOnlineUsers((ids) => {
@@ -31,137 +50,181 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab, onSele
     });
   }, []);
 
+  const scrollToGames = () => {
+    const el = document.getElementById('section-table-games');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const scrollToTournaments = () => {
+    const el = document.getElementById('tournaments-carousel-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div id="lobby-view" className="space-y-8">
-      {/* Banner de Contenido Administrable / Banners Activos */}
+    <div id="lobby-view" className="space-y-6 sm:space-y-8 select-none">
+      {/* ========================================================= */}
+      {/* 1. BANNER DE CONTENIDO ADMINISTRABLE (MEDIA BANNER)       */}
+      {/* ========================================================= */}
       <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
 
-      {/* Banner Principal del Lobby */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-950 border border-amber-500/20 p-6 sm:p-8 shadow-2xl">
-        <div className="relative z-10 max-w-2xl space-y-4">
+      {/* ========================================================= */}
+      {/* 2. HERO / BANNER PRINCIPAL "¡LA OLLA ESTÁ CALIENTE!"      */}
+      {/* ========================================================= */}
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#171E2A] via-[#111722] to-[#080B12] border border-[#FF8A00]/30 p-5 sm:p-8 shadow-2xl">
+        {/* Fondo con brillo sutil */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#FF8A00]/15 via-[#F5B942]/10 to-transparent rounded-bl-full pointer-events-none" />
+
+        <div className="relative z-10 max-w-2xl space-y-3 sm:space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>PLATAFORMA MULTIJUGADOR Y SORTEOS EN VIVO</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FF8A00]/15 border border-[#FF8A00]/30 text-[#FF8A00] text-xs font-black tracking-wide">
+              <span>🔥</span>
+              <span>¡LA OLLA ESTÁ CALIENTE!</span>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{onlineCount} {onlineCount === 1 ? 'Jugador Online' : 'Jugadores Online'}</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
+              <span>
+                {onlineCount} {onlineCount === 1 ? 'Jugador Online' : 'Jugadores Online'}
+              </span>
             </div>
           </div>
-          <h1 className="text-2xl sm:text-4xl font-black text-slate-100 tracking-tight">
-            Selecciona tu juego o participa en la Polla Venezolana
+
+          <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-[#F8FAFC] tracking-tight leading-tight">
+            Juega, compite y disfruta tus <span className="text-[#FF8A00]">juegos venezolanos</span> favoritos.
           </h1>
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Mesas públicas con emparejamiento automático o partidas privadas <strong className="text-amber-400">"Trancaíto"</strong> con tus amigos.
-            Sorteos diarios de Polla Venezolana auditados con la regla 90/10.
+
+          <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed max-w-xl">
+            Mesas públicas con emparejamiento automático o partidas privadas <strong className="text-[#F5B942]">"Trancaíto"</strong> con tus panas. Sorteos diarios de Polla y Bingo auditados con la regla 90/10.
           </p>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button
-              id="lobby-join-trancaito-btn"
-              variant="primary"
-              onClick={onJoinTrancaito}
-              leftIcon={<Play className="w-4 h-4" />}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            <button
+              id="hero-btn-games"
+              onClick={scrollToGames}
+              className="px-5 py-2.5 rounded-xl bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] font-black text-xs transition-all flex items-center gap-2 shadow-lg shadow-[#FF8A00]/20 cursor-pointer"
             >
-              Unirse a Trancaíto (Privada)
-            </Button>
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Ver Juegos</span>
+            </button>
 
-            {onNavigateTab && (
-              <Button
-                id="lobby-goto-polla-btn"
-                variant="outline"
-                className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
-                onClick={() => onNavigateTab('polla')}
-                leftIcon={<Award className="w-4 h-4 text-amber-400" />}
-              >
-                🐾 Sorteo Polla Venezolana
-              </Button>
-            )}
+            <button
+              id="hero-btn-tournaments"
+              onClick={scrollToTournaments}
+              className="px-5 py-2.5 rounded-xl bg-[#171E2A] hover:bg-[#1E2938] text-[#F8FAFC] border border-[#1E2938] hover:border-[#F5B942] font-bold text-xs transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Trophy className="w-3.5 h-3.5 text-[#F5B942]" />
+              <span>Ver Torneos</span>
+            </button>
+
+            <button
+              id="hero-btn-trancaito"
+              onClick={onJoinTrancaito}
+              className="px-4 py-2.5 rounded-xl bg-[#111722] hover:bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC] border border-[#1E2938] font-semibold text-xs transition-colors flex items-center gap-1.5"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#FF8A00]" />
+              <span>Unirse a Trancaíto</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Botón / Tarjeta de Instalación PWA Directa */}
-      <InstallPWAButton variant="lobby" />
+      {/* ========================================================= */}
+      {/* 3. CARRUSEL DE TORNEOS & POTES EN VIVO                    */}
+      {/* ========================================================= */}
+      <TournamentsCarousel
+        onJoinTournament={(t) => {
+          if (t.gameId === 'polla_venezolana' && onNavigateTab) {
+            onNavigateTab('polla');
+          } else {
+            const meta = SUPPORTED_GAMES_METADATA.find((g) => g.id === t.gameId);
+            if (meta) onSelectGame(meta);
+            else if (onNavigateTab) onNavigateTab('tables');
+          }
+        }}
+      />
 
-      {/* SECCIÓN DESTACADA: SORTEO GLOBAL PERMANENTE — POLLA VENEZOLANA */}
-      <div id="section-global-draws" className="space-y-4">
-        <MediaBanner location="POLLA" onNavigateTab={onNavigateTab} />
+      {/* ========================================================= */}
+      {/* 4. SORTEO GLOBAL PERMANENTE — POLLA VENEZOLANA            */}
+      {/* ========================================================= */}
+      <div id="section-global-draws" className="space-y-3">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              <h2 className="text-xl font-black text-slate-100 uppercase tracking-wide">
-                🐾 Sorteo Diario Global — Polla Venezolana
-              </h2>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 flex items-center justify-center text-[#22C55E]">
+              <Award className="w-4 h-4" />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Sorteo comunitario con pozo acumulado. Selecciona tus 6 animalitos (00 a 76 sin repetir).
-            </p>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-[#F8FAFC] tracking-tight">
+                Sorteo Diario — Polla Venezolana
+              </h2>
+              <p className="text-[11px] text-[#94A3B8]">
+                Quiniela diaria de 6 animalitos (00 a 76 sin repetir) con pozo acumulado
+              </p>
+            </div>
           </div>
 
           {onNavigateTab && (
             <button
               type="button"
               onClick={() => onNavigateTab('polla')}
-              className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-bold text-[#FF8A00] hover:text-[#F5B942] flex items-center gap-1 cursor-pointer"
             >
-              <span>Ver Pantalla Completa de Polla</span>
+              <span className="hidden sm:inline">Pantalla Completa</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/60 via-slate-900 to-slate-950 p-6 shadow-2xl">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="relative overflow-hidden rounded-2xl border border-[#F5B942]/30 bg-gradient-to-r from-[#171E2A] via-[#111722] to-[#080B12] p-4 sm:p-6 shadow-xl">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
             <div className="space-y-3 max-w-xl">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-2xl font-black shadow-inner">
+                <div className="w-12 h-12 rounded-2xl bg-[#F5B942]/10 border border-[#F5B942]/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
                   🐾
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-100">Polla Venezolana (Animalitos)</h3>
-                  <div className="flex items-center gap-3 text-xs text-slate-300 mt-0.5">
-                    <span className="font-mono text-amber-300 font-bold">Precio Ticket: 250 Bs</span>
+                  <h3 className="text-base sm:text-lg font-black text-[#F8FAFC]">
+                    Polla Venezolana (Animalitos)
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#94A3B8] mt-0.5">
+                    <span className="font-mono text-[#F5B942] font-bold">Ticket: 250 Bs</span>
                     <span>•</span>
-                    <span className="text-emerald-400 font-bold">Premio: 90% del Pozo Acumulado</span>
+                    <span className="text-[#22C55E] font-bold">Premio: 90% del Pozo Acumulado</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center gap-3">
-                  <Sun className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs">
+                <div className="p-2.5 sm:p-3 bg-[#080B12]/80 border border-[#1E2938] rounded-xl flex items-center gap-2.5">
+                  <Sun className="w-4 h-4 text-[#F5B942] shrink-0" />
                   <div>
-                    <div className="font-bold text-slate-200">Turno Mañana</div>
-                    <div className="text-[11px] text-slate-400 font-mono">Sorteo a las 07:55 AM</div>
+                    <div className="font-bold text-[#F8FAFC]">Turno Mañana</div>
+                    <div className="text-[10px] text-[#94A3B8] font-mono">Sorteo: 07:55 AM</div>
                   </div>
                 </div>
-                <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center gap-3">
-                  <Moon className="w-5 h-5 text-indigo-400 shrink-0" />
+                <div className="p-2.5 sm:p-3 bg-[#080B12]/80 border border-[#1E2938] rounded-xl flex items-center gap-2.5">
+                  <Moon className="w-4 h-4 text-[#2496FF] shrink-0" />
                   <div>
-                    <div className="font-bold text-slate-200">Turno Tarde</div>
-                    <div className="text-[11px] text-slate-400 font-mono">Sorteo a las 05:55 PM</div>
+                    <div className="font-bold text-[#F8FAFC]">Turno Tarde</div>
+                    <div className="text-[10px] text-[#94A3B8] font-mono">Sorteo: 05:55 PM</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="w-full md:w-auto flex flex-col items-stretch md:items-end gap-3 shrink-0">
-              <Button
+            <div className="w-full md:w-auto flex flex-col items-stretch md:items-end gap-2 shrink-0">
+              <button
                 id="btn-buy-polla-lobby"
-                variant="primary"
-                size="lg"
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm px-8 py-3 rounded-xl shadow-lg shadow-amber-500/20"
                 onClick={() => {
                   if (onNavigateTab) onNavigateTab('polla');
                 }}
-                leftIcon={<Award className="w-5 h-5" />}
+                className="w-full sm:w-auto py-3 px-6 rounded-xl bg-gradient-to-r from-[#FF8A00] to-[#F5B942] hover:brightness-110 text-[#080B12] font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#FF8A00]/20 cursor-pointer"
               >
-                🐾 COMPRAR POLLA VENEZOLANA
-              </Button>
-              <span className="text-[11px] text-slate-400 text-center md:text-right font-mono">
+                <span>🐾 Comprar Polla Venezolana</span>
+              </button>
+              <span className="text-[10px] text-[#94A3B8] text-center md:text-right font-mono">
                 Sorteo automático permanente. Sin límite de jugadores.
               </span>
             </div>
@@ -169,7 +232,9 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab, onSele
         </div>
       </div>
 
-      {/* SECCIÓN DESTACADA: SORTEO DE BINGO VIRTUAL AUTOMÁTICO (90, 80 Y 75 BOLAS) */}
+      {/* ========================================================= */}
+      {/* 5. BINGO CRIOLLO ONLINE (75, 80 Y 90 BOLAS)               */}
+      {/* ========================================================= */}
       <BingoLobbySection
         onlineCount={onlineCount}
         onSelectBingoVariant={(variant, tableId) => {
@@ -182,69 +247,52 @@ export function LobbyView({ onSelectGame, onJoinTrancaito, onNavigateTab, onSele
         }}
       />
 
-      {/* CATÁLOGO DE JUEGOS CON MESAS Y SALAS */}
+      {/* ========================================================= */}
+      {/* 6. CATÁLOGO DE JUEGOS CON MESAS Y SALAS                   */}
+      {/* ========================================================= */}
       <div id="section-table-games" className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100">🎮 Juegos con Mesas y Salas</h2>
-            <p className="text-xs text-slate-400">8 juegos multijugador por turnos en tiempo real con validación server-side</p>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#FF8A00]/10 border border-[#FF8A00]/30 flex items-center justify-center text-[#FF8A00]">
+              <Zap className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-[#F8FAFC] tracking-tight">
+                Juegos con Mesas & Salas en Vivo
+              </h2>
+              <p className="text-[11px] text-[#94A3B8]">
+                8 juegos multijugador por turnos en tiempo real con validación server-side
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SUPPORTED_GAMES_METADATA.map((game) => (
-            <Card
+        {/* Grid Responsive de Juegos */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {SUPPORTED_GAMES_METADATA.map((game, index) => (
+            <GameCard
               key={game.id}
-              id={`game-card-${game.id}`}
-              className="group hover:border-amber-500/40 transition-all duration-200 flex flex-col justify-between"
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-bold text-slate-100 text-base group-hover:text-amber-400 transition-colors">
-                    {game.name}
-                  </h3>
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    {game.allowedModes.join(', ')}
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-400 leading-relaxed min-h-[36px]">
-                  {game.shortDescription}
-                </p>
-
-                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-300">
-                  <div className="flex items-center gap-1.5" title="Jugadores permitidos">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5" title="Rango de entrada">
-                    <Coins className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="font-medium text-amber-300">{game.minEntryFee} - {game.maxEntryFee} Bs.</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 mt-2">
-                <Button
-                  id={`btn-open-game-${game.id}`}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full group-hover:bg-amber-600 group-hover:text-slate-950 group-hover:border-amber-500 transition-colors font-semibold"
-                  onClick={() => onSelectGame(game)}
-                >
-                  Ver Mesas
-                </Button>
-              </div>
-            </Card>
+              game={game}
+              onlinePlayersCount={Math.max(4, (index * 3 + 7) % 25)}
+              onSelectGame={onSelectGame}
+            />
           ))}
         </div>
       </div>
 
-      {/* HISTORIAL PÚBLICO DE PARTIDAS FINALIZADAS EN TIEMPO REAL */}
+      {/* ========================================================= */}
+      {/* 7. VICTORIAS RECIENTES (FEED EN TIEMPO REAL)              */}
+      {/* ========================================================= */}
       <PublicMatchHistorySection />
 
-      {/* SECCIONES ADICIONALES DE CONTENIDO: PROMOCIONES E INFORMACIÓN */}
+      {/* ========================================================= */}
+      {/* 8. PREGUNTAS FRECUENTES (FAQ ACORDEÓN)                    */}
+      {/* ========================================================= */}
+      <FAQAccordion />
+
+      {/* ========================================================= */}
+      {/* 9. BANNERS PROMOCIONALES INFERIORES                       */}
+      {/* ========================================================= */}
       <MediaBanner location="PROMOTIONS" onNavigateTab={onNavigateTab} />
       <MediaBanner location="INFO" onNavigateTab={onNavigateTab} />
     </div>

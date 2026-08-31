@@ -40,9 +40,11 @@ import {
   Loader2,
   Upload,
 } from 'lucide-react';
+import { useWallet } from '../../context/WalletContext';
 
 export function WalletView() {
   const { state, user, profile, role, isSigningIn, signInWithGoogle } = useAuth();
+  const { activeWalletModal, closeWalletModals } = useWallet();
   const { rateInfo, refreshRate, formatUsd } = useBcvRate();
   const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
   const [balance, setBalance] = useState<WalletBalance | null>(null);
@@ -62,6 +64,14 @@ export function WalletView() {
 
   // Modal de Retiro
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+
+  useEffect(() => {
+    if (activeWalletModal === 'deposit') {
+      setShowDepositModal(true);
+    } else if (activeWalletModal === 'withdraw') {
+      setShowWithdrawModal(true);
+    }
+  }, [activeWalletModal]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<number>(50);
   const [withdrawTotpCode, setWithdrawTotpCode] = useState<string>('');

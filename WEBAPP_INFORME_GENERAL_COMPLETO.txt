@@ -2,9 +2,9 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-08-30 22:25:00 -07:00 (UTC 2026-08-31 05:25:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-08-30 22:45:00 -07:00 (UTC 2026-08-31 05:45:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 081_fix_settle_game_session_signature.sql (Corrección Definitiva de Firma RPC settle_game_session y refund_game_session + Soporte Ajedrez Real)
+ÚLTIMA MIGRACIÓN INTEGRADA: 082_fix_controlled_game_abandonment_and_settlement.sql (Abandono Controlado Seguro + Liquidación Automática 1v1 y Continuación Multijugador + Modo Inmersivo Fullscreen Responsive)
 ================================================================================
 
 --------------------------------------------------------------------------------

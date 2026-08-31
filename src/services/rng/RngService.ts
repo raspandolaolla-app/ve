@@ -49,8 +49,14 @@ export class RngService {
     if (min >= max) return min;
     const range = max - min + 1;
     const array = new Uint32Array(1);
-    window.crypto.getRandomValues(array);
-    return min + (array[0] % range);
+    const cryptoObj = typeof window !== 'undefined' ? window.crypto : (globalThis.crypto as any);
+    if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+      cryptoObj.getRandomValues(array);
+      return min + (array[0] % range);
+    } else {
+      // Fallback simple para entornos sin Web Crypto API
+      return min + Math.floor(Math.random() * range);
+    }
   }
 
   /**

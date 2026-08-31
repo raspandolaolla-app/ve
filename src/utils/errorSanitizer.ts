@@ -391,21 +391,38 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
-  // 10.5 Mapeos específicos de sesiones de juego (Fase 6)
-  if (code === '22p02' || lower.includes('22p02') || lower.includes('session_status_enum') || lower.includes('invalid input value for enum')) {
-    console.error('[DATABASE_CONFIG_ERROR] Error de configuración de sesión de base de datos:', rawMsg);
+  // 10.5 Mapeos específicos de sesiones de juego (Fase 9.2 Sincronización Real de Esquema)
+  if (code === '42703' || lower.includes('42703') || lower.includes('column') || lower.includes('relation') || lower.includes('does not exist')) {
+    console.error('[DATABASE_CONFIG_ERROR] Incompatibilidad entre frontend y esquema de Supabase:', rawMsg);
     return {
       category: 'UNKNOWN_ERROR',
-      userMessage: 'Error de configuración de sesión.',
-      safeCode: 'SESSION_CONFIG_ERROR',
+      userMessage: 'No se pudo iniciar la partida. Estamos sincronizando la mesa.',
+      safeCode: 'DATABASE_CONFIG_ERROR',
     };
   }
 
-  if (lower.includes('session already started') || lower.includes('partida ya está iniciada') || lower.includes('ya comenzó') || lower.includes('session_already_started') || lower.includes('only_host_can_start')) {
+  if (code === '22p02' || lower.includes('22p02') || lower.includes('session_status_enum') || lower.includes('table_status_enum') || lower.includes('invalid input value for enum')) {
+    console.error('[DATABASE_CONFIG_ERROR] Error de tipo enum o incompatibilidad de configuración de base de datos:', rawMsg);
+    return {
+      category: 'UNKNOWN_ERROR',
+      userMessage: 'No se pudo iniciar la partida. Estamos sincronizando la mesa.',
+      safeCode: 'DATABASE_CONFIG_ERROR',
+    };
+  }
+
+  if (lower.includes('session already started') || lower.includes('partida ya está iniciada') || lower.includes('ya comenzó') || lower.includes('session_already_started')) {
     return {
       category: 'INVALID_OPERATION',
-      userMessage: 'La partida ya está iniciada. Sincronizando con la mesa...',
+      userMessage: 'La partida ya está iniciada. Sincronizando...',
       safeCode: 'SESSION_ALREADY_STARTED',
+    };
+  }
+
+  if (lower.includes('only_host_can_start') || lower.includes('no tienes permisos') || lower.includes('acceso_restringido') || lower.includes('insufficient_privileges')) {
+    return {
+      category: 'PERMISSION_DENIED',
+      userMessage: 'No tienes permisos para iniciar esta partida.',
+      safeCode: 'UNAUTHORIZED_START',
     };
   }
 
@@ -417,10 +434,10 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
-  if (lower.includes('conexión perdida') || lower.includes('connection lost') || lower.includes('websocket') || lower.includes('disconnected')) {
+  if (lower.includes('conexión perdida') || lower.includes('connection lost') || lower.includes('websocket') || lower.includes('disconnected') || lower.includes('network error')) {
     return {
       category: 'NETWORK_ERROR',
-      userMessage: 'Conexión perdida. Intentando reconectar...',
+      userMessage: 'Problema de conexión. Intentando reconectar...',
       safeCode: 'CONNECTION_LOST',
     };
   }

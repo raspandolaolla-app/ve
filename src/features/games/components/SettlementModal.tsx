@@ -6,6 +6,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Trophy, ShieldCheck, ArrowRight, RotateCcw } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
+import { AdPlacementContainer } from '../../../components/advertising/AdPlacementContainer';
 
 interface SettlementModalProps {
   isOpen: boolean;
@@ -137,6 +138,14 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Publicidad de Fin de Partida */}
+        <AdPlacementContainer
+          placement="GAME_RESULT"
+          gameType={gameType}
+          showBadge={true}
+          className="mb-4"
+        />
 
         {/* Botones de Acción */}
         <div className="flex flex-col gap-2">

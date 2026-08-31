@@ -44,6 +44,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { MediaBanner } from '../../components/common/MediaBanner';
+import { AdPlacementContainer } from '../../components/advertising/AdPlacementContainer';
 
 export function TablesView() {
   const { state, user, profile, isSigningIn, signInWithGoogle } = useAuth();
@@ -516,6 +517,14 @@ export function TablesView() {
       {/* Zona Publicitaria de Juegos */}
       <MediaBanner location="GAMES" />
 
+      {/* Publicidad Superior Dinámica */}
+      <AdPlacementContainer
+        placement="GAME_HEADER"
+        gameType={selectedGameFilter !== 'all' ? selectedGameFilter : undefined}
+        showBadge={true}
+        className="my-1"
+      />
+
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -710,6 +719,14 @@ export function TablesView() {
             ))}
           </div>
         </div>
+
+        {/* Publicidad Segmentada por Juego / Sala */}
+        <AdPlacementContainer
+          placement="LOBBY"
+          gameType={selectedGameFilter !== 'all' ? selectedGameFilter : undefined}
+          showBadge={true}
+          className="my-2"
+        />
 
         {/* Lista de Mesas */}
         {visiblePublicTables.length === 0 ? (

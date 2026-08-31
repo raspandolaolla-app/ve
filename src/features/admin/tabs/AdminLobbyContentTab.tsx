@@ -10,6 +10,7 @@ import {
 } from '../../../services/repositories/BannerRepository';
 import { VideoAdPlayer } from '../../../components/common/VideoAdPlayer';
 import { getAssetUrl } from '../../../utils/assetUtils';
+import { AdminAdvertisingSection } from './AdminAdvertisingSection';
 import {
   Image as ImageIcon,
   Video as VideoIcon,
@@ -30,6 +31,7 @@ import {
   Filter,
   Layers,
   HelpCircle,
+  Tv,
 } from 'lucide-react';
 
 const LOCATION_OPTIONS: Array<{ value: ContentBannerLocation; label: string; icon: string }> = [
@@ -55,6 +57,7 @@ const TARGET_ACTION_OPTIONS = [
 ];
 
 export function AdminLobbyContentTab() {
+  const [activeSubTab, setActiveSubTab] = useState<'banners' | 'ads'>('banners');
   const [banners, setBanners] = useState<ContentBannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -219,7 +222,40 @@ export function AdminLobbyContentTab() {
 
   return (
     <div id="admin-lobby-content-tab" className="space-y-6">
-      {/* Banner de Título y Métricas */}
+      {/* Selector de Sub-Pestañas */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('banners')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            activeSubTab === 'banners'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Banners de Contenido (Storage)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('ads')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            activeSubTab === 'ads'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+          }`}
+        >
+          <Tv className="w-4 h-4" />
+          <span>Publicidad Programática (GitHub + Supabase)</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'ads' ? (
+        <AdminAdvertisingSection />
+      ) : (
+        <>
+          {/* Banner de Título y Métricas */}
       <div className="relative rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-amber-950/40 border border-amber-500/30 p-5 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -881,6 +917,8 @@ export function AdminLobbyContentTab() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

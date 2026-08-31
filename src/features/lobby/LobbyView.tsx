@@ -12,6 +12,7 @@ import { BingoLobbySection } from './BingoLobbySection';
 import { TournamentsCarousel } from './TournamentsCarousel';
 import { GameCard } from './GameCard';
 import { FAQAccordion } from './FAQAccordion';
+import { AdPlacementContainer } from '../../components/advertising/AdPlacementContainer';
 import {
   Sparkles,
   Play,
@@ -70,6 +71,14 @@ export function LobbyView({
       {/* 1. BANNER DE CONTENIDO ADMINISTRABLE (MEDIA BANNER)       */}
       {/* ========================================================= */}
       <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
+
+      {/* Publicidad de Cabecera Superior */}
+      <AdPlacementContainer
+        placement="HOME_TOP"
+        onNavigate={onNavigateTab}
+        showBadge={true}
+        className="my-1"
+      />
 
       {/* ========================================================= */}
       {/* 2. HERO / BANNER PRINCIPAL "¡LA OLLA ESTÁ CALIENTE!"      */}
@@ -280,6 +289,14 @@ export function LobbyView({
         </div>
       </div>
 
+      {/* Publicidad Intermedia del Lobby */}
+      <AdPlacementContainer
+        placement="HOME_MIDDLE"
+        onNavigate={onNavigateTab}
+        showBadge={true}
+        className="my-3"
+      />
+
       {/* ========================================================= */}
       {/* 7. VICTORIAS RECIENTES (FEED EN TIEMPO REAL)              */}
       {/* ========================================================= */}
@@ -289,6 +306,14 @@ export function LobbyView({
       {/* 8. PREGUNTAS FRECUENTES (FAQ ACORDEÓN)                    */}
       {/* ========================================================= */}
       <FAQAccordion />
+
+      {/* Publicidad Inferior del Lobby */}
+      <AdPlacementContainer
+        placement="HOME_BOTTOM"
+        onNavigate={onNavigateTab}
+        showBadge={true}
+        className="my-3"
+      />
 
       {/* ========================================================= */}
       {/* 9. BANNERS PROMOCIONALES INFERIORES                       */}

@@ -345,53 +345,6 @@ BEGIN
 END;
 $$;
 
--- 2. SOBRECARGA PARA SMALLINT (COMPATIBILIDAD CON FUNCIONES PL/PGSQL HISTÓRICAS)
-CREATE OR REPLACE FUNCTION public.settle_game_session(
-  p_session_id UUID,
-  p_winner_user_ids UUID[],
-  p_winner_team SMALLINT,
-  p_idempotency_key VARCHAR
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-BEGIN
-  RETURN public.settle_game_session(
-    p_session_id,
-    p_winner_user_ids,
-    p_winner_team::INTEGER,
-    p_idempotency_key::TEXT
-  );
-END;
-$$;
-
--- 3. SOBRECARGA PARA ARRAYS DE TEXT (POSTGREST JSON CASTING FALLBACK)
-CREATE OR REPLACE FUNCTION public.settle_game_session(
-  p_session_id UUID,
-  p_winner_user_ids TEXT[],
-  p_winner_team INTEGER DEFAULT NULL,
-  p_idempotency_key TEXT DEFAULT NULL
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-DECLARE
-  v_uuid_array UUID[];
-BEGIN
-  v_uuid_array := p_winner_user_ids::UUID[];
-  RETURN public.settle_game_session(
-    p_session_id,
-    v_uuid_array,
-    p_winner_team,
-    p_idempotency_key
-  );
-END;
-$$;
-
 -- 4. FUNCIÓN CANÓNICA: REFUND_GAME_SESSION (UUID, TEXT, TEXT)
 CREATE OR REPLACE FUNCTION public.refund_game_session(
   p_session_id UUID,

@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-31T23:30:00.000Z",
+  "provider": "github_pages",
+  "base_path": "ads/",
+  "assets": [
+    {
+      "id": "banner_polla_diaria",
+      "asset_key": "banner_polla_diaria",
+      "file": "banners/banner_polla_diaria.webp",
+      "type": "image",
+      "mime": "image/webp",
+      "title": "Polla Venezolana — Sorteo Diario 250 Bs",
+      "description": "Elige 6 animalitos del 00 al 76 y gana el pozo acumulado diario en turnos Mañana y Tarde.",
+      "width": 1200,
+      "height": 400,
+      "size": 142850,
+      "active": true
+    },
+    {
+      "id": "banner_domino_criollo",
+      "asset_key": "banner_domino_criollo",
+      "file": "banners/banner_domino_criollo.webp",
+      "type": "image",
+      "mime": "image/webp",
+      "title": "Dominó Clásico Venezolano",
+      "description": "Mesas 1v1 y por Parejas a 100 puntos con tranque de cochina y tiempo límite.",
+      "width": 1200,
+      "height": 400,
+      "size": 138400,
+      "active": true
+    },
+    {
+      "id": "banner_truco_envite",
+      "asset_key": "banner_truco_envite",
+      "file": "banners/banner_truco_envite.webp",
+      "type": "image",
+      "mime": "image/webp",
+      "title": "Truco con Vira y Flor",
+      "description": "Grita Truco, Retruco y Vale 4 con cartas españolas auténticas.",
+      "width": 1200,
+      "height": 400,
+      "size": 151200,
+      "active": true
+    },
+    {
+      "id": "banner_bingo_la_olla",
+      "asset_key": "banner_bingo_la_olla",
+      "file": "banners/banner_bingo_la_olla.webp",
+      "type": "image",
+      "mime": "image/webp",
+      "title": "Bingo Comunitario La Olla",
+      "description": "Salas masivas con balotera auditada y verificación instantánea en vivo.",
+      "width": 1200,
+      "height": 400,
+      "size": 149300,
+      "active": true
+    },
+    {
+      "id": "promo_pago_movil_video",
+      "asset_key": "promo_pago_movil_video",
+      "file": "videos/promo_pago_movil_video.mp4",
+      "type": "video",
+      "mime": "video/mp4",
+      "title": "Video Promocional — Recargas Instantáneas Pago Móvil",
+      "description": "Abonos y retiros automatizados en Bolívares con tasa oficial BCV.",
+      "width": 1280,
+      "height": 720,
+      "duration": 15,
+      "size": 1840000,
+      "active": true
+    },
+    {
+      "id": "icon_promo_atrapaito",
+      "asset_key": "icon_promo_atrapaito",
+      "file": "icons/icon_promo_atrapaito.svg",
+      "type": "icon",
+      "mime": "image/svg+xml",
+      "title": "Atrapaíto Parchís Icon",
+      "description": "Icono oficial del modo Atrapaíto 6 Fichas y Parejas.",
+      "width": 256,
+      "height": 256,
+      "size": 4200,
+      "active": true
+    },
+    {
+      "id": "banner_una_olla_special",
+      "asset_key": "banner_una_olla_special",
+      "file": "images/banner_una_olla_special.webp",
+      "type": "image",
+      "mime": "image/webp",
+      "title": "UNA-OLLA Modo Especial",
+      "description": "Cartas de acción, colores vibrantes y el emocionante botón UNA-OLLA.",
+      "width": 800,
+      "height": 450,
+      "size": 112000,
+      "active": true
+    }
+  ]
+}

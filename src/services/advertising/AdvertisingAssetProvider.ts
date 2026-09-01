@@ -52,8 +52,8 @@ export class GitHubPagesAssetProvider implements IAdvertisingAssetProvider {
     const baseUrl = import.meta.env.BASE_URL || '/';
     const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
-    // Si ya viene con el prefijo ads/ o no
-    if (cleanPath.startsWith('ads/')) {
+    // Si ya viene con el prefijo ads/ o advertising/
+    if (cleanPath.startsWith('ads/') || cleanPath.startsWith('advertising/')) {
       return `${normalizedBase}${cleanPath}`;
     }
 

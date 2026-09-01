@@ -8,6 +8,7 @@ import { runPhase251ValidationTests } from './phase25_1_error_sanitizer_validati
 import { runPhase25_2Validation } from './phase25_2_surgical_contracts_validation';
 import { runPhase26ValidationSuite } from './phase26_amount_limits_and_bcv_validation';
 import { runRngSecurityValidationSuite } from './phase27_rng_security_validation';
+import { runWalletRealtimeLifecycleValidation } from './wallet_realtime_lifecycle_validation';
 
 async function main() {
   console.log('======================================================================');
@@ -15,7 +16,12 @@ async function main() {
   console.log('======================================================================\n');
 
   try {
-    console.log('▶️ EJECUTANDO: Fase 25.1 — Sanitización de Errores');
+    console.log('▶️ EJECUTANDO: Validación de Ciclo de Vida Realtime en Billetera');
+    const resRealtime = runWalletRealtimeLifecycleValidation();
+    console.log(`  Resultado: ${resRealtime.failed === 0 ? '✓ EXCELENTE' : '✗ HUBO FALLOS'}`);
+    console.log(`  Tests Pasados: ${resRealtime.passed}/${resRealtime.total}`);
+
+    console.log('\n▶️ EJECUTANDO: Fase 25.1 — Sanitización de Errores');
     const res25_1 = runPhase251ValidationTests();
     console.log(`  Resultado: ${res25_1.allPassed ? '✓ EXCELENTE' : '✗ HUBO FALLOS'}`);
     console.log(`  Tests Pasados: ${res25_1.results.filter(r => r.passed).length}/${res25_1.results.length}`);

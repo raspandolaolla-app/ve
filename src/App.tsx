@@ -144,7 +144,6 @@ function AppContent() {
         onNavigate={setCurrentTab}
         onOpenExplore={() => setExploreDrawerOpen(true)}
         onOpenSupport={() => setSupportModalOpen(true)}
-        onOpenGiraLaOlla={() => setGiraLaOllaModalOpen(true)}
       />
 
       {/* Drawer / Menú Lateral de Explorar */}

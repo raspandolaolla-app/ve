@@ -33,7 +33,7 @@ import { TableRepository } from '../../../services/repositories/TableRepository'
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
-import { normalizeGameStateByType } from '../utils/gameStateGuard';
+import { normalizeGameStateByType, inspectDominoDeck } from '../utils/gameStateGuard';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
 import { RockPaperScissorsBoard } from './RockPaperScissorsBoard';
@@ -189,12 +189,31 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           (initialEngineState as any)?.playerWhiteUserId ||
           uniquePlayers[0]?.userId;
 
-        const activeSession = await GameRepository.createOrGetSession(
-          table.id,
-          table.gameType,
-          initialEngineState,
-          canonicalInitialTurnId
-        );
+        const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
+
+        let activeSession: GameSession | null = null;
+        if (isPractice) {
+          activeSession = {
+            id: table.id,
+            tableId: table.id,
+            gameType: table.gameType,
+            roundNumber: 1,
+            currentTurnUserId: canonicalInitialTurnId,
+            status: 'in_progress',
+            grossPool: 0,
+            winnerPrizeAmount: 0,
+            serviceFeeAmount: 0,
+            isSettled: false,
+            currentState: initialEngineState,
+          };
+        } else {
+          activeSession = await GameRepository.createOrGetSession(
+            table.id,
+            table.gameType,
+            initialEngineState,
+            canonicalInitialTurnId
+          );
+        }
 
         console.log('[DEBUG_GAME] uniquePlayers:', uniquePlayers);
         console.log('[DEBUG_GAME] initialEngineState:', initialEngineState);
@@ -304,6 +323,30 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             );
             if (repairResult.repaired) {
               updatedSession.turnExpiresAt = new Date(Date.now() + turnDuration * 1000).toISOString();
+            }
+          }
+
+          // Validación específica y diagnóstico exhaustivo de Dominó Venezolano
+          if (table.gameType === 'domino_venezolano') {
+            const dominoAudit = inspectDominoDeck(loadedState, uniquePlayers);
+            console.log('[DOMINO_RNP_DEBUG]', {
+              sessionId: activeSession.id,
+              playerOrder: loadedState.playerOrder || uniquePlayers.map((p) => p.userId),
+              hands: loadedState.hands,
+              tileCount: dominoAudit.tileCount,
+              invalidTiles: dominoAudit.invalidTiles,
+              duplicateTiles: dominoAudit.duplicateTiles,
+              emptyHandsUsers: dominoAudit.emptyHandsUsers,
+              errors: dominoAudit.errors,
+            });
+
+            if (!dominoAudit.isValid) {
+              console.error('[DOMINO_INVALID_DECK]', {
+                sessionId: activeSession.id,
+                audit: dominoAudit,
+              });
+              setErrorMsg(`DOMINO_INVALID_DECK: Se detectaron fichas inválidas (${dominoAudit.errors.join(', ')}).`);
+              return;
             }
           }
 
@@ -615,6 +658,47 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, [session?.id, table, engine, currentPlayers, currentUserId]);
 
+  // Ejecución automática de turnos para Bots en Modo Práctica
+  useEffect(() => {
+    const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
+    if (!isPractice || !gameState || isSettledRef.current) return;
+
+    const turnUser = (gameState as any)?.currentTurnUserId || (gameState as any)?.turnUserId || (gameState as any)?.activePlayerUserId;
+    if (!turnUser || turnUser === currentUserId) return;
+
+    const botTimer = setTimeout(() => {
+      if (engine.getBotMove) {
+        const botAction = engine.getBotMove(gameState, turnUser);
+        if (botAction) {
+          const result = engine.applyAction(gameState, botAction);
+          if (result.isValid) {
+            const sanitizedNext = engine.getSanitizedStateForPlayer
+              ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
+              : result.newState;
+            setGameState(sanitizedNext);
+
+            if (result.isGameOver && !isSettledRef.current) {
+              isSettledRef.current = true;
+              const winnerPlayer = currentPlayers.find((p) => p.userId === result.winnerUserId);
+              setSettlementResult({
+                grossPool: 0,
+                prizePool: 0,
+                platformFee: 0,
+                winnerName: result.isDraw
+                  ? 'Empate'
+                  : (result.winnerUserId === currentUserId ? '¡Tú Ganaste!' : (winnerPlayer?.displayName || 'Bot Ganador')),
+                isWinner: result.winnerUserId === currentUserId,
+                isDraw: Boolean(result.isDraw),
+              });
+            }
+          }
+        }
+      }
+    }, 850);
+
+    return () => clearTimeout(botTimer);
+  }, [table, gameState, currentUserId, engine, currentPlayers]);
+
   // Procesar abandono de mesa confirmado
   const handleConfirmAbandon = async () => {
     if (isAbandoning) return;
@@ -688,6 +772,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
         : result.newState;
       setGameState(sanitizedNext);
+
+      // Si es Modo Práctica, resolver localmente sin invocar Supabase ni ledger
+      const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
+      if (isPractice) {
+        if (result.isGameOver && !isSettledRef.current) {
+          isSettledRef.current = true;
+          const winnerPlayer = currentPlayers.find((p) => p.userId === result.winnerUserId);
+          setSettlementResult({
+            grossPool: 0,
+            prizePool: 0,
+            platformFee: 0,
+            winnerName: result.isDraw
+              ? 'Empate'
+              : (result.winnerUserId === currentUserId ? '¡Tú Ganaste!' : (winnerPlayer?.displayName || 'Bot Ganador')),
+            isWinner: result.winnerUserId === currentUserId,
+            isDraw: Boolean(result.isDraw),
+          });
+        }
+        setIsSubmittingAction(false);
+        return;
+      }
 
       try {
         // 3. Persistir la acción en Supabase (Game Actions)

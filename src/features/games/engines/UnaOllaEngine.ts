@@ -792,4 +792,38 @@ export class UnaOllaEngine implements IGameEngine<UnaOllaState> {
       players: sanitizedPlayers,
     };
   }
+
+  public getBotMove(state: UnaOllaState, userId: string): GameActionPayload | null {
+    if (state.status !== 'PLAYING' || state.currentTurnUserId !== userId) return null;
+    const player = state.players[userId];
+    if (!player || player.hand.length === 0) return null;
+
+    for (const card of player.hand) {
+      if (UnaOllaEngine.canPlayCard(card, state.topCard, state.currentColor)) {
+        const colors: UnaOllaColor[] = ['red', 'blue', 'green', 'yellow'];
+        const chosenColor = (card.type === 'wild' || card.type === 'wild_draw4')
+          ? colors[Math.floor(Math.random() * colors.length)]
+          : undefined;
+
+        return {
+          sessionId: '',
+          userId,
+          actionType: 'PLAY_CARD',
+          actionData: {
+            cardId: card.id,
+            chosenColor,
+          },
+          clientTimestamp: Date.now(),
+        };
+      }
+    }
+
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'DRAW_CARD',
+      actionData: {},
+      clientTimestamp: Date.now(),
+    };
+  }
 }

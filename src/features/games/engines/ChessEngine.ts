@@ -290,4 +290,38 @@ export class ChessEngine implements IGameEngine<ChessState> {
     const normalized = normalizeChessState(state);
     return normalized.state;
   }
+
+  public getBotMove(state: ChessState, userId: string): GameActionPayload | null {
+    if (state.winnerUserId || state.isDraw) return null;
+    let chess: Chess;
+    try {
+      chess = new Chess(state.fen);
+    } catch {
+      return null;
+    }
+
+    const activeColor = chess.turn();
+    const expectedTurnUserId = activeColor === 'w' ? state.playerWhiteUserId : state.playerBlackUserId;
+    if (userId !== expectedTurnUserId) return null;
+
+    const moves = chess.moves({ verbose: true });
+    if (moves.length === 0) return null;
+
+    const captureMoves = moves.filter((m: any) => m.captured);
+    const chosen = captureMoves.length > 0
+      ? captureMoves[Math.floor(Math.random() * captureMoves.length)]
+      : moves[Math.floor(Math.random() * moves.length)];
+
+    return {
+      sessionId: '',
+      userId,
+      actionType: 'MOVE',
+      actionData: {
+        from: chosen.from,
+        to: chosen.to,
+        promotion: chosen.promotion,
+      },
+      clientTimestamp: Date.now(),
+    };
+  }
 }

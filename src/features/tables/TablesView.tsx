@@ -44,6 +44,10 @@ import {
   Loader2,
   BookOpen,
   Clock,
+  Zap,
+  Bot,
+  Sparkles,
+  Gamepad2,
 } from 'lucide-react';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { AdPlacementContainer } from '../../components/advertising/AdPlacementContainer';
@@ -89,6 +93,7 @@ export function TablesView() {
 
   // Modal de Crear Mesa
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createIsPractice, setCreateIsPractice] = useState(false);
   const [createGameType, setCreateGameType] = useState<GameType>('domino_venezolano');
   const [createMode, setCreateMode] = useState<GameMode>('1v1');
   const [createName, setCreateName] = useState('');
@@ -99,6 +104,16 @@ export function TablesView() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [availableFees, setAvailableFees] = useState<number[]>([25, 50, 100, 250, 500, 1000, 2000, 5000]);
+
+  // Modal de Emparejamiento Rápido (Matchmaking)
+  const [showMatchmakingModal, setShowMatchmakingModal] = useState(false);
+  const [matchmakingGameType, setMatchmakingGameType] = useState<GameType>('domino_venezolano');
+  const [matchmakingEntryFee, setMatchmakingEntryFee] = useState<number>(50);
+  const [matchmakingMaxPlayers, setMatchmakingMaxPlayers] = useState<number>(2);
+  const [matchmakingMode, setMatchmakingMode] = useState<GameMode>('1v1');
+  const [isMatchmaking, setIsMatchmaking] = useState(false);
+  const [matchmakingStatusText, setMatchmakingStatusText] = useState('');
+  const [matchmakingError, setMatchmakingError] = useState<string | null>(null);
 
   // Modal de Reglas Oficiales
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -447,11 +462,87 @@ export function TablesView() {
     }
   };
 
-  // Crear mesa
+  // Emparejamiento Rápido Inteligente (Matchmaking)
+  const handleQuickMatch = async () => {
+    if (!isAuthenticated && matchmakingEntryFee > 0) {
+      setMatchmakingError('Debes iniciar sesión para jugar con saldo real.');
+      return;
+    }
+
+    setIsMatchmaking(true);
+    setMatchmakingError(null);
+    setMatchmakingStatusText('Buscando mesa pública compatible...');
+
+    try {
+      const userDisplayName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Jugador');
+      const userAvatarUrl = profile?.avatarUrl || user?.user_metadata?.avatar_url;
+
+      const res = await TableRepository.findOrCreateMatchmakingTable({
+        gameType: matchmakingGameType,
+        entryFee: matchmakingEntryFee,
+        maxPlayers: matchmakingMaxPlayers,
+        mode: matchmakingMode,
+        currentUserId: user?.id || `anon_${Date.now()}`,
+        userDisplayName,
+        userAvatarUrl,
+      });
+
+      if (res.action === 'practice') {
+        setShowMatchmakingModal(false);
+        setInGameData({
+          table: res.table,
+          players: res.players || [],
+        });
+      } else if (res.action === 'joined') {
+        setMatchmakingStatusText('¡Mesa encontrada! Ingresando a la sala...');
+        setTimeout(() => {
+          setShowMatchmakingModal(false);
+          setActiveTable(res.table);
+          if (res.players) setTablePlayers(res.players);
+          loadPublicTables();
+        }, 500);
+      } else if (res.action === 'created') {
+        setMatchmakingStatusText('Nueva mesa oficial creada. Esperando oponentes...');
+        setTimeout(() => {
+          setShowMatchmakingModal(false);
+          setActiveTable(res.table);
+          if (res.players) setTablePlayers(res.players);
+          loadPublicTables();
+        }, 500);
+      }
+    } catch (err: any) {
+      setMatchmakingError(sanitizeUserErrorMessage(err, 'Error al emparejar mesa.'));
+    } finally {
+      setIsMatchmaking(false);
+    }
+  };
+
+  // Crear mesa (Con soporte para Partida Real y Modo Práctica con Bots)
   const handleCreateTableSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Caso Modo Práctica (Offline instantáneo con Bots)
+    if (createIsPractice) {
+      const userDisplayName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Tú (Anfitrión)');
+      const userAvatarUrl = profile?.avatarUrl || user?.user_metadata?.avatar_url;
+
+      const practice = TableRepository.createPracticeTable({
+        gameType: createGameType,
+        maxPlayers: createMaxPlayers,
+        currentUserId: user?.id || `anon_${Date.now()}`,
+        userDisplayName,
+        userAvatarUrl,
+      });
+      setShowCreateModal(false);
+      setInGameData({
+        table: practice.table,
+        players: practice.players,
+      });
+      return;
+    }
+
     if (!isAuthenticated) {
-      setCreateError('Debes iniciar sesión para crear una mesa.');
+      setCreateError('Debes iniciar sesión para crear una mesa con saldo real.');
       return;
     }
 
@@ -540,16 +631,48 @@ export function TablesView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            id="btn-quick-match"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setMatchmakingGameType(selectedGameFilter === 'all' ? 'domino_venezolano' : selectedGameFilter);
+              setShowMatchmakingModal(true);
+            }}
+            leftIcon={<Zap className="w-4 h-4 text-amber-400" />}
+            className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+          >
+            ⚡ Partida Rápida
+          </Button>
+
+          <Button
+            id="btn-practice-mode"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setCreateIsPractice(true);
+              setCreateGameType(selectedGameFilter === 'all' ? 'domino_venezolano' : selectedGameFilter);
+              setShowCreateModal(true);
+            }}
+            leftIcon={<Bot className="w-4 h-4 text-cyan-400" />}
+            className="border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+          >
+            🎮 Práctica con Bots
+          </Button>
+
           {isAuthenticated && (
             <Button
               id="btn-open-create-table-modal"
               variant="primary"
               size="sm"
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setCreateIsPractice(false);
+                setShowCreateModal(true);
+              }}
               leftIcon={<PlusCircle className="w-4 h-4" />}
             >
-              Crear Nueva Mesa
+              Crear Mesa
             </Button>
           )}
         </div>
@@ -1092,20 +1215,64 @@ export function TablesView() {
         </div>
       )}
 
-      {/* Modal Crear Mesa */}
+      {/* Modal Crear Mesa Inteligente (Conmutador Saldo Real vs Modo Práctica) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
               <h2 className="text-base sm:text-lg font-black text-slate-100 flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-amber-400 shrink-0" />
-                <span>{createIsPrivate ? 'Crear Mesa Privada ("Trancaíto")' : 'Crear Mesa Pública'}</span>
+                {createIsPractice ? (
+                  <Bot className="w-5 h-5 text-cyan-400 shrink-0" />
+                ) : (
+                  <PlusCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                )}
+                <span>
+                  {createIsPractice
+                    ? 'Modo Práctica (Offline con Bots)'
+                    : createIsPrivate
+                    ? 'Crear Mesa Privada ("Trancaíto")'
+                    : 'Crear Mesa Oficial'}
+                </span>
               </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Pestañas de Tipo de Partida: Saldo Real vs Práctica */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateIsPractice(false);
+                  setCreateEntryFee(50);
+                }}
+                className={`py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                  !createIsPractice
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Coins className="w-4 h-4" />
+                <span>💰 Saldo Real (90/10)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateIsPractice(true);
+                  setCreateEntryFee(0);
+                }}
+                className={`py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                  createIsPractice
+                    ? 'bg-cyan-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Bot className="w-4 h-4" />
+                <span>🎮 Modo Práctica (0 Bs.)</span>
               </button>
             </div>
 
@@ -1120,7 +1287,9 @@ export function TablesView() {
                     setCreateGameType(g);
                     const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === g);
                     if (meta) {
-                      setCreateEntryFee(meta.minEntryFee);
+                      if (!createIsPractice) {
+                        setCreateEntryFee(meta.minEntryFee);
+                      }
                       setCreateMaxPlayers(meta.maxPlayers);
                       setCreateMode(meta.allowedModes[0]);
                     }
@@ -1129,10 +1298,138 @@ export function TablesView() {
                 >
                   {SUPPORTED_GAMES_METADATA.map((game) => (
                     <option key={game.id} value={game.id}>
-                      {game.name} ({game.minPlayers}-{game.maxPlayers} jug.)
+                      {game.name} ({game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`})
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Selector Inteligente de Jugadores y Modalidad */}
+              <div>
+                <label className="block font-medium text-slate-300 mb-1.5">Cantidad de Jugadores y Modo</label>
+                {(() => {
+                  const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === createGameType);
+                  if (!meta) return null;
+
+                  if (createGameType === 'domino_venezolano' || createGameType === 'truco_venezolano') {
+                    return (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreateMaxPlayers(2);
+                            setCreateMode('1v1');
+                          }}
+                          className={`py-2 px-3 rounded-xl border text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                            createMaxPlayers === 2
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-sm'
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>2 Jugadores (1v1)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreateMaxPlayers(4);
+                            setCreateMode('2v2');
+                          }}
+                          className={`py-2 px-3 rounded-xl border text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                            createMaxPlayers === 4
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-sm'
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>4 Jugadores (Parejas 2v2)</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  if (createGameType === 'atrapaito') {
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { count: 2, mode: '1v1' as GameMode, label: '2 Jug.' },
+                          { count: 3, mode: '1v3' as GameMode, label: '3 Jug.' },
+                          { count: 4, mode: '2v2' as GameMode, label: '4 Jug.' },
+                          { count: 6, mode: '2v2' as GameMode, label: '6 Jug.' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.count}
+                            type="button"
+                            onClick={() => {
+                              setCreateMaxPlayers(opt.count);
+                              setCreateMode(opt.mode);
+                            }}
+                            className={`py-2 px-2 rounded-xl border text-xs font-semibold transition text-center ${
+                              createMaxPlayers === opt.count
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  if (createGameType === 'una_olla') {
+                    return (
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { count: 2, mode: '1v1' as GameMode, label: '2 Jugadores' },
+                          { count: 3, mode: '1v3' as GameMode, label: '3 Jugadores' },
+                          { count: 4, mode: '1v4' as GameMode, label: '4 Jugadores' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.count}
+                            type="button"
+                            onClick={() => {
+                              setCreateMaxPlayers(opt.count);
+                              setCreateMode(opt.mode);
+                            }}
+                            className={`py-2 px-2 rounded-xl border text-xs font-semibold transition text-center ${
+                              createMaxPlayers === opt.count
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  if (createGameType === 'bingo') {
+                    return (
+                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-300">Capacidad Máxima (Masivo)</span>
+                        <input
+                          type="number"
+                          value={createMaxPlayers}
+                          min={2}
+                          max={100}
+                          onChange={(e) => setCreateMaxPlayers(Number(e.target.value))}
+                          className="w-24 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-right focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 flex items-center justify-between">
+                      <span>Duelo Mano a Mano</span>
+                      <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                        2 Jugadores (1v1)
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Nombre Opcional */}
@@ -1142,87 +1439,97 @@ export function TablesView() {
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
-                  placeholder="Ej: Mesa de los panas"
+                  placeholder={createIsPractice ? 'Mesa de Entrenamiento con Bots' : 'Ej: Mesa de los panas'}
                   maxLength={40}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
-              {/* Costo de Entrada con Montos Oficiales Dinámicos */}
-              <div>
-                <label className="block font-medium text-slate-300 mb-1 flex items-center justify-between">
-                  <span>Monto de participación</span>
-                  <span className="text-[10px] text-amber-400 font-mono font-bold">90% al Ganador / 10% Plataforma</span>
-                </label>
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span>Mínimo: <strong className="text-slate-200 font-mono">25 Bs.</strong> | Máximo: <strong className="text-slate-200 font-mono">5.000 Bs.</strong></span>
-                  <span className="text-slate-400 font-mono text-[11px]">{formatUsd(createEntryFee)}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {availableFees.map((fee) => (
-                    <button
-                      key={fee}
-                      type="button"
-                      onClick={() => setCreateEntryFee(fee)}
-                      className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition ${
-                        createEntryFee === fee
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      {fee} Bs.
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Monto Personalizado (Bs.)</label>
-                    <input
-                      type="number"
-                      value={createEntryFee}
-                      min={25}
-                      max={5000}
-                      onChange={(e) => setCreateEntryFee(Number(e.target.value))}
-                      className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-slate-100 font-mono focus:outline-none ${
-                        createEntryFee < 25 || createEntryFee > 5000
-                          ? 'border-red-500 text-red-300'
-                          : 'border-slate-700 focus:border-amber-500'
-                      }`}
-                    />
+              {/* Configuración de Saldo vs Modo Práctica */}
+              {createIsPractice ? (
+                <div className="p-3.5 bg-cyan-950/30 border border-cyan-800/40 rounded-xl text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-cyan-300">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    <span>Entrenamiento con Bots Automáticos</span>
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Máx Jugadores</label>
-                    <input
-                      type="number"
-                      value={createMaxPlayers}
-                      min={2}
-                      max={100}
-                      onChange={(e) => setCreateMaxPlayers(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-                {(createEntryFee < 25 || createEntryFee > 5000) && (
-                  <p className="mt-1.5 text-xs text-red-400 font-medium">
-                    El monto de participación debe estar entre 25 Bs. y 5.000 Bs.
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    En Modo Práctica <strong className="text-cyan-300">no se descuenta saldo</strong> de tu cuenta.
+                    Los asientos vacíos se llenan con oponentes de Inteligencia Artificial para que puedas practicar tus jugadas de inmediato.
                   </p>
-                )}
-              </div>
-
-              {/* Privacidad */}
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-200">Mesa Privada ("Trancaíto")</div>
-                  <div className="text-[11px] text-slate-400">Sólo jugadores con el código podrán acceder</div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={createIsPrivate}
-                  onChange={(e) => setCreateIsPrivate(e.target.checked)}
-                  className="w-4 h-4 accent-amber-500 rounded"
-                />
-              </div>
+              ) : (
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1 flex items-center justify-between">
+                    <span>Monto de participación</span>
+                    <span className="text-[10px] text-amber-400 font-mono font-bold">90% al Ganador / 10% Plataforma</span>
+                  </label>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                    <span>Mínimo: <strong className="text-slate-200 font-mono">25 Bs.</strong> | Máximo: <strong className="text-slate-200 font-mono">5.000 Bs.</strong></span>
+                    <span className="text-slate-400 font-mono text-[11px]">{formatUsd(createEntryFee)}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {availableFees.map((fee) => (
+                      <button
+                        key={fee}
+                        type="button"
+                        onClick={() => setCreateEntryFee(fee)}
+                        className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition ${
+                          createEntryFee === fee
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {fee} Bs.
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Monto Personalizado (Bs.)</label>
+                      <input
+                        type="number"
+                        value={createEntryFee}
+                        min={25}
+                        max={5000}
+                        onChange={(e) => setCreateEntryFee(Number(e.target.value))}
+                        className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-slate-100 font-mono focus:outline-none ${
+                          createEntryFee < 25 || createEntryFee > 5000
+                            ? 'border-red-500 text-red-300'
+                            : 'border-slate-700 focus:border-amber-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Premio Estimado (90%)</label>
+                      <div className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-emerald-400 font-mono font-bold">
+                        {formatBolivares(createEntryFee * createMaxPlayers * 0.9)}
+                      </div>
+                    </div>
+                  </div>
+                  {(createEntryFee < 25 || createEntryFee > 5000) && (
+                    <p className="mt-1.5 text-xs text-red-400 font-medium">
+                      El monto de participación debe estar entre 25 Bs. y 5.000 Bs.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Privacidad (sólo en modo real) */}
+              {!createIsPractice && (
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-slate-200">Mesa Privada ("Trancaíto")</div>
+                    <div className="text-[11px] text-slate-400">Sólo jugadores con el código podrán acceder</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={createIsPrivate}
+                    onChange={(e) => setCreateIsPrivate(e.target.checked)}
+                    className="w-4 h-4 accent-amber-500 rounded"
+                  />
+                </div>
+              )}
 
               {createError && (
                 <div className="p-2.5 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300 flex items-start gap-2">
@@ -1235,11 +1542,133 @@ export function TablesView() {
                 <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" disabled={creating || createEntryFee < 25 || createEntryFee > 5000}>
-                  {creating ? 'Creando Mesa...' : 'Publicar Mesa'}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={creating || (!createIsPractice && (createEntryFee < 25 || createEntryFee > 5000))}
+                  className={createIsPractice ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950' : ''}
+                >
+                  {creating
+                    ? 'Creando Mesa...'
+                    : createIsPractice
+                    ? '🎮 Iniciar Práctica Ahora'
+                    : 'Publicar Mesa Oficial'}
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Emparejamiento Rápido (Matchmaking) */}
+      {showMatchmakingModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-md w-full p-4 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-100">Partida Rápida</h2>
+                  <p className="text-[11px] text-slate-400">Emparejamiento automático inteligente</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!isMatchmaking) setShowMatchmakingModal(false);
+                }}
+                disabled={isMatchmaking}
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Selección de Juego */}
+              <div>
+                <label className="block font-medium text-slate-300 mb-1">Juego a Disputar</label>
+                <select
+                  value={matchmakingGameType}
+                  onChange={(e) => {
+                    const g = e.target.value as GameType;
+                    setMatchmakingGameType(g);
+                    const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === g);
+                    if (meta) {
+                      setMatchmakingMaxPlayers(meta.maxPlayers);
+                      setMatchmakingMode(meta.allowedModes[0]);
+                    }
+                  }}
+                  disabled={isMatchmaking}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-semibold"
+                >
+                  {SUPPORTED_GAMES_METADATA.map((game) => (
+                    <option key={game.id} value={game.id}>
+                      {game.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selección de Nivel de Apuesta */}
+              <div>
+                <label className="block font-medium text-slate-300 mb-1.5">Monto de Entrada Deseado</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[25, 50, 100, 250, 500, 1000].map((fee) => (
+                    <button
+                      key={fee}
+                      type="button"
+                      disabled={isMatchmaking}
+                      onClick={() => setMatchmakingEntryFee(fee)}
+                      className={`py-2 px-2 rounded-xl text-xs font-mono font-bold border transition text-center ${
+                        matchmakingEntryFee === fee
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {fee} Bs.
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estado de Búsqueda Activa */}
+              {isMatchmaking && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 animate-pulse">
+                  <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
+                  <div className="font-bold text-amber-300 text-sm">Buscando mesa pública abierta...</div>
+                  <div className="text-[11px] text-slate-300">{matchmakingStatusText || 'Conectando con la red en tiempo real...'}</div>
+                </div>
+              )}
+
+              {matchmakingError && (
+                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span>{matchmakingError}</span>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isMatchmaking}
+                  onClick={() => setShowMatchmakingModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={isMatchmaking}
+                  onClick={handleQuickMatch}
+                  leftIcon={<Zap className="w-4 h-4" />}
+                >
+                  {isMatchmaking ? 'Emparejando...' : 'Buscar o Crear Mesa'}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

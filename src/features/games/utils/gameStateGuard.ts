@@ -282,6 +282,125 @@ export function normalizeCheckersState(
   };
 }
 
+export interface DominoDeckAudit {
+  isValid: boolean;
+  tileCount: number;
+  invalidTiles: Array<{ userId: string; index: number; tile: any; reason: string }>;
+  duplicateTiles: string[];
+  emptyHandsUsers: string[];
+  errors: string[];
+}
+
+/**
+ * Inspecciona rigurosamente la baraja y manos de Dominó Venezolano.
+ * Detecta fichas -1, null, undefined, valores fuera de rango [0-6], fichas duplicadas y manos vacías.
+ */
+export function inspectDominoDeck(state: DominoState, requiredPlayers?: TablePlayer[]): DominoDeckAudit {
+  const invalidTiles: Array<{ userId: string; index: number; tile: any; reason: string }> = [];
+  const seenTiles = new Map<string, string>();
+  const duplicateTiles: string[] = [];
+  const emptyHandsUsers: string[] = [];
+  const errors: string[] = [];
+  let tileCount = 0;
+
+  const hands = state?.hands || {};
+
+  // Verificar jugadores requeridos
+  if (requiredPlayers && requiredPlayers.length > 0) {
+    for (const p of requiredPlayers) {
+      const uId = p.userId;
+      const hand = hands[uId];
+      if (!Array.isArray(hand) || (hand.length === 0 && (!state.board || state.board.length === 0))) {
+        emptyHandsUsers.push(uId);
+      }
+    }
+  }
+
+  for (const [uId, hand] of Object.entries(hands)) {
+    if (!Array.isArray(hand)) {
+      errors.push(`Mano de jugador ${uId} no es un arreglo`);
+      continue;
+    }
+    hand.forEach((t, idx) => {
+      tileCount++;
+      if (!t || !Array.isArray(t) || t.length !== 2) {
+        invalidTiles.push({ userId: uId, index: idx, tile: t, reason: 'Formato de ficha inválido (no es [a,b])' });
+        return;
+      }
+      const [a, b] = t;
+      if (
+        typeof a !== 'number' ||
+        typeof b !== 'number' ||
+        !Number.isInteger(a) ||
+        !Number.isInteger(b) ||
+        a < 0 ||
+        a > 6 ||
+        b < 0 ||
+        b > 6 ||
+        a === -1 ||
+        b === -1
+      ) {
+        invalidTiles.push({ userId: uId, index: idx, tile: t, reason: `Valores fuera de rango [0-6] o -1 detectado: [${a},${b}]` });
+        return;
+      }
+
+      const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+      if (seenTiles.has(key)) {
+        duplicateTiles.push(key);
+      } else {
+        seenTiles.set(key, uId);
+      }
+    });
+  }
+
+  // Verificar fichas en el tablero
+  if (Array.isArray(state?.board)) {
+    state.board.forEach((pt, idx) => {
+      tileCount++;
+      const t = pt?.tile;
+      if (!t || !Array.isArray(t) || t.length !== 2) {
+        invalidTiles.push({ userId: 'board', index: idx, tile: t, reason: 'Ficha en tablero inválida' });
+        return;
+      }
+      const [a, b] = t;
+      if (
+        typeof a !== 'number' ||
+        typeof b !== 'number' ||
+        !Number.isInteger(a) ||
+        !Number.isInteger(b) ||
+        a < 0 ||
+        a > 6 ||
+        b < 0 ||
+        b > 6 ||
+        a === -1 ||
+        b === -1
+      ) {
+        invalidTiles.push({ userId: 'board', index: idx, tile: t, reason: `Ficha en tablero con valores inválidos: [${a},${b}]` });
+        return;
+      }
+      const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+      if (seenTiles.has(key)) {
+        duplicateTiles.push(key);
+      } else {
+        seenTiles.set(key, 'board');
+      }
+    });
+  }
+
+  if (invalidTiles.length > 0) errors.push(`${invalidTiles.length} fichas con valores inválidos o -1`);
+  if (duplicateTiles.length > 0) errors.push(`Fichas duplicadas detectadas: ${duplicateTiles.join(', ')}`);
+  if (emptyHandsUsers.length > 0) errors.push(`Jugadores sin fichas asignadas: ${emptyHandsUsers.join(', ')}`);
+
+  return {
+    isValid: errors.length === 0,
+    tileCount,
+    invalidTiles,
+    duplicateTiles,
+    emptyHandsUsers,
+    errors,
+  };
+}
+
 /**
  * Normaliza y valida un estado de Dominó Venezolano.
  */
@@ -301,10 +420,29 @@ export function normalizeDominoState(
   if (!Array.isArray(raw.board)) missingProps.push('board');
   if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
 
-  const guaranteedHands: Record<string, any> = {
-    ...(fallbackInitialState?.hands || {}),
-    ...(raw.hands || {}),
-  };
+  // Evaluar si las manos de rawState contienen fichas -1 o inválidas
+  let rawHandsValid = true;
+  if (raw.hands && typeof raw.hands === 'object') {
+    for (const hand of Object.values(raw.hands)) {
+      if (Array.isArray(hand)) {
+        for (const t of hand) {
+          if (!Array.isArray(t) || t[0] === -1 || t[1] === -1 || t[0] < 0 || t[0] > 6 || t[1] < 0 || t[1] > 6) {
+            rawHandsValid = false;
+            break;
+          }
+        }
+      }
+      if (!rawHandsValid) break;
+    }
+  } else {
+    rawHandsValid = false;
+  }
+
+  // Si las manos en rawState están corruptas con -1 pero fallbackInitialState tiene fichas válidas, recuperarlas
+  const guaranteedHands: Record<string, any> = rawHandsValid
+    ? { ...(fallbackInitialState?.hands || {}), ...(raw.hands || {}) }
+    : { ...(fallbackInitialState?.hands || {}) };
+
   const guaranteedNames: Record<string, string> = {
     ...(fallbackInitialState?.playerNames || {}),
     ...(raw.playerNames || {}),
@@ -321,7 +459,7 @@ export function normalizeDominoState(
         guaranteedNames[uId] = p.displayName || `Jugador ${idx + 1}`;
       }
       if (!guaranteedHands[uId]) {
-        guaranteedHands[uId] = [];
+        guaranteedHands[uId] = fallbackInitialState?.hands?.[uId] || [];
       }
       if (guaranteedScores[uId] === undefined) {
         guaranteedScores[uId] = 0;
@@ -352,11 +490,18 @@ export function normalizeDominoState(
 
   (normalizedState as any).currentTurnUserId = turnUser;
 
+  // Auditoría exhaustiva de la baraja y manos
+  const deckAudit = inspectDominoDeck(normalizedState, players);
+  if (!deckAudit.isValid) {
+    missingProps.push('DOMINO_INVALID_DECK');
+  }
+
   const isStructurallyValid = Boolean(
     normalizedState &&
     typeof normalizedState.hands === 'object' &&
     Array.isArray(normalizedState.board) &&
-    normalizedState.turnUserId
+    normalizedState.turnUserId &&
+    deckAudit.isValid
   );
 
   return {

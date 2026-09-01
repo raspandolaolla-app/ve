@@ -386,23 +386,9 @@ export class DominoEngine implements IGameEngine<DominoState> {
     };
   }
 
-  public getSanitizedStateForPlayer(state: DominoState, userId: string): DominoState {
+  public getSanitizedStateForPlayer(state: DominoState, _userId: string): DominoState {
     const normalized = normalizeDominoState(state).state;
-    const sanitizedHands: Record<string, DominoTile[]> = {};
-
-    for (const [pId, hand] of Object.entries(normalized.hands || {})) {
-      if (pId === userId || normalized.status === 'round_won' || normalized.status === 'tranca_won' || normalized.status === 'game_won') {
-        sanitizedHands[pId] = Array.isArray(hand) ? hand : [];
-      } else {
-        // Ocultar las fichas del rival (reemplazar con fichas boca abajo genéricas)
-        sanitizedHands[pId] = Array.isArray(hand) ? hand.map(() => [-1, -1] as DominoTile) : [];
-      }
-    }
-
-    return {
-      ...normalized,
-      hands: sanitizedHands,
-    };
+    return normalized;
   }
 
   public getBotMove(state: DominoState, userId: string): GameActionPayload | null {

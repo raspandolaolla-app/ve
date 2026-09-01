@@ -59,27 +59,41 @@ interface DominoTileRenderProps {
 
 const DominoTileRender: React.FC<DominoTileRenderProps> = ({ tile, mode, size = 'md' }) => {
   const isSm = size === 'sm';
+  const isCorrupted = !tile || !Array.isArray(tile) || tile.length !== 2 || tile[0] === -1 || tile[1] === -1 || tile[0] < 0 || tile[0] > 6 || tile[1] < 0 || tile[1] > 6;
+
+  if (isCorrupted) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center p-1 select-none text-[10px] text-red-500 font-mono font-bold">
+        <span>ERR</span>
+        <div className="w-full h-0.5 bg-red-500 my-0.5" />
+        <span>[-]</span>
+      </div>
+    );
+  }
+
+  const left = tile[0];
+  const right = tile[1];
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-between p-1 select-none">
       {mode === 'CLASSIC' ? (
         <>
           <div className="w-full flex-1 flex items-center justify-center">
-            <DominoPipHalf value={tile[0]} size={size} />
+            <DominoPipHalf value={left} size={size} />
           </div>
           <div className="w-full h-0.5 bg-neutral-900/80 my-0.5" />
           <div className="w-full flex-1 flex items-center justify-center">
-            <DominoPipHalf value={tile[1]} size={size} />
+            <DominoPipHalf value={right} size={size} />
           </div>
         </>
       ) : (
         <>
           <span className={`font-black text-neutral-950 ${isSm ? 'text-[11px]' : 'text-sm sm:text-base'}`}>
-            {tile[0]}
+            {left}
           </span>
           <div className="w-full h-0.5 bg-neutral-900 my-0.5" />
           <span className={`font-black text-neutral-950 ${isSm ? 'text-[11px]' : 'text-sm sm:text-base'}`}>
-            {tile[1]}
+            {right}
           </span>
         </>
       )}

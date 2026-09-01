@@ -56,22 +56,18 @@ export function Header({
   useEffect(() => {
     try {
       setUnreadCount(notificationService.getUnreadCount());
-    } catch (e) {
-      // Servicio aún no disponible
-    }
-  }, []);
-
-  const handleNavigate = (tab: string) => {
-    try {
-      playSound('click');
     } catch (e) {}
-    onNavigate(tab);
-  };
+  }, []);
 
   const safePlaySound = (sound: string) => {
     try {
       playSound(sound);
     } catch (e) {}
+  };
+
+  const handleNavigate = (tab: string) => {
+    safePlaySound('click');
+    onNavigate(tab);
   };
 
   return (

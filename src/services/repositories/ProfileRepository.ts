@@ -96,7 +96,6 @@ export class ProfileRepository {
               user_id: userId,
               available_balance: 0,
               held_balance: 0,
-              total_balance: 0,
               created_at: now,
               updated_at: now,
             },

@@ -716,6 +716,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   };
 
+  // ✅ NUEVO: Limpieza automática al desmontar el componente (cuando el usuario sale sin confirmar)
+  useEffect(() => {
+    return () => {
+      // Al salir del componente sin confirmar abandono, marcar como LEFT
+      if (session?.id && table.id) {
+        TableRepository.abandonTable(table.id, session.id).catch((err) => {
+          console.warn('[GameContainer] Limpieza automática al salir:', err);
+        });
+      }
+    };
+  }, [session?.id, table.id]);
+
   // Manejador central de acciones de juego con anti-double click y Server-Authoritative RNG
   const handleGameAction = useCallback(
     async (actionType: string, actionData: Record<string, unknown>) => {
@@ -1023,8 +1035,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       {/* Barra de Navegación de la Mesa */}
       <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+          {/* ✅ MODIFICADO: Botón "Volver" ahora confirma antes de salir si hay partida activa */}
           <button
-            onClick={onExit}
+            onClick={() => {
+              if (gameState && !isSettledRef.current) {
+                setShowAbandonModal(true);
+              } else {
+                onExit();
+              }
+            }}
             className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation"
             title="Volver"
           >

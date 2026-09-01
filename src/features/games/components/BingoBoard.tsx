@@ -5,6 +5,7 @@
 // • Gestor de hasta 20 CARTONES: vista "TODOS" (cuadrícula) o "UNO" (grande)
 // • Auto-resaltado de números cantados en todos los cartones
 // • Tablero de números colapsable (75 / 90 bolas auto-detectado)
+// • Integra props de BingoGame: venta de cartones, countdown, tasa BCV y mute
 // • 3 temas de sala • Mobile-first • Compatible 100% con Supabase
 // ==============================================================================
 
@@ -12,7 +13,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, ChevronLeft, ChevronRight, LayoutGrid, Square, Trophy,
-  Sparkles, Dices, Grid3X3, Eye,
+  Sparkles, Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket,
 } from 'lucide-react';
 
 interface BingoBoardProps {
@@ -20,7 +21,13 @@ interface BingoBoardProps {
   currentUserId: string;
   onMarkNumber: (row: number, col: number) => void;
   onClaimBingo: () => void;
-  onDrawBall: () => void;
+  onDrawBall?: () => void;
+  // Props opcionales provenientes de BingoGame.tsx
+  isSalesClosed?: boolean;
+  countdownSeconds?: number;
+  bcvRate?: number;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 // ==============================================================================
@@ -110,7 +117,7 @@ const Ball: React.FC<{ n: number; max: number; size?: 'xs' | 'sm' | 'xl'; pulse?
         style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.7), transparent)' }} />
       <div className="relative w-[62%] h-[62%] rounded-full bg-white flex flex-col items-center justify-center leading-none">
         {letter && (
-          <span className="font-black text-[0.5em]" style={{ color: '#6B7280', fontSize: size === 'xl' ? 12 : 7 }}>
+          <span className="font-black" style={{ color: '#6B7280', fontSize: size === 'xl' ? 12 : 7 }}>
             {letter}
           </span>
         )}
@@ -146,6 +153,11 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   onMarkNumber,
   onClaimBingo,
   onDrawBall,
+  isSalesClosed,
+  countdownSeconds,
+  bcvRate,
+  isMuted,
+  onToggleMute,
 }) => {
   const s: any = state || {};
 
@@ -196,7 +208,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       else if (Array.isArray(raw?.cells)) grid = chunk(raw.cells, raw.cells.length === 27 ? 9 : 5);
       else if (Array.isArray(raw?.numbers)) grid = chunk(raw.numbers, raw.numbers.length === 15 ? 9 : 5);
 
-      // Marcados (defensivo)
       const markedSrc = raw?.marked || s.marked?.[raw?.id ?? idx] || s.markedCells?.[raw?.id ?? idx] || [];
       const markedSet = new Set<string>();
       if (Array.isArray(markedSrc)) {
@@ -205,8 +216,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           else if (typeof m === 'string') markedSet.add(m);
           else if (m && m.row !== undefined) markedSet.add(`${m.row}_${m.col}`);
         });
-      } else if (Array.isArray(markedSrc) === false && typeof markedSrc === 'object') {
-        // matriz booleana
       }
       return { id: raw?.id ?? `card_${idx}`, grid, markedSet, raw };
     });
@@ -222,7 +231,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const status = s.status || 'playing';
   const isPlaying = status === 'playing' || status === 'PLAYING' || status === 'ACTIVE';
 
-  // Progreso de un cartón (números cantados presentes)
+  // Progreso de un cartón
   const cardProgress = (card: any): { hit: number; total: number } => {
     let hit = 0, total = 0;
     card.grid.forEach((row: any[]) =>
@@ -254,11 +263,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         className="rounded-xl border-2 overflow-hidden"
         style={{
           background: T.panel,
-          borderColor: viewMode === 'single' || !compact ? T.accent : T.border,
+          borderColor: !compact ? T.accent : T.border,
           boxShadow: '0 6px 16px rgba(0,0,0,0.45)',
         }}
       >
-        {/* Encabezado del cartón */}
         <div className="flex items-center justify-between px-2 py-1"
           style={{ background: `linear-gradient(90deg, ${T.accent}33, transparent)` }}>
           <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: T.accent }}>
@@ -268,13 +276,11 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             {prog.hit}/{prog.total}
           </span>
         </div>
-        {/* Barra de progreso */}
         <div className="h-1 w-full" style={{ background: 'rgba(0,0,0,0.4)' }}>
           <div className="h-full transition-all duration-500"
             style={{ width: `${prog.total ? (prog.hit / prog.total) * 100 : 0}%`, background: T.accent }} />
         </div>
 
-        {/* Rejilla del cartón */}
         <div className="p-1.5 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
           {card.grid.map((row: any[], r: number) =>
             row.map((v: any, c: number) => {
@@ -331,7 +337,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5"
       style={{ background: T.bg, minHeight: '100%' }}>
 
-      {/* ===== BARRA SUPERIOR: TEMAS + CONTROLES ===== */}
+      {/* ===== BARRA SUPERIOR: TEMAS + CONTROLES + MUTE ===== */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}>
         <div className="flex items-center gap-2">
@@ -352,6 +358,18 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          {onToggleMute && (
+            <button onClick={onToggleMute}
+              className="p-1.5 rounded-lg border"
+              style={{ borderColor: T.border }}
+              title={isMuted ? 'Activar sonido' : 'Silenciar'}>
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5" style={{ color: T.sub }} />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5" style={{ color: T.accent }} />
+              )}
+            </button>
+          )}
           <button onClick={() => setAutoGlow(!autoGlow)}
             className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase"
             style={{
@@ -369,10 +387,39 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         </div>
       </div>
 
+      {/* ===== CHIPS DE INFORMACIÓN: VENTA / COUNTDOWN / TASA BCV ===== */}
+      {(isSalesClosed !== undefined || bcvRate !== undefined) && (
+        <div className="w-full flex items-center gap-2 flex-wrap">
+          {isSalesClosed !== undefined && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase"
+              style={{
+                background: isSalesClosed ? 'rgba(229,57,53,0.15)' : 'rgba(52,211,153,0.15)',
+                borderColor: isSalesClosed ? '#E53935' : '#34D399',
+                color: isSalesClosed ? '#F87171' : '#34D399',
+              }}>
+              <Ticket className="w-3 h-3" />
+              {isSalesClosed ? 'Venta de cartones cerrada' : 'Venta de cartones abierta'}
+            </div>
+          )}
+          {!isSalesClosed && countdownSeconds !== undefined && countdownSeconds > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black font-mono animate-pulse"
+              style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
+              <Clock className="w-3 h-3" />
+              {countdownSeconds}s
+            </div>
+          )}
+          {bcvRate !== undefined && bcvRate > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold font-mono"
+              style={{ background: 'rgba(255,255,255,0.05)', borderColor: T.border, color: T.sub }}>
+              Tasa BCV: {Number(bcvRate).toFixed(2)} Bs/$
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ===== BOMBO VIRTUAL + BALOTA GIGANTE ===== */}
       <div className="w-full relative overflow-hidden rounded-3xl border-2 p-4"
         style={{ background: T.panel, borderColor: T.border, boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
-        {/* Jaula giratoria decorativa */}
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
@@ -387,7 +434,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         />
 
         <div className="relative z-10 flex items-center justify-between gap-3">
-          {/* Balota actual */}
           <div className="flex flex-col items-center gap-1">
             <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: T.sub }}>
               Balota actual
@@ -404,7 +450,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Historial reciente */}
           <div className="flex-1 min-w-0">
             <div className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: T.sub }}>
               Últimas balotas ({drawn.length})
@@ -418,20 +463,21 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                 ))
               )}
             </div>
-            {/* Botón sacar balota */}
-            <button
-              type="button"
-              onClick={onDrawBall}
-              disabled={!isPlaying}
-              className="mt-2 w-full py-3 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-40"
-              style={{
-                background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
-                color: '#1A120C',
-                boxShadow: `0 6px 18px ${T.accent}55, inset 0 2px 3px rgba(255,255,255,0.4)`,
-              }}
-            >
-              <Dices className="w-4 h-4" /> Sacar Balota
-            </button>
+            {onDrawBall && (
+              <button
+                type="button"
+                onClick={onDrawBall}
+                disabled={!isPlaying}
+                className="mt-2 w-full py-3 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-40"
+                style={{
+                  background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
+                  color: '#1A120C',
+                  boxShadow: `0 6px 18px ${T.accent}55, inset 0 2px 3px rgba(255,255,255,0.4)`,
+                }}
+              >
+                <Dices className="w-4 h-4" /> Sacar Balota
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -446,10 +492,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             className="w-full overflow-hidden"
           >
             <div className="p-2.5 rounded-2xl border grid gap-1"
-              style={{
-                background: T.panel, borderColor: T.border,
-                gridTemplateColumns: 'repeat(10, 1fr)',
-              }}>
+              style={{ background: T.panel, borderColor: T.border, gridTemplateColumns: 'repeat(10, 1fr)' }}>
               {Array.from({ length: maxBall }, (_, i) => i + 1).map((n) => {
                 const called = calledSet.has(n);
                 return (
@@ -471,7 +514,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
       {/* ===== GESTOR DE CARTONES ===== */}
       <div className="w-full">
-        {/* Controles de vista */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <button onClick={() => setViewMode('all')}
@@ -494,7 +536,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             </button>
           </div>
 
-          {/* Navegación en modo Uno */}
           {viewMode === 'single' && myCards.length > 0 && (
             <div className="flex items-center gap-1">
               <button onClick={() => setActiveIndex(Math.max(0, safeActive - 1))}
@@ -512,7 +553,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           )}
         </div>
 
-        {/* Selector rápido de cartón (chips) */}
         {myCards.length > 1 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1.5 mb-2">
             {myCards.map((_, i) => (
@@ -530,7 +570,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           </div>
         )}
 
-        {/* Vista TODOS: cuadrícula de cartones compactos */}
         {viewMode === 'all' ? (
           <div className="grid grid-cols-1 min-[430px]:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto no-scrollbar pr-0.5">
             {myCards.length > 0 ? (
@@ -542,7 +581,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             )}
           </div>
         ) : (
-          /* Vista UNO: cartón grande */
           <div className="max-w-md mx-auto w-full">
             {myCards[safeActive] ? renderCard(myCards[safeActive], safeActive, false) : (
               <div className="text-center text-[10px] font-mono py-6" style={{ color: T.sub }}>Sin cartones.</div>
@@ -599,7 +637,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       {/* Pie */}
       <div className="flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
-        <span>🇻 Bingo Online 🇻</span>
+        <span>🇻🇪 Bingo Online 🇻</span>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
     </div>

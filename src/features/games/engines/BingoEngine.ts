@@ -229,7 +229,36 @@ export class BingoEngine implements IGameEngine<any> {
   }
 
   // ✅ FIX CRÍTICO: Preserva hostUserId y seed para que el tablero sepa quién es anfitrión
-  public getSanitizedStateForPlayer(state: any, userId: string): any {
+    public getSanitizedStateForPlayer(state: any, userId: string): any {
+    const sanitized = JSON.parse(JSON.stringify(state));
+
+    // 1. Preservar información pública esencial (todos la ven)
+    sanitized.hostUserId = state.hostUserId;
+    sanitized.seed = state.seed;
+    sanitized.maxCardsPerPlayer = state.maxCardsPerPlayer;
+    sanitized.cardPrice = state.cardPrice;
+
+    // 2. cardsPurchased es PÚBLICO: NO modificar contadores de otros jugadores
+    //    (son necesarios para el contador global y para regenerar cartones)
+    if (!sanitized.cardsPurchased) sanitized.cardsPurchased = {};
+
+    // 3. Regenerar cartones determinísticamente para TODOS (para el conteo global)
+    regenerateAllCards(sanitized);
+
+    // 4. PRIVACIDAD: ocultar el CONTENIDO de los cartones de otros jugadores
+    //    pero mantener el array vacío para no romper la estructura
+    if (sanitized.cards && typeof sanitized.cards === 'object') {
+      Object.keys(sanitized.cards).forEach((uid) => {
+        if (uid !== userId) {
+          // Ocultar cartones de otros jugadores (privacidad) pero mantener la clave
+          sanitized.cards[uid] = [];
+        }
+        // El jugador actual ve sus propios cartones regenerados
+      });
+    }
+
+    return sanitized;
+  }
     const sanitized = JSON.parse(JSON.stringify(state));
     // Preservar información pública esencial
     sanitized.hostUserId = state.hostUserId;

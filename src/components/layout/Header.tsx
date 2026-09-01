@@ -14,7 +14,6 @@ import { useAudio } from '../../hooks/useAudio';
 import { notificationService } from '../../services/NotificationService';
 import {
   LogIn,
-  User,
   Shield,
   Wallet,
   Grid,
@@ -23,7 +22,6 @@ import {
   Eye,
   EyeOff,
   Bell,
-  Sparkles,
   Plus,
 } from 'lucide-react';
 
@@ -50,17 +48,23 @@ export function Header({
   const isAuthenticated = state === 'authenticated' && user !== null;
   const userAvatar = profile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const userFirstName = (profile?.firstName || user?.user_metadata?.given_name || user?.email?.split('@')[0] || 'Jugador').toUpperCase();
-  
+
   const formattedBalance = isBalanceVisible
     ? formatBolivares(balance?.availableBalance ?? 0)
     : 'Bs. ••••••';
 
   useEffect(() => {
-    setUnreadCount(notificationService.getUnreadCount());
+    try {
+      setUnreadCount(notificationService.getUnreadCount());
+    } catch (e) {
+      // silencioso si el servicio aún no está listo
+    }
   }, []);
 
   const handleNavigate = (tab: string) => {
-    playSound('click');
+    try {
+      playSound('click');
+    } catch (e) {}
     onNavigate(tab);
   };
 
@@ -71,9 +75,10 @@ export function Header({
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
-          
+
           {/* SECCIÓN IZQUIERDA: LOGO + SALDO */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+
             {/* Logo con animación */}
             <motion.div
               id="brand-logo"
@@ -156,11 +161,12 @@ export function Header({
                   id="header-toggle-balance-btn"
                   onClick={(e) => {
                     e.stopPropagation();
-                    playSound('click');
+                    try { playSound('click'); } catch (err) {}
                     toggleBalanceVisibility();
                   }}
                   className="p-1 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors ml-0.5"
                   title={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
+                  aria-label={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
                 >
                   {isBalanceVisible ? (
                     <Eye className="w-3.5 h-3.5" />
@@ -175,7 +181,7 @@ export function Header({
                   id="header-quick-deposit-btn"
                   onClick={(e) => {
                     e.stopPropagation();
-                    playSound('click');
+                    try { playSound('click'); } catch (err) {}
                     onNavigate('wallet');
                     setTimeout(() => openDepositModal(), 100);
                   }}
@@ -252,11 +258,12 @@ export function Header({
               whileTap={{ scale: 0.9 }}
               id="header-notifications-btn"
               onClick={() => {
-                playSound('click');
+                try { playSound('click'); } catch (e) {}
                 onOpenNotifications();
               }}
               className="relative p-2 rounded-xl bg-gradient-to-br from-[#111722] to-[#171E2A] hover:from-[#171E2A] hover:to-[#1E2938] text-[#94A3B8] hover:text-[#F8FAFC] border border-[#1E2938] transition-all shadow-md"
               title="Notificaciones"
+              aria-label="Abrir notificaciones"
             >
               <Bell className="w-4 h-4" />
               <AnimatePresence>
@@ -265,10 +272,8 @@ export function Header({
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="notification-badge"
-                  >
-                    {unreadCount > 0 ? unreadCount : ''}
-                  </motion.div>
+                    className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF8A00] animate-pulse"
+                  />
                 )}
               </AnimatePresence>
             </motion.button>
@@ -282,10 +287,11 @@ export function Header({
                 whileTap={{ scale: 0.95 }}
                 id="header-user-profile-btn"
                 onClick={() => {
-                  playSound('click');
+                  try { playSound('click'); } catch (e) {}
                   onOpenProfile();
                 }}
                 className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-gradient-to-r from-[#111722] to-[#171E2A] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all text-xs text-[#F8FAFC] shadow-md"
+                aria-label="Menú de perfil de usuario"
               >
                 {userAvatar ? (
                   <motion.img

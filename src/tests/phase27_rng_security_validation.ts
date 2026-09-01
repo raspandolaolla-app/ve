@@ -74,14 +74,41 @@ export function runRngSecurityValidationSuite() {
   }
   console.log('✅ TrucoEngine generó reparto inicial válido con vira:', trucoState.vira);
 
-  // 5. Verificar DominoEngine repartición de fichas
+  // 5. Verificar DominoEngine repartición de fichas y ausencia total de -1
   console.log('\n[5] Probando DominoEngine repartición de fichas...');
   const domino = new DominoEngine();
   const dominoState = domino.initialize(mockTable, mockPlayers);
   if (!dominoState.hands['u1'] || dominoState.hands['u1'].length !== 7) {
     throw new Error('❌ DominoEngine falló al repartir 7 fichas por jugador.');
   }
-  console.log('✅ DominoEngine repartió correctamente 7 fichas por jugador.');
+  if (!dominoState.hands['u2'] || dominoState.hands['u2'].length !== 7) {
+    throw new Error('❌ DominoEngine falló al repartir 7 fichas a jugador 2.');
+  }
+
+  // Verificar que ninguna ficha contenga -1 y que todas estén en rango [0-6]
+  for (const [uId, hand] of Object.entries(dominoState.hands)) {
+    for (const tile of hand) {
+      if (!Array.isArray(tile) || tile.length !== 2) {
+        throw new Error(`❌ DominoEngine generó ficha con formato inválido para ${uId}: ${JSON.stringify(tile)}`);
+      }
+      const [a, b] = tile;
+      if (a === -1 || b === -1 || a < 0 || a > 6 || b < 0 || b > 6) {
+        throw new Error(`❌ DominoEngine generó ficha corrupta o con -1 para ${uId}: [${a}, ${b}]`);
+      }
+    }
+  }
+
+  // Verificar que getSanitizedStateForPlayer no degrade las fichas a -1
+  const sanitizedP1 = domino.getSanitizedStateForPlayer(dominoState, 'u1');
+  for (const [uId, hand] of Object.entries(sanitizedP1.hands)) {
+    for (const tile of hand) {
+      if (tile[0] === -1 || tile[1] === -1) {
+        throw new Error(`❌ getSanitizedStateForPlayer generó fichas -1 para ${uId}`);
+      }
+    }
+  }
+
+  console.log('✅ DominoEngine repartió correctamente 7 fichas válidas por jugador sin valores -1.');
 
   // 6. Verificar verificación de Hash de Compromiso (Fairness)
   console.log('\n[6] Probando RngService.verifyCommitmentHash...');

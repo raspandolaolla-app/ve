@@ -5,7 +5,7 @@
 // • Solo se persiste el contador cardsPurchased (que se SUMA, no se pisa)
 // • Todos los dispositivos regeneran los MISMOS cartones (semilla fija)
 // • Soporta 75 y 90 bolas (quiniela)
-// • getSanitizedStateForPlayer PRESERVA hostUserId (clave para UI)
+// • getSanitizedStateForPlayer PRESERVA hostUserId y cardsPurchased (público)
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
@@ -228,8 +228,7 @@ export class BingoEngine implements IGameEngine<any> {
     return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
   }
 
-  // ✅ FIX CRÍTICO: Preserva hostUserId y seed para que el tablero sepa quién es anfitrión
-    public getSanitizedStateForPlayer(state: any, userId: string): any {
+  public getSanitizedStateForPlayer(state: any, userId: string): any {
     const sanitized = JSON.parse(JSON.stringify(state));
 
     // 1. Preservar información pública esencial (todos la ven)
@@ -239,7 +238,7 @@ export class BingoEngine implements IGameEngine<any> {
     sanitized.cardPrice = state.cardPrice;
 
     // 2. cardsPurchased es PÚBLICO: NO modificar contadores de otros jugadores
-    //    (son necesarios para el contador global y para regenerar cartones)
+    //    (son necesarios para el contador global y para regenerar cartones determinísticamente)
     if (!sanitized.cardsPurchased) sanitized.cardsPurchased = {};
 
     // 3. Regenerar cartones determinísticamente para TODOS (para el conteo global)
@@ -250,31 +249,11 @@ export class BingoEngine implements IGameEngine<any> {
     if (sanitized.cards && typeof sanitized.cards === 'object') {
       Object.keys(sanitized.cards).forEach((uid) => {
         if (uid !== userId) {
-          // Ocultar cartones de otros jugadores (privacidad) pero mantener la clave
           sanitized.cards[uid] = [];
         }
-        // El jugador actual ve sus propios cartones regenerados
       });
     }
 
-    return sanitized;
-  }
-    const sanitized = JSON.parse(JSON.stringify(state));
-    // Preservar información pública esencial
-    sanitized.hostUserId = state.hostUserId;
-    sanitized.seed = state.seed;
-    sanitized.maxCardsPerPlayer = state.maxCardsPerPlayer;
-    sanitized.cardPrice = state.cardPrice;
-    // Regenerar cartones para el jugador actual
-    regenerateAllCards(sanitized);
-    // Ocultar contadores de otros jugadores (privacidad) pero mantener sus nombres
-    if (sanitized.cardsPurchased) {
-      Object.keys(sanitized.cardsPurchased).forEach((uid) => {
-        if (uid !== userId) {
-          sanitized.cardsPurchased[uid] = 0; // Ocultar conteo real
-        }
-      });
-    }
     return sanitized;
   }
 }

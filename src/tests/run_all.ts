@@ -50,8 +50,10 @@ async function main() {
     console.log('\n======================================================================');
     console.log('               CONSOLIDADO DE PRUEBAS COMPLETADO CON ÉXITO            ');
     console.log('======================================================================');
+    process.exit(0);
   } catch (error) {
     console.error('\n❌ ERROR CRÍTICO DURANTE LA EJECUCIÓN:', error);
+    process.exit(1);
   }
 }
 

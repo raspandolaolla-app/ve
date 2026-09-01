@@ -880,13 +880,20 @@ export class TableRepository {
 
   /**
    * Inicia la sesión de juego de una mesa (Control exclusivo del Anfitrión).
+   * Persiste atómicamente el estado inicial canónico completo y el turno asignado.
    */
-  public static async startGameSession(tableId: string): Promise<string | null> {
+  public static async startGameSession(
+    tableId: string,
+    initialState?: Record<string, unknown>,
+    turnDurationSeconds?: number
+  ): Promise<string | null> {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
     const { data, error } = await supabase.rpc('start_game_session_secure', {
       p_table_id: tableId,
+      p_initial_state: initialState || null,
+      p_turn_duration_seconds: turnDurationSeconds || 30,
     });
 
     if (error) {

@@ -92,7 +92,7 @@ export class GameRepository {
   }
 
   /**
-   * Crea o recupera la sesión de juego para una mesa.
+   * Crea o recupera la sesión de juego para una mesa de forma server-authoritative.
    */
   public static async createOrGetSession(
     tableId: string,
@@ -107,8 +107,28 @@ export class GameRepository {
     const existing = await this.getActiveSession(tableId);
     if (existing) return existing;
 
+    const turnSeconds = gameType === 'chess' ? 15 : (Number(initialState?.turnDurationSeconds) || 30);
+
+    // Intentar iniciar mediante RPC atómica autoritativa
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('start_game_session_secure', {
+        p_table_id: tableId,
+        p_initial_state: initialState,
+        p_turn_duration_seconds: turnSeconds,
+      });
+
+      if (!rpcError && rpcData?.session_id) {
+        return await this.getActiveSession(tableId);
+      }
+    } catch (rpcErr) {
+      console.warn('[GameRepository] start_game_session_secure fallback:', rpcErr);
+    }
+
+    // Si la RPC ya existía o falló por concurrencia, re-consultar
+    const doubleCheck = await this.getActiveSession(tableId);
+    if (doubleCheck) return doubleCheck;
+
     const dbGameType = this.mapGameTypeToDbEnum(gameType);
-    const turnSeconds = gameType === 'chess' ? 15 : 10;
     const initialTurnDeadline = new Date(Date.now() + turnSeconds * 1000).toISOString();
 
     const { data, error } = await supabase
@@ -148,6 +168,42 @@ export class GameRepository {
       settledAt: data.ended_at,
       currentState: data.current_state || {},
     };
+  }
+
+  /**
+   * Repara de manera atómica, segura e idempotente el estado inicial de una sesión
+   * mediante la RPC repair_game_session_initial_state_secure.
+   */
+  public static async repairInitialSessionState(
+    sessionId: string,
+    initialState: Record<string, unknown>,
+    turnUserId: string,
+    turnDurationSeconds: number = 30
+  ): Promise<{ success: boolean; repaired: boolean }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, repaired: false };
+
+    try {
+      const { data, error } = await supabase.rpc('repair_game_session_initial_state_secure', {
+        p_session_id: sessionId,
+        p_initial_state: initialState,
+        p_turn_user_id: turnUserId,
+        p_turn_duration_seconds: turnDurationSeconds,
+      });
+
+      if (error) {
+        console.warn('[GameRepository] repair_game_session_initial_state_secure falló:', error.message);
+        return { success: false, repaired: false };
+      }
+
+      return {
+        success: Boolean(data?.success),
+        repaired: Boolean(data?.repaired),
+      };
+    } catch (e: any) {
+      console.warn('[GameRepository] Error en repairInitialSessionState:', e?.message);
+      return { success: false, repaired: false };
+    }
   }
 
   /**

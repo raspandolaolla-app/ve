@@ -203,12 +203,10 @@ export function TablesView() {
           if (newRecord?.id) {
             const isAvailable = TableRepository.isTableAvailable(newRecord);
             if (!isAvailable) {
-              // Si la mesa pasó a terminal/cerrada/llena, eliminar al instante (0ms)
               recentlyClosedTableIds.current.add(newRecord.id);
               recentlyClosedTimestamps.current.set(newRecord.id, Date.now());
               setPublicTables((prev) => prev.filter((t) => t.id !== newRecord.id));
             } else {
-              // Si la mesa está abierta y no está en cuarentena
               if (!recentlyClosedTableIds.current.has(newRecord.id)) {
                 const mappedTable = TableRepository.mapDbTableToGameTable(newRecord);
                 const currentFilter = selectedGameFilterRef.current;
@@ -246,17 +244,14 @@ export function TablesView() {
             sessionRecord.ended_at !== null ||
             ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_PROGRESS', 'IN_GAME'].includes(sessionStatus))
         ) {
-          // Si la sesión de una mesa finalizó o se inició la partida, excluir de inmediato del lobby
           recentlyClosedTableIds.current.add(sessionRecord.table_id);
           recentlyClosedTimestamps.current.set(sessionRecord.table_id, Date.now());
           setPublicTables((prev) => prev.filter((t) => t.id !== sessionRecord.table_id));
         }
       } else if (sourceTable === 'game_table_players') {
-        // Conciliar jugadores cuando se ocupan o liberan asientos
         debouncedReconcile();
       }
 
-      // Reconciliación debounced en segundo plano con la base de datos
       debouncedReconcile();
     };
 
@@ -268,7 +263,6 @@ export function TablesView() {
 
     const unsubscribeLobby = RealtimeManager.subscribeToLobby(handleLobbyPayload, handleStatusChange);
 
-    // Resincronización al recuperar foco de ventana o visibilidad
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         loadPublicTables();
@@ -277,7 +271,6 @@ export function TablesView() {
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
-    // Intervalo de respaldo pasivo (cada 30s) para contingencias de red
     const heartbeatTimer = setInterval(() => {
       loadPublicTables();
     }, 30000);
@@ -308,7 +301,6 @@ export function TablesView() {
 
     loadTablePlayers(activeTable.id);
 
-    // Suscripción en tiempo real a la mesa y sus jugadores
     const unsubscribeTable = RealtimeManager.subscribeToTable(
       activeTable.id,
       (tablePayload) => {
@@ -325,7 +317,6 @@ export function TablesView() {
             const updatedTable = { ...activeTable, ...tablePayload.new };
             setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
 
-            // Si el anfitrión inició la partida (estado ACTIVE/IN_PROGRESS), transferir automáticamente a los jugadores sentados a la Arena
             if (newStatus === 'ACTIVE' || newStatus === 'IN_PROGRESS') {
               TableRepository.getTablePlayers(activeTable.id).then((freshPlayers) => {
                 const isSeated = freshPlayers.some((p) => p.userId === user?.id && p.status !== 'LEFT');
@@ -351,21 +342,17 @@ export function TablesView() {
     };
   }, [activeTable?.id, loadTablePlayers]);
 
-  // Unirse por código Trancaíto (Flujo atómico e idempotente con asignación de asiento)
+  // Unirse por código Trancaíto
   const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const rawCode = joinCodeInput.trim();
 
-    console.log('[TRANCAITO_JOIN] Código recibido:', rawCode);
-
     if (!rawCode) {
-      console.warn('[TRANCAITO_JOIN_ERROR] Código vacío');
       setJoinError('Introduce el código de la mesa.');
       return;
     }
 
     if (!user) {
-      console.warn('[TRANCAITO_JOIN_ERROR] Usuario no autenticado');
       setJoinError('Debes iniciar sesión para unirte a una mesa.');
       return;
     }
@@ -374,31 +361,14 @@ export function TablesView() {
     setSearchingCode(true);
 
     try {
-      console.log('[TRANCAITO_JOIN] Buscando mesa');
-      console.log('[TRANCAITO_JOIN] Validando estado');
-      console.log('[TRANCAITO_JOIN] Validando jugador');
-      console.log('[TRANCAITO_JOIN] Buscando asiento');
-
       const result = await TableRepository.joinTableByCode(rawCode);
 
       if (!result.success || !result.table) {
-        console.warn('[TRANCAITO_JOIN_ERROR]', {
-          code: rawCode,
-          error: result.error,
-          userId: user.id,
-        });
         setJoinError(result.error || 'Código de Trancaíto no encontrado.');
         return;
       }
 
-      console.log('[TRANCAITO_JOIN] Mesa encontrada:', result.table.id);
-      console.log('[TRANCAITO_JOIN] Asiento asignado:', result.seatNumber);
-      console.log('[TRANCAITO_JOIN] Jugador registrado');
-
-      // Obtener lista completa de jugadores de la mesa
       const players = await TableRepository.getTablePlayers(result.table.id);
-
-      console.log('[TRANCAITO_JOIN] Realtime emitido');
 
       setActiveTable(result.table);
       setTablePlayers(players);
@@ -415,21 +385,14 @@ export function TablesView() {
           message: `¡Te has unido con éxito! Asiento #${result.seatNumber} reservado. Entrada retenida en el ledger.`,
         });
       }
-
-      console.log('[TRANCAITO_JOIN] JOIN COMPLETADO');
     } catch (err: any) {
-      console.error('[TRANCAITO_JOIN_ERROR]', {
-        code: rawCode,
-        userId: user?.id,
-        error: err,
-      });
       setJoinError(sanitizeUserErrorMessage(err, 'No fue posible unirte a la mesa.'));
     } finally {
       setSearchingCode(false);
     }
   };
 
-  // Tomar asiento en la mesa mediante RPC join_table_transaction
+  // Tomar asiento en la mesa
   const handleTakeSeat = async (seatNumber: number) => {
     if (!activeTable || !user) return;
 
@@ -462,7 +425,7 @@ export function TablesView() {
     }
   };
 
-  // Emparejamiento Rápido Inteligente (Matchmaking)
+  // Emparejamiento Rápido Inteligente
   const handleQuickMatch = async () => {
     if (!isAuthenticated && matchmakingEntryFee > 0) {
       setMatchmakingError('Debes iniciar sesión para jugar con saldo real.');
@@ -517,11 +480,10 @@ export function TablesView() {
     }
   };
 
-  // Crear mesa (Con soporte para Partida Real y Modo Práctica con Bots)
+  // Crear mesa
   const handleCreateTableSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Caso Modo Práctica (Offline instantáneo con Bots)
     if (createIsPractice) {
       const userDisplayName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Tú (Anfitrión)');
       const userAvatarUrl = profile?.avatarUrl || user?.user_metadata?.avatar_url;
@@ -608,10 +570,8 @@ export function TablesView() {
 
   return (
     <div id="tables-view" className="space-y-8 max-w-6xl mx-auto">
-      {/* Zona Publicitaria de Juegos */}
       <MediaBanner location="GAMES" />
 
-      {/* Publicidad Superior Dinámica */}
       <AdPlacementContainer
         placement="GAME_HEADER"
         gameType={selectedGameFilter !== 'all' ? selectedGameFilter : undefined}
@@ -619,7 +579,6 @@ export function TablesView() {
         className="my-1"
       />
 
-      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -678,9 +637,7 @@ export function TablesView() {
         </div>
       </div>
 
-      {/* Grid: Unirse por Código & Banner Trancaíto */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Unirse con Código */}
         <Card
           id="card-join-trancaito"
           className="md:col-span-1"
@@ -741,7 +698,6 @@ export function TablesView() {
           </form>
         </Card>
 
-        {/* Información y Garantías */}
         <Card
           id="card-trancaito-info"
           className="md:col-span-2 flex flex-col justify-between"
@@ -804,7 +760,6 @@ export function TablesView() {
         </Card>
       </div>
 
-      {/* Explorador de Mesas Públicas */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -818,7 +773,6 @@ export function TablesView() {
             </button>
           </div>
 
-          {/* Filtros por Juego */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
             <button
               onClick={() => setSelectedGameFilter('all')}
@@ -846,7 +800,6 @@ export function TablesView() {
           </div>
         </div>
 
-        {/* Publicidad Segmentada por Juego / Sala */}
         <AdPlacementContainer
           placement="LOBBY"
           gameType={selectedGameFilter !== 'all' ? selectedGameFilter : undefined}
@@ -854,7 +807,6 @@ export function TablesView() {
           className="my-2"
         />
 
-        {/* Lista de Mesas */}
         {visiblePublicTables.length === 0 ? (
           <div className="py-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
             <Users className="w-8 h-8 text-slate-600 mx-auto" />
@@ -937,7 +889,6 @@ export function TablesView() {
         )}
       </div>
 
-      {/* Modal / Sala de Mesa Activa */}
       {activeTable && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
@@ -989,7 +940,6 @@ export function TablesView() {
               </div>
             )}
 
-            {/* Asientos de la Mesa */}
             <div className="space-y-3">
               {(() => {
                 const uniquePlayers = Array.from(
@@ -1096,7 +1046,6 @@ export function TablesView() {
                       })}
                     </div>
 
-                    {/* Acciones de la Sala */}
                     <div className="pt-4 border-t border-slate-800 flex items-center justify-between flex-wrap gap-3">
                       <div className="text-xs text-slate-400">
                         Comparte este código para invitar: <strong className="text-amber-300 font-mono">{activeTable.joinCode}</strong>
@@ -1134,7 +1083,6 @@ export function TablesView() {
                                 setActiveTable(null);
                               } catch (e: any) {
                                 console.error('[TablesView] Error al iniciar sesión en el servidor:', e);
-                                // Comprobar si la sesión ya existe en base de datos (CASO B)
                                 const activeSess = await GameRepository.getActiveSession(activeTable.id);
                                 if (activeSess) {
                                   setInGameData({
@@ -1143,7 +1091,6 @@ export function TablesView() {
                                   });
                                   setActiveTable(null);
                                 } else {
-                                  // CASO C: Error de RPC/infraestructura -> Prohibido entrar con estado inventado
                                   alert(
                                     e?.message ||
                                       'No se pudo iniciar la partida en el servidor. Por favor verifica tu conexión e intenta nuevamente.'
@@ -1215,49 +1162,51 @@ export function TablesView() {
         </div>
       )}
 
-      {/* Modal Crear Mesa Inteligente (Conmutador Saldo Real vs Modo Práctica) */}
+      {/* Modal Crear Mesa Oficial (MEJORADO - Letras Grandes y Llamativas) */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between sticky top-0 bg-slate-900 pt-1 pb-2 border-b border-slate-800/80 z-10">
-              <h2 className="text-base sm:text-lg font-black text-slate-100 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-slate-700 rounded-3xl max-w-2xl w-full max-h-[95vh] overflow-y-auto p-5 sm:p-8 space-y-6 shadow-2xl">
+            
+            {/* Header Mejorado */}
+            <div className="flex items-center justify-between sticky top-0 bg-gradient-to-b from-slate-900 to-slate-900/95 pt-2 pb-4 border-b-2 border-slate-700 z-10">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-100 flex items-center gap-3">
                 {createIsPractice ? (
-                  <Bot className="w-5 h-5 text-cyan-400 shrink-0" />
+                  <Bot className="w-8 h-8 text-cyan-400 shrink-0" />
                 ) : (
-                  <PlusCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <PlusCircle className="w-8 h-8 text-amber-400 shrink-0" />
                 )}
-                <span>
+                <span className="uppercase tracking-wide">
                   {createIsPractice
-                    ? 'Modo Práctica (Offline con Bots)'
+                    ? 'Modo Práctica'
                     : createIsPrivate
-                    ? 'Crear Mesa Privada ("Trancaíto")'
-                    : 'Crear Mesa Oficial'}
+                      ? 'Mesa Privada'
+                      : 'Crear Mesa Oficial'}
                 </span>
               </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation"
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors touch-manipulation"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            {/* Pestañas de Tipo de Partida: Saldo Real vs Práctica */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+            {/* Pestañas de Tipo de Partida (MEJORADAS) */}
+            <div className="grid grid-cols-2 gap-2 p-2 bg-slate-950 rounded-2xl border-2 border-slate-700">
               <button
                 type="button"
                 onClick={() => {
                   setCreateIsPractice(false);
                   setCreateEntryFee(50);
                 }}
-                className={`py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-4 px-4 rounded-xl font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 ${
                   !createIsPractice
-                    ? 'bg-amber-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-lg shadow-amber-500/30 scale-105'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
-                <Coins className="w-4 h-4" />
-                <span>💰 Saldo Real (90/10)</span>
+                <Coins className="w-5 h-5 sm:w-6 sm:h-6" />
+                <span className="font-black">💰 Saldo Real</span>
               </button>
               <button
                 type="button"
@@ -1265,21 +1214,25 @@ export function TablesView() {
                   setCreateIsPractice(true);
                   setCreateEntryFee(0);
                 }}
-                className={`py-2 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-4 px-4 rounded-xl font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 ${
                   createIsPractice
-                    ? 'bg-cyan-500 text-slate-950 shadow-md'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-slate-950 shadow-lg shadow-cyan-500/30 scale-105'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
-                <Bot className="w-4 h-4" />
-                <span>🎮 Modo Práctica (0 Bs.)</span>
+                <Bot className="w-5 h-5 sm:w-6 sm:h-6" />
+                <span className="font-black">🎮 Práctica</span>
               </button>
             </div>
 
-            <form onSubmit={handleCreateTableSubmit} className="space-y-4 text-xs">
-              {/* Selección de Juego */}
+            <form onSubmit={handleCreateTableSubmit} className="space-y-6">
+              
+              {/* Selección de Juego (MEJORADA) */}
               <div>
-                <label className="block font-medium text-slate-300 mb-1">Seleccionar Juego</label>
+                <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
+                  <span className="text-2xl">🎮</span>
+                  Seleccionar Juego
+                </label>
                 <select
                   value={createGameType}
                   onChange={(e) => {
@@ -1294,40 +1247,44 @@ export function TablesView() {
                       setCreateMode(meta.allowedModes[0]);
                     }
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-2xl text-slate-100 text-base font-semibold focus:outline-none focus:border-amber-500 transition-colors"
                 >
                   {SUPPORTED_GAMES_METADATA.map((game) => (
-                    <option key={game.id} value={game.id}>
+                    <option key={game.id} value={game.id} className="py-2">
                       {game.name} ({game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`})
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Selector Inteligente de Jugadores y Modalidad */}
+              {/* Selector de Jugadores (MEJORADO) */}
               <div>
-                <label className="block font-medium text-slate-300 mb-1.5">Cantidad de Jugadores y Modo</label>
+                <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
+                  <span className="text-2xl">👥</span>
+                  Jugadores y Modalidad
+                </label>
                 {(() => {
                   const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === createGameType);
                   if (!meta) return null;
-
+                  
                   if (createGameType === 'domino_venezolano' || createGameType === 'truco_venezolano') {
                     return (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
                           onClick={() => {
                             setCreateMaxPlayers(2);
                             setCreateMode('1v1');
                           }}
-                          className={`py-2 px-3 rounded-xl border text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                          className={`py-5 px-4 rounded-2xl border-2 text-sm sm:text-base font-bold transition-all flex flex-col items-center justify-center gap-2 ${
                             createMaxPlayers === 2
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-sm'
-                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                              ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/20 scale-105'
+                              : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-600'
                           }`}
                         >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>2 Jugadores (1v1)</span>
+                          <Users className="w-6 h-6" />
+                          <span>2 Jugadores</span>
+                          <span className="text-xs opacity-75">(1v1)</span>
                         </button>
                         <button
                           type="button"
@@ -1335,14 +1292,15 @@ export function TablesView() {
                             setCreateMaxPlayers(4);
                             setCreateMode('2v2');
                           }}
-                          className={`py-2 px-3 rounded-xl border text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                          className={`py-5 px-4 rounded-2xl border-2 text-sm sm:text-base font-bold transition-all flex flex-col items-center justify-center gap-2 ${
                             createMaxPlayers === 4
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-sm'
-                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                              ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/20 scale-105'
+                              : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-600'
                           }`}
                         >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>4 Jugadores (Parejas 2v2)</span>
+                          <Users className="w-6 h-6" />
+                          <span>4 Jugadores</span>
+                          <span className="text-xs opacity-75">(Parejas 2v2)</span>
                         </button>
                       </div>
                     );
@@ -1350,7 +1308,7 @@ export function TablesView() {
 
                   if (createGameType === 'atrapaito') {
                     return (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {[
                           { count: 2, mode: '1v1' as GameMode, label: '2 Jug.' },
                           { count: 3, mode: '1v3' as GameMode, label: '3 Jug.' },
@@ -1364,10 +1322,10 @@ export function TablesView() {
                               setCreateMaxPlayers(opt.count);
                               setCreateMode(opt.mode);
                             }}
-                            className={`py-2 px-2 rounded-xl border text-xs font-semibold transition text-center ${
+                            className={`py-4 px-3 rounded-2xl border-2 text-sm font-bold transition-all text-center ${
                               createMaxPlayers === opt.count
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
-                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                                ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/20 scale-105'
+                                : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-600'
                             }`}
                           >
                             {opt.label}
@@ -1379,7 +1337,7 @@ export function TablesView() {
 
                   if (createGameType === 'una_olla') {
                     return (
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 gap-3">
                         {[
                           { count: 2, mode: '1v1' as GameMode, label: '2 Jugadores' },
                           { count: 3, mode: '1v3' as GameMode, label: '3 Jugadores' },
@@ -1392,10 +1350,10 @@ export function TablesView() {
                               setCreateMaxPlayers(opt.count);
                               setCreateMode(opt.mode);
                             }}
-                            className={`py-2 px-2 rounded-xl border text-xs font-semibold transition text-center ${
+                            className={`py-4 px-3 rounded-2xl border-2 text-sm font-bold transition-all text-center ${
                               createMaxPlayers === opt.count
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
-                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                                ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/20 scale-105'
+                                : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-600'
                             }`}
                           >
                             {opt.label}
@@ -1407,24 +1365,30 @@ export function TablesView() {
 
                   if (createGameType === 'bingo') {
                     return (
-                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <span className="text-slate-300">Capacidad Máxima (Masivo)</span>
+                      <div className="p-5 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-amber-500/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-200 font-bold text-base">Capacidad (Sin Límite)</span>
+                          <span className="text-amber-400 font-mono text-sm">Masivo</span>
+                        </div>
                         <input
                           type="number"
                           value={createMaxPlayers}
                           min={2}
                           max={100}
                           onChange={(e) => setCreateMaxPlayers(Number(e.target.value))}
-                          className="w-24 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 font-mono text-right focus:outline-none focus:border-amber-500"
+                          className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-xl text-slate-100 font-mono text-xl font-bold text-center focus:outline-none focus:border-amber-500 transition-colors"
                         />
+                        <p className="text-xs text-slate-400 text-center">
+                          Mínimo 2 jugadores • Máximo 100 jugadores
+                        </p>
                       </div>
                     );
                   }
 
                   return (
-                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 flex items-center justify-between">
-                      <span>Duelo Mano a Mano</span>
-                      <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                    <div className="p-5 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-slate-700 flex items-center justify-between">
+                      <span className="text-slate-300 font-semibold text-base">Duelo Mano a Mano</span>
+                      <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-4 py-2 rounded-xl border-2 border-amber-500/30 text-sm">
                         2 Jugadores (1v1)
                       </span>
                     </div>
@@ -1432,127 +1396,149 @@ export function TablesView() {
                 })()}
               </div>
 
-              {/* Nombre Opcional */}
+              {/* Nombre Opcional (MEJORADO) */}
               <div>
-                <label className="block font-medium text-slate-300 mb-1">Nombre de la Mesa (Opcional)</label>
+                <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
+                  <span className="text-2xl">📝</span>
+                  Nombre de la Mesa (Opcional)
+                </label>
                 <input
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder={createIsPractice ? 'Mesa de Entrenamiento con Bots' : 'Ej: Mesa de los panas'}
                   maxLength={40}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-2xl text-slate-100 text-base placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
 
-              {/* Configuración de Saldo vs Modo Práctica */}
+              {/* Configuración de Saldo vs Modo Práctica (MEJORADA) */}
               {createIsPractice ? (
-                <div className="p-3.5 bg-cyan-950/30 border border-cyan-800/40 rounded-xl text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-cyan-300">
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
-                    <span>Entrenamiento con Bots Automáticos</span>
+                <div className="p-6 bg-gradient-to-br from-cyan-950/40 to-cyan-900/30 border-2 border-cyan-500/40 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-3 font-black text-cyan-300 text-lg">
+                    <Sparkles className="w-6 h-6 text-cyan-400" />
+                    <span>Entrenamiento con Bots</span>
                   </div>
-                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                  <p className="text-slate-300 text-sm leading-relaxed">
                     En Modo Práctica <strong className="text-cyan-300">no se descuenta saldo</strong> de tu cuenta.
                     Los asientos vacíos se llenan con oponentes de Inteligencia Artificial para que puedas practicar tus jugadas de inmediato.
                   </p>
                 </div>
               ) : (
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1 flex items-center justify-between">
-                    <span>Monto de participación</span>
-                    <span className="text-[10px] text-amber-400 font-mono font-bold">90% al Ganador / 10% Plataforma</span>
-                  </label>
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                    <span>Mínimo: <strong className="text-slate-200 font-mono">25 Bs.</strong> | Máximo: <strong className="text-slate-200 font-mono">5.000 Bs.</strong></span>
-                    <span className="text-slate-400 font-mono text-[11px]">{formatUsd(createEntryFee)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {availableFees.map((fee) => (
-                      <button
-                        key={fee}
-                        type="button"
-                        onClick={() => setCreateEntryFee(fee)}
-                        className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition ${
-                          createEntryFee === fee
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        {fee} Bs.
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Monto Personalizado (Bs.)</label>
-                      <input
-                        type="number"
-                        value={createEntryFee}
-                        min={25}
-                        max={5000}
-                        onChange={(e) => setCreateEntryFee(Number(e.target.value))}
-                        className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-slate-100 font-mono focus:outline-none ${
-                          createEntryFee < 25 || createEntryFee > 5000
-                            ? 'border-red-500 text-red-300'
-                            : 'border-slate-700 focus:border-amber-500'
-                        }`}
-                      />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-black text-slate-100 text-lg mb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span className="text-2xl">💰</span>
+                        Monto de Participación
+                      </span>
+                      <span className="text-xs text-amber-400 font-mono font-bold bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/30">
+                        90% Ganador / 10% Plataforma
+                      </span>
+                    </label>
+                    <div className="flex items-center justify-between text-sm text-slate-400 mb-3">
+                      <span>Mínimo: <strong className="text-slate-200 font-mono">25 Bs.</strong> | Máximo: <strong className="text-slate-200 font-mono">5.000 Bs.</strong></span>
+                      <span className="text-slate-400 font-mono text-sm">{formatUsd(createEntryFee)}</span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {availableFees.map((fee) => (
+                        <button
+                          key={fee}
+                          type="button"
+                          onClick={() => setCreateEntryFee(fee)}
+                          className={`px-5 py-3 rounded-xl text-sm font-mono font-bold border-2 transition-all ${
+                            createEntryFee === fee
+                              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/30 scale-105'
+                              : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          {fee} Bs.
+                        </button>
+                      ))}
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Premio Estimado (90%)</label>
-                      <div className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-emerald-400 font-mono font-bold">
-                        {formatBolivares(createEntryFee * createMaxPlayers * 0.9)}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-400 mb-2 font-semibold">Monto Personalizado (Bs.)</label>
+                        <input
+                          type="number"
+                          value={createEntryFee}
+                          min={25}
+                          max={5000}
+                          onChange={(e) => setCreateEntryFee(Number(e.target.value))}
+                          className={`w-full px-5 py-4 bg-slate-950 border-2 rounded-xl text-slate-100 font-mono text-lg font-bold focus:outline-none transition-colors ${
+                            createEntryFee < 25 || createEntryFee > 5000
+                              ? 'border-red-500 text-red-300'
+                              : 'border-slate-700 focus:border-amber-500'
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-400 mb-2 font-semibold">Premio Estimado (90%)</label>
+                        <div className="w-full px-5 py-4 bg-gradient-to-br from-emerald-950/30 to-emerald-900/20 border-2 border-emerald-500/30 rounded-xl text-emerald-400 font-mono font-bold text-lg">
+                          {formatBolivares(createEntryFee * createMaxPlayers * 0.9)}
+                        </div>
                       </div>
                     </div>
+                    {(createEntryFee < 25 || createEntryFee > 5000) && (
+                      <p className="mt-2 text-sm text-red-400 font-medium flex items-center gap-2">
+                        <span>⚠️</span>
+                        El monto debe estar entre 25 Bs. y 5.000 Bs.
+                      </p>
+                    )}
                   </div>
-                  {(createEntryFee < 25 || createEntryFee > 5000) && (
-                    <p className="mt-1.5 text-xs text-red-400 font-medium">
-                      El monto de participación debe estar entre 25 Bs. y 5.000 Bs.
-                    </p>
-                  )}
                 </div>
               )}
 
-              {/* Privacidad (sólo en modo real) */}
+              {/* Privacidad (MEJORADA) */}
               {!createIsPractice && (
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-slate-200">Mesa Privada ("Trancaíto")</div>
-                    <div className="text-[11px] text-slate-400">Sólo jugadores con el código podrán acceder</div>
+                <div className="p-5 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-slate-700 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="font-bold text-slate-200 text-base flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-amber-400" />
+                      Mesa Privada ("Trancaíto")
+                    </div>
+                    <div className="text-sm text-slate-400">Sólo jugadores con el código podrán acceder</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={createIsPrivate}
                     onChange={(e) => setCreateIsPrivate(e.target.checked)}
-                    className="w-4 h-4 accent-amber-500 rounded"
+                    className="w-6 h-6 accent-amber-500 rounded-lg cursor-pointer"
                   />
                 </div>
               )}
 
+              {/* Error (MEJORADO) */}
               {createError && (
-                <div className="p-2.5 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <span>{createError}</span>
+                <div className="p-4 bg-gradient-to-br from-red-950/40 to-red-900/30 border-2 border-red-500/50 rounded-2xl text-sm text-red-300 flex items-start gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+                  <span className="font-semibold">{createError}</span>
                 </div>
               )}
 
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
+              {/* Botones de Acción (MEJORADOS) */}
+              <div className="pt-4 flex items-center justify-end gap-3">
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-6 py-3 text-base font-bold"
+                >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   disabled={creating || (!createIsPractice && (createEntryFee < 25 || createEntryFee > 5000))}
-                  className={createIsPractice ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950' : ''}
+                  className={`${createIsPractice ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500' : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500'} text-slate-950 px-8 py-3 text-base font-black shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {creating
-                    ? 'Creando Mesa...'
+                    ? '⏳ Creando Mesa...'
                     : createIsPractice
-                    ? '🎮 Iniciar Práctica Ahora'
-                    : 'Publicar Mesa Oficial'}
+                      ? '🎮 Iniciar Práctica Ahora'
+                      : '🚀 Publicar Mesa Oficial'}
                 </Button>
               </div>
             </form>
@@ -1586,7 +1572,6 @@ export function TablesView() {
             </div>
 
             <div className="space-y-3.5 text-xs">
-              {/* Selección de Juego */}
               <div>
                 <label className="block font-medium text-slate-300 mb-1">Juego a Disputar</label>
                 <select
@@ -1611,7 +1596,6 @@ export function TablesView() {
                 </select>
               </div>
 
-              {/* Selección de Nivel de Apuesta */}
               <div>
                 <label className="block font-medium text-slate-300 mb-1.5">Monto de Entrada Deseado</label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -1633,7 +1617,6 @@ export function TablesView() {
                 </div>
               </div>
 
-              {/* Estado de Búsqueda Activa */}
               {isMatchmaking && (
                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 animate-pulse">
                   <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
@@ -1673,14 +1656,12 @@ export function TablesView() {
         </div>
       )}
 
-      {/* Modal de Reglas Oficiales */}
       <GameRulesModal
         isOpen={showRulesModal}
         defaultGameId={rulesGameId}
         onClose={() => setShowRulesModal(false)}
       />
 
-      {/* Regla de Seguridad */}
       <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-start justify-between gap-3 text-xs text-slate-400">
         <div className="flex items-start gap-3">
           <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />

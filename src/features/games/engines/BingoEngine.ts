@@ -1,12 +1,12 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE BINGO (ACUMULACIÓN SEGURA + SORTEO ACTIVO)
+// RASPANDO LA OLLA — MOTOR DE BINGO (RNG CLIENTE DETERMINÍSTICO)
 // ==============================================================================
 // • Los cartones NO se guardan en el estado: se regeneran determinísticamente
 // • Solo se persiste el contador cardsPurchased (que se SUMA, no se pisa)
 // • Todos los dispositivos regeneran los MISMOS cartones (semilla fija)
 // • Soporta 75 y 90 bolas (quiniela)
+// • RNG determinístico cliente (no depende de RPC de Supabase)
 // • getSanitizedStateForPlayer PRESERVA hostUserId y cardsPurchased (público)
-// • DRAW_BALL permite iniciar sorteo desde fase SALES (sin ball inicial)
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
@@ -94,6 +94,23 @@ const regenerateAllCards = (state: any) => {
   });
 };
 
+// ✅ NUEVO: Genera la próxima bola determinísticamente basada en la semilla de la partida
+// Esto garantiza que TODOS los jugadores vean la misma bola sin necesidad de RPC
+const generateNextBall = (state: any): number => {
+  const drawn = state.drawnBalls || [];
+  const maxBalls = state.totalBalls || state.mode || 90;
+  const available: number[] = [];
+  for (let i = 1; i <= maxBalls; i++) {
+    if (!drawn.includes(i)) available.push(i);
+  }
+  if (available.length === 0) return -1;
+  // Semilla determinística: seed de la partida + número de bolas ya sacadas
+  const seed = hashString(`${state.seed}|ball|${drawn.length}`);
+  const rnd = mulberry32(seed);
+  const idx = Math.floor(rnd() * available.length);
+  return available[idx];
+};
+
 export class BingoEngine implements IGameEngine<any> {
   public readonly gameType = 'bingo';
 
@@ -150,22 +167,14 @@ export class BingoEngine implements IGameEngine<any> {
       if (state.status !== 'PLAYING' && state.status !== 'SALES') {
         return { valid: false, reason: 'La partida no está activa.' };
       }
-      // Validación de anfitrión: si hay hostUserId definido, solo él puede sacar
       if (state.hostUserId && action.userId !== state.hostUserId) {
         return { valid: false, reason: 'Solo el anfitrión puede iniciar el sorteo.' };
       }
-      // Si hay ball en actionData, validar que no esté repetida
-      const ballRaw = action.actionData?.ball;
-      if (ballRaw !== undefined && ballRaw !== null) {
-        const ball = Number(ballRaw);
-        if (!ball || !Number.isFinite(ball)) {
-          return { valid: false, reason: 'Balota inválida.' };
-        }
-        if ((state.drawnBalls || []).includes(ball)) {
-          return { valid: false, reason: 'Balota ya cantada.' };
-        }
+      // Si ya se sacaron todas las bolas, no se puede sacar más
+      const maxBalls = state.totalBalls || state.mode || 90;
+      if ((state.drawnBalls || []).length >= maxBalls) {
+        return { valid: false, reason: 'Ya se sacaron todas las bolas.' };
       }
-      // Si no hay ball aún (inicio de sorteo desde SALES), se permite
       return { valid: true };
     }
 
@@ -202,21 +211,20 @@ export class BingoEngine implements IGameEngine<any> {
     }
 
     if (t === 'DRAW_BALL') {
-      // Si estamos en SALES, cerrar venta automáticamente al primer click
       if (next.status === 'SALES') {
         next.status = 'PLAYING';
-        next.lastActionLog = '🔔 ¡Venta cerrada! Comienza el sorteo';
       }
-      // Sacar balota solo si vino en actionData (puede venir del RNG de Supabase)
-      const ballRaw = action.actionData?.ball;
-      if (ballRaw !== undefined && ballRaw !== null) {
-        const ball = Number(ballRaw);
-        if (ball && Number.isFinite(ball)) {
-          next.drawnBalls = next.drawnBalls || [];
-          next.drawnBalls.push(ball);
-          next.currentBall = ball;
-          next.lastActionLog = `🎱 Balota cantada: ${ball}`;
-        }
+      // Intentar usar la ball de actionData (si vino del RNG de Supabase)
+      let ball = Number(action.actionData?.ball);
+      // Si no vino o es inválida, generarla determinísticamente (todos los clientes ven la misma)
+      if (!ball || !Number.isFinite(ball) || (next.drawnBalls || []).includes(ball)) {
+        ball = generateNextBall(next);
+      }
+      if (ball && ball > 0) {
+        next.drawnBalls = next.drawnBalls || [];
+        next.drawnBalls.push(ball);
+        next.currentBall = ball;
+        next.lastActionLog = `🎱 Balota cantada: ${ball}`;
       }
       const maxBalls = next.totalBalls || next.mode || 90;
       const done = (next.drawnBalls?.length || 0) >= maxBalls;
@@ -259,19 +267,15 @@ export class BingoEngine implements IGameEngine<any> {
   public getSanitizedStateForPlayer(state: any, userId: string): any {
     const sanitized = JSON.parse(JSON.stringify(state));
 
-    // 1. Preservar información pública esencial (todos la ven)
     sanitized.hostUserId = state.hostUserId;
     sanitized.seed = state.seed;
     sanitized.maxCardsPerPlayer = state.maxCardsPerPlayer;
     sanitized.cardPrice = state.cardPrice;
 
-    // 2. cardsPurchased es PÚBLICO: NO modificar contadores de otros jugadores
     if (!sanitized.cardsPurchased) sanitized.cardsPurchased = {};
 
-    // 3. Regenerar cartones determinísticamente para TODOS (para el conteo global)
     regenerateAllCards(sanitized);
 
-    // 4. PRIVACIDAD: ocultar el CONTENIDO de los cartones de otros jugadores
     if (sanitized.cards && typeof sanitized.cards === 'object') {
       Object.keys(sanitized.cards).forEach((uid) => {
         if (uid !== userId) {

@@ -1,54 +1,132 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://ve.dolarapi.com; media-src 'self'; object-src 'none';" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="alternate icon" href="favicon.ico" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Raspando La Olla — Juegos multijugador online en tiempo real</title>
-    <meta name="description" content="Raspando La Olla: Plataforma multijugador online en tiempo real de juegos de mesa y sorteos con Raspando La Olla, Dominó, Truco, Bingo, Atrapaíto y más." />
-    <meta property="og:title" content="Raspando La Olla — Juegos multijugador online" />
-    <meta property="og:description" content="Desafía a tus amigos en Raspando La Olla, Dominó, Truco, Bingo y más en tiempo real." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#020617" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Raspando La Olla" />
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
-        window.addEventListener('load', function() {
-          var swPath = './sw.js';
-          navigator.serviceWorker.register(swPath).then(
-            function(reg) {
-              console.log('[PWA] Service Worker registrado correctamente en scope:', reg.scope);
-              reg.onupdatefound = function() {
-                var installingWorker = reg.installing;
-                if (installingWorker) {
-                  installingWorker.onstatechange = function() {
-                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      console.log('[PWA] Nueva versión disponible; lista para actualizar.');
-                    }
-                  };
-                }
-              };
-            },
-            function(err) {
-              console.warn('[PWA] Service Worker no registrado (modo WebApp activo):', err);
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://ve.dolarapi.com; media-src 'self' blob:; object-src 'none';" />
+  
+  <!-- PWA Meta Tags -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="alternate icon" href="favicon.ico" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  
+  <!-- Viewport y Mobile Optimization -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  
+  <!-- iOS Specific -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Raspando La Olla" />
+  
+  <!-- SEO y Social -->
+  <title>Raspando La Olla — Juegos Multijugador Online en Tiempo Real</title>
+  <meta name="description" content="Raspando La Olla: Plataforma multijugador online en tiempo real de juegos venezolanos. Dominó, Truco, Bingo, Polla y más." />
+  <meta property="og:title" content="Raspando La Olla — Juegos Multijugador Online" />
+  <meta property="og:description" content="Desafía a tus amigos en Raspando La Olla, Dominó, Truco, Bingo y más en tiempo real." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="favicon.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Raspando La Olla" />
+  <meta name="twitter:description" content="Juegos multijugador online en tiempo real" />
+  
+  <!-- Theme Colors -->
+  <meta name="theme-color" content="#FF8A00" />
+  <meta name="msapplication-TileColor" content="#FF8A00" />
+  <meta name="msapplication-tap-highlight" content="no" />
+  
+  <!-- Preconnect para mejor rendimiento -->
+  <link rel="preconnect" href="https://*.supabase.co" />
+  <link rel="dns-prefetch" href="https://ve.dolarapi.com" />
+  
+  <!-- Preload de recursos críticos -->
+  <link rel="preload" href="favicon.svg" as="image" type="image/svg+xml" />
+  
+  <!-- Estilos críticos inline -->
+  <style>
+    body {
+      background-color: #080B12;
+      color: #F8FAFC;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    #root {
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
+  <div id="root"></div>
+  
+  <script type="module" src="/src/main.tsx"></script>
+  
+  <script>
+    // Service Worker Registration con mejoras
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      window.addEventListener('load', function() {
+        var swPath = './sw.js';
+        navigator.serviceWorker.register(swPath).then(
+          function(reg) {
+            console.log('[PWA] Service Worker registrado correctamente en scope:', reg.scope);
+            
+            // Notificaciones Push
+            if ('PushManager' in window) {
+              console.log('[PWA] Push Notifications disponibles');
             }
-          ).catch(function(err) {
-            console.warn('[PWA] Excepción al registrar Service Worker:', err);
-          });
+            
+            reg.onupdatefound = function() {
+              var installingWorker = reg.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = function() {
+                  if (installingWorker.state === 'installed') {
+                    if (navigator.serviceWorker.controller) {
+                      console.log('[PWA] Nueva versión disponible; lista para actualizar.');
+                      // Mostrar modal de actualización aquí si lo deseas
+                    } else {
+                      console.log('[PWA] Service Worker instalado por primera vez.');
+                    }
+                  }
+                };
+              }
+            };
+          },
+          function(err) {
+            console.warn('[PWA] Service Worker no registrado (modo WebApp activo):', err);
+          }
+        ).catch(function(err) {
+          console.warn('[PWA] Excepción al registrar Service Worker:', err);
         });
-      }
-    </script>
-  </body>
-</html>
+      });
+    }
 
+    // Solicitar permisos de notificación al cargar
+    window.addEventListener('load', function() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        setTimeout(function() {
+          Notification.requestPermission().then(function(permission) {
+            if (permission === 'granted') {
+              console.log('[PWA] Permiso de notificaciones otorgado');
+            }
+          });
+        }, 5000); // Esperar 5 segundos antes de solicitar
+      }
+    });
+
+    // Prevenir zoom en iOS con doble tap
+    document.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+    });
+
+    // Mejorar rendimiento en móviles
+    document.addEventListener('touchmove', function(e) {
+      if (e.target.closest('.no-scroll')) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  </script>
+</body>
+</html>

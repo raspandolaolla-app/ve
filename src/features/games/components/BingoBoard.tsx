@@ -8,6 +8,8 @@
 // • Canto de BINGO automático al completar cartón
 // • Sorteo automático del anfitrión
 // • 3 temas venezolanos
+// • Anfitrión puede INICIAR SORTEO desde la fase de venta
+// • Contador global de cartones de TODA la mesa
 // ==============================================================================
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -15,7 +17,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, ChevronLeft, ChevronRight, LayoutGrid, Square, Trophy, Sparkles,
   Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause,
-  Minus, Plus, ShoppingCart, Zap,
+  Minus, Plus, ShoppingCart, Zap, Users,
 } from 'lucide-react';
 
 interface BingoBoardProps {
@@ -176,6 +178,17 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     const src = candidates.find((c: any) => Array.isArray(c)) || [];
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId, refreshKey]);
+
+  // ✅ NUEVO: Contador GLOBAL de cartones de TODOS los jugadores
+  const totalCardsInTable = useMemo(() => {
+    if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
+      return Object.values(s.cardsPurchased).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
+    }
+    if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards)) {
+      return Object.values(s.cards).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+    }
+    return 0;
+  }, [s, refreshKey]);
 
   function normalizeCard(raw: any, idx: number, s: any) {
     let grid: (number | null)[][] = [];
@@ -338,6 +351,11 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             style={{ borderColor: T.accent, color: T.accent, background: `${T.accent}15` }}>
             {maxBall} BOLAS
           </span>
+          {/* ✅ NUEVO: Contador global de cartones en la mesa */}
+          <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black font-mono"
+            style={{ borderColor: T.border, color: T.text, background: 'rgba(255,255,255,0.05)' }}>
+            <Users className="w-3 h-3" /> {totalCardsInTable} cartones
+          </span>
           {onToggleMute && (
             <button onClick={onToggleMute} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
               {isMuted ? <VolumeX className="w-3.5 h-3.5" style={{ color: T.sub }} /> : <Volume2 className="w-3.5 h-3.5" style={{ color: T.accent }} />}
@@ -366,13 +384,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             {isSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
           </div>
         )}
-        {salesOpen && myCards.length === 0 && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black"
-            style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
-            <Zap className="w-3 h-3" />
-            Esperando asignación de cartones...
-          </div>
-        )}
         {!isSalesClosed && (countdownSeconds ?? 0) > 0 && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black font-mono animate-pulse"
             style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
@@ -385,24 +396,31 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             BCV: {Number(bcvRate).toFixed(2)} Bs/$
           </div>
         )}
+        {salesOpen && isHost && totalCardsInTable === 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black"
+            style={{ background: 'rgba(255,255,255,0.05)', borderColor: T.border, color: T.sub }}>
+            <Zap className="w-3 h-3" />
+            Invita a más jugadores a comprar cartones
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
-        {salesOpen && onBuyCards && myCards.length === 0 && (
+        {salesOpen && onBuyCards && myCards.length < (s.maxCardsPerPlayer || 20) && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="w-full overflow-hidden">
-            <div className="p-3 rounded-2xl border-2 flex items-center justify-between gap-3"
+            <div className="p-3 rounded-2xl border-2 flex items-center justify-between gap-3 flex-wrap"
               style={{ background: T.panel, borderColor: '#34D399' }}>
               <div>
                 <div className="text-[11px] font-black uppercase" style={{ color: T.text }}>🎫 Compra tus cartones</div>
-                <div className="text-[9px]" style={{ color: T.sub }}>Máximo 20 por jugador</div>
+                <div className="text-[9px]" style={{ color: T.sub }}>Tienes {myCards.length} de {s.maxCardsPerPlayer || 20}</div>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setBuyCount(Math.max(1, buyCount - 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
                   <Minus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
                 <span className="text-lg font-black font-mono w-8 text-center" style={{ color: T.accent }}>{buyCount}</span>
-                <button onClick={() => setBuyCount(Math.min(20, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
+                <button onClick={() => setBuyCount(Math.min((s.maxCardsPerPlayer || 20) - myCards.length, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
                   <Plus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
                 <button onClick={async () => {
@@ -452,10 +470,11 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
             <div className="flex gap-1.5 mt-2">
               {onDrawBall && (
-                <button type="button" onClick={onDrawBall} disabled={!isPlaying || salesOpen}
+                // ✅ MODIFICADO: Anfitrión puede iniciar sorteo durante la venta
+                <button type="button" onClick={onDrawBall} disabled={!(isPlaying || (salesOpen && isHost))}
                   className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5 disabled:opacity-40"
                   style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
-                  <Dices className="w-3.5 h-3.5" /> Sacar Balota
+                  <Dices className="w-3.5 h-3.5" /> {salesOpen ? '🚀 Iniciar Sorteo' : 'Sacar Balota'}
                 </button>
               )}
               {isHost && isPlaying && !salesOpen && (
@@ -512,7 +531,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="flex items-center gap-1.5">
             <button onClick={() => setViewMode('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase"
               style={{ borderColor: viewMode === 'all' ? T.accent : T.border, color: viewMode === 'all' ? T.accent : T.sub, background: viewMode === 'all' ? `${T.accent}22` : 'transparent' }}>
-              <LayoutGrid className="w-3.5 h-3.5" /> Todos ({myCards.length})
+              <LayoutGrid className="w-3.5 h-3.5" /> Mis cartones ({myCards.length})
             </button>
             <button onClick={() => setViewMode('single')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase"
               style={{ borderColor: viewMode === 'single' ? T.accent : T.border, color: viewMode === 'single' ? T.accent : T.sub, background: viewMode === 'single' ? `${T.accent}22` : 'transparent' }}>
@@ -552,7 +571,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="grid grid-cols-1 min-[430px]:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto no-scrollbar pr-0.5">
             {myCards.length > 0 ? myCards.map((card, i) => renderCard(card, i, true)) : (
               <div className="col-span-full text-center text-[10px] font-mono py-6" style={{ color: T.sub }}>
-                {salesOpen ? 'Esperando asignación de cartones...' : 'No tienes cartones en esta ronda.'}
+                {salesOpen ? '🎫 Compra tus cartones arriba' : 'No tienes cartones en esta ronda.'}
               </div>
             )}
           </div>

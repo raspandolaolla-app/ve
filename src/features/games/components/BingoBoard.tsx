@@ -179,8 +179,8 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId, refreshKey]);
 
-  // ✅ NUEVO: Contador GLOBAL de cartones de TODOS los jugadores
-  const totalCardsInTable = useMemo(() => {
+  // ✅ CORREGIDO: Type annotation explícita para evitar 'unknown'
+  const totalCardsInTable: number = useMemo(() => {
     if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
       return Object.values(s.cardsPurchased).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
     }
@@ -351,7 +351,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             style={{ borderColor: T.accent, color: T.accent, background: `${T.accent}15` }}>
             {maxBall} BOLAS
           </span>
-          {/* ✅ NUEVO: Contador global de cartones en la mesa */}
           <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black font-mono"
             style={{ borderColor: T.border, color: T.text, background: 'rgba(255,255,255,0.05)' }}>
             <Users className="w-3 h-3" /> {totalCardsInTable} cartones
@@ -470,7 +469,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
             <div className="flex gap-1.5 mt-2">
               {onDrawBall && (
-                // ✅ MODIFICADO: Anfitrión puede iniciar sorteo durante la venta
                 <button type="button" onClick={onDrawBall} disabled={!(isPlaying || (salesOpen && isHost))}
                   className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5 disabled:opacity-40"
                   style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>

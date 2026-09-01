@@ -407,6 +407,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, [table, initialPlayers, engine, currentUserId]);
 
+  // ✅ NUEVO: Cleanup automático al desmontar (previene usuarios pegados)
+  useEffect(() => {
+    return () => {
+      if (session?.id && table.id) {
+        TableRepository.abandonTable(table.id, session.id).catch((err) => {
+          console.warn('[GameContainer] Limpieza automática al salir:', err);
+        });
+      }
+    };
+  }, [session?.id, table.id]);
+
   // Suscripción Realtime a cambios en game_table_players (Nombres, Entradas y Abandonos)
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -716,18 +727,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   };
 
-  // ✅ NUEVO: Limpieza automática al desmontar el componente (cuando el usuario sale sin confirmar)
-  useEffect(() => {
-    return () => {
-      // Al salir del componente sin confirmar abandono, marcar como LEFT
-      if (session?.id && table.id) {
-        TableRepository.abandonTable(table.id, session.id).catch((err) => {
-          console.warn('[GameContainer] Limpieza automática al salir:', err);
-        });
-      }
-    };
-  }, [session?.id, table.id]);
-
   // Manejador central de acciones de juego con anti-double click y Server-Authoritative RNG
   const handleGameAction = useCallback(
     async (actionType: string, actionData: Record<string, unknown>) => {
@@ -966,7 +965,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onMarkNumber={(row, col) => handleGameAction('MARK_NUMBER', { row, col })}
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
             onDrawBall={() => handleGameAction('DRAW_BALL', {})}
-            // ⬇️ NUEVA LÍNEA: conecta el botón "COMPRAR" del tablero con Supabase
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
           />
         );

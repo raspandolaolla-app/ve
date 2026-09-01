@@ -57,7 +57,7 @@ export function Header({
     try {
       setUnreadCount(notificationService.getUnreadCount());
     } catch (e) {
-      // silencioso si el servicio aún no está listo
+      // Servicio aún no disponible
     }
   }, []);
 
@@ -66,6 +66,12 @@ export function Header({
       playSound('click');
     } catch (e) {}
     onNavigate(tab);
+  };
+
+  const safePlaySound = (sound: string) => {
+    try {
+      playSound(sound);
+    } catch (e) {}
   };
 
   return (
@@ -79,7 +85,6 @@ export function Header({
           {/* SECCIÓN IZQUIERDA: LOGO + SALDO */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
 
-            {/* Logo con animación */}
             <motion.div
               id="brand-logo"
               onClick={() => handleNavigate('home')}
@@ -129,12 +134,10 @@ export function Header({
               </div>
             </motion.div>
 
-            {/* Bandera en móvil */}
             <div className="xs:hidden flex items-center text-sm" title="Venezuela">
               🇻🇪
             </div>
 
-            {/* Pastilla de Saldo con animación */}
             {isAuthenticated && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -161,7 +164,7 @@ export function Header({
                   id="header-toggle-balance-btn"
                   onClick={(e) => {
                     e.stopPropagation();
-                    try { playSound('click'); } catch (err) {}
+                    safePlaySound('click');
                     toggleBalanceVisibility();
                   }}
                   className="p-1 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors ml-0.5"
@@ -181,7 +184,7 @@ export function Header({
                   id="header-quick-deposit-btn"
                   onClick={(e) => {
                     e.stopPropagation();
-                    try { playSound('click'); } catch (err) {}
+                    safePlaySound('click');
                     onNavigate('wallet');
                     setTimeout(() => openDepositModal(), 100);
                   }}
@@ -252,13 +255,12 @@ export function Header({
               <ConnectionBadge />
             </div>
 
-            {/* Campana de Notificaciones con contador */}
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               id="header-notifications-btn"
               onClick={() => {
-                try { playSound('click'); } catch (e) {}
+                safePlaySound('click');
                 onOpenNotifications();
               }}
               className="relative p-2 rounded-xl bg-gradient-to-br from-[#111722] to-[#171E2A] hover:from-[#171E2A] hover:to-[#1E2938] text-[#94A3B8] hover:text-[#F8FAFC] border border-[#1E2938] transition-all shadow-md"
@@ -268,17 +270,16 @@ export function Header({
               <Bell className="w-4 h-4" />
               <AnimatePresence>
                 {(hasUnreadNotifications || unreadCount > 0) && (
-                  <motion.div
+                  <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF8A00] animate-pulse"
+                    className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#FF8A00] animate-pulse"
                   />
                 )}
               </AnimatePresence>
             </motion.button>
 
-            {/* Avatar de Perfil o Login */}
             {state === 'loading' ? (
               <div className="w-8 h-8 rounded-full bg-[#111722] animate-pulse" />
             ) : isAuthenticated ? (
@@ -287,7 +288,7 @@ export function Header({
                 whileTap={{ scale: 0.95 }}
                 id="header-user-profile-btn"
                 onClick={() => {
-                  try { playSound('click'); } catch (e) {}
+                  safePlaySound('click');
                   onOpenProfile();
                 }}
                 className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-gradient-to-r from-[#111722] to-[#171E2A] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all text-xs text-[#F8FAFC] shadow-md"

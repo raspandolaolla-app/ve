@@ -11,13 +11,14 @@
 // ==============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'motion/react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { UnaOllaState, UnaOllaCard, UnaOllaColor, UnaOllaPlayerState } from '../../../types/games';
 import { useGameEngine } from '../useGameEngine';
 import { UnaOllaEngine } from '../engines/UnaOllaEngine';
 import { UnaOllaCardComponent } from './UnaOllaCardComponent';
 import { Button } from '../../../components/common/Button';
-import { Trophy, Play, AlertTriangle, Flame, Palette, RotateCw, Info } from 'lucide-react';
+import { Play, AlertTriangle, Flame, Palette, RotateCw, Info } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 
 interface UnaOllaGameProps {
@@ -68,9 +69,16 @@ const THEMES: Record<ThemeKey, any> = {
   },
 };
 
-// Fondos animados del fieltro
+// ==============================================================================
+// FONDOS ANIMADOS DEL FIELTRO (CORREGIDO)
+// ==============================================================================
 const FeltBackdrop: React.FC<{ themeKey: ThemeKey }> = ({ themeKey }) => {
   if (themeKey === 'neon') {
+    const orbs = [
+      { color: 'rgba(255,209,0,0.28)', top: '8%', left: '10%', dur: 4 },
+      { color: 'rgba(255,45,85,0.28)', top: '60%', left: '75%', dur: 5 },
+      { color: 'rgba(0,224,255,0.28)', top: '35%', left: '45%', dur: 6 },
+    ];
     return (
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
@@ -82,12 +90,19 @@ const FeltBackdrop: React.FC<{ themeKey: ThemeKey }> = ({ themeKey }) => {
             maskImage: 'radial-gradient(ellipse at 50% 50%, black 25%, transparent 80%)',
           }}
         />
-        {['rgba(255,209,0,0.28)', 'rgba(255,45,85,0.28)', 'rgba(0,224,255,0.28)'].map((c, i) => (
-          <motionOrb key={i} color={c} index={i} />
+        {orbs.map((o, i) => (
+          <motion.div
+            key={i}
+            animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.85, 0.4] }}
+            transition={{ duration: o.dur, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute w-28 h-28 rounded-full blur-3xl"
+            style={{ background: o.color, top: o.top, left: o.left }}
+          />
         ))}
       </div>
     );
   }
+
   if (themeKey === 'caoba') {
     return (
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -98,23 +113,22 @@ const FeltBackdrop: React.FC<{ themeKey: ThemeKey }> = ({ themeKey }) => {
       </div>
     );
   }
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute inset-0 opacity-30"
+      <div
+        className="absolute inset-0 opacity-30"
         style={{ background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, transparent 2px, transparent 6px)' }}
       />
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="absolute w-1.5 h-1.5 rounded-full"
+        <div
+          key={i}
+          className="absolute w-1.5 h-1.5 rounded-full"
           style={{ background: '#FFC94B', boxShadow: '0 0 8px rgba(255,201,75,0.9)', left: `${12 + i * 15}%`, bottom: '12%', opacity: 0.5 }}
         />
       ))}
     </div>
   );
-};
-
-const motionOrb = ({ color, index }: { color: string; index: number }) => {
-  const { motion } = require('motion/react');
-  return null; // placeholder (no usado)
 };
 
 // ==============================================================================
@@ -155,7 +169,8 @@ const Avatar: React.FC<{ player: any; active: boolean; accent: string; size?: nu
         </div>
       )}
       {active && (
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
+        <div
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
           style={{ background: accent, boxShadow: `0 0 8px ${accent}` }}
         />
       )}
@@ -178,13 +193,14 @@ const MiniBacks: React.FC<{ count: number }> = ({ count }) => {
             className="w-6 h-9 rounded-md border border-white/80 flex items-center justify-center"
             style={{ background: 'linear-gradient(160deg, #262626, #000)', boxShadow: '0 2px 5px rgba(0,0,0,0.55)' }}
           >
-            <div className="w-4 h-2.5 rounded-[50%] border border-amber-300/70"
+            <div
+              className="w-4 h-2.5 rounded-[50%] border border-amber-300/70"
               style={{ background: 'linear-gradient(160deg, #FF7043, #B71C1C)' }}
             />
           </div>
         </div>
       ))}
-      <span className="ml-1.5 text-[10px] font-black font-mono" style={{ color: 'inherit' }}>{count}</span>
+      <span className="ml-1.5 text-[10px] font-black font-mono">{count}</span>
     </div>
   );
 };
@@ -196,19 +212,18 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
   const isHost = currentUserId === table.hostUserId;
 
   const initialState = UnaOllaEngine.initGameState(players, table.hostUserId);
-  const {
-    gameState,
-    currentTurnUserId,
-    isMyTurn,
-    isSettling,
-    dispatchAction,
-  } = useGameEngine({ table, players, currentUserId, initialState });
+  const { gameState, currentTurnUserId, isMyTurn, dispatchAction } = useGameEngine({
+    table,
+    players,
+    currentUserId,
+    initialState,
+  });
 
   const state = (gameState as unknown as UnaOllaState) || initialState;
   const isPlaying = state.status === 'PLAYING';
   const isFinished = state.status === 'GAME_FINISHED' || Boolean(state.winnerUserId);
 
-  // ----- Tema -----
+  // ----- Tema (persistente) -----
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
     try {
       const saved = localStorage.getItem('rlo_unaolla_theme');
@@ -280,13 +295,23 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
   }, [state]);
 
   const FLY_FROM: Record<string, { x: number; y: number }> = {
-    top: { x: 50, y: 16 }, left: { x: 16, y: 50 }, right: { x: 84, y: 50 }, bottom: { x: 50, y: 84 },
+    top: { x: 50, y: 16 },
+    left: { x: 16, y: 50 },
+    right: { x: 84, y: 50 },
+    bottom: { x: 50, y: 84 },
   };
 
   // ----- Manejadores (lógica intacta) -----
   const handleTurnTimeout = async () => {
     const nextState = UnaOllaEngine.handleTurnTimeout(state);
-    await dispatchAction('TURN_TIMEOUT', { turnUser: activeTurnUser }, nextState as any, nextState.currentTurnUserId, nextState.winnerUserId, false);
+    await dispatchAction(
+      'TURN_TIMEOUT',
+      { turnUser: activeTurnUser },
+      nextState as any,
+      nextState.currentTurnUserId,
+      nextState.winnerUserId,
+      false
+    );
   };
 
   const handleStartGame = async () => {
@@ -321,7 +346,14 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
     setSelectedCardId(null);
     setShowColorPicker(false);
     setPendingWildCardId(null);
-    await dispatchAction('PLAY_CARD', { cardId, chosenColor }, result.nextState as any, result.nextState.currentTurnUserId, result.nextState.winnerUserId, false);
+    await dispatchAction(
+      'PLAY_CARD',
+      { cardId, chosenColor },
+      result.nextState as any,
+      result.nextState.currentTurnUserId,
+      result.nextState.winnerUserId,
+      false
+    );
   };
 
   const handleDrawCard = async () => {
@@ -344,16 +376,26 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
     if (!currentUserId) return;
     const result = UnaOllaEngine.challengeUnaOlla(state, currentUserId, targetUserId);
     if (!result.success) {
-      if (result.message) { setActionNotice(result.message); setTimeout(() => setActionNotice(null), 3000); }
+      if (result.message) {
+        setActionNotice(result.message);
+        setTimeout(() => setActionNotice(null), 3000);
+      }
       return;
     }
-    await dispatchAction('CHALLENGE_UNA_OLLA', { challengerUserId: currentUserId, targetUserId }, result.nextState as any, state.currentTurnUserId, null, false);
+    await dispatchAction(
+      'CHALLENGE_UNA_OLLA',
+      { challengerUserId: currentUserId, targetUserId },
+      result.nextState as any,
+      state.currentTurnUserId,
+      null,
+      false
+    );
     setActionNotice(result.message || '⚠️ Penalización aplicada correctamente.');
     setTimeout(() => setActionNotice(null), 3000);
   };
 
   // ----- Caja de jugador REAL (avatar + nombre de Supabase) -----
-  const renderPlayerSeat = (playerObj: TablePlayer | null, seat: 'top' | 'left' | 'right') => {
+  const renderPlayerSeat = (playerObj: TablePlayer | null) => {
     if (!playerObj) return null;
     const pState = state.players?.[playerObj.userId];
     const isCurrentTurn = activeTurnUser === playerObj.userId;
@@ -375,8 +417,10 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
         }}
       >
         {isCurrentTurn && isPlaying && (
-          <div className="absolute -top-3 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider animate-bounce"
-            style={{ background: T.accent, color: '#1A120C' }}>
+          <div
+            className="absolute -top-3 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider animate-bounce"
+            style={{ background: T.accent, color: '#1A120C' }}
+          >
             Jugando
           </div>
         )}
@@ -407,7 +451,9 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
             <AlertTriangle className="w-2.5 h-2.5" /> DESAFIAR
           </button>
         )}
-        {isEliminated && <div className="absolute inset-0 rounded-2xl bg-black/60 flex items-center justify-center text-xl">💀</div>}
+        {isEliminated && (
+          <div className="absolute inset-0 rounded-2xl bg-black/60 flex items-center justify-center text-xl">💀</div>
+        )}
       </div>
     );
   };
@@ -419,26 +465,34 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
     <div className="w-full max-w-6xl mx-auto space-y-3">
 
       {/* Aviso horizontal */}
-      <div className="hidden portrait:flex w-full items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider"
-        style={{ background: T.panel, borderColor: T.border, color: T.sub }}>
+      <div
+        className="hidden portrait:flex w-full items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider"
+        style={{ background: T.panel, borderColor: T.border, color: T.sub }}
+      >
         <RotateCw className="w-3 h-3" style={{ color: T.accent }} />
         Optimizado para horizontal: gira el dispositivo
       </div>
 
-      {/* Barra de temas + notificaciones */}
-      <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
-        style={{ background: T.panel, borderColor: T.border }}>
+      {/* Barra de temas + reglas */}
+      <div
+        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
+        style={{ background: T.panel, borderColor: T.border }}
+      >
         <div className="flex items-center gap-2">
           <Palette className="w-4 h-4" style={{ color: T.accent }} />
           <div className="flex items-center gap-1.5">
             {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
-              <button key={k} onClick={() => changeTheme(k)} title={THEMES[k].label}
+              <button
+                key={k}
+                onClick={() => changeTheme(k)}
+                title={THEMES[k].label}
                 className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg border transition-all"
                 style={{
                   borderColor: themeKey === k ? THEMES[k].accent : T.border,
                   background: themeKey === k ? 'rgba(255,255,255,0.1)' : 'transparent',
                   boxShadow: themeKey === k ? `0 0 10px ${THEMES[k].accent}55` : 'none',
-                }}>
+                }}
+              >
                 {THEMES[k].swatch.map((c: string, i: number) => (
                   <span key={i} className="w-2.5 h-2.5 rounded-full border border-black/30" style={{ background: c }} />
                 ))}
@@ -446,15 +500,20 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
             ))}
           </div>
         </div>
-        <button onClick={() => setShowRulesModal(true)}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase" style={{ color: T.sub }}>
+        <button
+          onClick={() => setShowRulesModal(true)}
+          className="flex items-center gap-1 text-[10px] font-bold uppercase"
+          style={{ color: T.sub }}
+        >
           <Info className="w-3.5 h-3.5" style={{ color: T.accent }} /> Reglas
         </button>
       </div>
 
       {state.lastActionLog && (
-        <div className="w-full text-center text-xs font-medium px-3 py-1.5 rounded-lg border"
-          style={{ background: T.panel, borderColor: T.border, color: T.accent }}>
+        <div
+          className="w-full text-center text-xs font-medium px-3 py-1.5 rounded-lg border"
+          style={{ background: T.panel, borderColor: T.border, color: T.accent }}
+        >
           {state.lastActionLog}
         </div>
       )}
@@ -493,8 +552,10 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
               <div className="group-hover:scale-105 transition-transform">
                 <UnaOllaCardComponent isBack size="lg" />
               </div>
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black font-mono"
-                style={{ background: T.accent, color: '#1A120C' }}>
+              <div
+                className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black font-mono"
+                style={{ background: T.accent, color: '#1A120C' }}
+              >
                 {state.drawPileCount}
               </div>
             </div>
@@ -529,20 +590,28 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
 
         {/* Indicadores: color activo + dirección + timer */}
         <div className="absolute left-1/2 -translate-x-1/2 bottom-[30%] sm:bottom-[31%] flex items-center gap-2 z-10">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold"
-            style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.border, color: T.text }}>
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold"
+            style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.border, color: T.text }}
+          >
             <span>Color:</span>
-            <span className="w-3.5 h-3.5 rounded-full border border-white/70"
-              style={{ background: colorDot(state.currentColor), boxShadow: `0 0 8px ${colorDot(state.currentColor)}` }} />
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-white/70"
+              style={{ background: colorDot(state.currentColor), boxShadow: `0 0 8px ${colorDot(state.currentColor)}` }}
+            />
           </div>
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-mono"
-            style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.border, color: T.accent }}>
+          <div
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-mono"
+            style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.border, color: T.accent }}
+          >
             <span className={`transition-transform ${state.direction === 1 ? '' : 'rotate-180'}`}>🔄</span>
             {state.direction === 1 ? 'Horario' : 'Anti'}
           </div>
           {isPlaying && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold"
-              style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.accent, color: T.accent }}>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold"
+              style={{ background: 'rgba(0,0,0,0.5)', borderColor: T.accent, color: T.accent }}
+            >
               <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ background: T.accent }} />
               {timeLeft}s
             </div>
@@ -550,18 +619,20 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
         </div>
 
         {/* ===== ASIENTOS ORGANIZADOS ===== */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">{renderPlayerSeat(topPlayer, 'top')}</div>
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{renderPlayerSeat(leftPlayer, 'left')}</div>
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{renderPlayerSeat(rightPlayer, 'right')}</div>
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">{renderPlayerSeat(topPlayer)}</div>
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{renderPlayerSeat(leftPlayer)}</div>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{renderPlayerSeat(rightPlayer)}</div>
 
         {/* Mi perfil (abajo centro) */}
         {bottomPlayer && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-2xl border-2"
+          <div
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-2xl border-2"
             style={{
               background: T.panel,
               borderColor: activeTurnUser === bottomPlayer.userId ? T.accent : T.border,
               boxShadow: activeTurnUser === bottomPlayer.userId ? `0 0 24px ${T.accent}66` : '0 6px 16px rgba(0,0,0,0.45)',
-            }}>
+            }}
+          >
             <Avatar player={bottomPlayer} active={activeTurnUser === bottomPlayer.userId} accent={T.accent} size={34} />
             <div>
               <div className="text-[10px] font-black uppercase" style={{ color: T.text }}>
@@ -593,7 +664,7 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
                 0% { transform: translate(-50%, -50%) scale(0.7) rotate(-25deg); opacity: 0; }
                 25% { opacity: 1; }
                 80% { opacity: 1; }
-                100% { transform: translate(-50%, -50%) scale(1) rotate(0deg) translate(0, 0); left: 50%; top: 47%; opacity: 0; }
+                100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0; }
               }
             `}</style>
           </div>
@@ -621,8 +692,12 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
             >
               <Flame className="w-3.5 h-3.5" /> UNA-OLLA
             </button>
-            <Button size="sm" variant="secondary" onClick={handleDrawCard}
-              className="bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleDrawCard}
+              className="bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
+            >
               Robar
             </Button>
           </div>
@@ -657,14 +732,17 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
         <div className="p-6 text-center space-y-4 rounded-3xl border" style={{ background: T.panel, borderColor: T.border }}>
           <h3 className="text-lg font-black" style={{ color: T.text }}>Mesa de UNA-OLLA en espera</h3>
           <p className="text-xs" style={{ color: T.sub }}>
-            {players.length < 2
-              ? 'Esperando que ingrese al menos otro jugador...'
-              : 'El anfitrión puede iniciar la partida.'}
+            {players.length < 2 ? 'Esperando que ingrese al menos otro jugador...' : 'El anfitrión puede iniciar la partida.'}
           </p>
           {isHost && (
-            <Button variant="primary" size="lg" disabled={players.length < 2} onClick={handleStartGame}
+            <Button
+              variant="primary"
+              size="lg"
+              disabled={players.length < 2}
+              onClick={handleStartGame}
               leftIcon={<Play className="w-5 h-5" />}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black mx-auto">
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black mx-auto"
+            >
               INICIAR PARTIDA
             </Button>
           )}
@@ -674,15 +752,20 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
       {/* ===== MODAL SELECCIÓN DE COLOR ===== */}
       {showColorPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="p-6 rounded-3xl border-2 max-w-sm w-full space-y-4 text-center"
-            style={{ background: T.panel, borderColor: T.accent }}>
+          <div
+            className="p-6 rounded-3xl border-2 max-w-sm w-full space-y-4 text-center"
+            style={{ background: T.panel, borderColor: T.accent }}
+          >
             <h3 className="text-base font-black" style={{ color: T.text }}>Selecciona el nuevo color</h3>
             <div className="grid grid-cols-2 gap-3 pt-2">
               {(['red', 'blue', 'green', 'yellow'] as UnaOllaColor[]).map((c) => (
-                <button key={c} type="button"
+                <button
+                  key={c}
+                  type="button"
                   onClick={() => pendingWildCardId && executePlayCard(pendingWildCardId, c)}
                   className="p-4 rounded-2xl font-black text-sm text-white shadow-lg hover:scale-105 transition-transform"
-                  style={{ background: colorDot(c) }}>
+                  style={{ background: colorDot(c) }}
+                >
                   {c === 'red' ? '🔴 ROJO' : c === 'blue' ? '🔵 AZUL' : c === 'green' ? '🟢 VERDE' : '🟡 AMARILLO'}
                 </button>
               ))}
@@ -694,19 +777,31 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
       {/* ===== MODAL REGLAS ===== */}
       {showRulesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-          <div className="p-6 rounded-3xl border max-w-sm w-full space-y-4 relative"
-            style={{ background: T.panel, borderColor: T.border }}>
-            <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 font-bold text-lg" style={{ color: T.sub }}>✕</button>
+          <div
+            className="p-6 rounded-3xl border max-w-sm w-full space-y-4 relative"
+            style={{ background: T.panel, borderColor: T.border }}
+          >
+            <button
+              onClick={() => setShowRulesModal(false)}
+              className="absolute top-4 right-4 font-bold text-lg"
+              style={{ color: T.sub }}
+            >
+              ✕
+            </button>
             <h3 className="text-base font-black border-b pb-2" style={{ color: T.accent, borderColor: T.border }}>
               📜 Reglas de UNA-OLLA
             </h3>
             <div className="text-xs space-y-2 max-h-72 overflow-y-auto pr-1" style={{ color: T.text }}>
               <p>• Juega una carta que coincida en <strong>color</strong> o <strong>número/símbolo</strong> con el descarte.</p>
               <p>• Sin carta válida: <strong>roba del mazo</strong>.</p>
-              <p>• <strong>Comodines</strong> eligen color · <strong>🚫 Salto</strong> · <strong>🔄 Reversa</strong> · <strong>+2/+4</strong>.</p>
+              <p>• <strong>Comodines</strong> eligen color · <strong>Salto</strong> · <strong>Reversa</strong> · <strong>+2/+4</strong>.</p>
               <p>• Al quedar 1 carta, pulsa <strong>UNA-OLLA</strong> o serás penalizado con +2 si te desafían.</p>
             </div>
-            <Button variant="primary" onClick={() => setShowRulesModal(false)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold">
+            <Button
+              variant="primary"
+              onClick={() => setShowRulesModal(false)}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+            >
               Cerrar
             </Button>
           </div>
@@ -716,10 +811,14 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
       {/* ===== VICTORIA 90/10 ===== */}
       {isFinished && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <div className="p-6 sm:p-8 rounded-3xl border-2 max-w-md w-full space-y-5 text-center"
-            style={{ background: T.panel, borderColor: T.accent, boxShadow: `0 0 40px ${T.accent}44` }}>
-            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl animate-bounce"
-              style={{ background: `${T.accent}22`, border: `2px solid ${T.accent}` }}>
+          <div
+            className="p-6 sm:p-8 rounded-3xl border-2 max-w-md w-full space-y-5 text-center"
+            style={{ background: T.panel, borderColor: T.accent, boxShadow: `0 0 40px ${T.accent}44` }}
+          >
+            <div
+              className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl animate-bounce"
+              style={{ background: `${T.accent}22`, border: `2px solid ${T.accent}` }}
+            >
               🏆
             </div>
             <h2 className="text-2xl font-black uppercase" style={{ color: T.text }}>¡Partida finalizada!</h2>

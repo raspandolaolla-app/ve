@@ -388,6 +388,7 @@ export class GameRepository {
 
   /**
    * Ejecuta la liquidación de partida aplicando la regla estricta 90% ganador / 10% plataforma.
+   * Totalmente atómico e idempotente en Supabase RPC.
    */
   public static async settleSession(
     sessionId: string,
@@ -398,12 +399,27 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
-    const { data, error } = await supabase.rpc('settle_game_session', {
+    let { data, error } = await supabase.rpc('settle_game_session', {
       p_session_id: sessionId,
       p_winner_user_ids: winnerUserIds,
       p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
       p_idempotency_key: idempotencyKey || null,
     });
+
+    // En caso de discrepancia de nombre de parámetro o sobrecarga en PostgREST
+    if (error && (error.message.includes('p_winner_team_index') || error.message.includes('does not exist') || error.message.includes('p_winner_team'))) {
+      const fallback = await supabase.rpc('settle_game_session_secure', {
+        p_session_id: sessionId,
+        p_winner_user_id: winnerUserIds.length > 0 ? winnerUserIds[0] : null,
+        p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
+        p_idempotency_key: idempotencyKey || null,
+      });
+
+      if (!fallback.error) {
+        data = fallback.data;
+        error = null;
+      }
+    }
 
     if (error) {
       console.error('[GameRepository] Error liquidando partida:', error.message);

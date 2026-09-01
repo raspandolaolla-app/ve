@@ -137,12 +137,12 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const [showBoard, setShowBoard] = useState(false);
   const [autoGlow, setAutoGlow] = useState(true);
   const [buyCount, setBuyCount] = useState(3);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isHost = (s.hostUserId || s.hostId || '') === currentUserId;
   const [autoDraw, setAutoDraw] = useState(false);
   const [speed, setSpeed] = useState(2);
 
-  // ----- Balotas cantadas -----
   const drawn: number[] = useMemo(() => {
     const src = Array.isArray(s.drawnBalls) ? s.drawnBalls
       : Array.isArray(s.calledNumbers) ? s.calledNumbers
@@ -153,11 +153,9 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const lastBall = toNum(s.currentBall ?? s.lastBall) > 0 ? toNum(s.currentBall ?? s.lastBall) : drawn[drawn.length - 1];
   const calledSet = useMemo(() => new Set(drawn), [drawn]);
 
-  // ===== LECTURA DUAL (compatible con motor VIEJO y NUEVO) =====
   const myCards: any[] = useMemo(() => {
     const uid = currentUserId;
 
-    // Estructura VIEJA: state.cards = { [userId]: [card1, card2...] }
     if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards) && s.cards[uid]) {
       const arr = s.cards[uid];
       if (Array.isArray(arr)) {
@@ -165,12 +163,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       }
     }
 
-    // Estructura NUEVA: state.players[uid].cards = [...]
     if (s.players && s.players[uid] && Array.isArray(s.players[uid].cards)) {
       return s.players[uid].cards.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
     }
 
-    // Fallback: buscar en otras ubicaciones
     const candidates: any = [
       s.playerCards?.[uid],
       s.cardsByPlayer?.[uid],
@@ -179,7 +175,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     ];
     const src = candidates.find((c: any) => Array.isArray(c)) || [];
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
-  }, [s, currentUserId]);
+  }, [s, currentUserId, refreshKey]);
 
   function normalizeCard(raw: any, idx: number, s: any) {
     let grid: (number | null)[][] = [];
@@ -202,7 +198,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return { id: raw?.id ?? `card_${idx}`, grid, markedSet, raw };
   }
 
-  // Detección de modalidad (75 o 90)
   const maxBall = useMemo(() => {
     if (s.variant === '90' || s.totalBalls === 90 || s.mode === 90) return 90;
     if (s.variant === '75' || s.totalBalls === 75 || s.mode === 75) return 75;
@@ -232,7 +227,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return { hit, total };
   };
 
-  // CANTO DE BINGO AUTOMÁTICO
   const autoCalledRef = useRef(false);
   useEffect(() => {
     if (!isPlaying || autoCalledRef.current || myCards.length === 0) return;
@@ -242,7 +236,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     }
   }, [calledSet, myCards, isPlaying]);
 
-  // SORTEO AUTOMÁTICO (anfitrión)
   useEffect(() => {
     if (!autoDraw || !isHost || !isPlaying || !onDrawBall || salesOpen) return;
     const id = setInterval(() => onDrawBall(), Math.max(1, speed) * 1000);
@@ -324,7 +317,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5"
       style={{ background: T.bg, minHeight: '100%' }}>
 
-      {/* ===== BARRA SUPERIOR ===== */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}>
         <div className="flex items-center gap-2">
@@ -362,7 +354,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         </div>
       </div>
 
-      {/* ===== CHIPS ===== */}
       <div className="w-full flex items-center gap-2 flex-wrap">
         {isSalesClosed !== undefined && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase"
@@ -396,7 +387,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </div>
 
-      {/* ===== PANEL DE COMPRA (solo si el motor lo soporta) ===== */}
       <AnimatePresence>
         {salesOpen && onBuyCards && myCards.length === 0 && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
@@ -415,7 +405,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                 <button onClick={() => setBuyCount(Math.min(20, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
                   <Plus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
-                <button onClick={() => onBuyCards(buyCount)}
+                <button onClick={async () => {
+                  await onBuyCards(buyCount);
+                  setRefreshKey((k) => k + 1);
+                }}
                   className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase text-white"
                   style={{ background: 'linear-gradient(145deg,#43A047,#1B5E20)', boxShadow: '0 5px 14px rgba(27,94,32,0.5)' }}>
                   <ShoppingCart className="w-3.5 h-3.5" /> Comprar
@@ -426,7 +419,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ===== BOMBO + BALOTA + CONTROL AUTOMÁTICO ===== */}
       <div className="w-full relative overflow-hidden rounded-3xl border-2 p-4"
         style={{ background: T.panel, borderColor: T.border, boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
@@ -499,7 +491,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         </div>
       </div>
 
-      {/* ===== TABLERO DE NÚMEROS ===== */}
       <AnimatePresence>
         {showBoard && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="w-full overflow-hidden">
@@ -516,7 +507,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ===== GESTOR DE CARTONES ===== */}
       <div className="w-full">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
@@ -575,7 +565,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </div>
 
-      {/* ===== BOTÓN BINGO ===== */}
       <motion.button type="button" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }} onClick={onClaimBingo} disabled={!isPlaying}
         className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
         style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 10px 30px rgba(229,57,53,0.5)' }}>

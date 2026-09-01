@@ -1,13 +1,19 @@
 -- ==============================================================================
--- MIGRACIÓN 090: BLINDAJE SERVER-AUTHORITATIVE DE INICIO DE SESIÓN Y TURNOS
+-- MIGRACIÓN 091: RECONCILIACIÓN CANÓNICA DE RPC START_GAME_SESSION_SECURE Y SCHEMA CACHE
 -- Proyecto: RASPANDO LA OLLA
 -- ==============================================================================
--- 1. Redefine start_game_session_secure para soportar creación atómica con
---    estado inicial canónico completo (p_initial_state) y duración de turno.
--- 2. Elimina la ventana de vulnerabilidad donde una sesión quedaba en ACTIVE
---    con current_state incompleto.
--- 3. Crea repair_game_session_initial_state_secure para rehidrataciones
---    idempotentes y seguras protegidas con bloqueo FOR UPDATE.
+-- 1. Elimina explícitamente todas las sobrecargas previas de start_game_session_secure
+--    para erradicar el error PostgREST PGRST202.
+-- 2. Define la firma canónica autoritativa:
+--    public.start_game_session_secure(UUID, JSONB, INT)
+-- 3. Unifica atómicamente:
+--    - Bloqueo transaccional FOR UPDATE sobre game_tables.
+--    - Verificación estricta de Anfitrión (host_user_id = auth.uid()).
+--    - Mapeo determinista de turnUserId canónico generado por el motor.
+--    - turn_deadline_at calculado server-side con started_at = NOW().
+--    - Estado inicial canónico completo persistido en current_state.
+--    - Transición atómica de game_tables.status = 'ACTIVE'.
+-- 4. Notifica recarga inmediata del schema cache a PostgREST.
 -- ==============================================================================
 
 -- 1. Limpieza de firmas obsoletas/sobrecargadas
@@ -18,6 +24,7 @@ DROP FUNCTION IF EXISTS public.repair_game_session_initial_state_secure(UUID, JS
 DROP FUNCTION IF EXISTS public.repair_game_session_initial_state_secure(UUID, JSONB, UUID);
 DROP FUNCTION IF EXISTS public.repair_game_session_initial_state_secure(UUID, JSONB);
 
+-- 2. Creación canónica de start_game_session_secure
 CREATE OR REPLACE FUNCTION public.start_game_session_secure(
   p_table_id UUID,
   p_initial_state JSONB DEFAULT NULL,
@@ -43,13 +50,14 @@ DECLARE
   v_deadline TIMESTAMPTZ;
   v_turn_seconds INT := 30;
   v_game_type_str TEXT;
+  v_is_turn_user_valid BOOLEAN := false;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED: Debes iniciar sesión para iniciar la partida';
   END IF;
 
-  -- 1. Bloqueo transaccional de la mesa
+  -- 1. Bloqueo transaccional de la mesa (SELECT ... FOR UPDATE)
   SELECT * INTO v_table
   FROM public.game_tables
   WHERE id = p_table_id FOR UPDATE;
@@ -78,7 +86,8 @@ BEGIN
       'table_id', p_table_id,
       'current_turn_user_id', v_first_turn_user_id,
       'turn_deadline_at', v_deadline,
-      'already_active', true
+      'already_active', true,
+      'status', 'ACTIVE'
     );
   END IF;
 
@@ -92,15 +101,18 @@ BEGIN
     RAISE EXCEPTION 'NOT_ENOUGH_PLAYERS: Se requieren al menos % jugadores diferentes para iniciar la partida (actualmente hay %)', v_table.min_players, v_unique_players_count;
   END IF;
 
-  -- 5. Compilar lista ordenada de jugadores activos
+  -- 5. Compilar lista ordenada de jugadores activos por número de asiento
   FOR v_player_record IN (
-    SELECT DISTINCT ON (gtp.user_id)
-      gtp.user_id, gtp.seat_number, p.display_name, p.first_name, p.last_name, p.avatar_url
-    FROM public.game_table_players gtp
+    SELECT gtp.user_id, gtp.seat_number, p.display_name, p.first_name, p.last_name, p.avatar_url
+    FROM (
+      SELECT DISTINCT ON (user_id) user_id, seat_number, joined_at
+      FROM public.game_table_players
+      WHERE table_id = p_table_id
+        AND status != 'LEFT'::player_table_status_enum
+      ORDER BY user_id, seat_number ASC
+    ) gtp
     JOIN public.profiles p ON p.user_id = gtp.user_id
-    WHERE gtp.table_id = p_table_id
-      AND gtp.status != 'LEFT'::player_table_status_enum
-    ORDER BY gtp.user_id, gtp.seat_number ASC
+    ORDER BY gtp.seat_number ASC, gtp.joined_at ASC
   ) LOOP
     IF v_first_turn_user_id IS NULL THEN
       v_first_turn_user_id := v_player_record.user_id;
@@ -131,16 +143,42 @@ BEGIN
 
   v_deadline := NOW() + (v_turn_seconds || ' seconds')::interval;
 
-  -- 7. Determinar estado inicial canónico completo
+  -- 7. Determinar estado inicial canónico completo y turno unificado
   IF p_initial_state IS NOT NULL AND jsonb_typeof(p_initial_state) = 'object' AND p_initial_state <> '{}'::jsonb THEN
-    -- Respetar el primer turno indicado por el motor si es un jugador válido de la mesa
+    -- Respetar el primer turno indicado por el motor si es un jugador de la mesa
     IF p_initial_state ? 'turnUserId' AND (p_initial_state->>'turnUserId') IS NOT NULL THEN
-      v_first_turn_user_id := (p_initial_state->>'turnUserId')::uuid;
+      BEGIN
+        v_first_turn_user_id := (p_initial_state->>'turnUserId')::uuid;
+      EXCEPTION WHEN OTHERS THEN
+        NULL;
+      END IF;
     ELSEIF p_initial_state ? 'currentTurnUserId' AND (p_initial_state->>'currentTurnUserId') IS NOT NULL THEN
-      v_first_turn_user_id := (p_initial_state->>'currentTurnUserId')::uuid;
+      BEGIN
+        v_first_turn_user_id := (p_initial_state->>'currentTurnUserId')::uuid;
+      EXCEPTION WHEN OTHERS THEN
+        NULL;
+      END IF;
     END IF;
 
-    -- Inyectar turnExpiresAt autoritativo en el estado
+    -- Validar que el turno pertenezca a un jugador activo en la mesa
+    SELECT EXISTS (
+      SELECT 1 FROM public.game_table_players
+      WHERE table_id = p_table_id
+        AND user_id = v_first_turn_user_id
+        AND status != 'LEFT'::player_table_status_enum
+    ) INTO v_is_turn_user_valid;
+
+    IF NOT v_is_turn_user_valid THEN
+      -- Si no es válido, reasignar al primer jugador sentado
+      SELECT user_id INTO v_first_turn_user_id
+      FROM public.game_table_players
+      WHERE table_id = p_table_id
+        AND status != 'LEFT'::player_table_status_enum
+      ORDER BY seat_number ASC
+      LIMIT 1;
+    END IF;
+
+    -- Inyectar turnExpiresAt autoritativo y turnUserId en el estado
     v_initial_state := jsonb_set(
       jsonb_set(
         jsonb_set(p_initial_state, '{currentTurnUserId}', to_jsonb(v_first_turn_user_id::text)),
@@ -233,7 +271,8 @@ BEGIN
     'table_id', p_table_id,
     'current_turn_user_id', v_first_turn_user_id,
     'turn_deadline_at', v_deadline,
-    'already_active', false
+    'already_active', false,
+    'status', 'ACTIVE'
   );
 END;
 $$;
@@ -241,7 +280,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.start_game_session_secure(UUID, JSONB, INT) TO authenticated, service_role, anon;
 
 -- ==============================================================================
--- 2. RPC Segura e Idempotente para Reparación de Estado Inicial si hiciera falta
+-- 3. RPC Segura e Idempotente para Reparación de Estado Inicial
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.repair_game_session_initial_state_secure(
   p_session_id UUID,
@@ -280,7 +319,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'repaired', false, 'message', 'Session is terminal');
   END IF;
 
-  -- Verificar si ya hay acciones registradas
+  -- Verificar si ya hay acciones registradas (REGLA: sólo reparar si 0 acciones)
   SELECT COUNT(*) INTO v_action_count
   FROM public.game_actions
   WHERE session_id = p_session_id;
@@ -290,7 +329,7 @@ BEGIN
     RETURN jsonb_build_object('success', true, 'repaired', false, 'message', 'Actions already exist');
   END IF;
 
-  -- Si el estado actual ya tiene contenido sustancial, no sobrescribir
+  -- Si el estado actual ya tiene contenido sustancial completo, no sobrescribir
   IF v_session.current_state IS NOT NULL
      AND (v_session.current_state ? 'board' OR v_session.current_state ? 'playerChoices' OR v_session.current_state ? 'hands' OR v_session.current_state ? 'fen' OR v_session.current_state ? 'pieces') THEN
     RETURN jsonb_build_object('success', true, 'repaired', false, 'message', 'State already complete');
@@ -324,3 +363,6 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.repair_game_session_initial_state_secure(UUID, JSONB, UUID, INT) TO authenticated, service_role, anon;
+
+-- 4. Notificación para recarga inmediata de cache de esquemas en PostgREST
+NOTIFY pgrst, 'reload schema';

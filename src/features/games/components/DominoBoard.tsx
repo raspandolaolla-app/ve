@@ -1,15 +1,15 @@
 // ==============================================================================
 // RASPANDO LA OLLA — TABLERO DE JUEGO: DOMINÓ VENEZOLANO
 // ==============================================================================
-// • Colocación de fichas en SERPIENTE (estilo mesa real venezolana)
-// • 3 TEMAS seleccionables en partida: Caoba Clásica / Tricolor Criollo / Ébano Real
-// • Diseño 3D inmersivo, optimizado para móviles
-// • Compatible 100% con Supabase y GameContainer
+// • SERPIENTE que nace en el CENTRO de la mesa y crece con giros de 90°
+// • Optimizado para vista horizontal (aviso de rotación en vertical)
+// • 3 TEMAS seleccionables en partida: Paño Verde Pro / Caoba Criolla / Tricolor
+// • Diseño 3D inmersivo, compatible 100% con Supabase y GameContainer
 // ==============================================================================
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Palette, Trophy, Hand, ArrowLeftRight, Zap } from 'lucide-react';
+import { Palette, Trophy, Hand, ArrowLeftRight, Zap, RotateCw, Layers } from 'lucide-react';
 import { TurnTimer } from './TurnTimer';
 import { GameRepository } from '../../../services/repositories/GameRepository';
 
@@ -23,15 +23,30 @@ interface DominoBoardProps {
 }
 
 // ==============================================================================
-// SISTEMA DE TEMAS (3 DISEÑOS SELECCIONABLES)
+// SISTEMA DE TEMAS (3 DISEÑOS SELECCIONABLES EN PARTIDA)
 // ==============================================================================
-type ThemeKey = 'caoba' | 'tricolor' | 'ebano';
+type ThemeKey = 'verde' | 'caoba' | 'tricolor';
 
 const THEMES: Record<ThemeKey, any> = {
+  verde: {
+    label: 'Paño Verde Pro',
+    swatch: ['#0E5A34', '#FAF0E1', '#FFC94B'],
+    felt: 'radial-gradient(ellipse at 50% 45%, #147A46 0%, #0E5A34 45%, #073B22 80%, #052A18 100%)',
+    frame: 'linear-gradient(145deg, #6B4423 0%, #4E2E17 50%, #3A2010 100%)',
+    tileFace: 'linear-gradient(145deg, #FFFFFF 0%, #FAF0E1 55%, #E8DCC8 100%)',
+    tileEdge: '#C9B896',
+    pip: '#1A1A1A',
+    divider: 'rgba(0,0,0,0.35)',
+    accent: '#FFC94B',
+    text: '#F5EFDD',
+    sub: '#9CC4A8',
+    panel: 'linear-gradient(145deg, rgba(10,40,25,0.92) 0%, rgba(5,25,15,0.92) 100%)',
+    border: '#147A46',
+  },
   caoba: {
-    label: 'Caoba Clásica',
+    label: 'Caoba Criolla',
     swatch: ['#8B5A2B', '#E8D5B7', '#5C2626'],
-    felt: 'radial-gradient(ellipse at 50% 40%, #3E2B1F 0%, #2B1D14 55%, #1C120C 100%)',
+    felt: 'radial-gradient(ellipse at 50% 45%, #4E342E 0%, #3E2B1F 50%, #2B1D14 85%, #1C120C 100%)',
     frame: 'linear-gradient(145deg, #8B5A2B 0%, #6B4423 50%, #4E2E17 100%)',
     tileFace: 'linear-gradient(145deg, #FAF0E1 0%, #E8D5B7 55%, #D7C4A3 100%)',
     tileEdge: '#B89A6A',
@@ -44,13 +59,13 @@ const THEMES: Record<ThemeKey, any> = {
     border: '#3E2B1F',
   },
   tricolor: {
-    label: 'Tricolor Criollo',
+    label: 'Tricolor Noche',
     swatch: ['#FFD100', '#003DA5', '#EF3340'],
-    felt: 'radial-gradient(ellipse at 50% 40%, #123B7A 0%, #0A2A5C 55%, #061A3A 100%)',
+    felt: 'radial-gradient(ellipse at 50% 45%, #123B7A 0%, #0A2A5C 50%, #061A3A 85%, #04102A 100%)',
     frame: 'linear-gradient(145deg, #0A2A5C 0%, #061A3A 100%)',
     tileFace: 'linear-gradient(145deg, #FFFFFF 0%, #F0F4FA 55%, #DCE4F0 100%)',
     tileEdge: '#8FA8CC',
-    pip: '#003DA5',
+    pip: '#0A2A5C',
     divider: 'rgba(0,61,165,0.4)',
     accent: '#FFD100',
     text: '#EAF2FF',
@@ -58,25 +73,10 @@ const THEMES: Record<ThemeKey, any> = {
     panel: 'linear-gradient(145deg, #0A2A5C 0%, #061A3A 100%)',
     border: '#123B7A',
   },
-  ebano: {
-    label: 'Ébano Real',
-    swatch: ['#111111', '#FFD700', '#3A3A3A'],
-    felt: 'radial-gradient(ellipse at 50% 40%, #1E1E1E 0%, #111111 55%, #000000 100%)',
-    frame: 'linear-gradient(145deg, #3A3A3A 0%, #1A1A1A 100%)',
-    tileFace: 'linear-gradient(145deg, #2E2E2E 0%, #1C1C1C 55%, #101010 100%)',
-    tileEdge: '#555555',
-    pip: '#FFD700',
-    divider: 'rgba(255,215,0,0.35)',
-    accent: '#FFD700',
-    text: '#F5F5F5',
-    sub: '#9A9A9A',
-    panel: 'linear-gradient(145deg, #1A1A1A 0%, #0A0A0A 100%)',
-    border: '#333333',
-  },
 };
 
 // ==============================================================================
-// UTILIDADES DE FICHAS
+// UTILIDADES
 // ==============================================================================
 const getTileValues = (t: any): [number, number] | null => {
   if (!t) return null;
@@ -87,23 +87,27 @@ const getTileValues = (t: any): [number, number] | null => {
   return null;
 };
 
+const getRawSide = (raw: any): 'left' | 'right' | null => {
+  const s = (raw?.side ?? raw?.end ?? raw?.pos ?? raw?.placement ?? '').toString().toLowerCase();
+  if (['right', 'r', 'end', 'derecha', 'der'].includes(s)) return 'right';
+  if (['left', 'l', 'start', 'izquierda', 'izq'].includes(s)) return 'left';
+  return null;
+};
+
 const PIP_MAP: Record<number, number[]> = {
   0: [], 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8],
 };
 
-// Media ficha con pips (punticos) estilo real
-const HalfPips: React.FC<{ value: number; theme: any; vertical?: boolean }> = ({ value, theme, vertical }) => (
-  <div
-    className={`relative grid grid-cols-3 ${vertical ? 'grid-rows-3' : 'grid-rows-3'} w-full h-full p-[12%]`}
-  >
+const HalfPips: React.FC<{ value: number; theme: any }> = ({ value, theme }) => (
+  <div className="relative grid grid-cols-3 grid-rows-3 w-full h-full p-[10%]">
     {Array.from({ length: 9 }).map((_, i) => (
       <div key={i} className="flex items-center justify-center">
         {PIP_MAP[value]?.includes(i) && (
           <div
-            className="w-[68%] h-[68%] rounded-full"
+            className="w-[70%] h-[70%] rounded-full"
             style={{
-              background: `radial-gradient(circle at 32% 28%, ${theme.pip} 0%, ${theme.pip} 60%, rgba(0,0,0,0.6) 100%)`,
-              boxShadow: `inset 0 -1px 2px rgba(0,0,0,0.5), 0 1px 1px rgba(255,255,255,0.25)`,
+              background: `radial-gradient(circle at 32% 28%, ${theme.pip} 0%, ${theme.pip} 55%, rgba(0,0,0,0.75) 100%)`,
+              boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(255,255,255,0.3)',
             }}
           />
         )}
@@ -111,6 +115,51 @@ const HalfPips: React.FC<{ value: number; theme: any; vertical?: boolean }> = ({
     ))}
   </div>
 );
+
+// ==============================================================================
+// GEOMETRÍA DE LA SERPIENTE CENTRAL (13 x 7 medias celdas)
+// ==============================================================================
+const COLS = 13;
+const ROWS = 7;
+const MIDR = 3;
+const MIDC = 6;
+
+type Cell = { r: number; c: number };
+
+const buildRightPath = (): Cell[] => {
+  const path: Cell[] = [];
+  let r = MIDR, c = MIDC + 2, dir = 1;
+  while (path.length < 60 && r < ROWS) {
+    path.push({ r, c });
+    if (dir === 1) {
+      if (c + 1 <= COLS - 1) c++;
+      else { r++; dir = -1; }
+    } else {
+      if (c - 1 >= 0) c--;
+      else { r++; dir = 1; }
+    }
+  }
+  return path;
+};
+
+const buildLeftPath = (): Cell[] => {
+  const path: Cell[] = [];
+  let r = MIDR, c = MIDC - 1, dir = -1;
+  while (path.length < 60 && r >= 0) {
+    path.push({ r, c });
+    if (dir === -1) {
+      if (c - 1 >= 0) c--;
+      else { r--; dir = 1; }
+    } else {
+      if (c + 1 <= COLS - 1) c++;
+      else { r--; dir = -1; }
+    }
+  }
+  return path;
+};
+
+const RIGHT_PATH = buildRightPath();
+const LEFT_PATH = buildLeftPath();
 
 // ==============================================================================
 // COMPONENTE PRINCIPAL
@@ -125,13 +174,13 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 }) => {
   const s: any = state || {};
 
-  // ----- Tema seleccionado (persistente) -----
+  // ----- Tema (persistente) -----
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
     try {
       const saved = localStorage.getItem('rlo_domino_theme');
       if (saved && THEMES[saved as ThemeKey]) return saved as ThemeKey;
     } catch {}
-    return 'caoba';
+    return 'verde';
   });
   const T = THEMES[themeKey];
   const changeTheme = (k: ThemeKey) => {
@@ -139,8 +188,10 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     try { localStorage.setItem('rlo_domino_theme', k); } catch {}
   };
 
-  // ----- Lectura defensiva del estado -----
+  // ----- Estado -----
   const players: any[] = Array.isArray(s.players) ? s.players : [];
+  const opponents = players.filter((p) => p.userId !== currentUserId);
+  const me = players.find((p) => p.userId === currentUserId);
   const turnUserId = s.turnUserId || s.currentTurnUserId || '';
   const status = s.status || 'playing';
   const isMyTurn = turnUserId === currentUserId && status === 'playing';
@@ -155,48 +206,82 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   };
   const myHand: any[] = getHand(currentUserId);
 
-  const rawChain: any[] = Array.isArray(s.board) ? s.board
+  const rawPlayed: any[] = Array.isArray(s.board) ? s.board
     : Array.isArray(s.chain) ? s.chain
     : Array.isArray(s.placedTiles) ? s.placedTiles
     : [];
 
-  // ----- Cadena normalizada (extremos conectados) -----
-  const chain = useMemo(() => {
-    const out: { values: [number, number]; raw: any }[] = [];
-    let open: number | null = null;
-    for (const raw of rawChain) {
-      // raw puede venir como {tile, side} o directamente la ficha
+  // ----- Construcción de la serpiente desde el centro -----
+  const layout = useMemo(() => {
+    const placed: { a: Cell; va: number; b: Cell; vb: number; key: number }[] = [];
+    let leftEnd: number | null = null;
+    let rightEnd: number | null = null;
+    let ri = 0, li = 0;
+
+    rawPlayed.forEach((raw, idx) => {
       const vals = getTileValues(raw?.tile) || getTileValues(raw);
-      if (!vals) continue;
-      if (out.length === 0) {
-        out.push({ values: vals, raw });
-        open = vals[1];
-      } else {
-        if (vals[0] === open) { out.push({ values: vals, raw }); open = vals[1]; }
-        else { out.push({ values: [vals[1], vals[0]], raw }); open = vals[0]; }
+      if (!vals) return;
+
+      // Primera ficha: centro de la mesa
+      if (placed.length === 0) {
+        placed.push({
+          a: { r: MIDR, c: MIDC }, va: vals[0],
+          b: { r: MIDR, c: MIDC + 1 }, vb: vals[1],
+          key: idx,
+        });
+        leftEnd = vals[0];
+        rightEnd = vals[1];
+        return;
       }
-    }
-    return out;
-  }, [rawChain]);
 
-  const leftEnd = chain.length ? chain[0].values[0] : null;
-  const rightEnd = chain.length ? chain[chain.length - 1].values[1] : null;
+      // Determinar lado (por dato del motor o inferencia por extremos)
+      let side = getRawSide(raw);
+      if (!side) {
+        const fitsR = vals.includes(rightEnd as number);
+        const fitsL = vals.includes(leftEnd as number);
+        side = fitsR && !fitsL ? 'right' : fitsL && !fitsR ? 'left' : 'right';
+      }
 
-  // ----- Lados válidos para una ficha de la mano -----
+      if (side === 'right') {
+        const vConn = vals[0] === rightEnd ? vals[0] : vals[1];
+        const vOuter = vConn === vals[0] ? vals[1] : vals[0];
+        const ca = RIGHT_PATH[ri * 2];
+        const cb = RIGHT_PATH[ri * 2 + 1];
+        if (!ca || !cb) return;
+        placed.push({ a: ca, va: vConn, b: cb, vb: vOuter, key: idx });
+        rightEnd = vOuter;
+        ri++;
+      } else {
+        const vConn = vals[0] === leftEnd ? vals[0] : vals[1];
+        const vOuter = vConn === vals[0] ? vals[1] : vals[0];
+        const ca = LEFT_PATH[li * 2];
+        const cb = LEFT_PATH[li * 2 + 1];
+        if (!ca || !cb) return;
+        placed.push({ a: ca, va: vConn, b: cb, vb: vOuter, key: idx });
+        leftEnd = vOuter;
+        li++;
+      }
+    });
+
+    return { placed, leftEnd, rightEnd };
+  }, [rawPlayed]);
+
+  const { placed, leftEnd, rightEnd } = layout;
+
+  // ----- Jugabilidad de mi mano -----
   const validSidesFor = (tile: any): ('left' | 'right')[] => {
     const v = getTileValues(tile);
     if (!v) return [];
+    if (placed.length === 0) return ['right'];
     const sides: ('left' | 'right')[] = [];
-    if (chain.length === 0) return ['right'];
-    if (v[0] === rightEnd || v[1] === rightEnd) sides.push('right');
-    if (v[0] === leftEnd || v[1] === leftEnd) sides.push('left');
+    if (v.includes(rightEnd as number)) sides.push('right');
+    if (v.includes(leftEnd as number)) sides.push('left');
     return sides;
   };
 
   const playableTiles = isMyTurn ? myHand.filter((t) => validSidesFor(t).length > 0) : [];
   const mustPass = isMyTurn && myHand.length > 0 && playableTiles.length === 0;
 
-  // ----- Selector de lado (cuando aplica a ambos extremos) -----
   const [pendingTile, setPendingTile] = useState<any>(null);
   const handleHandClick = (tile: any) => {
     if (!isMyTurn) return;
@@ -210,49 +295,43 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     if (isMyTurn && sessionId) GameRepository.expireTurn(sessionId);
   };
 
-  // ============================================================================
-  // DISPOSICIÓN SERPIENTE (SNAKE) — 12 medias fichas por fila
-  // ============================================================================
-  const COLS = 12;
-  const halves = chain.length * 2;
-  const rows = Math.max(3, Math.ceil(halves / COLS));
+  // ----- Fichas restantes (boneyard visual) -----
+  const totalHands = players.reduce((acc, p) => acc + getHand(p.userId).length, 0);
+  const remaining = Math.max(0, 28 - placed.length - totalHands);
 
-  const cellPos = (i: number) => {
-    const row = Math.floor(i / COLS);
-    const pos = i % COLS;
-    const col = row % 2 === 0 ? pos : COLS - 1 - pos;
-    return { row, col };
-  };
-
-  const cellW = 100 / COLS;
-  const cellH = 100 / rows;
+  const cw = 100 / COLS;
+  const ch = 100 / ROWS;
 
   return (
-    <div id="domino-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-2xl mx-auto w-full">
+    <div id="domino-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-3xl mx-auto w-full">
 
-      {/* ===== BARRA SUPERIOR: TEMA + TURNO ===== */}
+      {/* Aviso de rotación (optimizado horizontal) */}
+      <div className="hidden portrait:flex w-full mb-2 items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider"
+        style={{ background: T.panel, borderColor: T.border, color: T.sub }}
+      >
+        <RotateCw className="w-3 h-3" style={{ color: T.accent }} />
+        Optimizado para horizontal: gira el dispositivo
+      </div>
+
+      {/* ===== BARRA SUPERIOR: TEMA + INFO ===== */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="w-full mb-3 flex items-center justify-between px-3 py-2 rounded-xl border"
+        className="w-full mb-2.5 flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}
       >
         <div className="flex items-center gap-2">
           <Palette className="w-4 h-4" style={{ color: T.accent }} />
-          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.sub }}>
-            Mesa:
-          </span>
-          {/* SELECTOR DE 3 TEMAS */}
           <div className="flex items-center gap-1.5">
             {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
               <button
                 key={k}
                 onClick={() => changeTheme(k)}
                 title={THEMES[k].label}
-                className="relative flex items-center gap-0.5 px-1.5 py-1 rounded-lg border transition-all"
+                className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg border transition-all"
                 style={{
                   borderColor: themeKey === k ? THEMES[k].accent : T.border,
-                  background: themeKey === k ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  background: themeKey === k ? 'rgba(255,255,255,0.1)' : 'transparent',
                   boxShadow: themeKey === k ? `0 0 10px ${THEMES[k].accent}55` : 'none',
                 }}
               >
@@ -263,23 +342,28 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             ))}
           </div>
         </div>
-        <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider" style={{ color: T.accent }}>
-          {T.label}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase" style={{ color: T.sub }}>
+            <Layers className="w-3.5 h-3.5" />
+            Restantes: <strong style={{ color: T.text }}>{remaining}</strong>
+          </span>
+          <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline" style={{ color: T.accent }}>
+            {T.label}
+          </span>
+        </div>
       </motion.div>
 
-      {/* ===== MARCADOR DE JUGADORES (EQUIPOS) ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full mb-3">
-        {players.map((p: any, i: number) => {
+      {/* ===== OPONENTES (PERÍMETRO SUPERIOR) ===== */}
+      <div className="grid grid-cols-3 gap-2 w-full mb-2.5">
+        {opponents.slice(0, 3).map((p: any, i: number) => {
           const isActive = turnUserId === p.userId && status === 'playing';
-          const handCount = getHand(p.userId).length;
           return (
             <motion.div
               key={p.userId}
               initial={{ y: -15, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.08 }}
-              className="relative p-2.5 rounded-xl border-2 overflow-hidden"
+              className="relative p-2 rounded-xl border-2 overflow-hidden"
               style={{
                 background: T.panel,
                 borderColor: isActive ? T.accent : T.border,
@@ -294,26 +378,19 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                   style={{ background: `linear-gradient(to right, transparent, ${T.accent}, transparent)` }}
                 />
               )}
-              <div className="flex items-center justify-between">
-                <div className="truncate">
-                  <div className="text-[11px] sm:text-xs font-bold truncate max-w-[90px]" style={{ color: T.text }}>
-                    {(p.name || 'JUGADOR').toUpperCase()}
+              <div className="flex items-center justify-between gap-1">
+                <div className="truncate min-w-0">
+                  <div className="text-[10px] sm:text-xs font-bold truncate" style={{ color: T.text }}>
+                    {(p.name || 'RIVAL').toUpperCase()}
                   </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    {p.userId === currentUserId && (
-                      <span className="text-[9px] font-mono font-bold uppercase" style={{ color: T.accent }}>(TÚ)</span>
-                    )}
-                    {p.team !== undefined && (
-                      <span className="text-[9px] font-mono uppercase" style={{ color: T.sub }}>
-                        EQ {String(p.team)}
-                      </span>
-                    )}
-                  </div>
+                  {p.team !== undefined && (
+                    <span className="text-[9px] font-mono uppercase" style={{ color: T.sub }}>EQ {String(p.team)}</span>
+                  )}
                 </div>
-                <div className="flex flex-col items-end">
-                  <Hand className="w-3.5 h-3.5" style={{ color: T.sub }} />
-                  <span className="text-lg font-black font-mono leading-none" style={{ color: T.text }}>
-                    {p.userId === currentUserId ? myHand.length : handCount}
+                <div className="flex items-center gap-1 shrink-0">
+                  <Hand className="w-3 h-3" style={{ color: T.sub }} />
+                  <span className="text-sm font-black font-mono" style={{ color: T.text }}>
+                    {getHand(p.userId).length}
                   </span>
                 </div>
               </div>
@@ -323,7 +400,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
       </div>
 
       {/* ===== TIMER ===== */}
-      <div className="w-full mb-3">
+      <div className="w-full mb-2.5">
         <TurnTimer
           turnExpiresAt={turnExpiresAt}
           durationSeconds={30}
@@ -334,12 +411,12 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         />
       </div>
 
-      {/* ===== MESA DE JUEGO (SERPIENTE) ===== */}
+      {/* ===== MESA CENTRAL CON SERPIENTE ===== */}
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full rounded-2xl p-2.5 sm:p-3.5"
+        className="w-full rounded-2xl p-2 sm:p-3"
         style={{
           background: T.frame,
           boxShadow: '0 20px 50px rgba(0,0,0,0.7), inset 0 2px 3px rgba(255,255,255,0.2), inset 0 -2px 4px rgba(0,0,0,0.5)',
@@ -349,18 +426,19 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           className="relative w-full rounded-xl overflow-hidden"
           style={{
             background: T.felt,
-            aspectRatio: `2.4 / 1`,
-            boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.7)',
+            aspectRatio: '13 / 7',
+            boxShadow: 'inset 0 4px 24px rgba(0,0,0,0.75)',
           }}
         >
-          {/* Marca central de la mesa */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-            <span className="text-3xl sm:text-4xl font-black tracking-widest" style={{ color: T.accent }}>
-              🇻🇪
-            </span>
-          </div>
+          {/* Textura sutil del paño */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, transparent 2px, transparent 4px)',
+            }}
+          />
 
-          {chain.length === 0 ? (
+          {placed.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <motion.span
                 animate={{ opacity: [0.4, 0.9, 0.4] }}
@@ -368,54 +446,62 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                 className="text-xs sm:text-sm font-bold uppercase tracking-widest"
                 style={{ color: T.text }}
               >
-                {isMyTurn ? 'Coloca la primera ficha' : 'Esperando primera ficha...'}
+                {isMyTurn ? 'Coloca la ficha del centro' : 'Esperando la primera ficha...'}
               </motion.span>
             </div>
           ) : (
-            /* ----- FICHAS COLOCADAS EN SERPIENTE ----- */
-            chain.map((tile, t) => {
-              const iA = t * 2;
-              const iB = t * 2 + 1;
-              const a = cellPos(iA);
-              const b = cellPos(iB);
-              const row = a.row;
-              const leftToRight = row % 2 === 0;
-              const minCol = Math.min(a.col, b.col);
-              const [leftVal, rightVal] = leftToRight ? tile.values : [tile.values[1], tile.values[0]];
-              const isLast = t === chain.length - 1;
+            placed.map((tile, t) => {
+              const horizontal = tile.a.r === tile.b.r;
+              const leftCell = horizontal ? (tile.a.c < tile.b.c ? tile.a : tile.b) : null;
+              const topCell = !horizontal ? (tile.a.r < tile.b.r ? tile.a : tile.b) : null;
+              const minC = Math.min(tile.a.c, tile.b.c);
+              const minR = Math.min(tile.a.r, tile.b.r);
+              const isLast = t === placed.length - 1;
+
+              const vLeft = horizontal ? (leftCell === tile.a ? tile.va : tile.vb) : 0;
+              const vRight = horizontal ? (leftCell === tile.a ? tile.vb : tile.va) : 0;
+              const vTop = !horizontal ? (topCell === tile.a ? tile.va : tile.vb) : 0;
+              const vBottom = !horizontal ? (topCell === tile.a ? tile.vb : tile.va) : 0;
 
               return (
                 <motion.div
-                  key={t}
+                  key={tile.key}
                   initial={{ scale: 0.4, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 22 }}
                   className="absolute"
                   style={{
-                    left: `${minCol * cellW}%`,
-                    top: `${row * cellH}%`,
-                    width: `${cellW * 2}%`,
-                    height: `${cellH}%`,
-                    padding: '1.5%',
+                    left: `${minC * cw}%`,
+                    top: `${minR * ch}%`,
+                    width: `${horizontal ? cw * 2 : cw}%`,
+                    height: `${horizontal ? ch : ch * 2}%`,
+                    padding: '0.6%',
+                    zIndex: isLast ? 10 : 1,
                   }}
                 >
                   <div
-                    className="w-full h-full flex rounded-[4px] overflow-hidden"
+                    className={`w-full h-full flex ${horizontal ? 'flex-row' : 'flex-col'} rounded-[4px] overflow-hidden`}
                     style={{
                       background: T.tileFace,
-                      boxShadow: `0 3px 6px rgba(0,0,0,0.55), inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -2px 3px rgba(0,0,0,0.25)${
-                        isLast ? `, 0 0 12px ${T.accent}AA` : ''
-                      }`,
                       border: `1px solid ${T.tileEdge}`,
+                      boxShadow: `0 3px 6px rgba(0,0,0,0.55), inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -2px 3px rgba(0,0,0,0.25)${
+                        isLast ? `, 0 0 14px ${T.accent}BB` : ''
+                      }`,
                     }}
                   >
-                    <div className="w-1/2 h-full">
-                      <HalfPips value={leftVal} theme={T} />
-                    </div>
-                    <div className="w-[2px] h-[70%] self-center" style={{ background: T.divider }} />
-                    <div className="w-1/2 h-full">
-                      <HalfPips value={rightVal} theme={T} />
-                    </div>
+                    {horizontal ? (
+                      <>
+                        <div className="w-1/2 h-full"><HalfPips value={vLeft} theme={T} /></div>
+                        <div className="w-[2px] h-[68%] self-center" style={{ background: T.divider }} />
+                        <div className="w-1/2 h-full"><HalfPips value={vRight} theme={T} /></div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-full h-1/2"><HalfPips value={vTop} theme={T} /></div>
+                        <div className="h-[2px] w-[68%] self-center" style={{ background: T.divider }} />
+                        <div className="w-full h-1/2"><HalfPips value={vBottom} theme={T} /></div>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -424,12 +510,20 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         </div>
       </motion.div>
 
-      {/* ===== MI MANO ===== */}
-      <div className="w-full mt-3">
-        <div className="flex items-center justify-between mb-1.5 px-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.sub }}>
-            Mis fichas ({myHand.length})
-          </span>
+      {/* ===== MI PANEL + MANO ===== */}
+      <div className="w-full mt-2.5">
+        <div
+          className="flex items-center justify-between px-3 py-1.5 rounded-t-xl border border-b-0"
+          style={{ background: T.panel, borderColor: T.border }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] sm:text-xs font-black truncate" style={{ color: T.text }}>
+              {(me?.name || 'TÚ').toUpperCase()}
+            </span>
+            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border" style={{ color: T.accent, borderColor: T.accent }}>
+              TÚ
+            </span>
+          </div>
           {isMyTurn && (
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase animate-pulse" style={{ color: T.accent }}>
               <Zap className="w-3 h-3" /> Tu turno
@@ -437,11 +531,13 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           )}
         </div>
 
-        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
+        <div
+          className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar p-2.5 rounded-b-xl border"
+          style={{ background: T.panel, borderColor: T.border }}
+        >
           {myHand.map((tile, i) => {
             const v = getTileValues(tile);
-            const sides = validSidesFor(tile);
-            const playable = isMyTurn && sides.length > 0;
+            const playable = isMyTurn && validSidesFor(tile).length > 0;
             return (
               <motion.button
                 key={i}
@@ -451,30 +547,23 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                 whileTap={playable ? { scale: 0.92 } : {}}
                 onClick={() => handleHandClick(tile)}
                 disabled={!playable}
-                className="relative shrink-0 w-10 sm:w-12 aspect-[1/2] rounded-md overflow-hidden transition-all"
+                className="relative shrink-0 w-10 sm:w-12 aspect-[1/2] rounded-md overflow-hidden"
                 style={{
                   background: T.tileFace,
                   border: `1.5px solid ${playable ? T.accent : T.tileEdge}`,
-                  boxShadow: playable
-                    ? `0 4px 10px rgba(0,0,0,0.5), 0 0 12px ${T.accent}66`
-                    : '0 3px 6px rgba(0,0,0,0.45)',
+                  boxShadow: playable ? `0 4px 10px rgba(0,0,0,0.5), 0 0 12px ${T.accent}66` : '0 3px 6px rgba(0,0,0,0.45)',
                   opacity: isMyTurn && !playable ? 0.45 : 1,
                   cursor: playable ? 'pointer' : 'not-allowed',
                 }}
               >
-                <div className="w-full h-1/2">
-                  <HalfPips value={v?.[0] ?? 0} theme={T} vertical />
-                </div>
+                <div className="w-full h-1/2"><HalfPips value={v?.[0] ?? 0} theme={T} /></div>
                 <div className="w-[70%] h-[2px] mx-auto" style={{ background: T.divider }} />
-                <div className="w-full h-1/2">
-                  <HalfPips value={v?.[1] ?? 0} theme={T} vertical />
-                </div>
+                <div className="w-full h-1/2"><HalfPips value={v?.[1] ?? 0} theme={T} /></div>
               </motion.button>
             );
           })}
         </div>
 
-        {/* Botón PASAR */}
         <AnimatePresence>
           {mustPass && (
             <motion.button
@@ -495,7 +584,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* ===== MODAL: ELEGIR LADO ===== */}
+      {/* ===== MODAL ELEGIR LADO ===== */}
       <AnimatePresence>
         {pendingTile && (
           <motion.div
@@ -540,7 +629,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ===== BANNER DE VICTORIA ===== */}
+      {/* ===== BANNER VICTORIA ===== */}
       <AnimatePresence>
         {status !== 'playing' && (
           <motion.div
@@ -554,7 +643,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             }}
           >
             <Trophy className="w-5 h-5" />
-            ¡PARTIDA CONCLUIDA! GANADOR: {(players.find((p: any) => p.userId === s.winnerUserId)?.name || s.winnerTeam !== undefined ? `EQUIPO ${s.winnerTeam}` : '—')}
+            ¡PARTIDA CONCLUIDA! GANADOR: {(players.find((p: any) => p.userId === s.winnerUserId)?.name || (s.winnerTeam !== undefined ? `EQUIPO ${s.winnerTeam}` : '—'))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -562,7 +651,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
       {/* ===== PIE ===== */}
       <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
-        <span>🇻🇪 Dominó Venezolano 🇻</span>
+        <span>🇻🇪 Dominó Venezolano 🇻🇪</span>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
     </div>

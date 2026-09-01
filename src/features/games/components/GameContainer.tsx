@@ -2,6 +2,7 @@
 // RASPANDO LA OLLA — CONTENEDOR MAESTRO DE PARTIDA (GAME CONTAINER)
 // ==============================================================================
 // Orquestación en tiempo real de los 8 motores de juego con liquidación 90/10.
+// Integración completa con Supabase para transacciones financieras reales.
 // ==============================================================================
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
@@ -407,7 +408,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, [table, initialPlayers, engine, currentUserId]);
 
-  // ✅ NUEVO: Cleanup automático al desmontar (previene usuarios pegados)
+  // ✅ Cleanup automático al desmontar (previene usuarios pegados)
   useEffect(() => {
     return () => {
       if (session?.id && table.id) {
@@ -751,6 +752,102 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         }
       }
 
+      // ✅ NUEVO: Interceptar BUY_CARDS de Bingo para retener fondos reales en Supabase
+      if (actionType === 'BUY_CARDS' && table.gameType === 'bingo') {
+        const cardCount = Number(actionData.count) || 0;
+        
+        if (cardCount < 1 || cardCount > 20) {
+          setErrorMsg('Cantidad de cartones inválida (1-20)');
+          setTimeout(() => setErrorMsg(null), 3000);
+          return;
+        }
+
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          setErrorMsg('Servicio no disponible');
+          setTimeout(() => setErrorMsg(null), 3000);
+          return;
+        }
+
+        const pricePerCard = Number(table.entryFee) || 10;
+        const variant = String((table.config as any)?.bingoMode || (table as any).bingoMode || '90');
+        
+        setIsSubmittingAction(true);
+
+        try {
+          // 1. Llamar a la función SQL que retiene fondos reales de la billetera
+          const { data, error } = await supabase.rpc('buy_bingo_cards_secure', {
+            p_game_table_id: table.id,
+            p_card_count: cardCount,
+            p_variant: variant,
+            p_price_per_card: pricePerCard,
+            p_cards_data: [] as any,
+          });
+
+          if (error || !data?.success) {
+            const errorMsg = data?.error || error?.message || 'Error al comprar cartones';
+            setErrorMsg(errorMsg);
+            setTimeout(() => setErrorMsg(null), 4000);
+            setIsSubmittingAction(false);
+            return;
+          }
+
+          console.log('[BUY_CARDS_SUCCESS]', {
+            sessionId: session.id,
+            userId: currentUserId,
+            cardCount,
+            totalCost: data.total_cost,
+            balanceAfter: data.balance_after,
+            purchaseId: data.purchase_id,
+          });
+
+          // 2. Ahora procesar con el motor local (solo actualiza contador, no billetera)
+          const payload: GameActionPayload = {
+            sessionId: session.id,
+            userId: currentUserId,
+            actionType: 'BUY_CARDS',
+            actionData: { count: cardCount },
+            clientTimestamp: Date.now(),
+          };
+
+          const result = engine.applyAction(gameState, payload);
+          
+          if (!result.isValid) {
+            setErrorMsg(result.errorMessage || 'Error interno del motor');
+            setTimeout(() => setErrorMsg(null), 3000);
+            setIsSubmittingAction(false);
+            return;
+          }
+
+          // 3. Actualizar estado local
+          const sanitizedNext = engine.getSanitizedStateForPlayer
+            ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
+            : result.newState;
+          setGameState(sanitizedNext);
+
+          // 4. Persistir en Supabase (game_actions y game_sessions)
+          await GameRepository.submitAction(payload);
+          await GameRepository.updateSessionState(
+            session.id,
+            result.newState,
+            null,
+            'ACTIVE',
+            null,
+            30
+          );
+
+          setIsSubmittingAction(false);
+          return; // Salir temprano, ya procesamos todo
+
+        } catch (err: any) {
+          console.error('[BUY_CARDS_ERROR]', err);
+          setErrorMsg('Error al procesar compra de cartones');
+          setTimeout(() => setErrorMsg(null), 3000);
+          setIsSubmittingAction(false);
+          return;
+        }
+      }
+
       const payload: GameActionPayload = {
         sessionId: session.id,
         userId: currentUserId,
@@ -1033,7 +1130,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       {/* Barra de Navegación de la Mesa */}
       <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-          {/* ✅ MODIFICADO: Botón "Volver" ahora confirma antes de salir si hay partida activa */}
           <button
             onClick={() => {
               if (gameState && !isSettledRef.current) {
@@ -1082,7 +1178,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             </div>
           )}
 
-          {/* Botón de Pantalla Completa Nativa */}
           <button
             id="fullscreen-toggle-btn"
             onClick={toggleNativeFullscreen}
@@ -1096,7 +1191,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             )}
           </button>
 
-          {/* Botón Alternar Modo Inmersivo */}
           <button
             id="immersive-toggle-btn"
             onClick={() => setIsImmersiveMode(!isImmersiveMode)}

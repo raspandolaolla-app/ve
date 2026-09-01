@@ -179,13 +179,21 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId, refreshKey]);
 
-  // ✅ CORREGIDO: Type annotation explícita en la función del useMemo
+  // ✅ CORREGIDO: Bucle for...in con Number() (siempre devuelve number, nunca unknown)
   const totalCardsInTable = useMemo((): number => {
+    let total = 0;
     if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
-      return Object.values(s.cardsPurchased).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
+      for (const key of Object.keys(s.cardsPurchased)) {
+        total += Number(s.cardsPurchased[key]) || 0;
+      }
+      return total;
     }
     if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards)) {
-      return Object.values(s.cards).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+      for (const key of Object.keys(s.cards)) {
+        const arr = s.cards[key];
+        total += Array.isArray(arr) ? arr.length : 0;
+      }
+      return total;
     }
     return 0;
   }, [s, refreshKey]);
@@ -603,7 +611,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
-        <span>🇻🇪 Bingo Criollo 🇻🇪</span>
+        <span>🇻🇪 Bingo Criollo 🇻</span>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
     </div>

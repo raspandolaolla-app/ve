@@ -93,9 +93,16 @@ class NotificationService {
       const notification = new Notification(options.title, notificationOptions);
 
       // Vibración adicional para móviles
-      if ('vibrate' in navigator && options.vibrate) {
-        navigator.vibrate(options.vibrate);
-      }
+      const notificationOptions: NotificationOptions = {
+      body: options.body,
+      icon: options.icon || defaultIcon,
+      badge: options.badge || defaultBadge,
+      tag: options.tag || type,
+      data: options.data,
+      requireInteraction: options.requireInteraction || false,
+      silent: options.silent || false,
+      vibrate: options.vibrate || [200, 100, 200]  // ❌ ESTA LÍNEA FALLA
+    };
 
       // Reproducir sonido según tipo
       this.playNotificationSound(type);

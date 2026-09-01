@@ -179,8 +179,8 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId, refreshKey]);
 
-  // ✅ CORREGIDO: Type annotation explícita para evitar 'unknown'
-  const totalCardsInTable: number = useMemo(() => {
+  // ✅ CORREGIDO: Type annotation explícita en la función del useMemo
+  const totalCardsInTable = useMemo((): number => {
     if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
       return Object.values(s.cardsPurchased).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
     }

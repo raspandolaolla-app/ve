@@ -9,6 +9,7 @@ import { runPhase25_2Validation } from './phase25_2_surgical_contracts_validatio
 import { runPhase26ValidationSuite } from './phase26_amount_limits_and_bcv_validation';
 import { runRngSecurityValidationSuite } from './phase27_rng_security_validation';
 import { runWalletRealtimeLifecycleValidation } from './wallet_realtime_lifecycle_validation';
+import { run8GamesTransversalAudit } from './phase28_8_games_transversal_audit';
 
 async function main() {
   console.log('======================================================================');
@@ -16,7 +17,12 @@ async function main() {
   console.log('======================================================================\n');
 
   try {
-    console.log('▶️ EJECUTANDO: Validación de Ciclo de Vida Realtime en Billetera');
+    console.log('▶️ EJECUTANDO: Fase 28 — Auditoría Transversal de los 8 Juegos y Aislamiento de Mesa');
+    const res28 = run8GamesTransversalAudit();
+    console.log(`  Resultado: ${res28.allPassed ? '✓ EXCELENTE' : '✗ HUBO FALLOS'}`);
+    console.log(`  Tests Pasados: ${res28.results.filter((r) => r.initialized && r.activeWithoutMoves && r.validMoveExecuted && r.invalidMoveRejected && r.stateGuardPass).length}/${res28.results.length}`);
+
+    console.log('\n▶️ EJECUTANDO: Validación de Ciclo de Vida Realtime en Billetera');
     const resRealtime = runWalletRealtimeLifecycleValidation();
     console.log(`  Resultado: ${resRealtime.failed === 0 ? '✓ EXCELENTE' : '✗ HUBO FALLOS'}`);
     console.log(`  Tests Pasados: ${resRealtime.passed}/${resRealtime.total}`);

@@ -80,8 +80,7 @@ class NotificationService {
       tag: options.tag || type,
       data: options.data,
       requireInteraction: options.requireInteraction || false,
-      silent: options.silent || false,
-      vibrate: options.vibrate || [200, 100, 200]
+      silent: options.silent || false
     };
 
     if (!this.permissionGranted) {
@@ -93,16 +92,9 @@ class NotificationService {
       const notification = new Notification(options.title, notificationOptions);
 
       // Vibración adicional para móviles
-      const notificationOptions: NotificationOptions = {
-      body: options.body,
-      icon: options.icon || defaultIcon,
-      badge: options.badge || defaultBadge,
-      tag: options.tag || type,
-      data: options.data,
-      requireInteraction: options.requireInteraction || false,
-      silent: options.silent || false,
-      vibrate: options.vibrate || [200, 100, 200]  // ❌ ESTA LÍNEA FALLA
-    };
+      if ('vibrate' in navigator && options.vibrate) {
+        navigator.vibrate(options.vibrate);
+      }
 
       // Reproducir sonido según tipo
       this.playNotificationSound(type);
@@ -151,7 +143,6 @@ class NotificationService {
   }
 
   private handleNotificationClick(type: NotificationType, data?: any): void {
-    // Navegar a la vista correspondiente según el tipo de notificación
     const navigationMap: Record<NotificationType, string> = {
       game_invitation: 'tables',
       match_ready: 'tables',
@@ -167,7 +158,6 @@ class NotificationService {
 
     const targetTab = navigationMap[type] || 'home';
     
-    // Dispatch custom event para que la app navegue
     window.dispatchEvent(new CustomEvent('notification-click', {
       detail: { type, targetTab, data }
     }));
@@ -212,7 +202,7 @@ class NotificationService {
     await this.send('your_turn', {
       title: '🎯 ¡Es tu Turno!',
       body: `Es tu turno en ${gameName}`,
-      silent: true // No vibrar para no molestar
+      silent: true
     });
   }
 

@@ -1,15 +1,15 @@
 // ==============================================================================
 // RASPANDO LA OLLA — TABLERO DE JUEGO: DOMINÓ VENEZOLANO
 // ==============================================================================
-// • SERPIENTE que nace en el CENTRO de la mesa y crece con giros de 90°
-// • Optimizado para vista horizontal (aviso de rotación en vertical)
-// • 3 TEMAS seleccionables en partida: Paño Verde Pro / Caoba Criolla / Tricolor
-// • Diseño 3D inmersivo, compatible 100% con Supabase y GameContainer
+// • SERPIENTE que nace en el CENTRO de la mesa con giros de 90°
+// • Barra de acciones: PASAR TURNO + ROBAR DEL MASO (siempre visibles en turno)
+// • 3 TEMAS seleccionables en partida
+// • Compatible 100% con Supabase y GameContainer
 // ==============================================================================
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Palette, Trophy, Hand, ArrowLeftRight, Zap, RotateCw, Layers } from 'lucide-react';
+import { Palette, Trophy, Hand, ArrowLeftRight, Zap, RotateCw, Layers, SkipForward, Download } from 'lucide-react';
 import { TurnTimer } from './TurnTimer';
 import { GameRepository } from '../../../services/repositories/GameRepository';
 
@@ -20,10 +20,11 @@ interface DominoBoardProps {
   sessionId?: string;
   onPlayTile: (tile: any, side: any) => void;
   onPassTurn: () => void;
+  onDrawTile?: () => void; // Opcional: solo si el motor soporta ROBAR (DRAW_TILE)
 }
 
 // ==============================================================================
-// SISTEMA DE TEMAS (3 DISEÑOS SELECCIONABLES EN PARTIDA)
+// SISTEMA DE TEMAS (3 DISEÑOS SELECCIONABLES)
 // ==============================================================================
 type ThemeKey = 'verde' | 'caoba' | 'tricolor';
 
@@ -117,7 +118,7 @@ const HalfPips: React.FC<{ value: number; theme: any }> = ({ value, theme }) => 
 );
 
 // ==============================================================================
-// GEOMETRÍA DE LA SERPIENTE CENTRAL (13 x 7 medias celdas)
+// GEOMETRÍA DE LA SERPIENTE CENTRAL (13 x 7)
 // ==============================================================================
 const COLS = 13;
 const ROWS = 7;
@@ -171,6 +172,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   sessionId,
   onPlayTile,
   onPassTurn,
+  onDrawTile,
 }) => {
   const s: any = state || {};
 
@@ -206,12 +208,24 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   };
   const myHand: any[] = getHand(currentUserId);
 
+  // ----- Detección del MASO (boneyard) -----
+  const boneyardCount = useMemo((): number => {
+    if (typeof s.boneyardCount === 'number') return s.boneyardCount;
+    if (typeof s.remainingTiles === 'number') return s.remainingTiles;
+    if (typeof s.maso === 'number') return s.maso;
+    if (Array.isArray(s.boneyard)) return s.boneyard.length;
+    if (Array.isArray(s.maso)) return s.maso.length;
+    if (Array.isArray(s.drawPile)) return s.drawPile.length;
+    if (Array.isArray(s.pool)) return s.pool.length;
+    return 0;
+  }, [s]);
+
   const rawPlayed: any[] = Array.isArray(s.board) ? s.board
     : Array.isArray(s.chain) ? s.chain
     : Array.isArray(s.placedTiles) ? s.placedTiles
     : [];
 
-  // ----- Construcción de la serpiente desde el centro -----
+  // ----- Serpiente desde el centro -----
   const layout = useMemo(() => {
     const placed: { a: Cell; va: number; b: Cell; vb: number; key: number }[] = [];
     let leftEnd: number | null = null;
@@ -222,7 +236,6 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
       const vals = getTileValues(raw?.tile) || getTileValues(raw);
       if (!vals) return;
 
-      // Primera ficha: centro de la mesa
       if (placed.length === 0) {
         placed.push({
           a: { r: MIDR, c: MIDC }, va: vals[0],
@@ -234,7 +247,6 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         return;
       }
 
-      // Determinar lado (por dato del motor o inferencia por extremos)
       let side = getRawSide(raw);
       if (!side) {
         const fitsR = vals.includes(rightEnd as number);
@@ -268,7 +280,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 
   const { placed, leftEnd, rightEnd } = layout;
 
-  // ----- Jugabilidad de mi mano -----
+  // ----- Jugabilidad -----
   const validSidesFor = (tile: any): ('left' | 'right')[] => {
     const v = getTileValues(tile);
     if (!v) return [];
@@ -279,8 +291,10 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     return sides;
   };
 
-  const playableTiles = isMyTurn ? myHand.filter((t) => validSidesFor(t).length > 0) : [];
-  const mustPass = isMyTurn && myHand.length > 0 && playableTiles.length === 0;
+  const playableCount = isMyTurn ? myHand.filter((t) => validSidesFor(t).length > 0).length : 0;
+  const hasNoMove = isMyTurn && playableCount === 0;
+  const canDraw = hasNoMove && boneyardCount > 0;
+  const mustPass = hasNoMove && boneyardCount === 0;
 
   const [pendingTile, setPendingTile] = useState<any>(null);
   const handleHandClick = (tile: any) => {
@@ -291,13 +305,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     else setPendingTile(tile);
   };
 
+  // ROBAR del maso (o pasar si el motor no soporta robar)
+  const handleDraw = () => {
+    if (onDrawTile) onDrawTile();
+    else onPassTurn();
+  };
+
   const handleTimeout = () => {
     if (isMyTurn && sessionId) GameRepository.expireTurn(sessionId);
   };
-
-  // ----- Fichas restantes (boneyard visual) -----
-  const totalHands = players.reduce((acc, p) => acc + getHand(p.userId).length, 0);
-  const remaining = Math.max(0, 28 - placed.length - totalHands);
 
   const cw = 100 / COLS;
   const ch = 100 / ROWS;
@@ -305,7 +321,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   return (
     <div id="domino-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-3xl mx-auto w-full">
 
-      {/* Aviso de rotación (optimizado horizontal) */}
+      {/* Aviso de rotación */}
       <div className="hidden portrait:flex w-full mb-2 items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider"
         style={{ background: T.panel, borderColor: T.border, color: T.sub }}
       >
@@ -313,7 +329,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         Optimizado para horizontal: gira el dispositivo
       </div>
 
-      {/* ===== BARRA SUPERIOR: TEMA + INFO ===== */}
+      {/* ===== BARRA SUPERIOR: TEMA + MASO ===== */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -342,18 +358,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        {boneyardCount > 0 && (
           <span className="flex items-center gap-1 text-[10px] font-bold uppercase" style={{ color: T.sub }}>
             <Layers className="w-3.5 h-3.5" />
-            Restantes: <strong style={{ color: T.text }}>{remaining}</strong>
+            Maso: <strong style={{ color: T.text }}>{boneyardCount}</strong>
           </span>
-          <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline" style={{ color: T.accent }}>
-            {T.label}
-          </span>
-        </div>
+        )}
       </motion.div>
 
-      {/* ===== OPONENTES (PERÍMETRO SUPERIOR) ===== */}
+      {/* ===== OPONENTES ===== */}
       <div className="grid grid-cols-3 gap-2 w-full mb-2.5">
         {opponents.slice(0, 3).map((p: any, i: number) => {
           const isActive = turnUserId === p.userId && status === 'playing';
@@ -411,7 +424,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         />
       </div>
 
-      {/* ===== MESA CENTRAL CON SERPIENTE ===== */}
+      {/* ===== MESA CENTRAL (SERPIENTE) ===== */}
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -430,7 +443,6 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             boxShadow: 'inset 0 4px 24px rgba(0,0,0,0.75)',
           }}
         >
-          {/* Textura sutil del paño */}
           <div
             className="absolute inset-0 pointer-events-none opacity-40"
             style={{
@@ -510,6 +522,70 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         </div>
       </motion.div>
 
+      {/* ================================================================== */}
+      {/* BARRA DE ACCIONES: PASAR TURNO + ROBAR DEL MASO (SIEMPRE VISIBLE)  */}
+      {/* ================================================================== */}
+      <AnimatePresence>
+        {isMyTurn && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            className="w-full mt-2.5 grid grid-cols-2 gap-2"
+          >
+            {/* BOTÓN ROBAR DEL MASO */}
+            <button
+              id="domino-draw-btn"
+              onClick={handleDraw}
+              disabled={!canDraw}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase tracking-wider text-xs sm:text-sm border-2 transition-all ${
+                canDraw ? 'animate-pulse' : 'opacity-40 cursor-not-allowed'
+              }`}
+              style={{
+                background: canDraw ? `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)` : 'transparent',
+                color: canDraw ? '#1A120C' : T.sub,
+                borderColor: canDraw ? T.accent : T.border,
+                boxShadow: canDraw ? `0 6px 18px ${T.accent}55` : 'none',
+              }}
+            >
+              <Download className="w-4 h-4" />
+              Robar del Maso
+            </button>
+
+            {/* BOTÓN PASAR TURNO */}
+            <button
+              id="domino-pass-btn"
+              onClick={onPassTurn}
+              disabled={!hasNoMove}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase tracking-wider text-xs sm:text-sm border-2 transition-all ${
+                mustPass ? 'animate-pulse' : 'opacity-40 cursor-not-allowed'
+              }`}
+              style={{
+                background: mustPass ? `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)` : 'transparent',
+                color: mustPass ? '#1A120C' : T.sub,
+                borderColor: mustPass ? T.accent : T.border,
+                boxShadow: mustPass ? `0 6px 18px ${T.accent}55` : 'none',
+              }}
+            >
+              <SkipForward className="w-4 h-4" />
+              Pasar Turno
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mensaje de estado de la barra */}
+      {isMyTurn && !hasNoMove && (
+        <div className="w-full mt-1.5 text-center text-[10px] font-bold uppercase tracking-wider" style={{ color: T.sub }}>
+          Tienes {playableCount} jugada{playableCount !== 1 ? 's' : ''} disponible{playableCount !== 1 ? 's' : ''} — toca una ficha brillante
+        </div>
+      )}
+      {isMyTurn && hasNoMove && (
+        <div className="w-full mt-1.5 text-center text-[10px] font-bold uppercase tracking-wider animate-pulse" style={{ color: T.accent }}>
+          {canDraw ? 'Sin jugada: roba del maso' : 'Sin jugada: pasa el turno'}
+        </div>
+      )}
+
       {/* ===== MI PANEL + MANO ===== */}
       <div className="w-full mt-2.5">
         <div
@@ -524,11 +600,9 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
               TÚ
             </span>
           </div>
-          {isMyTurn && (
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase animate-pulse" style={{ color: T.accent }}>
-              <Zap className="w-3 h-3" /> Tu turno
-            </span>
-          )}
+          <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: T.sub }}>
+            <Hand className="w-3 h-3" /> {myHand.length} fichas
+          </span>
         </div>
 
         <div
@@ -563,25 +637,6 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             );
           })}
         </div>
-
-        <AnimatePresence>
-          {mustPass && (
-            <motion.button
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              onClick={onPassTurn}
-              className="mt-2 w-full py-3 rounded-xl font-black uppercase tracking-wider text-sm"
-              style={{
-                background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
-                color: '#1A120C',
-                boxShadow: `0 6px 18px ${T.accent}55`,
-              }}
-            >
-              Sin jugada — PASAR TURNO
-            </motion.button>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* ===== MODAL ELEGIR LADO ===== */}

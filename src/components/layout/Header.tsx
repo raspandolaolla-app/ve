@@ -56,7 +56,9 @@ export function Header({
   useEffect(() => {
     try {
       setUnreadCount(notificationService.getUnreadCount());
-    } catch (e) {}
+    } catch (e) {
+      // Servicio aún no disponible
+    }
   }, []);
 
   const safePlaySound = (sound: string) => {

@@ -1,9 +1,12 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MODAL DE PARTIDA RÁPIDA (UNIRSE A MESA ACTIVA)
+// RASPANDO LA OLLA — MODAL DE PARTIDA RÁPIDA (FLUJO 3 PASOS)
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { X, Zap, Users, DollarSign, Loader2, ArrowRight, Trophy, Clock } from 'lucide-react';
+import {
+  X, Zap, Users, DollarSign, ArrowLeft, Loader2,
+  Clock, Trophy, Sparkles, ChevronRight
+} from 'lucide-react';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useAudio } from '../../hooks/useAudio';
@@ -11,7 +14,7 @@ import { useAudio } from '../../hooks/useAudio';
 interface QuickMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigateToTable: (tableId: string) => void;
+  onNavigateToTable?: (tableId: string) => void;
 }
 
 interface AvailableTable {
@@ -21,22 +24,36 @@ interface AvailableTable {
   max_players: number;
   current_players: number;
   is_private: boolean;
-  host_name?: string;
   created_at: string;
 }
 
-const GAME_DISPLAY_NAMES: Record<string, { name: string; emoji: string }> = {
-  'domino_venezolano': { name: 'Dominó', emoji: '🁣' },
-  'truco_venezolano': { name: 'Truco', emoji: '🃏' },
-  'bingo': { name: 'Bingo', emoji: '🎱' },
-  'atrapaito': { name: 'Atrapaíto', emoji: '🎲' },
-  'una_olla': { name: 'Una-Olla', emoji: '🃏' },
-  'chess': { name: 'Ajedrez', emoji: '♟️' },
-  'checkers': { name: 'Damas', emoji: '♟️' },
-  'tic_tac_toe': { name: 'La Vieja', emoji: '❌' },
-  'rock_paper_scissors': { name: 'Piedra Papel Tijera', emoji: '✊' },
-  'polla_venezolana': { name: 'Polla', emoji: '🐾' },
-};
+type Step = 'SELECT_GAME' | 'SELECT_AMOUNT' | 'SELECT_TABLE';
+
+// Catálogo completo de 10 juegos
+const GAMES_CATALOG = [
+  { id: 'tic_tac_toe', name: 'La Vieja', emoji: '❌⭕', shortName: '3 en Raya' },
+  { id: 'rock_paper_scissors', name: 'Piedra Papel Tijera', emoji: '✊', shortName: 'PPT' },
+  { id: 'checkers', name: 'Damas', emoji: '♟️', shortName: 'Damas' },
+  { id: 'domino_venezolano', name: 'Dominó Venezolano', emoji: '🁣', shortName: 'Dominó' },
+  { id: 'truco_venezolano', name: 'Truco', emoji: '🃏', shortName: 'Truco' },
+  { id: 'bingo', name: 'Bingo', emoji: '🎱', shortName: 'Bingo' },
+  { id: 'polla_venezolana', name: 'Polla Venezolana', emoji: '🐾', shortName: 'Polla' },
+  { id: 'atrapaito', name: 'Atrapaíto', emoji: '🎲', shortName: 'Parchís' },
+  { id: 'una_olla', name: 'Una-Olla', emoji: '🃏', shortName: 'Cartas' },
+  { id: 'chess', name: 'Ajedrez', emoji: '♚', shortName: 'Ajedrez' },
+];
+
+// Montos de entrada disponibles
+const ENTRY_AMOUNTS = [
+  { value: 0, label: 'GRATIS', color: 'emerald' },
+  { value: 50, label: '50 Bs', color: 'cyan' },
+  { value: 100, label: '100 Bs', color: 'blue' },
+  { value: 250, label: '250 Bs', color: 'indigo' },
+  { value: 500, label: '500 Bs', color: 'purple' },
+  { value: 1000, label: '1.000 Bs', color: 'pink' },
+  { value: 2500, label: '2.500 Bs', color: 'rose' },
+  { value: 5000, label: '5.000 Bs', color: 'red' },
+];
 
 export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
   isOpen,
@@ -45,25 +62,39 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { playSound } = useAudio();
+  const [currentStep, setCurrentStep] = useState<Step>('SELECT_GAME');
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [tables, setTables] = useState<AvailableTable[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [joining, setJoining] = useState<string | null>(null);
+  const [loadingTables, setLoadingTables] = useState(false);
+  const [joiningTableId, setJoiningTableId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('ALL');
 
+  // Reset al abrir/cerrar
   useEffect(() => {
     if (isOpen) {
-      fetchAvailableTables();
+      setCurrentStep('SELECT_GAME');
+      setSelectedGame(null);
+      setSelectedAmount(null);
+      setTables([]);
+      setError(null);
     }
   }, [isOpen]);
 
-  const fetchAvailableTables = async () => {
-    setLoading(true);
+  // Cargar mesas filtradas cuando se elige juego + monto
+  useEffect(() => {
+    if (currentStep === 'SELECT_TABLE' && selectedGame && selectedAmount !== null) {
+      fetchFilteredTables();
+    }
+  }, [currentStep, selectedGame, selectedAmount]);
+
+  const fetchFilteredTables = async () => {
+    setLoadingTables(true);
     setError(null);
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setError('No hay conexión con el servidor');
-      setLoading(false);
+      setError('Sin conexión con el servidor');
+      setLoadingTables(false);
       return;
     }
 
@@ -81,12 +112,14 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
         `)
         .eq('status', 'WAITING')
         .eq('is_private', false)
+        .eq('game_type', selectedGame)
+        .eq('entry_fee_bs', selectedAmount)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(30);
 
       if (fetchError) throw fetchError;
 
-      const tablesWithCount = (data || []).map((t: any) => ({
+      const mapped = (data || []).map((t: any) => ({
         id: t.id,
         game_type: t.game_type,
         entry_fee_bs: Number(t.entry_fee_bs || 0),
@@ -96,12 +129,12 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
         created_at: t.created_at,
       }));
 
-      setTables(tablesWithCount);
+      setTables(mapped);
     } catch (err: any) {
-      console.error('[QuickMatch] Error:', err);
-      setError('No se pudieron cargar las mesas');
+      console.error('[QuickMatch] Error cargando mesas:', err);
+      setError('No se pudieron cargar las mesas. Intenta de nuevo.');
     } finally {
-      setLoading(false);
+      setLoadingTables(false);
     }
   };
 
@@ -110,23 +143,19 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
       setError('Debes iniciar sesión para unirte');
       return;
     }
-
-    setJoining(tableId);
+    setJoiningTableId(tableId);
     setError(null);
-
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setError('No hay conexión');
-      setJoining(null);
+      setError('Sin conexión');
+      setJoiningTableId(null);
       return;
     }
-
     try {
       const { error: joinError } = await supabase.rpc('join_table_transaction', {
         p_table_id: tableId,
         p_user_id: user.id,
       });
-
       if (joinError) {
         if (joinError.message?.includes('duplicate') || joinError.message?.includes('ya')) {
           setError('Ya estás en esta mesa');
@@ -135,50 +164,75 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
         } else {
           setError('No se pudo unir: ' + joinError.message);
         }
-        setJoining(null);
+        setJoiningTableId(null);
         return;
       }
-
       try { playSound('match'); } catch {}
-      onNavigateToTable(tableId);
+      if (onNavigateToTable) {
+        onNavigateToTable(tableId);
+      }
       onClose();
+      // Forzar navegación a la vista de mesas vía evento personalizado
+      window.location.hash = '';
+      setTimeout(() => {
+        const evt = new CustomEvent('quick-match-joined', { detail: { tableId } });
+        window.dispatchEvent(evt);
+      }, 200);
     } catch (err: any) {
       setError('Error al unirse: ' + (err?.message || String(err)));
-      setJoining(null);
+      setJoiningTableId(null);
     }
   };
 
-  const filteredTables = filter === 'ALL'
-    ? tables
-    : tables.filter(t => t.game_type === filter);
-
-  const gameTypes = Array.from(new Set(tables.map(t => t.game_type)));
+  const handleBack = () => {
+    setError(null);
+    if (currentStep === 'SELECT_AMOUNT') {
+      setCurrentStep('SELECT_GAME');
+      setSelectedGame(null);
+    } else if (currentStep === 'SELECT_TABLE') {
+      setCurrentStep('SELECT_AMOUNT');
+      setTables([]);
+    }
+  };
 
   if (!isOpen) return null;
 
+  const selectedGameInfo = GAMES_CATALOG.find(g => g.id === selectedGame);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-[#080B12]/90 backdrop-blur-md"
+        className="fixed inset-0 bg-[#080B12]/95 backdrop-blur-md"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-gradient-to-br from-[#111722] to-[#080B12] border border-[#FF8A00]/30 rounded-3xl shadow-2xl shadow-[#FF8A00]/20 overflow-hidden max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[#FF8A00]/20 via-[#F5B942]/20 to-[#FF8A00]/20 border-b border-[#FF8A00]/30 px-5 py-4 flex items-center justify-between">
+      {/* Modal Container */}
+      <div className="relative w-full max-w-2xl bg-gradient-to-br from-[#111722] to-[#080B12] border border-[#FF8A00]/30 rounded-3xl shadow-2xl shadow-[#FF8A00]/20 overflow-hidden max-h-[92vh] flex flex-col">
+        
+        {/* HEADER FIJO */}
+        <div className="bg-gradient-to-r from-[#FF8A00]/20 via-[#F5B942]/20 to-[#FF8A00]/20 border-b border-[#FF8A00]/30 px-5 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-2xl shadow-lg shadow-[#FF8A00]/30 animate-pulse-glow">
+            {currentStep !== 'SELECT_GAME' && (
+              <button
+                onClick={handleBack}
+                className="p-2 rounded-xl hover:bg-[#1E2938] text-[#94A3B8] hover:text-[#F8FAFC] transition"
+                title="Volver"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-2xl shadow-lg shadow-[#FF8A00]/30">
               ⚡
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-[#F8FAFC] tracking-tight flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-black text-[#F8FAFC] tracking-tight flex items-center gap-2">
                 PARTIDA RÁPIDA
-                <Zap className="w-5 h-5 text-[#F5B942]" />
               </h2>
-              <p className="text-xs text-[#94A3B8] font-semibold">
-                Únete a una mesa activa y juega ya
+              <p className="text-[11px] text-[#94A3B8] font-semibold uppercase tracking-wider">
+                {currentStep === 'SELECT_GAME' && 'Paso 1 · Elige tu juego'}
+                {currentStep === 'SELECT_AMOUNT' && `Paso 2 · Monto para ${selectedGameInfo?.shortName || ''}`}
+                {currentStep === 'SELECT_TABLE' && 'Paso 3 · Mesas disponibles'}
               </p>
             </div>
           </div>
@@ -190,183 +244,242 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           </button>
         </div>
 
-        {/* Filtros */}
-        {tables.length > 0 && (
-          <div className="px-5 py-3 border-b border-[#1E2938] flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setFilter('ALL')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition ${
-                filter === 'ALL'
-                  ? 'bg-[#FF8A00] text-[#080B12] shadow-md'
-                  : 'bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC]'
-              }`}
-            >
-              TODOS ({tables.length})
-            </button>
-            {gameTypes.map(type => {
-              const game = GAME_DISPLAY_NAMES[type] || { name: type, emoji: '🎮' };
-              const count = tables.filter(t => t.game_type === type).length;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setFilter(type)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
-                    filter === type
-                      ? 'bg-[#FF8A00] text-[#080B12] shadow-md'
-                      : 'bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC]'
-                  }`}
-                >
-                  <span>{game.emoji}</span>
-                  <span>{game.name} ({count})</span>
-                </button>
-              );
-            })}
+        {/* PROGRESS BAR */}
+        <div className="px-5 py-2 bg-[#080B12]/60 border-b border-[#1E2938] shrink-0">
+          <div className="flex items-center gap-2">
+            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_GAME' || currentStep === 'SELECT_AMOUNT' || currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_AMOUNT' || currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
           </div>
-        )}
-
-        {/* Contenido */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-12 h-12 text-[#FF8A00] animate-spin mb-4" />
-              <p className="text-[#F8FAFC] font-bold text-lg">Buscando mesas...</p>
-              <p className="text-[#94A3B8] text-sm mt-1">Preparando tu partida</p>
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-red-300 text-center">
-              <p className="font-bold text-lg mb-1">⚠️ Error</p>
-              <p className="text-sm">{error}</p>
-              <button
-                onClick={fetchAvailableTables}
-                className="mt-3 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-xl text-sm font-bold transition"
-              >
-                Reintentar
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && filteredTables.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-20 h-20 rounded-full bg-[#171E2A] flex items-center justify-center text-4xl mb-4">
-                🎮
-              </div>
-              <p className="text-[#F8FAFC] font-bold text-lg mb-2">
-                No hay mesas disponibles ahora
-              </p>
-              <p className="text-[#94A3B8] text-sm max-w-xs">
-                Crea tu propia mesa o espera a que otros jugadores inicien una partida
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-4 px-6 py-3 bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] font-black rounded-xl hover:brightness-110 transition shadow-lg shadow-[#FF8A00]/30"
-              >
-                Crear Mesa Nueva
-              </button>
-            </div>
-          )}
-
-          {!loading && filteredTables.map((table) => {
-            const game = GAME_DISPLAY_NAMES[table.game_type] || { name: table.game_type, emoji: '🎮' };
-            const availableSeats = table.max_players - table.current_players;
-            const isJoining = joining === table.id;
-            const isFull = availableSeats <= 0;
-
-            return (
-              <div
-                key={table.id}
-                className="bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 rounded-2xl p-4 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  {/* Emoji del juego */}
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-[#FF8A00]/20 to-[#F5B942]/20 border border-[#FF8A00]/30 flex items-center justify-center text-4xl sm:text-5xl shrink-0 group-hover:scale-110 transition">
-                    {game.emoji}
-                  </div>
-
-                  {/* Info del juego */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl sm:text-2xl font-black text-[#F8FAFC] mb-1">
-                      {game.name}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="flex items-center gap-1 text-[#94A3B8]">
-                        <Users className="w-3.5 h-3.5 text-[#22C55E]" />
-                        <span className="font-bold text-lg text-[#22C55E]">{table.current_players}</span>
-                        <span>/</span>
-                        <span className="font-bold text-lg">{table.max_players}</span>
-                      </span>
-                      <span className="flex items-center gap-1 text-[#F5B942]">
-                        <DollarSign className="w-3.5 h-3.5" />
-                        <span className="font-black text-lg">
-                          {table.entry_fee_bs === 0 ? 'GRATIS' : `${table.entry_fee_bs} Bs`}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-1 text-[#94A3B8]">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span className="text-[10px]">
-                          {new Date(table.created_at).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Botón Unirse */}
-                  <button
-                    onClick={() => !isFull && handleJoinTable(table.id)}
-                    disabled={isFull || isJoining}
-                    className={`shrink-0 px-5 py-3 sm:px-6 sm:py-4 rounded-2xl font-black text-base sm:text-lg transition-all flex items-center gap-2 ${
-                      isFull || isJoining
-                        ? 'bg-[#1E2938] text-[#64748B] cursor-not-allowed'
-                        : 'bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] hover:brightness-110 shadow-lg shadow-[#FF8A00]/30 hover:scale-105 active:scale-95'
-                    }`}
-                  >
-                    {isJoining ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : isFull ? (
-                      <>
-                        <X className="w-5 h-5" />
-                        <span>LLENA</span>
-                      </>
-                    ) : (
-                      <>
-                        <ArrowRight className="w-5 h-5" />
-                        <span>UNIRSE</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Barra de ocupación */}
-                <div className="mt-3">
-                  <div className="h-2 bg-[#080B12] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#22C55E] to-[#10B981] transition-all duration-500"
-                      style={{ width: `${(table.current_players / table.max_players) * 100}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-[#94A3B8] mt-1 font-semibold">
-                    {availableSeats > 0
-                      ? `✨ ${availableSeats} ${availableSeats === 1 ? 'puesto disponible' : 'puestos disponibles'}`
-                      : '❌ Mesa llena'}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-[#1E2938] bg-[#080B12]/60 px-5 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
-            <Trophy className="w-3.5 h-3.5 text-[#F5B942]" />
-            <span>90% ganador · 10% plataforma</span>
+        {/* CONTENIDO DINÁMICO */}
+        <div className="flex-1 overflow-y-auto p-5">
+          
+          {/* ========== PASO 1: ELEGIR JUEGO ========== */}
+          {currentStep === 'SELECT_GAME' && (
+            <div className="space-y-3">
+              <p className="text-sm text-[#94A3B8] text-center mb-4">
+                Selecciona el juego que quieres jugar
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {GAMES_CATALOG.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => {
+                      setSelectedGame(game.id);
+                      setCurrentStep('SELECT_AMOUNT');
+                    }}
+                    className="group relative bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 rounded-2xl p-4 transition-all active:scale-95 text-left"
+                  >
+                    <div className="text-5xl mb-2 group-hover:scale-110 transition-transform">
+                      {game.emoji}
+                    </div>
+                    <h3 className="text-sm font-black text-[#F8FAFC] leading-tight">
+                      {game.name}
+                    </h3>
+                    <p className="text-[10px] text-[#94A3B8] mt-0.5">
+                      {game.shortName}
+                    </p>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ChevronRight className="w-4 h-4 text-[#FF8A00]" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ========== PASO 2: ELEGIR MONTO ========== */}
+          {currentStep === 'SELECT_AMOUNT' && selectedGame && (
+            <div className="space-y-4">
+              <div className="bg-[#171E2A] border border-[#FF8A00]/30 rounded-2xl p-4 flex items-center gap-3">
+                <div className="text-4xl">{selectedGameInfo?.emoji}</div>
+                <div>
+                  <p className="text-xs text-[#94A3B8] uppercase tracking-wider">Juego seleccionado</p>
+                  <p className="text-lg font-black text-[#F8FAFC]">{selectedGameInfo?.name}</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-[#94A3B8] text-center">
+                ¿Con cuánto quieres entrar?
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {ENTRY_AMOUNTS.map((amount) => (
+                  <button
+                    key={amount.value}
+                    onClick={() => {
+                      setSelectedAmount(amount.value);
+                      setCurrentStep('SELECT_TABLE');
+                    }}
+                    className="group relative bg-[#171E2A] hover:bg-[#1E2938] border-2 border-[#1E2938] hover:border-[#FF8A00] rounded-2xl p-5 transition-all active:scale-95"
+                  >
+                    <DollarSign className="w-5 h-5 text-[#F5B942] mx-auto mb-2 group-hover:scale-110 transition" />
+                    <p className="text-xl sm:text-2xl font-black text-[#F8FAFC]">
+                      {amount.label}
+                    </p>
+                    {amount.value === 0 && (
+                      <span className="inline-block mt-2 text-[9px] bg-[#22C55E] text-[#080B12] font-black px-2 py-0.5 rounded-full uppercase">
+                        Sin riesgo
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                <p className="text-[11px] text-amber-200 flex items-center justify-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span className="font-semibold">90% del pozo para el ganador · 10% plataforma</span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ========== PASO 3: MOSTRAR MESAS ========== */}
+          {currentStep === 'SELECT_TABLE' && selectedGame && selectedAmount !== null && (
+            <div className="space-y-3">
+              {/* Resumen */}
+              <div className="bg-[#171E2A] border border-[#FF8A00]/30 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{selectedGameInfo?.emoji}</div>
+                  <div>
+                    <p className="text-sm font-black text-[#F8FAFC]">{selectedGameInfo?.name}</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider">
+                      Entrada: <span className="text-[#F5B942] font-bold">{selectedAmount === 0 ? 'GRATIS' : `${selectedAmount} Bs`}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchFilteredTables}
+                  className="text-[11px] font-bold text-[#FF8A00] hover:text-[#F5B942] flex items-center gap-1 transition"
+                >
+                  🔄 Actualizar
+                </button>
+              </div>
+
+              {/* Loading */}
+              {loadingTables && (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-12 h-12 text-[#FF8A00] animate-spin mb-3" />
+                  <p className="text-[#F8FAFC] font-bold">Buscando mesas...</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {!loadingTables && error && (
+                <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-center">
+                  <p className="text-red-300 font-bold mb-2">⚠️ {error}</p>
+                  <button
+                    onClick={fetchFilteredTables}
+                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-xl text-sm font-bold text-red-200 transition"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
+
+              {/* Sin mesas */}
+              {!loadingTables && !error && tables.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="text-6xl mb-4">🎮</div>
+                  <p className="text-[#F8FAFC] font-bold text-lg mb-2">
+                    No hay mesas con {selectedAmount === 0 ? 'entrada gratis' : `${selectedAmount} Bs`}
+                  </p>
+                  <p className="text-[#94A3B8] text-sm max-w-xs mb-4">
+                    Prueba con otro monto o crea tu propia mesa
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleBack}
+                      className="px-4 py-2 bg-[#1E2938] hover:bg-[#171E2A] text-[#F8FAFC] rounded-xl text-sm font-bold transition"
+                    >
+                      Cambiar monto
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de mesas */}
+              {!loadingTables && tables.map((table) => {
+                const availableSeats = table.max_players - table.current_players;
+                const isFull = availableSeats <= 0;
+                const isJoining = joiningTableId === table.id;
+
+                return (
+                  <div
+                    key={table.id}
+                    className="bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 rounded-2xl p-4 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users className="w-4 h-4 text-[#22C55E]" />
+                          <span className="text-sm font-bold text-[#F8FAFC]">
+                            {table.current_players} / {table.max_players} jugadores
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>
+                            Creada hace {Math.floor((Date.now() - new Date(table.created_at).getTime()) / 60000)} min
+                          </span>
+                        </div>
+                        {/* Barra de ocupación */}
+                        <div className="mt-2 h-2 bg-[#080B12] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#22C55E] to-[#10B981] transition-all"
+                            style={{ width: `${(table.current_players / table.max_players) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-[#94A3B8] mt-1 font-semibold">
+                          {isFull ? '❌ Mesa llena' : `✨ ${availableSeats} puesto${availableSeats > 1 ? 's' : ''} disponible${availableSeats > 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => !isFull && handleJoinTable(table.id)}
+                        disabled={isFull || isJoining}
+                        className={`shrink-0 px-6 py-4 rounded-2xl font-black text-base transition-all flex items-center gap-2 ${
+                          isFull || isJoining
+                            ? 'bg-[#1E2938] text-[#64748B] cursor-not-allowed'
+                            : 'bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] hover:brightness-110 shadow-lg shadow-[#FF8A00]/30 hover:scale-105 active:scale-95'
+                        }`}
+                      >
+                        {isJoining ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : isFull ? (
+                          <>
+                            <X className="w-5 h-5" />
+                            <span>LLENA</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-5 h-5" />
+                            <span className="text-lg">UNIRSE</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER FIJO */}
+        <div className="border-t border-[#1E2938] bg-[#080B12]/80 px-5 py-3 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-[11px] text-[#94A3B8]">
+            <Sparkles className="w-3.5 h-3.5 text-[#F5B942]" />
+            <span>Juego Responsable · +18</span>
           </div>
           <button
-            onClick={fetchAvailableTables}
-            className="text-xs font-bold text-[#FF8A00] hover:text-[#F5B942] flex items-center gap-1 transition"
+            onClick={onClose}
+            className="text-[11px] font-bold text-[#94A3B8] hover:text-[#F8FAFC] transition"
           >
-            🔄 Actualizar
+            Cancelar
           </button>
         </div>
       </div>

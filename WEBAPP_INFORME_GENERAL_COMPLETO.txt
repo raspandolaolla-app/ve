@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 16:32:00 -07:00 (UTC 2026-09-01 23:32:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 16:55:00 -07:00 (UTC 2026-09-01 23:55:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Integración del Banner Marquee Infinito Dinámico (`SafeDevelopmentBanner.tsx`) conectado a `system_announcements` (tipo `MARQUEE`), modal de Partida Rápida `QuickMatchModal.tsx` con listado en tiempo real de mesas disponibles para unirse con 1 clic (`join_table_transaction`), y soporte completo en el Panel Admin (`AdminAnnouncementsTab.tsx`).
-MEJORA UI/UX RECIENTE: Botón de Navegación Central "JUGAR YA" (⚡ Verde neón con animación pulse-glow), Botón "INGRESAR" destacado con gradiente ámbar en cabecera principal, animación CSS de marquee infinito continuo con pausa on-hover y badges de tipo de anuncio.
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Implementación del Flujo UX de 3 Pasos en Modal de Partida Rápida (`QuickMatchModal.tsx`): Paso 1 (Selección de Juego en catálogo de 10 juegos), Paso 2 (Selección de Monto de Entrada con botones de 0 Bs a 5.000 Bs), Paso 3 (Listado de Mesas Disponibles en tiempo real con ocupación y llamada segura a RPC `join_table_transaction`).
+MEJORA UI/UX RECIENTE: Botón Central 'JUGAR YA' en `BottomNavigation.tsx` (naranja/dorado #FF8A00, circular prominente con animación pulse-glow), barra de progreso de pasos dinámica, navegación hacia atrás fluida, y redirección a la mesa al unirse.
 ================================================================================
 
 --------------------------------------------------------------------------------

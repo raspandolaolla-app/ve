@@ -1,15 +1,9 @@
 // ==============================================================================
-// RASPANDO LA OLLA — BARRA DE NAVEGACIÓN INFERIOR CON PARTIDA RÁPIDA
+// RASPANDO LA OLLA — BARRA DE NAVEGACIÓN INFERIOR CON BOTÓN JUGAR YA
 // ==============================================================================
 
 import React from 'react';
-import {
-  Home,
-  Headphones,
-  Zap,
-  Menu,
-  Wallet,
-} from 'lucide-react';
+import { Home, Headphones, Zap, Menu, Wallet } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
 
 interface BottomNavigationProps {
@@ -38,13 +32,13 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
   return (
     <>
-      {/* Botón Flotante 'Gira la Olla' */}
+      {/* Botón Flotante 'Gira la Olla' (opcional, se mantiene) */}
       {onOpenGiraLaOlla && (
         <div className="fixed bottom-20 right-4 z-30 sm:hidden">
           <button
             id="floating-gira-olla-btn"
             onClick={onOpenGiraLaOlla}
-            className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#FF8A00] via-[#F5B942] to-[#FF8A00] p-0.5 shadow-xl shadow-[#FF8A00]/40 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer group animate-pulse-glow"
+            className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#FF8A00] via-[#F5B942] to-[#FF8A00] p-0.5 shadow-xl shadow-[#FF8A00]/40 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer group"
             aria-label="Gira la Olla Bonus"
             title="Gira la Olla"
           >
@@ -69,13 +63,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             id="bottom-nav-home"
             onClick={() => onNavigate('home')}
             className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 transition-all relative active:scale-95 ${
-              currentTab === 'home'
-                ? 'text-[#FF8A00] font-bold'
-                : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+              currentTab === 'home' ? 'text-[#FF8A00] font-bold' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
             }`}
           >
             {currentTab === 'home' && (
-              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#FF8A00] to-[#F5B942] shadow-md shadow-[#FF8A00]/50" />
+              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#FF8A00] to-[#F5B942]" />
             )}
             <Home className="w-5 h-5" />
             <span className="text-[11px] mt-1 tracking-tight font-semibold">Inicio</span>
@@ -91,17 +83,17 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             <span className="text-[11px] mt-1 tracking-tight font-semibold">Soporte</span>
           </button>
 
-          {/* 3. PARTIDA RÁPIDA (Acción Destacada Central) */}
+          {/* 3. JUGAR YA — Botón central que abre QuickMatchModal */}
           <button
             id="bottom-nav-quick-match"
             onClick={() => onOpenQuickMatch && onOpenQuickMatch()}
             className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 group active:scale-95"
           >
-            <div className="w-12 h-12 -mt-4 rounded-full bg-gradient-to-tr from-[#22C55E] to-[#10B981] flex items-center justify-center text-white shadow-lg shadow-[#22C55E]/40 group-hover:scale-110 transition-transform animate-pulse-glow">
-              <Zap className="w-6 h-6" strokeWidth={3} />
+            <div className="w-14 h-14 -mt-5 rounded-full bg-gradient-to-tr from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-white shadow-xl shadow-[#FF8A00]/40 group-hover:scale-110 transition-transform animate-pulse-glow">
+              <Zap className="w-7 h-7" strokeWidth={3} />
             </div>
-            <span className="text-[11px] font-black text-[#22C55E] mt-1 tracking-tight">
-              JUGAR YA
+            <span className="text-[11px] font-black text-[#FF8A00] mt-1 tracking-tight uppercase">
+              Jugar Ya
             </span>
           </button>
 
@@ -110,13 +102,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             id="bottom-nav-wallet"
             onClick={() => onNavigate('wallet')}
             className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 transition-all relative active:scale-95 ${
-              currentTab === 'wallet'
-                ? 'text-[#2496FF] font-bold'
-                : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+              currentTab === 'wallet' ? 'text-[#2496FF] font-bold' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
             }`}
           >
             {currentTab === 'wallet' && (
-              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#2496FF] to-[#60A5FA] shadow-md shadow-[#2496FF]/50" />
+              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#2496FF] to-[#60A5FA]" />
             )}
             <Wallet className="w-5 h-5" />
             <span className="text-[11px] mt-1 tracking-tight font-semibold">Billetera</span>

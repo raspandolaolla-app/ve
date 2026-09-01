@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF8A00" />
+      <stop offset="100%" stop-color="#F5B942" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="400" fill="url(#bgGrad)" rx="16" />
+  <rect x="2" y="2" width="1196" height="396" fill="none" stroke="#334155" stroke-width="2" rx="14" />
+  <circle cx="1050" cy="200" r="140" fill="#FF8A00" opacity="0.1" />
+  <circle cx="150" cy="200" r="100" fill="#22C55E" opacity="0.08" />
+  <text x="600" y="170" fill="url(#goldGrad)" font-family="system-ui, sans-serif" font-size="44" font-weight="900" text-anchor="middle" letter-spacing="2">
+    RASPANDO LA OLLA
+  </text>
+  <text x="600" y="225" fill="#F8FAFC" font-family="system-ui, sans-serif" font-size="24" font-weight="600" text-anchor="middle">
+    ¡Juegos Tradicionales Venezolanos en Tiempo Real!
+  </text>
+  <text x="600" y="270" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="16" text-anchor="middle">
+    Dominó • Truco • Bingo • Polla • Atrapaíto • Damas • UNA-OLLA
+  </text>
+</svg>

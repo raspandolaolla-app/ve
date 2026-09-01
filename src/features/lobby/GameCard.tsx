@@ -1,136 +1,111 @@
 // ==============================================================================
-// RASPANDO LA OLLA — TARJETA PREMIUM DE JUEGO (RESPONSIVE)
+// RASPANDO LA OLLA — TARJETA DE JUEGO MEJORADA CON ANIMACIONES
 // ==============================================================================
 
 import React from 'react';
-import { Users, Coins, ArrowRight, Sparkles, Play } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Users, Zap, Trophy, Play } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
+import { useAudio } from '../../hooks/useAudio';
 
 interface GameCardProps {
   game: GameMetadata;
-  onlinePlayersCount?: number;
+  onlinePlayersCount: number;
   onSelectGame: (game: GameMetadata) => void;
 }
 
 export const GameCard: React.FC<GameCardProps> = ({
   game,
-  onlinePlayersCount = 12,
+  onlinePlayersCount,
   onSelectGame,
 }) => {
-  const getGameEmoji = (id: string) => {
-    switch (id) {
-      case 'domino_venezolano':
-        return '🎲';
-      case 'truco_venezolano':
-        return '🃏';
-      case 'bingo':
-        return '🎱';
-      case 'polla_venezolana':
-        return '🐾';
-      case 'atrapaito':
-        return '🎯';
-      case 'checkers':
-        return '♟';
-      case 'rock_paper_scissors':
-        return '✊';
-      case 'tic_tac_toe':
-        return '⭕';
-      case 'chess':
-        return '♟️';
-      case 'una_olla':
-        return '🎴';
-      default:
-        return '🎮';
-    }
-  };
+  const { playSound } = useAudio();
 
-  const getGameAccentColor = (id: string) => {
-    switch (id) {
-      case 'domino_venezolano':
-        return 'from-[#FF8A00]/20 to-transparent';
-      case 'truco_venezolano':
-        return 'from-[#F5B942]/20 to-transparent';
-      case 'bingo':
-        return 'from-[#2496FF]/20 to-transparent';
-      case 'polla_venezolana':
-        return 'from-[#22C55E]/20 to-transparent';
-      default:
-        return 'from-[#FF8A00]/15 to-transparent';
-    }
+  const handleClick = () => {
+    playSound('click');
+    onSelectGame(game);
   };
 
   return (
-    <div
-      id={`game-card-${game.id}`}
-      className="group relative rounded-2xl bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/60 transition-all duration-200 flex flex-col justify-between p-4 shadow-lg hover:shadow-xl hover:shadow-[#FF8A00]/5 overflow-hidden"
+    <motion.div
+      whileHover={{ scale: 1.02, y: -5 }}
+      whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      onClick={handleClick}
+      className="relative group cursor-pointer overflow-hidden rounded-2xl bg-gradient-to-br from-[#171E2A] to-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#FF8A00]/20"
     >
-      {/* Resplandor superior según juego */}
-      <div
-        className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl ${getGameAccentColor(
-          game.id
-        )} rounded-bl-full pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`}
-      />
+      {/* Fondo decorativo con gradiente */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF8A00]/5 via-transparent to-[#F5B942]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-      <div className="space-y-3 relative z-10">
-        {/* Cabecera: Icono, Estado Online y Modos */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#111722] border border-[#1E2938] group-hover:border-[#FF8A00]/50 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform">
-            {getGameEmoji(game.id)}
-          </div>
+      {/* Badge de popularidad */}
+      {onlinePlayersCount > 10 && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] text-[10px] font-black flex items-center gap-1 shadow-lg"
+        >
+          <Zap className="w-3 h-3" />
+          <span>HOT</span>
+        </motion.div>
+      )}
 
-          <div className="flex flex-col items-end gap-1">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30 text-[10px] font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
-              <span>{onlinePlayersCount} jug.</span>
-            </span>
-
-            <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#111722] text-[#94A3B8] border border-[#1E2938]">
-              {game.allowedModes.join(', ')}
-            </span>
-          </div>
-        </div>
-
-        {/* Título y Descripción */}
-        <div>
-          <h3 className="font-black text-[#F8FAFC] text-sm sm:text-base group-hover:text-[#FF8A00] transition-colors leading-snug">
-            {game.name}
-          </h3>
-          <p className="text-[11px] sm:text-xs text-[#94A3B8] leading-relaxed mt-1 line-clamp-2 min-h-[32px]">
-            {game.shortDescription}
-          </p>
-        </div>
-
-        {/* Datos de Jugadores y Entrada */}
-        <div className="pt-2 border-t border-[#1E2938] flex items-center justify-between text-[11px] text-[#94A3B8]">
-          <div className="flex items-center gap-1.5" title="Capacidad de mesa">
-            <Users className="w-3.5 h-3.5 text-[#94A3B8]" />
-            <span>
-              {game.minPlayers === game.maxPlayers
-                ? `${game.minPlayers} jug.`
-                : `${game.minPlayers}-${game.maxPlayers} jug.`}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1" title="Entrada en Bolívares">
-            <Coins className="w-3.5 h-3.5 text-[#F5B942]" />
-            <span className="font-mono font-bold text-[#F5B942]">
-              {game.minEntryFee} - {game.maxEntryFee} Bs
-            </span>
-          </div>
-        </div>
+      {/* Icono del juego con animación */}
+      <div className="relative p-4 pb-2">
+        <motion.div
+          whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
+          transition={{ duration: 0.3 }}
+          className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#FF8A00]/20 to-[#F5B942]/20 border border-[#FF8A00]/30 flex items-center justify-center text-4xl mb-3 shadow-inner"
+        >
+          {game.emoji}
+        </motion.div>
       </div>
 
-      {/* Botón de Acción */}
-      <div className="pt-3 mt-2 relative z-10">
-        <button
-          id={`btn-open-game-${game.id}`}
-          onClick={() => onSelectGame(game)}
-          className="w-full py-2 px-3 rounded-xl bg-[#111722] group-hover:bg-[#FF8A00] text-[#F8FAFC] group-hover:text-[#080B12] border border-[#1E2938] group-hover:border-[#FF8A00] font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+      {/* Contenido */}
+      <div className="relative px-4 pb-4 space-y-2">
+        <h3 className="text-base font-black text-[#F8FAFC] tracking-tight text-center leading-tight">
+          {game.name}
+        </h3>
+
+        <p className="text-[11px] text-[#94A3B8] text-center leading-relaxed line-clamp-2">
+          {game.description}
+        </p>
+
+        {/* Estadísticas */}
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8]">
+            <Users className="w-3 h-3 text-[#22C55E]" />
+            <span className="font-bold">{onlinePlayersCount}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8]">
+            <Trophy className="w-3 h-3 text-[#F5B942]" />
+            <span className="font-bold">{game.minPlayers}-{game.maxPlayers}</span>
+          </div>
+        </div>
+
+        {/* Botón Jugar */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-[#FF8A00]/20 hover:shadow-lg hover:shadow-[#FF8A00]/30 transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClick();
+          }}
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Jugar ahora</span>
-        </button>
+          <span>Jugar Ahora</span>
+        </motion.button>
       </div>
-    </div>
+
+      {/* Efecto de brillo al hover */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+        initial={{ x: '-100%' }}
+        whileHover={{ x: '100%' }}
+        transition={{ duration: 0.6 }}
+      />
+    </motion.div>
   );
 };

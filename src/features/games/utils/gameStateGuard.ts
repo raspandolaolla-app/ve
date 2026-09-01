@@ -1,5 +1,5 @@
 // ==============================================================================
-// RASPANDO LA OLLA — GUARDIA Y NORMALIZADOR DE ESTADOS DE JUEGO
+// RASPANDO LA OLLA — GUARDIA Y NORMALIZADOR DE ESTADOS DE JUEGO TRANSVERSAL
 // ==============================================================================
 // Garantiza la integridad del esquema por tipo de juego, previene excepciones
 // fatales por propiedades faltantes (playerSymbols, playerNames, hands, etc.)
@@ -9,6 +9,7 @@
 import type {
   GameType,
   TicTacToeState,
+  TicTacToeSymbol,
   RPSState,
   CheckersState,
   DominoState,
@@ -37,40 +38,35 @@ export function normalizeTicTacToeState(
 ): StateValidationResult<TicTacToeState> {
   const missingProps: string[] = [];
 
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
+
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        board: Array(9).fill(null),
-        turnUserId: players?.[0]?.userId || '',
-        playerSymbols: {},
-        playerNames: {},
-        lives: {},
-        round: 1,
-        targetWins: 3,
-        scores: {},
-        status: 'playing',
-        winningLine: null,
-        winnerUserId: null,
-        roundWinnerUserId: null,
-        moveHistory: [],
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
   // Comprobar campos obligatorios
-  if (!Array.isArray(rawState.board)) missingProps.push('board');
-  if (!rawState.playerSymbols || typeof rawState.playerSymbols !== 'object') missingProps.push('playerSymbols');
-  if (!rawState.playerNames || typeof rawState.playerNames !== 'object') missingProps.push('playerNames');
-  if (!rawState.scores || typeof rawState.scores !== 'object') missingProps.push('scores');
+  if (!Array.isArray(raw.board) || raw.board.length !== 9) missingProps.push('board');
+  if (!raw.playerSymbols || typeof raw.playerSymbols !== 'object') missingProps.push('playerSymbols');
+  if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
+  if (!raw.scores || typeof raw.scores !== 'object') missingProps.push('scores');
 
   // Construir playerSymbols y playerNames garantizados
-  const guaranteedPlayerSymbols: Record<string, 'X' | 'O'> = { ...(rawState.playerSymbols || {}) };
-  const guaranteedPlayerNames: Record<string, string> = { ...(rawState.playerNames || {}) };
-  const guaranteedScores: Record<string, number> = { ...(rawState.scores || {}) };
-  const guaranteedLives: Record<string, number> = { ...(rawState.lives || {}) };
+  const guaranteedPlayerSymbols: Record<string, TicTacToeSymbol> = {
+    ...(fallbackInitialState?.playerSymbols || {}),
+    ...(raw.playerSymbols || {}),
+  };
+  const guaranteedPlayerNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedScores: Record<string, number> = {
+    ...(fallbackInitialState?.scores || {}),
+    ...(raw.scores || {}),
+  };
+  const guaranteedLives: Record<string, number> = {
+    ...(fallbackInitialState?.lives || {}),
+    ...(raw.lives || {}),
+  };
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -90,26 +86,41 @@ export function normalizeTicTacToeState(
     });
   }
 
-  const normalizedBoard = Array.isArray(rawState.board) && rawState.board.length === 9
-    ? rawState.board
-    : (fallbackInitialState?.board || Array(9).fill(null));
+  // Si aún no hay símbolos configurados, asignar al menos uno para el primer turno
+  const firstPlayerId = Object.keys(guaranteedPlayerSymbols)[0] || players?.[0]?.userId || raw.turnUserId || 'p1';
+  if (!guaranteedPlayerSymbols[firstPlayerId]) {
+    guaranteedPlayerSymbols[firstPlayerId] = 'X';
+  }
+  if (!guaranteedPlayerNames[firstPlayerId]) {
+    guaranteedPlayerNames[firstPlayerId] = 'Jugador 1';
+  }
+  if (guaranteedScores[firstPlayerId] === undefined) {
+    guaranteedScores[firstPlayerId] = 0;
+  }
+  if (guaranteedLives[firstPlayerId] === undefined) {
+    guaranteedLives[firstPlayerId] = 3;
+  }
 
-  const firstPlayerId = Object.keys(guaranteedPlayerSymbols)[0] || players?.[0]?.userId || '';
+  const normalizedBoard = Array.isArray(raw.board) && raw.board.length === 9
+    ? [...raw.board]
+    : (Array.isArray(fallbackInitialState?.board) && fallbackInitialState.board.length === 9
+        ? [...fallbackInitialState.board]
+        : Array(9).fill(null));
 
   const normalizedState: TicTacToeState = {
     board: normalizedBoard,
-    turnUserId: rawState.turnUserId || fallbackInitialState?.turnUserId || firstPlayerId,
+    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || firstPlayerId,
     playerSymbols: guaranteedPlayerSymbols,
     playerNames: guaranteedPlayerNames,
     lives: guaranteedLives,
-    round: typeof rawState.round === 'number' ? rawState.round : (fallbackInitialState?.round || 1),
-    targetWins: typeof rawState.targetWins === 'number' ? rawState.targetWins : (fallbackInitialState?.targetWins || 3),
+    round: typeof raw.round === 'number' ? raw.round : (fallbackInitialState?.round || 1),
+    targetWins: typeof raw.targetWins === 'number' ? raw.targetWins : (fallbackInitialState?.targetWins || 3),
     scores: guaranteedScores,
-    status: rawState.status || fallbackInitialState?.status || 'playing',
-    winningLine: Array.isArray(rawState.winningLine) ? rawState.winningLine : null,
-    winnerUserId: rawState.winnerUserId ?? null,
-    roundWinnerUserId: rawState.roundWinnerUserId ?? null,
-    moveHistory: Array.isArray(rawState.moveHistory) ? rawState.moveHistory : [],
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winningLine: Array.isArray(raw.winningLine) ? raw.winningLine : (fallbackInitialState?.winningLine || null),
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
+    moveHistory: Array.isArray(raw.moveHistory) ? raw.moveHistory : (fallbackInitialState?.moveHistory || []),
   };
 
   return {
@@ -128,36 +139,32 @@ export function normalizeRPSState(
   players?: TablePlayer[]
 ): StateValidationResult<RPSState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        round: 1,
-        targetWins: 3,
-        scores: {},
-        playerNames: {},
-        lives: {},
-        playerChoices: {},
-        phase: 'selecting',
-        status: 'playing',
-        winnerUserId: null,
-        roundWinnerUserId: null,
-        history: [],
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!rawState.playerChoices || typeof rawState.playerChoices !== 'object') missingProps.push('playerChoices');
-  if (!rawState.playerNames || typeof rawState.playerNames !== 'object') missingProps.push('playerNames');
-  if (!rawState.scores || typeof rawState.scores !== 'object') missingProps.push('scores');
+  if (!raw.playerChoices || typeof raw.playerChoices !== 'object') missingProps.push('playerChoices');
+  if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
+  if (!raw.scores || typeof raw.scores !== 'object') missingProps.push('scores');
 
-  const guaranteedPlayerNames: Record<string, string> = { ...(rawState.playerNames || {}) };
-  const guaranteedScores: Record<string, number> = { ...(rawState.scores || {}) };
-  const guaranteedLives: Record<string, number> = { ...(rawState.lives || {}) };
-  const guaranteedChoices: Record<string, any> = { ...(rawState.playerChoices || {}) };
+  const guaranteedPlayerNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedScores: Record<string, number> = {
+    ...(fallbackInitialState?.scores || {}),
+    ...(raw.scores || {}),
+  };
+  const guaranteedLives: Record<string, number> = {
+    ...(fallbackInitialState?.lives || {}),
+    ...(raw.lives || {}),
+  };
+  const guaranteedChoices: Record<string, any> = {
+    ...(fallbackInitialState?.playerChoices || {}),
+    ...(raw.playerChoices || {}),
+  };
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -178,17 +185,17 @@ export function normalizeRPSState(
   }
 
   const normalizedState: RPSState = {
-    round: typeof rawState.round === 'number' ? rawState.round : (fallbackInitialState?.round || 1),
-    targetWins: typeof rawState.targetWins === 'number' ? rawState.targetWins : (fallbackInitialState?.targetWins || 3),
+    round: typeof raw.round === 'number' ? raw.round : (fallbackInitialState?.round || 1),
+    targetWins: typeof raw.targetWins === 'number' ? raw.targetWins : (fallbackInitialState?.targetWins || 3),
     scores: guaranteedScores,
     playerNames: guaranteedPlayerNames,
     lives: guaranteedLives,
     playerChoices: guaranteedChoices,
-    phase: rawState.phase || fallbackInitialState?.phase || 'selecting',
-    status: rawState.status || fallbackInitialState?.status || 'playing',
-    winnerUserId: rawState.winnerUserId ?? null,
-    roundWinnerUserId: rawState.roundWinnerUserId ?? null,
-    history: Array.isArray(rawState.history) ? rawState.history : [],
+    phase: raw.phase || fallbackInitialState?.phase || 'selecting',
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
+    history: Array.isArray(raw.history) ? raw.history : (fallbackInitialState?.history || []),
   };
 
   return {
@@ -207,30 +214,18 @@ export function normalizeCheckersState(
   players?: TablePlayer[]
 ): StateValidationResult<CheckersState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        board: [],
-        turnUserId: players?.[0]?.userId || '',
-        players: [],
-        capturedCount: {},
-        status: 'playing',
-        winnerUserId: null,
-        lastMove: null,
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!Array.isArray(rawState.board)) missingProps.push('board');
-  if (!Array.isArray(rawState.players)) missingProps.push('players');
-  if (!rawState.turnUserId) missingProps.push('turnUserId');
+  if (!Array.isArray(raw.board)) missingProps.push('board');
+  if (!Array.isArray(raw.players)) missingProps.push('players');
+  if (!raw.turnUserId) missingProps.push('turnUserId');
 
-  const normalizedPlayers = Array.isArray(rawState.players) && rawState.players.length > 0
-    ? rawState.players
+  const normalizedPlayers = Array.isArray(raw.players) && raw.players.length > 0
+    ? raw.players
     : (fallbackInitialState?.players || (players || []).map((p, idx) => ({
         userId: p.userId,
         playerNumber: (idx + 1) as 1 | 2,
@@ -238,15 +233,15 @@ export function normalizeCheckersState(
       })));
 
   const normalizedState: CheckersState = {
-    board: Array.isArray(rawState.board) ? rawState.board : (fallbackInitialState?.board || []),
-    turnUserId: rawState.turnUserId || fallbackInitialState?.turnUserId || normalizedPlayers[0]?.userId || '',
+    board: Array.isArray(raw.board) ? raw.board : (fallbackInitialState?.board || []),
+    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || normalizedPlayers[0]?.userId || '',
     players: normalizedPlayers,
-    capturedCount: rawState.capturedCount || fallbackInitialState?.capturedCount || {},
-    lives: rawState.lives || fallbackInitialState?.lives,
-    status: rawState.status || fallbackInitialState?.status || 'playing',
-    winnerUserId: rawState.winnerUserId ?? null,
-    lastMove: rawState.lastMove ?? null,
-    validMovesForCurrentPlayer: Array.isArray(rawState.validMovesForCurrentPlayer) ? rawState.validMovesForCurrentPlayer : undefined,
+    capturedCount: raw.capturedCount || fallbackInitialState?.capturedCount || {},
+    lives: raw.lives || fallbackInitialState?.lives,
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    lastMove: raw.lastMove ?? fallbackInitialState?.lastMove ?? null,
+    validMovesForCurrentPlayer: Array.isArray(raw.validMovesForCurrentPlayer) ? raw.validMovesForCurrentPlayer : undefined,
   };
 
   return {
@@ -265,40 +260,28 @@ export function normalizeDominoState(
   players?: TablePlayer[]
 ): StateValidationResult<DominoState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        hands: {},
-        board: [],
-        leftEnd: null,
-        rightEnd: null,
-        turnUserId: players?.[0]?.userId || '',
-        playerOrder: [],
-        playerNames: {},
-        lives: {},
-        targetScore: 100,
-        cumulativeScores: {},
-        round: 1,
-        passesInRow: 0,
-        status: 'playing',
-        winnerUserId: null,
-        roundWinnerUserId: null,
-        isTranca: false,
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!rawState.hands || typeof rawState.hands !== 'object') missingProps.push('hands');
-  if (!Array.isArray(rawState.board)) missingProps.push('board');
-  if (!rawState.playerNames || typeof rawState.playerNames !== 'object') missingProps.push('playerNames');
+  if (!raw.hands || typeof raw.hands !== 'object') missingProps.push('hands');
+  if (!Array.isArray(raw.board)) missingProps.push('board');
+  if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
 
-  const guaranteedHands: Record<string, any> = { ...(rawState.hands || fallbackInitialState?.hands || {}) };
-  const guaranteedNames: Record<string, string> = { ...(rawState.playerNames || fallbackInitialState?.playerNames || {}) };
-  const guaranteedScores: Record<string, number> = { ...(rawState.cumulativeScores || fallbackInitialState?.cumulativeScores || {}) };
+  const guaranteedHands: Record<string, any> = {
+    ...(fallbackInitialState?.hands || {}),
+    ...(raw.hands || {}),
+  };
+  const guaranteedNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedScores: Record<string, number> = {
+    ...(fallbackInitialState?.cumulativeScores || {}),
+    ...(raw.cumulativeScores || {}),
+  };
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -317,21 +300,21 @@ export function normalizeDominoState(
 
   const normalizedState: DominoState = {
     hands: guaranteedHands,
-    board: Array.isArray(rawState.board) ? rawState.board : (fallbackInitialState?.board || []),
-    leftEnd: rawState.leftEnd !== undefined ? rawState.leftEnd : (fallbackInitialState?.leftEnd ?? null),
-    rightEnd: rawState.rightEnd !== undefined ? rawState.rightEnd : (fallbackInitialState?.rightEnd ?? null),
-    turnUserId: rawState.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
-    playerOrder: Array.isArray(rawState.playerOrder) ? rawState.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
+    board: Array.isArray(raw.board) ? raw.board : (fallbackInitialState?.board || []),
+    leftEnd: raw.leftEnd !== undefined ? raw.leftEnd : (fallbackInitialState?.leftEnd ?? null),
+    rightEnd: raw.rightEnd !== undefined ? raw.rightEnd : (fallbackInitialState?.rightEnd ?? null),
+    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
+    playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
     playerNames: guaranteedNames,
-    lives: rawState.lives || fallbackInitialState?.lives,
-    targetScore: typeof rawState.targetScore === 'number' ? rawState.targetScore : (fallbackInitialState?.targetScore || 100),
+    lives: raw.lives || fallbackInitialState?.lives,
+    targetScore: typeof raw.targetScore === 'number' ? raw.targetScore : (fallbackInitialState?.targetScore || 100),
     cumulativeScores: guaranteedScores,
-    round: typeof rawState.round === 'number' ? rawState.round : (fallbackInitialState?.round || 1),
-    passesInRow: typeof rawState.passesInRow === 'number' ? rawState.passesInRow : 0,
-    status: rawState.status || fallbackInitialState?.status || 'playing',
-    winnerUserId: rawState.winnerUserId ?? null,
-    roundWinnerUserId: rawState.roundWinnerUserId ?? null,
-    isTranca: Boolean(rawState.isTranca),
+    round: typeof raw.round === 'number' ? raw.round : (fallbackInitialState?.round || 1),
+    passesInRow: typeof raw.passesInRow === 'number' ? raw.passesInRow : 0,
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
+    isTranca: Boolean(raw.isTranca),
   };
 
   return {
@@ -350,42 +333,28 @@ export function normalizeTrucoState(
   players?: TablePlayer[]
 ): StateValidationResult<TrucoState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        vira: { id: 'default_vira', number: 1, suit: 'espadas' },
-        hands: {},
-        playedTricks: [],
-        trickWinners: [],
-        turnUserId: players?.[0]?.userId || '',
-        playerOrder: [],
-        playerNames: {},
-        points: {},
-        targetPoints: 24,
-        cantoState: {
-          envidoPoints: 2,
-          envidoAccepted: null,
-          trucoPoints: 1,
-          trucoAccepted: null,
-          florCalledBy: [],
-        },
-        status: 'playing',
-        winnerUserId: null,
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!rawState.hands || typeof rawState.hands !== 'object') missingProps.push('hands');
-  if (!rawState.playerNames || typeof rawState.playerNames !== 'object') missingProps.push('playerNames');
-  if (!rawState.points || typeof rawState.points !== 'object') missingProps.push('points');
+  if (!raw.hands || typeof raw.hands !== 'object') missingProps.push('hands');
+  if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
+  if (!raw.points || typeof raw.points !== 'object') missingProps.push('points');
 
-  const guaranteedHands: Record<string, any> = { ...(rawState.hands || fallbackInitialState?.hands || {}) };
-  const guaranteedNames: Record<string, string> = { ...(rawState.playerNames || fallbackInitialState?.playerNames || {}) };
-  const guaranteedPoints: Record<string, number> = { ...(rawState.points || fallbackInitialState?.points || {}) };
+  const guaranteedHands: Record<string, any> = {
+    ...(fallbackInitialState?.hands || {}),
+    ...(raw.hands || {}),
+  };
+  const guaranteedNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedPoints: Record<string, number> = {
+    ...(fallbackInitialState?.points || {}),
+    ...(raw.points || {}),
+  };
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -403,24 +372,24 @@ export function normalizeTrucoState(
   }
 
   const normalizedState: TrucoState = {
-    vira: rawState.vira || fallbackInitialState?.vira || { id: 'default_vira', number: 1, suit: 'espadas' },
+    vira: raw.vira || fallbackInitialState?.vira || { id: 'default_vira', number: 1, suit: 'espadas' },
     hands: guaranteedHands,
-    playedTricks: Array.isArray(rawState.playedTricks) ? rawState.playedTricks : [],
-    trickWinners: Array.isArray(rawState.trickWinners) ? rawState.trickWinners : [],
-    turnUserId: rawState.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
-    playerOrder: Array.isArray(rawState.playerOrder) ? rawState.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
+    playedTricks: Array.isArray(raw.playedTricks) ? raw.playedTricks : (fallbackInitialState?.playedTricks || []),
+    trickWinners: Array.isArray(raw.trickWinners) ? raw.trickWinners : (fallbackInitialState?.trickWinners || []),
+    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
+    playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
     playerNames: guaranteedNames,
     points: guaranteedPoints,
-    targetPoints: typeof rawState.targetPoints === 'number' ? rawState.targetPoints : (fallbackInitialState?.targetPoints || 24),
-    cantoState: rawState.cantoState || fallbackInitialState?.cantoState || {
+    targetPoints: typeof raw.targetPoints === 'number' ? raw.targetPoints : (fallbackInitialState?.targetPoints || 24),
+    cantoState: raw.cantoState || fallbackInitialState?.cantoState || {
       envidoPoints: 2,
       envidoAccepted: null,
       trucoPoints: 1,
       trucoAccepted: null,
       florCalledBy: [],
     },
-    status: rawState.status || fallbackInitialState?.status || 'playing',
-    winnerUserId: rawState.winnerUserId ?? null,
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
   };
 
   return {
@@ -439,35 +408,23 @@ export function normalizeBingoState(
   players?: TablePlayer[]
 ): StateValidationResult<BingoState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        variant: '75',
-        drawnBalls: [],
-        currentBall: null,
-        cards: {},
-        cardsPurchased: {},
-        playerNames: {},
-        winnerUserId: null,
-        status: 'in_progress',
-        callIntervalMs: 4000,
-        totalBalls: 75,
-        totalPoolBs: 0,
-        winnerPoolBs: 0,
-        systemFeeBs: 0,
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!rawState.cards || typeof rawState.cards !== 'object') missingProps.push('cards');
-  if (!Array.isArray(rawState.drawnBalls)) missingProps.push('drawnBalls');
+  if (!raw.cards || typeof raw.cards !== 'object') missingProps.push('cards');
+  if (!Array.isArray(raw.drawnBalls)) missingProps.push('drawnBalls');
 
-  const guaranteedCards: Record<string, any> = { ...(rawState.cards || fallbackInitialState?.cards || {}) };
-  const guaranteedNames: Record<string, string> = { ...(rawState.playerNames || fallbackInitialState?.playerNames || {}) };
+  const guaranteedCards: Record<string, any> = {
+    ...(fallbackInitialState?.cards || {}),
+    ...(raw.cards || {}),
+  };
+  const guaranteedNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -482,21 +439,21 @@ export function normalizeBingoState(
   }
 
   const normalizedState: BingoState = {
-    variant: rawState.variant || fallbackInitialState?.variant || '75',
-    drawnBalls: Array.isArray(rawState.drawnBalls) ? rawState.drawnBalls : [],
-    currentBall: rawState.currentBall ?? null,
+    variant: raw.variant || fallbackInitialState?.variant || '75',
+    drawnBalls: Array.isArray(raw.drawnBalls) ? raw.drawnBalls : (fallbackInitialState?.drawnBalls || []),
+    currentBall: raw.currentBall ?? fallbackInitialState?.currentBall ?? null,
     cards: guaranteedCards,
-    cards80: rawState.cards80 || fallbackInitialState?.cards80,
-    cards90: rawState.cards90 || fallbackInitialState?.cards90,
-    cardsPurchased: rawState.cardsPurchased || fallbackInitialState?.cardsPurchased || {},
+    cards80: raw.cards80 || fallbackInitialState?.cards80,
+    cards90: raw.cards90 || fallbackInitialState?.cards90,
+    cardsPurchased: raw.cardsPurchased || fallbackInitialState?.cardsPurchased || {},
     playerNames: guaranteedNames,
-    winnerUserId: rawState.winnerUserId ?? null,
-    status: rawState.status || fallbackInitialState?.status || 'in_progress',
-    callIntervalMs: typeof rawState.callIntervalMs === 'number' ? rawState.callIntervalMs : 4000,
-    totalBalls: typeof rawState.totalBalls === 'number' ? rawState.totalBalls : 75,
-    totalPoolBs: typeof rawState.totalPoolBs === 'number' ? rawState.totalPoolBs : 0,
-    winnerPoolBs: typeof rawState.winnerPoolBs === 'number' ? rawState.winnerPoolBs : 0,
-    systemFeeBs: typeof rawState.systemFeeBs === 'number' ? rawState.systemFeeBs : 0,
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    status: raw.status || fallbackInitialState?.status || 'in_progress',
+    callIntervalMs: typeof raw.callIntervalMs === 'number' ? raw.callIntervalMs : (fallbackInitialState?.callIntervalMs || 4000),
+    totalBalls: typeof raw.totalBalls === 'number' ? raw.totalBalls : (fallbackInitialState?.totalBalls || 75),
+    totalPoolBs: typeof raw.totalPoolBs === 'number' ? raw.totalPoolBs : (fallbackInitialState?.totalPoolBs || 0),
+    winnerPoolBs: typeof raw.winnerPoolBs === 'number' ? raw.winnerPoolBs : (fallbackInitialState?.winnerPoolBs || 0),
+    systemFeeBs: typeof raw.systemFeeBs === 'number' ? raw.systemFeeBs : (fallbackInitialState?.systemFeeBs || 0),
   };
 
   return {
@@ -515,43 +472,238 @@ export function normalizeChessState(
   players?: TablePlayer[]
 ): StateValidationResult<ChessState> {
   const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   const defaultFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
-    return {
-      state: fallbackInitialState || {
-        fen: defaultFen,
-        playerWhiteUserId: players?.[0]?.userId || '',
-        playerBlackUserId: players?.[1]?.userId || '',
-        currentTurnUserId: players?.[0]?.userId || '',
-        moveHistory: [],
-        winnerUserId: null,
-        isDraw: false,
-      },
-      isValid: false,
-      missingProps,
-    };
   }
 
-  if (!rawState.fen || typeof rawState.fen !== 'string') missingProps.push('fen');
+  if (!raw.fen || typeof raw.fen !== 'string') missingProps.push('fen');
 
-  const pWhite = rawState.playerWhiteUserId || fallbackInitialState?.playerWhiteUserId || players?.[0]?.userId || '';
-  const pBlack = rawState.playerBlackUserId || fallbackInitialState?.playerBlackUserId || players?.[1]?.userId || '';
+  const pWhite = raw.playerWhiteUserId || fallbackInitialState?.playerWhiteUserId || players?.[0]?.userId || '';
+  const pBlack = raw.playerBlackUserId || fallbackInitialState?.playerBlackUserId || players?.[1]?.userId || '';
 
   const normalizedState: ChessState = {
-    fen: rawState.fen && typeof rawState.fen === 'string' ? rawState.fen : defaultFen,
+    fen: raw.fen && typeof raw.fen === 'string' ? raw.fen : (fallbackInitialState?.fen || defaultFen),
     playerWhiteUserId: pWhite,
     playerBlackUserId: pBlack,
-    currentTurnUserId: rawState.currentTurnUserId || fallbackInitialState?.currentTurnUserId || pWhite,
-    turnExpiresAt: rawState.turnExpiresAt || fallbackInitialState?.turnExpiresAt,
-    turnDurationSeconds: rawState.turnDurationSeconds || fallbackInitialState?.turnDurationSeconds || 15,
-    playerNames: rawState.playerNames || fallbackInitialState?.playerNames || {},
-    moveHistory: Array.isArray(rawState.moveHistory) ? rawState.moveHistory : [],
-    winnerUserId: rawState.winnerUserId ?? null,
-    isDraw: Boolean(rawState.isDraw),
-    drawReason: rawState.drawReason,
+    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || pWhite,
+    turnExpiresAt: raw.turnExpiresAt || fallbackInitialState?.turnExpiresAt,
+    turnDurationSeconds: raw.turnDurationSeconds || fallbackInitialState?.turnDurationSeconds || 15,
+    playerNames: raw.playerNames || fallbackInitialState?.playerNames || {},
+    moveHistory: Array.isArray(raw.moveHistory) ? raw.moveHistory : (fallbackInitialState?.moveHistory || []),
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    isDraw: Boolean(raw.isDraw),
+    drawReason: raw.drawReason || fallbackInitialState?.drawReason,
+  };
+
+  return {
+    state: normalizedState,
+    isValid: missingProps.length === 0,
+    missingProps,
+  };
+}
+
+/**
+ * Normaliza y valida un estado de Polla Venezolana.
+ */
+export function normalizePollaState(
+  rawState: any,
+  fallbackInitialState?: PollaState,
+  players?: TablePlayer[]
+): StateValidationResult<PollaState> {
+  const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
+
+  if (!rawState || typeof rawState !== 'object') {
+    missingProps.push('state_is_null_or_not_object');
+  }
+
+  if (!Array.isArray(raw.fixtures)) missingProps.push('fixtures');
+  if (!raw.predictions || typeof raw.predictions !== 'object') missingProps.push('predictions');
+  if (!raw.playerNames || typeof raw.playerNames !== 'object') missingProps.push('playerNames');
+
+  const guaranteedNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedPredictions: Record<string, any> = {
+    ...(fallbackInitialState?.predictions || {}),
+    ...(raw.predictions || {}),
+  };
+
+  if (players && players.length > 0) {
+    players.forEach((p, idx) => {
+      const uId = p.userId;
+      if (!guaranteedNames[uId]) {
+        guaranteedNames[uId] = p.displayName || `Jugador ${idx + 1}`;
+      }
+      if (!guaranteedPredictions[uId]) {
+        guaranteedPredictions[uId] = [];
+      }
+    });
+  }
+
+  const normalizedState: PollaState = {
+    fixtures: Array.isArray(raw.fixtures) ? raw.fixtures : (fallbackInitialState?.fixtures || []),
+    predictions: guaranteedPredictions,
+    playerNames: guaranteedNames,
+    leaderboard: Array.isArray(raw.leaderboard) ? raw.leaderboard : (fallbackInitialState?.leaderboard || []),
+    status: raw.status || fallbackInitialState?.status || 'open_picks',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    activeBlock: raw.activeBlock || fallbackInitialState?.activeBlock,
+    selectedDate: raw.selectedDate || fallbackInitialState?.selectedDate,
+    myTickets: Array.isArray(raw.myTickets) ? raw.myTickets : fallbackInitialState?.myTickets,
+    blockWinners: Array.isArray(raw.blockWinners) ? raw.blockWinners : fallbackInitialState?.blockWinners,
+  };
+
+  return {
+    state: normalizedState,
+    isValid: missingProps.length === 0,
+    missingProps,
+  };
+}
+
+/**
+ * Normaliza y valida un estado de Atrapaíto (Parchís / Ludo Criollo).
+ */
+export function normalizeAtrapaitoState(
+  rawState: any,
+  fallbackInitialState?: AtrapaitoState,
+  players?: TablePlayer[]
+): StateValidationResult<AtrapaitoState> {
+  const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
+
+  if (!rawState || typeof rawState !== 'object') {
+    missingProps.push('state_is_null_or_not_object');
+  }
+
+  if (!raw.pieces || typeof raw.pieces !== 'object') missingProps.push('pieces');
+  if (!raw.players || typeof raw.players !== 'object') missingProps.push('players');
+
+  const guaranteedPlayers: Record<string, any> = {
+    ...(fallbackInitialState?.players || {}),
+    ...(raw.players || {}),
+  };
+  const guaranteedPieces: Record<string, any> = {
+    ...(fallbackInitialState?.pieces || {}),
+    ...(raw.pieces || {}),
+  };
+  const guaranteedNames: Record<string, string> = {
+    ...(fallbackInitialState?.playerNames || {}),
+    ...(raw.playerNames || {}),
+  };
+  const guaranteedLives: Record<string, number> = {
+    ...(fallbackInitialState?.lives || {}),
+    ...(raw.lives || {}),
+  };
+
+  if (players && players.length > 0) {
+    players.forEach((p, idx) => {
+      const uId = p.userId;
+      if (!guaranteedNames[uId]) {
+        guaranteedNames[uId] = p.displayName || `Jugador ${idx + 1}`;
+      }
+      if (guaranteedLives[uId] === undefined) {
+        guaranteedLives[uId] = 3;
+      }
+    });
+  }
+
+  const firstUserId = Object.keys(guaranteedPlayers)[0] || players?.[0]?.userId || '';
+
+  const normalizedState: AtrapaitoState = {
+    mode: raw.mode || fallbackInitialState?.mode || 'INDIVIDUAL_4',
+    boardType: raw.boardType || fallbackInitialState?.boardType || '4_COLORS',
+    pieces: guaranteedPieces,
+    players: guaranteedPlayers,
+    playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedPlayers)),
+    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || raw.turnUserId || firstUserId,
+    activeColor: raw.activeColor || fallbackInitialState?.activeColor || 'yellow',
+    turnPhase: raw.turnPhase || fallbackInitialState?.turnPhase || 'ROLL_DICE',
+    diceValue: raw.diceValue !== undefined ? raw.diceValue : (fallbackInitialState?.diceValue ?? null),
+    consecutiveSixes: typeof raw.consecutiveSixes === 'number' ? raw.consecutiveSixes : (fallbackInitialState?.consecutiveSixes || 0),
+    lastMovedPieceId: raw.lastMovedPieceId ?? fallbackInitialState?.lastMovedPieceId ?? null,
+    pendingBonus: raw.pendingBonus || fallbackInitialState?.pendingBonus || null,
+    legalMoves: Array.isArray(raw.legalMoves) ? raw.legalMoves : (fallbackInitialState?.legalMoves || []),
+    status: raw.status || fallbackInitialState?.status || 'playing',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    winnerTeam: raw.winnerTeam || fallbackInitialState?.winnerTeam || null,
+    lastActionDescription: raw.lastActionDescription || fallbackInitialState?.lastActionDescription || null,
+    lives: guaranteedLives,
+    playerNames: guaranteedNames,
+    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || raw.currentTurnUserId || firstUserId,
+    turnStartedAt: typeof raw.turnStartedAt === 'number' ? raw.turnStartedAt : (fallbackInitialState?.turnStartedAt || Date.now()),
+    turnDeadlineAt: typeof raw.turnDeadlineAt === 'number' ? raw.turnDeadlineAt : (fallbackInitialState?.turnDeadlineAt || Date.now() + 15000),
+  };
+
+  return {
+    state: normalizedState,
+    isValid: missingProps.length === 0,
+    missingProps,
+  };
+}
+
+/**
+ * Normaliza y valida un estado de UNA-OLLA.
+ */
+export function normalizeUnaOllaState(
+  rawState: any,
+  fallbackInitialState?: UnaOllaState,
+  players?: TablePlayer[]
+): StateValidationResult<UnaOllaState> {
+  const missingProps: string[] = [];
+  const raw = rawState && typeof rawState === 'object' ? rawState : {};
+
+  if (!rawState || typeof rawState !== 'object') {
+    missingProps.push('state_is_null_or_not_object');
+  }
+
+  if (!raw.players || typeof raw.players !== 'object') missingProps.push('players');
+  if (!raw.topCard) missingProps.push('topCard');
+
+  const guaranteedPlayers: Record<string, any> = {
+    ...(fallbackInitialState?.players || {}),
+    ...(raw.players || {}),
+  };
+  const guaranteedLives: Record<string, number> = {
+    ...(fallbackInitialState?.lives || {}),
+    ...(raw.lives || {}),
+  };
+
+  if (players && players.length > 0) {
+    players.forEach((p) => {
+      const uId = p.userId;
+      if (guaranteedLives[uId] === undefined) {
+        guaranteedLives[uId] = 3;
+      }
+    });
+  }
+
+  const defaultTopCard = { id: 'top_default', color: 'red' as const, type: 'number' as const, number: 7 };
+
+  const normalizedState: UnaOllaState = {
+    players: guaranteedPlayers,
+    playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedPlayers)),
+    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || Object.keys(guaranteedPlayers)[0] || '',
+    direction: raw.direction === -1 ? -1 : 1,
+    topCard: raw.topCard || fallbackInitialState?.topCard || defaultTopCard,
+    currentColor: raw.currentColor || fallbackInitialState?.currentColor || 'red',
+    drawPileCount: typeof raw.drawPileCount === 'number' ? raw.drawPileCount : (fallbackInitialState?.drawPileCount || 60),
+    discardPile: Array.isArray(raw.discardPile) ? raw.discardPile : (fallbackInitialState?.discardPile || []),
+    turnStartedAt: typeof raw.turnStartedAt === 'number' ? raw.turnStartedAt : (fallbackInitialState?.turnStartedAt || Date.now()),
+    turnDeadlineAt: typeof raw.turnDeadlineAt === 'number' ? raw.turnDeadlineAt : (fallbackInitialState?.turnDeadlineAt || Date.now() + 15000),
+    lives: guaranteedLives,
+    inactivityStaircase: raw.inactivityStaircase || fallbackInitialState?.inactivityStaircase || {},
+    unaOllaCalls: raw.unaOllaCalls || fallbackInitialState?.unaOllaCalls || {},
+    status: raw.status || fallbackInitialState?.status || 'PLAYING',
+    winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
+    roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
+    lastActionLog: raw.lastActionLog || fallbackInitialState?.lastActionLog || null,
+    activeEffects: raw.activeEffects || fallbackInitialState?.activeEffects,
   };
 
   return {
@@ -574,17 +726,38 @@ export function normalizeGameStateByType(
 
   switch (cleanType) {
     case 'tic_tac_toe':
+    case 'la_vieja':
+    case '3_en_raya':
+    case 'tictactoe':
       return normalizeTicTacToeState(rawState, fallbackInitialState, players);
     case 'rock_paper_scissors':
+    case 'piedra_papel_tijera':
+    case 'rps':
       return normalizeRPSState(rawState, fallbackInitialState, players);
     case 'checkers':
+    case 'damas':
+    case 'damas_criollas':
       return normalizeCheckersState(rawState, fallbackInitialState, players);
     case 'domino_venezolano':
+    case 'domino':
+    case 'dominos':
       return normalizeDominoState(rawState, fallbackInitialState, players);
     case 'truco_venezolano':
+    case 'truco':
       return normalizeTrucoState(rawState, fallbackInitialState, players);
     case 'bingo':
+    case 'bingo_la_olla':
       return normalizeBingoState(rawState, fallbackInitialState, players);
+    case 'polla_venezolana':
+    case 'polla':
+      return normalizePollaState(rawState, fallbackInitialState, players);
+    case 'atrapaito':
+    case 'parchis':
+    case 'ludo':
+      return normalizeAtrapaitoState(rawState, fallbackInitialState, players);
+    case 'una_olla':
+    case 'uno':
+      return normalizeUnaOllaState(rawState, fallbackInitialState, players);
     case 'chess':
     case 'ajedrez':
       return normalizeChessState(rawState, fallbackInitialState, players);
@@ -596,3 +769,4 @@ export function normalizeGameStateByType(
       };
   }
 }
+

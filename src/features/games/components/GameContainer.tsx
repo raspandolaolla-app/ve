@@ -155,8 +155,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     async function initGame() {
       try {
         setRealtimeStatus('CONNECTING');
-        // Limpiar mesas huérfanas en segundo plano
-        GameRepository.cleanupOrphanedTables();
 
         // Asegurar que los perfiles reales de los jugadores estén cargados y deduplicados
         const latestPlayers = await TableRepository.getTablePlayers(table.id);

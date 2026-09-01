@@ -127,28 +127,30 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   }
 
   public validateAction(state: TicTacToeState, action: GameActionPayload): { valid: boolean; reason?: string } {
+    const normalized = normalizeTicTacToeState(state).state;
+
     if (action.actionType === 'NEXT_ROUND') {
-      if (state.status !== 'round_won' && state.status !== 'draw') {
+      if (normalized.status !== 'round_won' && normalized.status !== 'draw') {
         return { valid: false, reason: 'La ronda actual aún no ha finalizado.' };
       }
       return { valid: true };
     }
 
-    if (state.status !== 'playing') {
+    if (normalized.status !== 'playing') {
       return { valid: false, reason: 'La partida no está en estado activo.' };
     }
 
-    if (action.userId !== state.turnUserId) {
+    if (action.userId !== normalized.turnUserId) {
       return { valid: false, reason: 'No es tu turno de jugar.' };
     }
 
     if (action.actionType === 'PLACE_SYMBOL') {
-      const cellIndex = action.actionData.cellIndex as number;
+      const cellIndex = action.actionData?.cellIndex as number;
       if (typeof cellIndex !== 'number' || cellIndex < 0 || cellIndex > 8) {
         return { valid: false, reason: 'Posición de casilla inválida (0-8).' };
       }
 
-      if (state.board[cellIndex] !== null) {
+      if (normalized.board[cellIndex] !== null) {
         return { valid: false, reason: 'Esta casilla ya está ocupada.' };
       }
 
@@ -159,10 +161,11 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
   }
 
   public applyAction(state: TicTacToeState, action: GameActionPayload): ActionResult<TicTacToeState> {
-    const validation = this.validateAction(state, action);
+    const normalized = normalizeTicTacToeState(state).state;
+    const validation = this.validateAction(normalized, action);
     if (!validation.valid) {
       return {
-        newState: state,
+        newState: normalized,
         isValid: false,
         errorMessage: validation.reason,
         isGameOver: false,
@@ -174,12 +177,12 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
 
     if (action.actionType === 'PLACE_SYMBOL') {
       const cellIndex = action.actionData.cellIndex as number;
-      const symbol = state.playerSymbols[action.userId];
-      const newBoard = [...state.board];
+      const symbol = normalized.playerSymbols[action.userId] || (Object.keys(normalized.playerSymbols).length === 0 ? 'X' : 'O');
+      const newBoard = [...normalized.board];
       newBoard[cellIndex] = symbol;
 
       const newHistory = [
-        ...state.moveHistory,
+        ...normalized.moveHistory,
         {
           cellIndex,
           symbol,
@@ -190,19 +193,19 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
 
       // Verificar si hay ganador de la ronda
       const winningCombo = this.checkWinner(newBoard);
-      const playerIds = Object.keys(state.playerSymbols);
+      const playerIds = Object.keys(normalized.playerSymbols);
       const nextTurnUserId = playerIds.find((id) => id !== action.userId) || action.userId;
 
       if (winningCombo) {
         const newScores = {
-          ...state.scores,
-          [action.userId]: (state.scores[action.userId] || 0) + 1,
+          ...normalized.scores,
+          [action.userId]: (normalized.scores[action.userId] || 0) + 1,
         };
 
-        const isMatchWon = newScores[action.userId] >= state.targetWins;
+        const isMatchWon = newScores[action.userId] >= normalized.targetWins;
 
         const updatedState: TicTacToeState = {
-          ...state,
+          ...normalized,
           board: newBoard,
           scores: newScores,
           winningLine: winningCombo,
@@ -226,7 +229,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       const isBoardFull = newBoard.every((cell) => cell !== null);
       if (isBoardFull) {
         const updatedState: TicTacToeState = {
-          ...state,
+          ...normalized,
           board: newBoard,
           status: 'draw',
           winningLine: null,
@@ -247,7 +250,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
 
       // Turno continuado
       const updatedState: TicTacToeState = {
-        ...state,
+        ...normalized,
         board: newBoard,
         turnUserId: nextTurnUserId,
         moveHistory: newHistory,
@@ -264,12 +267,12 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     if (action.actionType === 'NEXT_ROUND') {
-      const playerIds = Object.keys(state.playerSymbols);
+      const playerIds = Object.keys(normalized.playerSymbols);
       const updatedState: TicTacToeState = {
-        ...state,
+        ...normalized,
         board: Array(9).fill(null),
-        round: state.round + 1,
-        turnUserId: playerIds[state.round % playerIds.length],
+        round: normalized.round + 1,
+        turnUserId: playerIds[normalized.round % Math.max(1, playerIds.length)] || normalized.turnUserId,
         status: 'playing',
         winningLine: null,
         roundWinnerUserId: null,
@@ -287,7 +290,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     return {
-      newState: state,
+      newState: normalized,
       isValid: false,
       errorMessage: 'Acción no reconocida',
       isGameOver: false,

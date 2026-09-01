@@ -93,6 +93,7 @@ export class GameRepository {
 
   /**
    * Crea o recupera la sesión de juego para una mesa de forma server-authoritative.
+   * Prohíbe terminantemente la fabricación cliente de estados ACTIVE si la RPC falla.
    */
   public static async createOrGetSession(
     tableId: string,
@@ -103,71 +104,107 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
-    // Verificar si ya existe una activa
+    // CASO B: Verificar si ya existe una sesión activa canónica en la base de datos
     const existing = await this.getActiveSession(tableId);
-    if (existing) return existing;
+    if (existing) {
+      console.log('[GAME_START_RPC_SUCCESS]', {
+        sessionId: existing.id,
+        tableId,
+        alreadyActive: true,
+        source: 'existing_db_session',
+      });
+      return existing;
+    }
 
     const turnSeconds = gameType === 'chess' ? 15 : (Number(initialState?.turnDurationSeconds) || 30);
+    const canonicalTurnUserId =
+      (initialState?.turnUserId as string) ||
+      (initialState?.currentTurnUserId as string) ||
+      firstTurnUserId;
 
-    // Intentar iniciar mediante RPC atómica autoritativa
+    // Asegurar que el estado tenga el turno canónico inyectado
+    const stateWithTurn = {
+      ...initialState,
+      turnUserId: canonicalTurnUserId,
+      currentTurnUserId: canonicalTurnUserId,
+      turnDurationSeconds: turnSeconds,
+    };
+
+    console.log('[GAME_START_RPC_CALL]', {
+      tableId,
+      gameType,
+      turnDurationSeconds: turnSeconds,
+      firstTurnUserId: canonicalTurnUserId,
+    });
+
+    // Iniciar mediante RPC atómica autoritativa start_game_session_secure
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('start_game_session_secure', {
         p_table_id: tableId,
-        p_initial_state: initialState,
+        p_initial_state: stateWithTurn,
         p_turn_duration_seconds: turnSeconds,
       });
 
-      if (!rpcError && rpcData?.session_id) {
+      if (rpcError) {
+        if (rpcError.code === 'PGRST202') {
+          console.error('[GAME_START_RPC_NOT_FOUND]', {
+            code: rpcError.code,
+            message: rpcError.message,
+            tableId,
+            gameType,
+          });
+        } else if (
+          rpcError.code === '42501' ||
+          rpcError.message?.includes('permission') ||
+          rpcError.message?.includes('AUTH_REQUIRED') ||
+          rpcError.message?.includes('ONLY_HOST_CAN_START')
+        ) {
+          console.error('[GAME_START_RPC_PERMISSION_ERROR]', {
+            code: rpcError.code,
+            message: rpcError.message,
+            tableId,
+            gameType,
+          });
+        } else {
+          console.error('[GAME_START_RPC_ERROR]', {
+            code: rpcError.code,
+            message: rpcError.message,
+            tableId,
+            gameType,
+          });
+        }
+
+        // Si falló por concurrencia o ya existía, comprobar de nuevo la base de datos (CASO B)
+        const doubleCheck = await this.getActiveSession(tableId);
+        if (doubleCheck) {
+          return doubleCheck;
+        }
+
+        // CASO C: Error crítico de RPC/infraestructura -> PROHIBIDO insertar o fabricar sesión cliente
+        console.error('[GameRepository] Fallo crítico de RPC autoritativa. No se declara sesión ACTIVE.');
+        return null;
+      }
+
+      if (rpcData?.session_id) {
+        console.log('[GAME_START_RPC_SUCCESS]', {
+          sessionId: rpcData.session_id,
+          tableId,
+          alreadyActive: Boolean(rpcData.already_active),
+        });
         return await this.getActiveSession(tableId);
       }
-    } catch (rpcErr) {
-      console.warn('[GameRepository] start_game_session_secure fallback:', rpcErr);
+    } catch (rpcErr: any) {
+      console.error('[GAME_START_RPC_ERROR]', {
+        message: rpcErr?.message,
+        tableId,
+        gameType,
+      });
+      // Verificación de seguridad de concurrencia
+      const doubleCheck = await this.getActiveSession(tableId);
+      if (doubleCheck) return doubleCheck;
     }
 
-    // Si la RPC ya existía o falló por concurrencia, re-consultar
-    const doubleCheck = await this.getActiveSession(tableId);
-    if (doubleCheck) return doubleCheck;
-
-    const dbGameType = this.mapGameTypeToDbEnum(gameType);
-    const initialTurnDeadline = new Date(Date.now() + turnSeconds * 1000).toISOString();
-
-    const { data, error } = await supabase
-      .from('game_sessions')
-      .insert({
-        table_id: tableId,
-        game_type: dbGameType,
-        session_number: 1,
-        status: 'ACTIVE',
-        current_state: initialState,
-        current_turn_user_id: firstTurnUserId || null,
-        turn_deadline_at: initialTurnDeadline,
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.error('[GameRepository] Error creando sesión de juego:', error?.message);
-      return null;
-    }
-
-    return {
-      id: data.id,
-      tableId: data.table_id,
-      gameType: this.mapDbEnumToGameType(data.game_type),
-      roundNumber: data.session_number || 1,
-      currentTurnUserId: data.current_turn_user_id,
-      turnExpiresAt: data.turn_deadline_at,
-      status: 'in_progress',
-      grossPool: Number(data.gross_pool || 0),
-      winnerPrizeAmount: Number(data.prize_pool || 0),
-      serviceFeeAmount: Number(data.platform_fee || 0),
-      winnerUserId: data.winner_user_id,
-      winnerTeamIndex: data.winner_team,
-      isSettled: false,
-      settledAt: data.ended_at,
-      currentState: data.current_state || {},
-    };
+    return null;
   }
 
   /**

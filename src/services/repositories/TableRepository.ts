@@ -890,6 +890,12 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
+    console.log('[GAME_START_RPC_CALL]', {
+      tableId,
+      turnDurationSeconds: turnDurationSeconds || 30,
+      initialTurnUserId: initialState?.turnUserId || initialState?.currentTurnUserId,
+    });
+
     const { data, error } = await supabase.rpc('start_game_session_secure', {
       p_table_id: tableId,
       p_initial_state: initialState || null,
@@ -897,9 +903,40 @@ export class TableRepository {
     });
 
     if (error) {
-      console.error('[TableRepository] Error al iniciar sesión de juego:', error);
+      if (error.code === 'PGRST202') {
+        console.error('[GAME_START_RPC_NOT_FOUND]', {
+          code: error.code,
+          message: error.message,
+          tableId,
+        });
+      } else if (
+        error.code === '42501' ||
+        error.message?.includes('permission') ||
+        error.message?.includes('AUTH_REQUIRED') ||
+        error.message?.includes('ONLY_HOST_CAN_START')
+      ) {
+        console.error('[GAME_START_RPC_PERMISSION_ERROR]', {
+          code: error.code,
+          message: error.message,
+          tableId,
+        });
+      } else {
+        console.error('[GAME_START_RPC_ERROR]', {
+          code: error.code,
+          message: error.message,
+          tableId,
+        });
+      }
       throw new Error(error.message || 'Error al iniciar la partida.');
     }
+
+    console.log('[GAME_START_RPC_SUCCESS]', {
+      sessionId: data?.session_id,
+      tableId,
+      alreadyActive: Boolean(data?.already_active),
+      currentTurnUserId: data?.current_turn_user_id,
+      turnDeadlineAt: data?.turn_deadline_at,
+    });
 
     return data?.session_id || null;
   }

@@ -1,17 +1,17 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE BINGO (ACUMULACIÓN SEGURA DE CARTONES)
+// RASPANDO LA OLLA — MOTOR DE BINGO (ACUMULACIÓN SEGURA + HOST PRESERVADO)
 // ==============================================================================
 // • Los cartones NO se guardan en el estado: se regeneran determinísticamente
 // • Solo se persiste el contador cardsPurchased (que se SUMA, no se pisa)
 // • Todos los dispositivos regeneran los MISMOS cartones (semilla fija)
 // • Soporta 75 y 90 bolas (quiniela)
+// • getSanitizedStateForPlayer PRESERVA hostUserId (clave para UI)
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type { GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
-// ---------- Utilidades determinísticas (mismos cartones en todos lados) ----------
 const hashString = (str: string): number => {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
@@ -77,7 +77,6 @@ const genCard90 = (id: string, rnd: () => number) => {
   return { id, grid };
 };
 
-// Regenera los cartones de TODOS los jugadores a partir de los contadores
 const regenerateAllCards = (state: any) => {
   if (!state.cards || typeof state.cards !== 'object') state.cards = {};
   const purchased = state.cardsPurchased || {};
@@ -148,6 +147,9 @@ export class BingoEngine implements IGameEngine<any> {
 
     if (t === 'DRAW_BALL') {
       if (state.status !== 'PLAYING' && state.status !== 'SALES') return { valid: false, reason: 'La partida no está activa.' };
+      if (state.hostUserId && action.userId !== state.hostUserId) {
+        return { valid: false, reason: 'Solo el anfitrión puede iniciar el sorteo.' };
+      }
       const ball = Number(action.actionData?.ball);
       if (!ball || (state.drawnBalls || []).includes(ball)) return { valid: false, reason: 'Balota ya cantada.' };
       return { valid: true };
@@ -172,10 +174,10 @@ export class BingoEngine implements IGameEngine<any> {
     if (t === 'BUY_CARDS') {
       const count = Number(action.actionData?.count) || 1;
       if (!next.cardsPurchased) next.cardsPurchased = {};
-      // ⬇️ SE SUMA al contador existente (nunca se pisa)
       next.cardsPurchased[action.userId] = (next.cardsPurchased[action.userId] || 0) + count;
       regenerateAllCards(next);
-      next.lastActionLog = `🎫 Compraste ${count} cartón(es) → total ${next.cardsPurchased[action.userId]}`;
+      const playerName = next.playerNames?.[action.userId] || 'Jugador';
+      next.lastActionLog = `🎫 ${playerName} compró ${count} cartón(es) → total ${next.cardsPurchased[action.userId]}`;
       return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
 
@@ -226,10 +228,24 @@ export class BingoEngine implements IGameEngine<any> {
     return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
   }
 
+  // ✅ FIX CRÍTICO: Preserva hostUserId y seed para que el tablero sepa quién es anfitrión
   public getSanitizedStateForPlayer(state: any, userId: string): any {
     const sanitized = JSON.parse(JSON.stringify(state));
-    // ⬇️ Regenera los cartones de TODOS a partir de los contadores acumulados
+    // Preservar información pública esencial
+    sanitized.hostUserId = state.hostUserId;
+    sanitized.seed = state.seed;
+    sanitized.maxCardsPerPlayer = state.maxCardsPerPlayer;
+    sanitized.cardPrice = state.cardPrice;
+    // Regenerar cartones para el jugador actual
     regenerateAllCards(sanitized);
+    // Ocultar contadores de otros jugadores (privacidad) pero mantener sus nombres
+    if (sanitized.cardsPurchased) {
+      Object.keys(sanitized.cardsPurchased).forEach((uid) => {
+        if (uid !== userId) {
+          sanitized.cardsPurchased[uid] = 0; // Ocultar conteo real
+        }
+      });
+    }
     return sanitized;
   }
 }

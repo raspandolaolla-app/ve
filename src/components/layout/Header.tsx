@@ -1,7 +1,3 @@
-// ==============================================================================
-// RASPANDO LA OLLA — CABECERA MEJORADA CON ANIMACIONES Y EFECTOS
-// ==============================================================================
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../hooks/useAuth';
@@ -79,10 +75,7 @@ export function Header({
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
-
-          {/* SECCIÓN IZQUIERDA: LOGO + SALDO */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-
             <motion.div
               id="brand-logo"
               onClick={() => handleNavigate('home')}
@@ -196,7 +189,6 @@ export function Header({
             )}
           </div>
 
-          {/* SECCIÓN CENTRAL: NAVEGACIÓN DESKTOP */}
           <nav className="hidden lg:flex items-center gap-1">
             {[
               { id: 'home', label: 'Lobby', icon: Grid, emoji: null },
@@ -243,7 +235,6 @@ export function Header({
             )}
           </nav>
 
-          {/* SECCIÓN DERECHA: NOTIFICACIONES + PERFIL */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <div className="hidden sm:block">
               <InstallPWAButton variant="header" />

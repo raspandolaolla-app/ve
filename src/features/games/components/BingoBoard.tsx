@@ -1,20 +1,21 @@
 // ==============================================================================
-// RASPANDO LA OLLA — BINGO ONLINE (75 Y 90 BOLAS / QUINIELA CRIOLLA)
+// RASPANDO LA OLLA — BINGO ONLINE (COMPATIBLE CON MOTOR VIEJO Y NUEVO)
 // ==============================================================================
-// • Lectura ampliada de cartones (arreglo, record, players-record) → SIEMPRE visibles
-// • Cartones 90 bolas estilo QUINIELA (3x9 con vacíos) y 75 bolas (5x5 con libre)
-// • Canto de BINGO AUTOMÁTICO al completar cartón
-// • SORTEO AUTOMÁTICO (solo anfitrión) con velocidad Turbo/Rápido/Normal
-// • Panel de COMPRA de cartones (1-20) durante la venta
-// • 3 temas venezolanos • Mobile-first • Supabase intacto
+// • Compatible con la estructura VIEJA (cards: {uid: [...]}) y la NUEVA (players: {uid: {cards: []}})
+// • Cartones 90 bolas (quiniela) y 75 bolas autodetectados
+// • Bombo virtual animado + historial + tablero colapsable
+// • Gestor de cartones: vista "TODOS" o "UNO"
+// • Canto de BINGO automático al completar cartón
+// • Sorteo automático del anfitrión
+// • 3 temas venezolanos
 // ==============================================================================
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, ChevronLeft, ChevronRight, LayoutGrid, Square, Trophy, Sparkles,
-  Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause, Zap,
-  Minus, Plus, ShoppingCart,
+  Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause,
+  Minus, Plus, ShoppingCart, Zap,
 } from 'lucide-react';
 
 interface BingoBoardProps {
@@ -137,7 +138,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const [autoGlow, setAutoGlow] = useState(true);
   const [buyCount, setBuyCount] = useState(3);
 
-  // ----- Sorteo automático (anfitrión) -----
   const isHost = (s.hostUserId || s.hostId || '') === currentUserId;
   const [autoDraw, setAutoDraw] = useState(false);
   const [speed, setSpeed] = useState(2);
@@ -153,50 +153,66 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const lastBall = toNum(s.currentBall ?? s.lastBall) > 0 ? toNum(s.currentBall ?? s.lastBall) : drawn[drawn.length - 1];
   const calledSet = useMemo(() => new Set(drawn), [drawn]);
 
-  // ----- LECTURA AMPLIADA DE MIS CARTONES (siempre visibles) -----
+  // ===== LECTURA DUAL (compatible con motor VIEJO y NUEVO) =====
   const myCards: any[] = useMemo(() => {
     const uid = currentUserId;
+
+    // Estructura VIEJA: state.cards = { [userId]: [card1, card2...] }
+    if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards) && s.cards[uid]) {
+      const arr = s.cards[uid];
+      if (Array.isArray(arr)) {
+        return arr.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
+      }
+    }
+
+    // Estructura NUEVA: state.players[uid].cards = [...]
+    if (s.players && s.players[uid] && Array.isArray(s.players[uid].cards)) {
+      return s.players[uid].cards.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
+    }
+
+    // Fallback: buscar en otras ubicaciones
     const candidates: any = [
-      s.cards?.[uid],
       s.playerCards?.[uid],
       s.cardsByPlayer?.[uid],
-      s.players?.[uid]?.cards,
-      s.players?.[uid]?.hand,
       s.myCards,
       Array.isArray(s.cards) ? s.cards.filter((c: any) => !c?.userId || c.userId === uid) : null,
-      Array.isArray(s.playerCards) ? s.playerCards.filter((c: any) => !c?.userId || c.userId === uid) : null,
     ];
     const src = candidates.find((c: any) => Array.isArray(c)) || [];
-    return src.map((raw: any, idx: number) => {
-      let grid: (number | null)[][] = [];
-      if (Array.isArray(raw) && raw.length && typeof raw[0] === 'number') {
-        grid = chunk(raw, raw.length === 15 ? 9 : 5);
-      } else if (Array.isArray(raw?.grid) && Array.isArray(raw.grid[0])) grid = raw.grid;
-      else if (Array.isArray(raw?.rows) && Array.isArray(raw.rows[0])) grid = raw.rows;
-      else if (Array.isArray(raw?.cells)) grid = chunk(raw.cells, raw.cells.length === 27 ? 9 : raw.cells.length === 25 ? 5 : 9);
-      else if (Array.isArray(raw?.numbers)) grid = chunk(raw.numbers, raw.numbers.length === 15 ? 9 : 5);
-
-      const markedSrc = raw?.marked || s.marked?.[raw?.id ?? idx] || s.markedCells?.[raw?.id ?? idx] || [];
-      const markedSet = new Set<string>();
-      if (Array.isArray(markedSrc)) {
-        markedSrc.forEach((m: any) => {
-          if (Array.isArray(m)) markedSet.add(`${m[0]}_${m[1]}`);
-          else if (typeof m === 'string') markedSet.add(m);
-          else if (m && m.row !== undefined) markedSet.add(`${m.row}_${m.col}`);
-        });
-      }
-      return { id: raw?.id ?? `card_${idx}`, grid, markedSet, raw };
-    }).filter((c: any) => c.grid.length > 0);
+    return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId]);
 
+  function normalizeCard(raw: any, idx: number, s: any) {
+    let grid: (number | null)[][] = [];
+    if (Array.isArray(raw) && raw.length && typeof raw[0] === 'number') {
+      grid = chunk(raw, raw.length === 15 ? 9 : 5);
+    } else if (Array.isArray(raw?.grid) && Array.isArray(raw.grid[0])) grid = raw.grid;
+    else if (Array.isArray(raw?.rows) && Array.isArray(raw.rows[0])) grid = raw.rows;
+    else if (Array.isArray(raw?.cells)) grid = chunk(raw.cells, raw.cells.length === 27 ? 9 : raw.cells.length === 25 ? 5 : 9);
+    else if (Array.isArray(raw?.numbers)) grid = chunk(raw.numbers, raw.numbers.length === 15 ? 9 : 5);
+
+    const markedSrc = raw?.marked || s.marked?.[raw?.id ?? idx] || s.markedCells?.[raw?.id ?? idx] || [];
+    const markedSet = new Set<string>();
+    if (Array.isArray(markedSrc)) {
+      markedSrc.forEach((m: any) => {
+        if (Array.isArray(m)) markedSet.add(`${m[0]}_${m[1]}`);
+        else if (typeof m === 'string') markedSet.add(m);
+        else if (m && m.row !== undefined) markedSet.add(`${m.row}_${m.col}`);
+      });
+    }
+    return { id: raw?.id ?? `card_${idx}`, grid, markedSet, raw };
+  }
+
+  // Detección de modalidad (75 o 90)
   const maxBall = useMemo(() => {
+    if (s.variant === '90' || s.totalBalls === 90 || s.mode === 90) return 90;
+    if (s.variant === '75' || s.totalBalls === 75 || s.mode === 75) return 75;
     const has90 = myCards.some((c) => c.grid.some((r: any[]) => r.some((v: any) => Number(v) > 75)));
-    return has90 || drawn.some((n) => n > 75) || Number(s.mode ?? s.bingoMode ?? 0) === 90 ? 90 : 75;
-  }, [myCards, drawn, s.mode, s.bingoMode]);
+    return has90 || drawn.some((n) => n > 75) ? 90 : 75;
+  }, [myCards, drawn, s]);
 
   const status = s.status || 'playing';
   const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS'].includes(status);
-  const salesOpen = isSalesClosed === false || ['SALES', 'sales', 'WAITING', 'waiting'].includes(status);
+  const salesOpen = isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting';
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -216,7 +232,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return { hit, total };
   };
 
-  // ----- CANTO DE BINGO AUTOMÁTICO (cartón lleno) -----
+  // CANTO DE BINGO AUTOMÁTICO
   const autoCalledRef = useRef(false);
   useEffect(() => {
     if (!isPlaying || autoCalledRef.current || myCards.length === 0) return;
@@ -226,7 +242,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     }
   }, [calledSet, myCards, isPlaying]);
 
-  // ----- SORTEO AUTOMÁTICO (solo anfitrión) -----
+  // SORTEO AUTOMÁTICO (anfitrión)
   useEffect(() => {
     if (!autoDraw || !isHost || !isPlaying || !onDrawBall || salesOpen) return;
     const id = setInterval(() => onDrawBall(), Math.max(1, speed) * 1000);
@@ -235,7 +251,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   const safeActive = Math.min(activeIndex, Math.max(0, myCards.length - 1));
 
-  // ============================================================================
   const renderCard = (card: any, index: number, compact: boolean) => {
     const prog = cardProgress(card);
     const cols = card.grid[0]?.length || 9;
@@ -249,7 +264,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         className="rounded-xl border-2 overflow-hidden"
         style={{ background: T.panel, borderColor: !compact ? T.accent : T.border, boxShadow: '0 6px 16px rgba(0,0,0,0.45)' }}
       >
-        {/* Encabezado estilo quiniela criolla */}
         <div className="flex items-center justify-between px-2 py-1"
           style={{ background: isQuiniela
             ? 'linear-gradient(90deg, #FFC94B33, #EF334033, #003DA533)'
@@ -348,7 +362,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         </div>
       </div>
 
-      {/* ===== CHIPS: VENTA / COUNTDOWN / BCV ===== */}
+      {/* ===== CHIPS ===== */}
       <div className="w-full flex items-center gap-2 flex-wrap">
         {isSalesClosed !== undefined && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase"
@@ -359,6 +373,13 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             }}>
             <Ticket className="w-3 h-3" />
             {isSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
+          </div>
+        )}
+        {salesOpen && myCards.length === 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black"
+            style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
+            <Zap className="w-3 h-3" />
+            Esperando asignación de cartones...
           </div>
         )}
         {!isSalesClosed && (countdownSeconds ?? 0) > 0 && (
@@ -375,27 +396,27 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </div>
 
-      {/* ===== PANEL DE COMPRA DE CARTONES ===== */}
+      {/* ===== PANEL DE COMPRA (solo si el motor lo soporta) ===== */}
       <AnimatePresence>
-        {salesOpen && onBuyCards && (
+        {salesOpen && onBuyCards && myCards.length === 0 && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="w-full overflow-hidden">
             <div className="p-3 rounded-2xl border-2 flex items-center justify-between gap-3"
               style={{ background: T.panel, borderColor: '#34D399' }}>
               <div>
                 <div className="text-[11px] font-black uppercase" style={{ color: T.text }}>🎫 Compra tus cartones</div>
-                <div className="text-[9px]" style={{ color: T.sub }}>Tienes {myCards.length} · Máximo 20 por jugador</div>
+                <div className="text-[9px]" style={{ color: T.sub }}>Máximo 20 por jugador</div>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setBuyCount(Math.max(1, buyCount - 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
                   <Minus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
                 <span className="text-lg font-black font-mono w-8 text-center" style={{ color: T.accent }}>{buyCount}</span>
-                <button onClick={() => setBuyCount(Math.min(20 - myCards.length, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
+                <button onClick={() => setBuyCount(Math.min(20, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
                   <Plus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
-                <button onClick={() => onBuyCards(buyCount)} disabled={myCards.length >= 20}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase text-white disabled:opacity-40"
+                <button onClick={() => onBuyCards(buyCount)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase text-white"
                   style={{ background: 'linear-gradient(145deg,#43A047,#1B5E20)', boxShadow: '0 5px 14px rgba(27,94,32,0.5)' }}>
                   <ShoppingCart className="w-3.5 h-3.5" /> Comprar
                 </button>
@@ -541,7 +562,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="grid grid-cols-1 min-[430px]:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto no-scrollbar pr-0.5">
             {myCards.length > 0 ? myCards.map((card, i) => renderCard(card, i, true)) : (
               <div className="col-span-full text-center text-[10px] font-mono py-6" style={{ color: T.sub }}>
-                {salesOpen ? 'Compra tus cartones arriba ☝️' : 'No compraste cartones esta ronda.'}
+                {salesOpen ? 'Esperando asignación de cartones...' : 'No tienes cartones en esta ronda.'}
               </div>
             )}
           </div>
@@ -569,7 +590,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             className="w-full p-4 rounded-2xl text-center font-black text-sm flex items-center justify-center gap-2"
             style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 8px 24px ${T.accent}66` }}>
             <Trophy className="w-5 h-5" />
-            ¡BINGO! GANADOR: {(s.players?.find?.((p: any) => p.userId === s.winnerUserId)?.name || s.winnerName || '—')}
+            ¡BINGO! GANADOR: {(s.players?.[s.winnerUserId]?.name || s.playerNames?.[s.winnerUserId] || s.winnerName || '—')}
           </motion.div>
         )}
       </AnimatePresence>

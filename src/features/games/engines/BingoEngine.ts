@@ -1,238 +1,181 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE JUEGO: BINGO ONLINE (75, 80, 90 BOLAS)
+// RASPANDO LA OLLA — MOTOR DE BINGO (75 Y 90 BOLAS / QUINIELA)
 // ==============================================================================
-// Cartones 5x5, 4x4 y 3x9, balotera secuencial, marcaje de números y validación.
+// • SIN cartones por defecto: los jugadores COMPRAN (1-20) durante la venta
+// • Modalidad desde table.config.bingoMode (75 | 90), por defecto 90
+// • Cartón 90 bolas = QUINIELA: 3 filas x 9 columnas, 15 números, 4 vacíos/fila
+// • Cartón 75 bolas = 5x5 con centro libre
+// • Compatible con RNG autoritativo de Supabase (DRAW_BALL recibe ball del servidor)
 // ==============================================================================
 
-import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
-import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant, GameActionPayload } from '../../../types/games';
+import type { GameActionPayload } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
-import { normalizeBingoState } from '../utils/gameStateGuard';
+const shuffle = <T,>(arr: T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 
-export class BingoEngine implements IGameEngine<BingoState> {
+const genCard75 = (id: string) => {
+  const cols: number[][] = [];
+  for (let c = 0; c < 5; c++) {
+    const pool = shuffle(Array.from({ length: 15 }, (_, i) => c * 15 + 1 + i));
+    cols.push(pool.slice(0, 5));
+  }
+  const grid: (number | null)[][] = [];
+  for (let r = 0; r < 5; r++) grid.push(cols.map((col) => col[r]));
+  grid[2][2] = 0; // centro libre
+  return { id, grid };
+};
+
+const genCard90 = (id: string) => {
+  // Quiniela: 3x9, 15 números (5 por fila), columnas por decena
+  const chosen = shuffle(Array.from({ length: 90 }, (_, i) => i + 1)).slice(0, 15).sort((a, b) => a - b);
+  const grid: (number | null)[][] = [Array(9).fill(null), Array(9).fill(null), Array(9).fill(null)];
+  const rowCounts = [0, 0, 0];
+  const colCounts = Array(9).fill(0);
+  for (const n of chosen) {
+    const col = Math.min(8, Math.floor((n - 1) / 10));
+    let placed = false;
+    for (let r = 0; r < 3; r++) {
+      if (grid[r][col] === null && rowCounts[r] < 5 && colCounts[col] < 2) {
+        grid[r][col] = n; rowCounts[r]++; colCounts[col]++; placed = true; break;
+      }
+    }
+    if (!placed) {
+      for (let r = 0; r < 3; r++) {
+        if (rowCounts[r] < 5) {
+          const c2 = grid[r].findIndex((x) => x === null);
+          if (c2 !== -1) { grid[r][c2] = n; rowCounts[r]++; placed = true; break; }
+        }
+      }
+    }
+  }
+  return { id, grid };
+};
+
+export class BingoEngine implements IGameEngine<any> {
   public readonly gameType = 'bingo';
 
-  public initialize(table: GameTable, players: TablePlayer[]): BingoState {
-    const uniquePlayers = Array.from(
-      new Map(
-        players.map((player) => [
-          (player as any).user_id || player.userId,
-          player,
-        ])
-      ).values()
-    ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
-
-    if (players.length !== uniquePlayers.length) {
-      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
-    }
-
-    const cards: Record<string, BingoCard75[]> = {};
-    const cardsPurchased: Record<string, number> = {};
-    const playerNames: Record<string, string> = {};
-
-    const variant: BingoVariant = ((table.config?.variant as BingoVariant) || '75');
-    const totalBalls = variant === '90' ? 90 : variant === '80' ? 80 : 75;
-
-    // Calcular pozo inicial basado en apuestas (o default 10 Bs por cartón)
-    const cardPrice = table.entryFee || 10.0;
-    let totalCardCount = 0;
-
-    uniquePlayers.forEach((p) => {
-      const isHost = p.userId === table.hostUserId;
-      // 1 a 20 cartones por jugador
-      const count = Math.min(20, Math.max(1, isHost ? 3 : 1));
-      cardsPurchased[p.userId] = count;
-      totalCardCount += count;
-
-      const userCards: BingoCard75[] = [];
-      for (let c = 0; c < count; c++) {
-        userCards.push(this.generateBingoCard75());
-      }
-      cards[p.userId] = userCards;
-      playerNames[p.userId] = (p.displayName || `Jugador ${p.seatNumber}`).toUpperCase();
+  public initialize(table: GameTable, players: TablePlayer[]): any {
+    const unique = Array.from(new Map(players.map((p) => [(p as any).user_id || p.userId, p])).values());
+    const mode = Number((table.config as any)?.bingoMode || (table as any).bingoMode || 90) === 75 ? 75 : 90;
+    const playersRec: Record<string, any> = {};
+    unique.forEach((p: any) => {
+      playersRec[p.userId] = { userId: p.userId, name: p.displayName || p.name || 'JUGADOR', cards: [] };
     });
-
-    const totalPoolBs = totalCardCount * cardPrice;
-    const winnerPoolBs = Math.round(totalPoolBs * 0.90 * 100) / 100; // 90% para ganador
-    const systemFeeBs = Math.round(totalPoolBs * 0.10 * 100) / 100;  // 10% para sistema
-
     return {
-      variant,
+      mode,
+      status: 'SALES', // fase de venta de cartones (sin cartones por defecto)
+      hostUserId: table.hostUserId,
+      players: playersRec,
       drawnBalls: [],
       currentBall: null,
-      cards,
-      cardsPurchased,
-      playerNames,
+      salesClosed: false,
+      maxCardsPerPlayer: 20,
+      cardPrice: Number((table.config as any)?.cardPrice ?? table.entryFee ?? 0),
+      autoDraw: false,
       winnerUserId: null,
-      status: 'in_progress',
-      callIntervalMs: 4000,
-      totalBalls,
-      totalPoolBs,
-      winnerPoolBs,
-      systemFeeBs,
+      lastActionLog: '🎫 Fase de venta: compra tus cartones',
     };
   }
 
-  public validateAction(state: BingoState, action: GameActionPayload): { valid: boolean; reason?: string } {
-    if (state.status === 'bingo_won' || state.status === 'finished') {
-      return { valid: false, reason: 'La partida de Bingo ya ha finalizado.' };
-    }
-
-    if (action.actionType === 'DRAW_BALL') {
-      if (state.drawnBalls.length >= state.totalBalls) {
-        return { valid: false, reason: `Ya se han extraído todas las ${state.totalBalls} balotas.` };
-      }
+  public validateAction(state: any, action: GameActionPayload): { valid: boolean; reason?: string } {
+    const t = action.actionType;
+    if (t === 'BUY_CARDS') {
+      if (state.status !== 'SALES') return { valid: false, reason: 'La venta de cartones está cerrada.' };
+      const owned = state.players?.[action.userId]?.cards?.length || 0;
+      const count = Number(action.actionData?.count) || 0;
+      if (count < 1 || owned + count > state.maxCardsPerPlayer) return { valid: false, reason: 'Límite de 20 cartones por jugador.' };
       return { valid: true };
     }
-
-    if (action.actionType === 'CLAIM_BINGO') {
-      const userCards = state.cards[action.userId];
-      if (!userCards || userCards.length === 0) return { valid: false, reason: 'Cartón no encontrado.' };
-
-      const hasValidBingo = userCards.some((card) => this.verifyBingoCard75(card, state.drawnBalls));
-      if (!hasValidBingo) {
-        return { valid: false, reason: '¡Canto falso! Ninguno de tus cartones completa un Bingo válido.' };
-      }
-
+    if (t === 'CLOSE_SALES') {
+      if (action.userId !== state.hostUserId) return { valid: false, reason: 'Solo el anfitrión cierra la venta.' };
       return { valid: true };
     }
-
-    return { valid: false, reason: `Acción no reconocida: ${action.actionType}` };
+    if (t === 'DRAW_BALL') {
+      if (state.status !== 'PLAYING') return { valid: false, reason: 'El sorteo no ha iniciado.' };
+      const ball = Number(action.actionData?.ball);
+      if (!ball || state.drawnBalls.includes(ball)) return { valid: false, reason: 'Balota ya cantada.' };
+      return { valid: true };
+    }
+    if (t === 'MARK_NUMBER') return { valid: true };
+    if (t === 'CLAIM_BINGO') return { valid: state.status === 'PLAYING' ? true : false, reason: 'Partida no activa.' };
+    return { valid: false, reason: `Acción no soportada: ${t}` };
   }
 
-  public applyAction(state: BingoState, action: GameActionPayload): ActionResult<BingoState> {
-    const validation = this.validateAction(state, action);
-    if (!validation.valid) {
-      return {
-        newState: state,
-        isValid: false,
-        errorMessage: validation.reason,
-        isGameOver: false,
-        winnerUserId: null,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
+  public applyAction(state: any, action: GameActionPayload): ActionResult<any> {
+    const v = this.validateAction(state, action);
+    if (!v.valid) {
+      return { newState: state, isValid: false, errorMessage: v.reason, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
+    const next = JSON.parse(JSON.stringify(state));
+    const t = action.actionType;
 
-    if (action.actionType === 'DRAW_BALL') {
-      const available = Array.from({ length: state.totalBalls }, (_, i) => i + 1).filter(
-        (n) => !state.drawnBalls.includes(n)
-      );
-
-      if (available.length === 0) {
-        return {
-          newState: { ...state, status: 'finished' },
-          isValid: true,
-          isGameOver: true,
-          winnerUserId: null,
-          winnerTeamIndex: null,
-          isDraw: true,
-        };
+    if (t === 'BUY_CARDS') {
+      const count = Number(action.actionData?.count) || 1;
+      const p = next.players[action.userId];
+      for (let i = 0; i < count; i++) {
+        const id = `card_${action.userId}_${Date.now()}_${i}`;
+        p.cards.push(next.mode === 75 ? genCard75(id) : genCard90(id));
       }
-
-      const nextBall = (action.actionData?.ball as number) || available[RngService.getRandomIntSecure(0, available.length - 1)];
-      const updatedDrawn = [...state.drawnBalls, nextBall];
-
-      const updatedState: BingoState = {
-        ...state,
-        drawnBalls: updatedDrawn,
-        currentBall: nextBall,
-      };
-
-      return {
-        newState: updatedState,
-        isValid: true,
-        isGameOver: false,
-        winnerUserId: null,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
+      next.lastActionLog = `🎫 ${p.name} compró ${count} cartón(es) → ${p.cards.length}`;
+      return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
 
-    if (action.actionType === 'CLAIM_BINGO') {
-      const updatedState: BingoState = {
-        ...state,
-        status: 'bingo_won',
-        winnerUserId: action.userId,
-      };
-
-      return {
-        newState: updatedState,
-        isValid: true,
-        isGameOver: true,
-        winnerUserId: action.userId,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
+    if (t === 'CLOSE_SALES') {
+      next.salesClosed = true;
+      next.status = 'PLAYING';
+      next.lastActionLog = '🔔 ¡Venta cerrada! Comienza el sorteo';
+      return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
 
-    return {
-      newState: state,
-      isValid: false,
-      errorMessage: 'Acción no procesada',
-      isGameOver: false,
-      winnerUserId: null,
-      winnerTeamIndex: null,
-      isDraw: false,
-    };
-  }
+    if (t === 'DRAW_BALL') {
+      const ball = Number(action.actionData?.ball);
+      next.drawnBalls.push(ball);
+      next.currentBall = ball;
+      next.lastActionLog = `🎱 Balota cantada: ${ball}`;
+      const done = next.drawnBalls.length >= next.mode;
+      return { newState: next, isValid: true, isGameOver: done, winnerUserId: done ? next.winnerUserId : null, winnerTeamIndex: null, isDraw: done && !next.winnerUserId };
+    }
 
-  public getSanitizedStateForPlayer(state: BingoState, _userId: string): BingoState {
-    const normalized = normalizeBingoState(state);
-    return normalized.state;
-  }
-
-  public getBotMove(state: BingoState, userId: string): GameActionPayload | null {
-    if (state.status !== 'in_progress') return null;
-    return {
-      sessionId: '',
-      userId,
-      actionType: 'DRAW_BALL',
-      actionData: {},
-      clientTimestamp: Date.now(),
-    };
-  }
-
-  public generateBingoCard75(): BingoCard75 {
-    const getRandomDistinct = (min: number, max: number, count: number): number[] => {
-      const nums: number[] = [];
-      while (nums.length < count) {
-        const n = RngService.getRandomIntSecure(min, max);
-        if (!nums.includes(n)) nums.push(n);
+    if (t === 'CLAIM_BINGO') {
+      const p = next.players[action.userId];
+      const called = new Set(next.drawnBalls);
+      const full = (p?.cards || []).some((card: any) => {
+        let ok = true, any = false;
+        card.grid.forEach((row: any[]) => row.forEach((val: any) => {
+          const n = Number(val);
+          if (n > 0) { any = true; if (!called.has(n)) ok = false; }
+        }));
+        return any && ok;
+      });
+      if (full) {
+        next.status = 'FINISHED';
+        next.winnerUserId = action.userId;
+        next.lastActionLog = `🏆 ¡BINGO! ${p.name} gana con cartón lleno`;
+        return { newState: next, isValid: true, isGameOver: true, winnerUserId: action.userId, winnerTeamIndex: null, isDraw: false };
       }
-      return nums.sort((a, b) => a - b);
-    };
+      return { newState: state, isValid: false, errorMessage: 'Aún no tienes cartón lleno.', isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
+    }
 
-    const b = getRandomDistinct(1, 15, 5);
-    const i = getRandomDistinct(16, 30, 5);
-    const nRaw = getRandomDistinct(31, 45, 4);
-    const n: (number | 'FREE')[] = [nRaw[0], nRaw[1], 'FREE', nRaw[2], nRaw[3]];
-    const g = getRandomDistinct(46, 60, 5);
-    const o = getRandomDistinct(61, 75, 5);
-
-    const marked: boolean[][] = Array(5)
-      .fill(false)
-      .map(() => Array(5).fill(false));
-    marked[2][2] = true;
-
-    return { b, i, n, g, o, marked };
+    return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
   }
 
-  private verifyBingoCard75(card: BingoCard75, drawnBalls: number[]): boolean {
-    for (let r = 0; r < 5; r++) {
-      if (card.marked[r].every((m) => m)) return true;
-    }
-    for (let c = 0; c < 5; c++) {
-      let colFull = true;
-      for (let r = 0; r < 5; r++) {
-        if (!card.marked[r][c]) colFull = false;
+  public getSanitizedStateForPlayer(state: any, userId: string): any {
+    // Oculta los cartones de los demás jugadores
+    const sanitized = JSON.parse(JSON.stringify(state));
+    Object.keys(sanitized.players || {}).forEach((uid) => {
+      if (uid !== userId) {
+        sanitized.players[uid].cardCount = sanitized.players[uid].cards?.length || 0;
+        sanitized.players[uid].cards = [];
       }
-      if (colFull) return true;
-    }
-    const diag1 = card.marked[0][0] && card.marked[1][1] && card.marked[2][2] && card.marked[3][3] && card.marked[4][4];
-    const diag2 = card.marked[0][4] && card.marked[1][3] && card.marked[2][2] && card.marked[3][1] && card.marked[4][0];
-    return diag1 || diag2;
+    });
+    return sanitized;
   }
 }

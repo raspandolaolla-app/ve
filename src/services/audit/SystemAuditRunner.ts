@@ -469,7 +469,7 @@ export class SystemAuditRunner {
           // Validar existencia y actualización de closed_at en la tabla real
           const { data: closedTable } = await supabase
             .from('game_tables')
-            .select('id, status, closed_at, updated_at')
+            .select('id, status, closed_at')
             .eq('id', createdTable.id)
             .single();
 

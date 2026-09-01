@@ -11,7 +11,7 @@ import { getGameDisplayName } from '../../utils/formatters';
 import { GameRepository } from './GameRepository';
 import { ProfileRepository } from './ProfileRepository';
 import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from '../../types/tables';
-import type { GameType } from '../../types/games';
+import type { GameType, GameMode } from '../../types/games';
 
 export class TableRepository {
   /**
@@ -939,5 +939,192 @@ export class TableRepository {
     });
 
     return data?.session_id || null;
+  }
+
+  /**
+   * Genera una mesa instantánea en Modo Práctica con Bots en los asientos restantes.
+   * Sin dinero real, sin retenciones en el ledger y con el anfitrión en el Asiento 1.
+   */
+  public static createPracticeTable(params: {
+    gameType: GameType;
+    maxPlayers: number;
+    currentUserId: string;
+    userDisplayName?: string;
+    userAvatarUrl?: string;
+  }): { table: GameTable; players: TablePlayer[] } {
+    const { gameType, maxPlayers, currentUserId, userDisplayName, userAvatarUrl } = params;
+    const now = new Date().toISOString();
+    const tableId = `practice_${gameType}_${Date.now()}`;
+
+    const table: GameTable = {
+      id: tableId,
+      gameType,
+      name: `Práctica de ${getGameDisplayName(gameType)}`,
+      mode: maxPlayers === 4 ? '2v2' : '1v1',
+      entryFee: 0,
+      currency: 'VES',
+      minPlayers: maxPlayers === 4 ? 2 : maxPlayers,
+      maxPlayers,
+      currentPlayersCount: maxPlayers,
+      status: 'ACTIVE',
+      hostUserId: currentUserId,
+      isPrivate: true,
+      joinCode: 'PRACTICE',
+      shareToken: 'PRACTICE',
+      createdAt: now,
+      startedAt: now,
+      config: {
+        isPractice: true,
+      },
+    };
+
+    const botNames = ['Bot Simón', 'Bot Luisa', 'Bot Carlos', 'Bot Andrea', 'Bot Rafael'];
+
+    const players: TablePlayer[] = [
+      {
+        tableId,
+        userId: currentUserId,
+        seatNumber: 1,
+        seatIndex: 1,
+        teamIndex: 0,
+        status: 'PLAYING',
+        isReady: true,
+        isOnline: true,
+        joinedAt: now,
+        displayName: userDisplayName || 'Tú (Anfitrión)',
+        avatarUrl: userAvatarUrl,
+      },
+    ];
+
+    for (let seat = 2; seat <= maxPlayers; seat++) {
+      const botName = botNames[(seat - 2) % botNames.length];
+      players.push({
+        tableId,
+        userId: `bot_seat_${seat}`,
+        seatNumber: seat,
+        seatIndex: seat,
+        teamIndex: maxPlayers === 4 ? (seat % 2 === 1 ? 0 : 1) : 0,
+        status: 'PLAYING',
+        isReady: true,
+        isOnline: true,
+        joinedAt: now,
+        displayName: botName,
+      });
+    }
+
+    return { table, players };
+  }
+
+  /**
+   * Sistema de Emparejamiento Inteligente (Matchmaking):
+   * 1. Si es modo práctica (entryFee === 0), crea mesa de práctica instantánea.
+   * 2. Si es partida real, busca una mesa pública abierta compatible.
+   * 3. Si encuentra una mesa con cupo disponible, se une mediante join_table_transaction.
+   * 4. Si no encuentra ninguna, crea automáticamente una nueva mesa y ubica al anfitrión en el Asiento 1.
+   */
+  public static async findOrCreateMatchmakingTable(params: {
+    gameType: GameType;
+    entryFee: number;
+    maxPlayers: number;
+    mode?: GameMode;
+    currentUserId: string;
+    userDisplayName?: string;
+    userAvatarUrl?: string;
+  }): Promise<{
+    table: GameTable;
+    players?: TablePlayer[];
+    action: 'joined' | 'created' | 'practice';
+    message?: string;
+  }> {
+    const { gameType, entryFee, maxPlayers, mode, currentUserId, userDisplayName, userAvatarUrl } = params;
+
+    // Modo Práctica
+    if (entryFee === 0) {
+      const practice = TableRepository.createPracticeTable({
+        gameType,
+        maxPlayers,
+        currentUserId,
+        userDisplayName,
+        userAvatarUrl,
+      });
+      return {
+        table: practice.table,
+        players: practice.players,
+        action: 'practice',
+        message: 'Mesa de práctica generada con bots automáticos.',
+      };
+    }
+
+    // Partida Real: Buscar mesas públicas abiertas compatibles
+    try {
+      const availableTables = await TableRepository.getPublicTables(gameType);
+      const compatibleTable = availableTables.find((t) => {
+        if (t.gameType !== gameType) return false;
+        if (t.entryFee !== entryFee) return false;
+        if (t.isPrivate) return false;
+        if (t.currentPlayersCount >= t.maxPlayers) return false;
+        if (t.status !== 'OPEN') return false;
+        return true;
+      });
+
+      if (compatibleTable) {
+        const nextSeat = compatibleTable.currentPlayersCount + 1;
+        const idempotencyKey = `mm_join_${compatibleTable.id}_${currentUserId}_${Date.now()}`;
+        const joinRes = await TableRepository.joinTable(compatibleTable.id, nextSeat, idempotencyKey);
+
+        if (joinRes.success) {
+          const updatedPlayers = await TableRepository.getTablePlayers(compatibleTable.id);
+          return {
+            table: {
+              ...compatibleTable,
+              currentPlayersCount: compatibleTable.currentPlayersCount + 1,
+            },
+            players: updatedPlayers,
+            action: 'joined',
+            message: `¡Emparejado con éxito en la mesa "${compatibleTable.name}"!`,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[TableRepository] Error en búsqueda de matchmaking, creando nueva mesa...', err);
+    }
+
+    // Si no se encontró o falló la unión, crear nueva mesa
+    const effectiveMode = mode || (maxPlayers === 4 ? '2v2' : '1v1');
+    const newTable = await TableRepository.createTable({
+      gameType,
+      name: `Mesa Rápida de ${getGameDisplayName(gameType)}`,
+      mode: effectiveMode,
+      entryFee,
+      maxPlayers,
+      isPrivate: false,
+    });
+
+    if (!newTable) {
+      throw new Error('No fue posible crear la mesa de emparejamiento.');
+    }
+
+    const hostPlayers: TablePlayer[] = [
+      {
+        tableId: newTable.id,
+        userId: currentUserId,
+        seatNumber: 1,
+        seatIndex: 1,
+        teamIndex: 0,
+        status: 'READY',
+        isReady: true,
+        isOnline: true,
+        joinedAt: new Date().toISOString(),
+        displayName: userDisplayName || 'Anfitrión',
+        avatarUrl: userAvatarUrl,
+      },
+    ];
+
+    return {
+      table: newTable,
+      players: hostPlayers,
+      action: 'created',
+      message: 'Mesa pública creada. Esperando oponentes...',
+    };
   }
 }

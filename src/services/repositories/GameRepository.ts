@@ -315,7 +315,6 @@ export class GameRepository {
           .update({
             status: 'CLOSED',
             closed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
           })
           .eq('id', tableId);
       }

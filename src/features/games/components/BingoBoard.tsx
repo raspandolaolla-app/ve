@@ -1,16 +1,11 @@
 // ==============================================================================
 // RASPANDO LA OLLA — BINGO ONLINE (COMPATIBLE CON MOTOR VIEJO Y NUEVO)
 // ==============================================================================
-// • Compatible con la estructura VIEJA (cards: {uid: [...]}) y la NUEVA (players: {uid: {cards: []}})
-// • Cartones 90 bolas (quiniela) y 75 bolas autodetectados
+// • Modal de resultados visible para TODOS los jugadores (ganador y perdedores)
+// • Detalles completos: ganador, premio, pozo, bolas cantadas, cartones
+// • Opciones para volver al lobby o jugar de nuevo
+// • Cartones 90/75 bolas autodetectados
 // • Bombo virtual animado + historial + tablero colapsable
-// • Gestor de cartones: vista "TODOS" o "UNO"
-// • Canto de BINGO automático al completar cartón
-// • Sorteo automático del anfitrión
-// • 3 temas venezolanos
-// • Anfitrión puede INICIAR SORTEO desde la fase de venta
-// • Contador global de cartones de TODA la mesa
-// • Detección dual de host (motor viejo + nuevo)
 // ==============================================================================
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -18,7 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, ChevronLeft, ChevronRight, LayoutGrid, Square, Trophy, Sparkles,
   Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause,
-  Minus, Plus, ShoppingCart, Zap, Users,
+  Minus, Plus, ShoppingCart, Zap, Users, Crown, Home, RotateCcw, X,
 } from 'lucide-react';
 
 interface BingoBoardProps {
@@ -119,6 +114,10 @@ const chunk = (arr: any[], size: number): any[][] => {
   return out;
 };
 
+const formatBs = (n: number): string => {
+  return new Intl.NumberFormat('es-VE', { maximumFractionDigits: 2 }).format(n) + ' Bs';
+};
+
 export const BingoBoard: React.FC<BingoBoardProps> = ({
   state, currentUserId, onMarkNumber, onClaimBingo, onDrawBall, onBuyCards,
   isSalesClosed, countdownSeconds, bcvRate, isMuted, onToggleMute,
@@ -141,12 +140,11 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const [autoGlow, setAutoGlow] = useState(true);
   const [buyCount, setBuyCount] = useState(3);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showResultsModal, setShowResultsModal] = useState(true);
 
-  // ✅ DETECCIÓN DUAL DE HOST: funciona con motor VIEJO (sin hostUserId) y NUEVO
   const playerNamesKeys = s.playerNames ? Object.keys(s.playerNames) : [];
   const firstPlayerId = playerNamesKeys.length > 0 ? playerNamesKeys[0] : null;
-  const isHost = (s.hostUserId || s.hostId || '') === currentUserId
-    || (firstPlayerId === currentUserId); // fallback para motor viejo
+  const isHost = (s.hostUserId || s.hostId || '') === currentUserId || (firstPlayerId === currentUserId);
 
   const [autoDraw, setAutoDraw] = useState(false);
   const [speed, setSpeed] = useState(2);
@@ -163,22 +161,15 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   const myCards: any[] = useMemo(() => {
     const uid = currentUserId;
-
     if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards) && s.cards[uid]) {
       const arr = s.cards[uid];
-      if (Array.isArray(arr)) {
-        return arr.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
-      }
+      if (Array.isArray(arr)) return arr.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
     }
-
     if (s.players && s.players[uid] && Array.isArray(s.players[uid].cards)) {
       return s.players[uid].cards.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
     }
-
     const candidates: any = [
-      s.playerCards?.[uid],
-      s.cardsByPlayer?.[uid],
-      s.myCards,
+      s.playerCards?.[uid], s.cardsByPlayer?.[uid], s.myCards,
       Array.isArray(s.cards) ? s.cards.filter((c: any) => !c?.userId || c.userId === uid) : null,
     ];
     const src = candidates.find((c: any) => Array.isArray(c)) || [];
@@ -188,20 +179,30 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const totalCardsInTable = useMemo((): number => {
     let total = 0;
     if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
-      for (const key of Object.keys(s.cardsPurchased)) {
-        total += Number(s.cardsPurchased[key]) || 0;
-      }
-      return total;
+      for (const key of Object.keys(s.cardsPurchased)) total += Number(s.cardsPurchased[key]) || 0;
     }
     if (s.cards && typeof s.cards === 'object' && !Array.isArray(s.cards)) {
       for (const key of Object.keys(s.cards)) {
         const arr = s.cards[key];
         total += Array.isArray(arr) ? arr.length : 0;
       }
-      return total;
     }
-    return 0;
+    return total;
   }, [s, refreshKey]);
+
+  // ✅ NUEVO: Detectar fin de partida (visible para TODOS)
+  const status = s.status || 'playing';
+  const isFinished = status === 'FINISHED' || status === 'finished' || Boolean(s.winnerUserId);
+  const winnerUserId = s.winnerUserId;
+  const winnerName = winnerUserId ? (s.playerNames?.[winnerUserId] || s.players?.[winnerUserId]?.name || 'Ganador') : null;
+  const isWinner = winnerUserId === currentUserId;
+
+  // Cálculos del premio
+  const cardPrice = Number(s.cardPrice ?? 0);
+  const totalPlayers = playerNamesKeys.length || 1;
+  const grossPool = cardPrice * totalCardsInTable;
+  const prizePool = grossPool * 0.9;
+  const platformFee = grossPool * 0.1;
 
   function normalizeCard(raw: any, idx: number, s: any) {
     let grid: (number | null)[][] = [];
@@ -231,16 +232,8 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return has90 || drawn.some((n) => n > 75) ? 90 : 75;
   }, [myCards, drawn, s]);
 
-  const status = s.status || 'playing';
   const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS'].includes(status);
   const salesOpen = isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting';
-
-  // Log de diagnóstico (se puede quitar después)
-  useEffect(() => {
-    if (salesOpen) {
-      console.log('[BINGO_DEBUG]', { status, isHost, isPlaying, salesOpen, currentUserId, hostUserId: s.hostUserId, firstPlayerId });
-    }
-  }, [status, isHost, isPlaying, salesOpen, currentUserId, s.hostUserId, firstPlayerId]);
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -303,7 +296,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="h-full transition-all duration-500"
             style={{ width: `${prog.total ? (prog.hit / prog.total) * 100 : 0}%`, background: T.accent }} />
         </div>
-
         <div className="p-1.5 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
           {card.grid.map((row: any[], r: number) =>
             row.map((v: any, c: number) => {
@@ -311,25 +303,18 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
               const empty = !(n > 0);
               const called = !empty && calledSet.has(n);
               const marked = card.markedSet.has(`${r}_${c}`);
-              const clickable = !empty && called && isPlaying;
+              const clickable = !empty && called && isPlaying && !isFinished;
               return (
-                <button
-                  key={`${r}_${c}`}
-                  type="button"
-                  disabled={!clickable}
+                <button key={`${r}_${c}`} type="button" disabled={!clickable}
                   onClick={() => clickable && onMarkNumber(r, c)}
                   className={`relative flex items-center justify-center rounded-[4px] font-black transition-all ${
                     compact ? 'h-5 text-[8px] sm:h-6 sm:text-[9px]' : 'h-8 text-xs sm:h-10 sm:text-sm'
                   } ${clickable ? 'cursor-pointer active:scale-90' : ''}`}
                   style={{
-                    background: marked
-                      ? `linear-gradient(145deg, ${T.accent}, ${T.accent}BB)`
-                      : empty
-                      ? 'rgba(0,0,0,0.45)'
-                      : called && autoGlow
-                      ? 'rgba(255,255,255,0.16)'
-                      : isQuiniela
-                      ? 'linear-gradient(160deg, #FFFBEE, #EFE2C0)'
+                    background: marked ? `linear-gradient(145deg, ${T.accent}, ${T.accent}BB)`
+                      : empty ? 'rgba(0,0,0,0.45)'
+                      : called && autoGlow ? 'rgba(255,255,255,0.16)'
+                      : isQuiniela ? 'linear-gradient(160deg, #FFFBEE, #EFE2C0)'
                       : 'rgba(255,255,255,0.06)',
                     color: marked ? '#1A120C' : empty ? 'rgba(255,255,255,0.15)' : isQuiniela && !called ? '#3E2B1F' : called ? T.accent : T.text,
                     boxShadow: called && autoGlow && !marked ? `inset 0 0 0 1.5px ${T.accent}AA` : 'none',
@@ -347,9 +332,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5"
+    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative"
       style={{ background: T.bg, minHeight: '100%' }}>
 
+      {/* ===== BARRA SUPERIOR ===== */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}>
         <div className="flex items-center gap-2">
@@ -378,7 +364,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           {isHost && (
             <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black"
               style={{ borderColor: '#34D399', color: '#34D399', background: 'rgba(52,211,153,0.1)' }}>
-              👑 Anfitrión
+              👑 Host
             </span>
           )}
           {onToggleMute && (
@@ -424,7 +410,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       </div>
 
       <AnimatePresence>
-        {salesOpen && onBuyCards && myCards.length < (s.maxCardsPerPlayer || 20) && (
+        {salesOpen && onBuyCards && myCards.length < (s.maxCardsPerPlayer || 20) && !isFinished && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="w-full overflow-hidden">
             <div className="p-3 rounded-2xl border-2 flex items-center justify-between gap-3 flex-wrap"
@@ -455,80 +441,78 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="w-full relative overflow-hidden rounded-3xl border-2 p-4"
-        style={{ background: T.panel, borderColor: T.border, boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
-          className="absolute -right-10 -top-10 w-40 h-40 rounded-full border-4 border-dashed opacity-15 pointer-events-none" style={{ borderColor: T.accent }} />
-
-        <div className="relative z-10 flex items-center justify-between gap-3">
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: T.sub }}>Balota actual</span>
-            <AnimatePresence mode="wait">
-              <motion.div key={lastBall || 'none'}>
-                {lastBall ? <Ball n={lastBall} max={maxBall} size="xl" /> : (
-                  <div className="w-24 h-24 rounded-full border-4 border-dashed flex items-center justify-center" style={{ borderColor: T.border }}>
-                    <Dices className="w-8 h-8" style={{ color: T.sub }} />
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: T.sub }}>
-              Últimas balotas ({drawn.length})
+      {!isFinished && (
+        <div className="w-full relative overflow-hidden rounded-3xl border-2 p-4"
+          style={{ background: T.panel, borderColor: T.border, boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
+            className="absolute -right-10 -top-10 w-40 h-40 rounded-full border-4 border-dashed opacity-15 pointer-events-none" style={{ borderColor: T.accent }} />
+          <div className="relative z-10 flex items-center justify-between gap-3">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: T.sub }}>Balota actual</span>
+              <AnimatePresence mode="wait">
+                <motion.div key={lastBall || 'none'}>
+                  {lastBall ? <Ball n={lastBall} max={maxBall} size="xl" /> : (
+                    <div className="w-24 h-24 rounded-full border-4 border-dashed flex items-center justify-center" style={{ borderColor: T.border }}>
+                      <Dices className="w-8 h-8" style={{ color: T.sub }} />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-              {drawn.length === 0 ? (
-                <span className="text-[10px] font-mono" style={{ color: T.sub }}>Esperando sorteo...</span>
-              ) : (
-                [...drawn].reverse().slice(0, 14).map((n, i) => <Ball key={`${n}-${i}`} n={n} max={maxBall} />)
-              )}
-            </div>
-
-            <div className="flex gap-1.5 mt-2">
-              {onDrawBall && (
-                <button type="button" onClick={onDrawBall} disabled={!(isPlaying || (salesOpen && isHost))}
-                  className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5 disabled:opacity-40"
-                  style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
-                  <Dices className="w-3.5 h-3.5" /> {salesOpen ? '🚀 Iniciar Sorteo' : 'Sacar Balota'}
-                </button>
-              )}
-              {isHost && isPlaying && !salesOpen && (
-                <button onClick={() => setAutoDraw(!autoDraw)}
-                  className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
-                  style={{
-                    background: autoDraw ? 'linear-gradient(145deg,#43A047,#1B5E20)' : 'rgba(255,255,255,0.08)',
-                    color: autoDraw ? '#FFF' : T.sub,
-                    border: `1.5px solid ${autoDraw ? '#34D399' : T.border}`,
-                  }}>
-                  {autoDraw ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  {autoDraw ? 'Auto ON' : 'Auto OFF'}
-                </button>
-              )}
-            </div>
-
-            {isHost && autoDraw && (
-              <div className="flex gap-1 mt-1.5">
-                {[{ s: 1, l: '⚡ Turbo' }, { s: 2, l: 'Rápido' }, { s: 4, l: 'Normal' }].map((o) => (
-                  <button key={o.s} onClick={() => setSpeed(o.s)}
-                    className="flex-1 py-1 rounded-lg border text-[9px] font-black uppercase"
-                    style={{
-                      borderColor: speed === o.s ? T.accent : T.border,
-                      color: speed === o.s ? T.accent : T.sub,
-                      background: speed === o.s ? `${T.accent}22` : 'transparent',
-                    }}>
-                    {o.l} {o.s}s
-                  </button>
-                ))}
+            <div className="flex-1 min-w-0">
+              <div className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: T.sub }}>
+                Últimas balotas ({drawn.length})
               </div>
-            )}
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                {drawn.length === 0 ? (
+                  <span className="text-[10px] font-mono" style={{ color: T.sub }}>Esperando sorteo...</span>
+                ) : (
+                  [...drawn].reverse().slice(0, 14).map((n, i) => <Ball key={`${n}-${i}`} n={n} max={maxBall} />)
+                )}
+              </div>
+              <div className="flex gap-1.5 mt-2">
+                {onDrawBall && (
+                  <button type="button" onClick={onDrawBall} disabled={!(isPlaying || (salesOpen && isHost))}
+                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5 disabled:opacity-40"
+                    style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
+                    <Dices className="w-3.5 h-3.5" /> {salesOpen ? '🚀 Iniciar Sorteo' : 'Sacar Balota'}
+                  </button>
+                )}
+                {isHost && isPlaying && !salesOpen && (
+                  <button onClick={() => setAutoDraw(!autoDraw)}
+                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
+                    style={{
+                      background: autoDraw ? 'linear-gradient(145deg,#43A047,#1B5E20)' : 'rgba(255,255,255,0.08)',
+                      color: autoDraw ? '#FFF' : T.sub,
+                      border: `1.5px solid ${autoDraw ? '#34D399' : T.border}`,
+                    }}>
+                    {autoDraw ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    {autoDraw ? 'Auto ON' : 'Auto OFF'}
+                  </button>
+                )}
+              </div>
+              {isHost && autoDraw && (
+                <div className="flex gap-1 mt-1.5">
+                  {[{ s: 1, l: '⚡ Turbo' }, { s: 2, l: 'Rápido' }, { s: 4, l: 'Normal' }].map((o) => (
+                    <button key={o.s} onClick={() => setSpeed(o.s)}
+                      className="flex-1 py-1 rounded-lg border text-[9px] font-black uppercase"
+                      style={{
+                        borderColor: speed === o.s ? T.accent : T.border,
+                        color: speed === o.s ? T.accent : T.sub,
+                        background: speed === o.s ? `${T.accent}22` : 'transparent',
+                      }}>
+                      {o.l} {o.s}s
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <AnimatePresence>
-        {showBoard && (
+        {showBoard && !isFinished && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="w-full overflow-hidden">
             <div className="p-2.5 rounded-2xl border grid gap-1"
               style={{ background: T.panel, borderColor: T.border, gridTemplateColumns: 'repeat(10, 1fr)' }}>
@@ -555,7 +539,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
               <Square className="w-3.5 h-3.5" /> Uno
             </button>
           </div>
-          {viewMode === 'single' && myCards.length > 0 && (
+          {viewMode === 'single' && myCards.length > 0 && !isFinished && (
             <div className="flex items-center gap-1">
               <button onClick={() => setActiveIndex(Math.max(0, safeActive - 1))} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
                 <ChevronLeft className="w-4 h-4" style={{ color: T.accent }} />
@@ -567,8 +551,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             </div>
           )}
         </div>
-
-        {myCards.length > 1 && (
+        {myCards.length > 1 && !isFinished && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1.5 mb-2">
             {myCards.map((_, i) => (
               <button key={i} onClick={() => { setActiveIndex(i); setViewMode('single'); }}
@@ -583,7 +566,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             ))}
           </div>
         )}
-
         {viewMode === 'all' ? (
           <div className="grid grid-cols-1 min-[430px]:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto no-scrollbar pr-0.5">
             {myCards.length > 0 ? myCards.map((card, i) => renderCard(card, i, true)) : (
@@ -601,30 +583,231 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </div>
 
-      <motion.button type="button" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }} onClick={onClaimBingo} disabled={!isPlaying}
-        className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
-        style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 10px 30px rgba(229,57,53,0.5)' }}>
-        <Trophy className="relative z-10 w-6 h-6 text-amber-300" />
-        <span className="relative z-10">¡BINGO!</span>
-        <Sparkles className="relative z-10 w-5 h-5 text-amber-300" />
-      </motion.button>
-
-      <AnimatePresence>
-        {(status === 'finished' || status === 'FINISHED' || s.winnerUserId) && (
-          <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="w-full p-4 rounded-2xl text-center font-black text-sm flex items-center justify-center gap-2"
-            style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 8px 24px ${T.accent}66` }}>
-            <Trophy className="w-5 h-5" />
-            ¡BINGO! GANADOR: {(s.players?.[s.winnerUserId]?.name || s.playerNames?.[s.winnerUserId] || s.winnerName || '—')}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!isFinished && (
+        <motion.button type="button" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }} onClick={onClaimBingo} disabled={!isPlaying}
+          className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
+          style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 10px 30px rgba(229,57,53,0.5)' }}>
+          <Trophy className="relative z-10 w-6 h-6 text-amber-300" />
+          <span className="relative z-10">¡BINGO!</span>
+          <Sparkles className="relative z-10 w-5 h-5 text-amber-300" />
+        </motion.button>
+      )}
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
         <span>🇻🇪 Bingo Criollo 🇻🇪</span>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
+
+      {/* ===== MODAL DE RESULTADOS (visible para TODOS los jugadores) ===== */}
+      <AnimatePresence>
+        {isFinished && winnerName && showResultsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="relative w-full max-w-lg rounded-3xl border-2 overflow-hidden shadow-2xl"
+              style={{
+                background: T.panel,
+                borderColor: isWinner ? '#FFC94B' : T.border,
+                boxShadow: isWinner ? '0 20px 60px rgba(255,201,75,0.4)' : '0 20px 60px rgba(0,0,0,0.7)',
+              }}
+            >
+              {/* Banner superior */}
+              <div className="relative overflow-hidden"
+                style={{
+                  background: isWinner
+                    ? 'linear-gradient(135deg, #FFC94B 0%, #EF3340 50%, #003DA5 100%)'
+                    : 'linear-gradient(135deg, #1F2937 0%, #374151 100%)',
+                }}>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+                  className="absolute -right-8 -top-8 w-32 h-32 rounded-full border-4 border-dashed opacity-20"
+                  style={{ borderColor: '#FFF' }}
+                />
+                <div className="relative p-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                    className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/40 mb-3"
+                  >
+                    {isWinner ? (
+                      <Crown className="w-10 h-10 text-white drop-shadow-lg" />
+                    ) : (
+                      <Trophy className="w-10 h-10 text-white/70" />
+                    )}
+                  </motion.div>
+                  <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-wider drop-shadow-lg">
+                    {isWinner ? '¡GANASTE!' : 'FIN DEL JUEGO'}
+                  </h2>
+                  <p className="text-white/90 text-sm sm:text-base font-bold mt-1">
+                    {isWinner ? '🏆 Cartón lleno confirmado' : `Ganador: ${winnerName}`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Contenido */}
+              <div className="p-5 space-y-4">
+                {/* Ganador destacado */}
+                <div className="rounded-2xl p-4 border-2 text-center"
+                  style={{
+                    background: isWinner ? 'rgba(255,201,75,0.15)' : 'rgba(255,255,255,0.05)',
+                    borderColor: isWinner ? '#FFC94B' : T.border,
+                  }}>
+                  <div className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: T.sub }}>
+                    {isWinner ? '¡Tú eres el campeón!' : 'Ganador de la partida'}
+                  </div>
+                  <div className="text-2xl font-black flex items-center justify-center gap-2" style={{ color: isWinner ? '#FFC94B' : T.text }}>
+                    <Crown className="w-6 h-6" />
+                    {winnerName}
+                  </div>
+                </div>
+
+                {/* Resumen financiero */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: T.sub }}>Pozo Total</div>
+                    <div className="text-sm font-black font-mono" style={{ color: T.text }}>{formatBs(grossPool)}</div>
+                    <div className="text-[8px] mt-0.5" style={{ color: T.sub }}>{totalCardsInTable} cartones</div>
+                  </div>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid #34D399' }}>
+                    <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: '#34D399' }}>Premio (90%)</div>
+                    <div className="text-sm font-black font-mono" style={{ color: '#34D399' }}>{formatBs(prizePool)}</div>
+                    <div className="text-[8px] mt-0.5" style={{ color: T.sub }}>Ganador</div>
+                  </div>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: T.sub }}>Plataforma (10%)</div>
+                    <div className="text-sm font-black font-mono" style={{ color: T.text }}>{formatBs(platformFee)}</div>
+                    <div className="text-[8px] mt-0.5" style={{ color: T.sub }}>Comisión</div>
+                  </div>
+                </div>
+
+                {/* Balotas cantadas */}
+                {drawn.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-1" style={{ color: T.sub }}>
+                      <Dices className="w-3 h-3" /> Balotas cantadas ({drawn.length}/{maxBall})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar p-2 rounded-xl" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                      {drawn.map((n, i) => (
+                        <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                          style={{ background: ballColor(n, maxBall), boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+                          {n}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Participantes */}
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-1" style={{ color: T.sub }}>
+                    <Users className="w-3 h-3" /> Participantes ({totalPlayers})
+                  </div>
+                  <div className="space-y-1 max-h-32 overflow-y-auto no-scrollbar">
+                    {playerNamesKeys.map((uid) => {
+                      const isThisWinner = uid === winnerUserId;
+                      const isMe = uid === currentUserId;
+                      const cardCount = s.cardsPurchased?.[uid] || 0;
+                      return (
+                        <div key={uid} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                          style={{
+                            background: isThisWinner ? 'rgba(255,201,75,0.15)' : isMe ? 'rgba(255,255,255,0.05)' : 'transparent',
+                            border: `1px solid ${isThisWinner ? '#FFC94B' : isMe ? T.border : 'transparent'}`,
+                          }}>
+                          <div className="flex items-center gap-2">
+                            {isThisWinner && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                            <span className="text-xs font-bold truncate max-w-[180px]" style={{ color: isThisWinner ? '#FFC94B' : T.text }}>
+                              {s.playerNames?.[uid] || 'Jugador'}
+                              {isMe && <span className="ml-1 text-[8px] text-amber-400">(TÚ)</span>}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-mono" style={{ color: T.sub }}>
+                            {cardCount} {cardCount === 1 ? 'cartón' : 'cartones'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowResultsModal(false);
+                      // Navegar al lobby (simula botón Volver)
+                      window.history.back();
+                    }}
+                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02]"
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      color: T.text,
+                      border: `1px solid ${T.border}`,
+                    }}
+                  >
+                    <Home className="w-4 h-4" />
+                    Lobby
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowResultsModal(false);
+                      // Recargar la página para jugar de nuevo (en el mismo lugar)
+                      window.location.reload();
+                    }}
+                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02]"
+                    style={{
+                      background: isWinner
+                        ? 'linear-gradient(145deg, #FFC94B, #E6A817)'
+                        : `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
+                      color: '#1A120C',
+                      boxShadow: `0 5px 14px ${T.accent}55`,
+                    }}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Jugar de nuevo
+                  </button>
+                </div>
+              </div>
+
+              {/* Botón cerrar */}
+              <button
+                onClick={() => setShowResultsModal(false)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Botón flotante para reabrir resultados si se cerró */}
+      {isFinished && winnerName && !showResultsModal && (
+        <motion.button
+          initial={{ scale: 0, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          onClick={() => setShowResultsModal(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs shadow-2xl transition-all animate-pulse"
+          style={{
+            background: isWinner ? 'linear-gradient(145deg, #FFC94B, #E6A817)' : `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
+            color: '#1A120C',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          }}
+        >
+          <Trophy className="w-4 h-4" />
+          Ver Resultados
+        </motion.button>
+      )}
     </div>
   );
 };

@@ -177,7 +177,8 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
 
     if (action.actionType === 'PLACE_SYMBOL') {
       const cellIndex = action.actionData.cellIndex as number;
-      const symbol = normalized.playerSymbols[action.userId] || (Object.keys(normalized.playerSymbols).length === 0 ? 'X' : 'O');
+      const pSymbols = normalized.playerSymbols || {};
+      const symbol = pSymbols[action.userId] || (Object.keys(pSymbols).length === 0 ? 'X' : 'O');
       const newBoard = [...normalized.board];
       newBoard[cellIndex] = symbol;
 
@@ -191,10 +192,29 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
         },
       ];
 
+      // Determinar oponente de forma estricta y alternada (A -> B -> A -> B)
+      const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+      const allPlayerIds = Object.keys(pSymbols).map((id) => id.trim());
+      const candidateIds =
+        (normalized as any).playerOrder && Array.isArray((normalized as any).playerOrder) && (normalized as any).playerOrder.length > 0
+          ? (normalized as any).playerOrder.map((id: any) => String(id).trim())
+          : allPlayerIds;
+
+      const currentIdx = candidateIds.findIndex((id: string) => id.toLowerCase() === actionUserNorm);
+      let nextTurnUserId = action.userId;
+      if (candidateIds.length > 1) {
+        if (currentIdx !== -1) {
+          nextTurnUserId = candidateIds[(currentIdx + 1) % candidateIds.length];
+        } else {
+          const opponentId = candidateIds.find((id: string) => id.toLowerCase() !== actionUserNorm);
+          if (opponentId) {
+            nextTurnUserId = opponentId;
+          }
+        }
+      }
+
       // Verificar si hay ganador de la ronda
       const winningCombo = this.checkWinner(newBoard);
-      const playerIds = Object.keys(normalized.playerSymbols);
-      const nextTurnUserId = playerIds.find((id) => id !== action.userId) || action.userId;
 
       if (winningCombo) {
         const newScores = {
@@ -213,7 +233,9 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
           winnerUserId: isMatchWon ? action.userId : null,
           status: isMatchWon ? 'game_won' : 'round_won',
           moveHistory: newHistory,
+          turnUserId: isMatchWon ? action.userId : nextTurnUserId,
         };
+        (updatedState as any).currentTurnUserId = updatedState.turnUserId;
 
         return {
           newState: updatedState,
@@ -236,7 +258,9 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
           roundWinnerUserId: null,
           winnerUserId: null,
           moveHistory: newHistory,
+          turnUserId: nextTurnUserId,
         };
+        (updatedState as any).currentTurnUserId = nextTurnUserId;
 
         return {
           newState: updatedState,
@@ -248,13 +272,14 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
         };
       }
 
-      // Turno continuado
+      // Turno continuado al oponente (A -> B -> A -> B)
       const updatedState: TicTacToeState = {
         ...normalized,
         board: newBoard,
         turnUserId: nextTurnUserId,
         moveHistory: newHistory,
       };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
 
       return {
         newState: updatedState,
@@ -267,17 +292,32 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     if (action.actionType === 'NEXT_ROUND') {
-      const playerIds = Object.keys(normalized.playerSymbols);
+      const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+      const allPlayerIds = Object.keys(normalized.playerSymbols || {}).map((id) => id.trim());
+      const candidateIds =
+        (normalized as any).playerOrder && Array.isArray((normalized as any).playerOrder) && (normalized as any).playerOrder.length > 0
+          ? (normalized as any).playerOrder.map((id: any) => String(id).trim())
+          : allPlayerIds;
+
+      const currentIdx = candidateIds.findIndex((id: string) => id.toLowerCase() === actionUserNorm);
+      const nextRoundStarter =
+        candidateIds.length > 1
+          ? currentIdx !== -1
+            ? candidateIds[(currentIdx + 1) % candidateIds.length]
+            : candidateIds.find((id: string) => id.toLowerCase() !== actionUserNorm) || candidateIds[0] || action.userId
+          : candidateIds[0] || action.userId;
+
       const updatedState: TicTacToeState = {
         ...normalized,
         board: Array(9).fill(null),
         round: normalized.round + 1,
-        turnUserId: playerIds[normalized.round % Math.max(1, playerIds.length)] || normalized.turnUserId,
+        turnUserId: nextRoundStarter,
         status: 'playing',
         winningLine: null,
         roundWinnerUserId: null,
         moveHistory: [],
       };
+      (updatedState as any).currentTurnUserId = nextRoundStarter;
 
       return {
         newState: updatedState,

@@ -183,11 +183,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
         // 1. Obtener o crear sesión en base de datos con jugadores deduplicados
         const initialEngineState = engine.initialize(table, uniquePlayers);
+        const canonicalInitialTurnId =
+          (initialEngineState as any)?.turnUserId ||
+          (initialEngineState as any)?.currentTurnUserId ||
+          (initialEngineState as any)?.playerWhiteUserId ||
+          uniquePlayers[0]?.userId;
+
         const activeSession = await GameRepository.createOrGetSession(
           table.id,
           table.gameType,
           initialEngineState,
-          uniquePlayers[0]?.userId
+          canonicalInitialTurnId
         );
 
         console.log('[DEBUG_GAME] uniquePlayers:', uniquePlayers);
@@ -265,12 +271,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             };
           }
 
-          // Obtener turno canónico unificado
+          // Obtener turno canónico unificado garantizando coincidencia con DB
           const canonicalTurnUserId =
+            activeSession.currentTurnUserId ||
             loadedState.currentTurnUserId ||
             loadedState.turnUserId ||
-            activeSession.currentTurnUserId ||
-            uniquePlayers[0]?.userId;
+            canonicalInitialTurnId;
 
           loadedState.turnUserId = canonicalTurnUserId;
           loadedState.currentTurnUserId = canonicalTurnUserId;
@@ -338,15 +344,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           console.log('[DEBUG_GAME] Sanitized Game State for Player:', sanitizedState);
           setGameState(sanitizedState);
         } else {
-          // Fallback en memoria si la base de datos está en proceso de asignación
-          const normalizedFallback = normalizeGameStateByType(
-            table.gameType,
-            initialEngineState,
-            initialEngineState,
-            uniquePlayers
-          ).state;
-          console.log('[DEBUG_GAME] Fallback to initialEngineState:', normalizedFallback);
-          setGameState(normalizedFallback);
+          // CASO C: La base de datos no tiene una sesión activa (esperando al anfitrión o error de RPC)
+          console.warn('[GameContainer] No hay sesión activa en el servidor para la mesa:', table.id);
+          setSession(null);
+          setGameState(null);
+          setErrorMsg('Esperando que el anfitrión inicie la partida o sincronizando con el servidor...');
         }
       } catch (err: any) {
         console.error('[DEBUG_GAME] Error inside initGame:', err);
@@ -550,6 +552,68 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       supabase.removeChannel(channel);
     };
   }, [session?.id, currentUserId, engine, currentPlayers, table]);
+
+  // Suscripción Realtime para detectar cuando el anfitrión crea/inicia la sesión en la mesa
+  useEffect(() => {
+    if (session?.id) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const tableSessionChannel = supabase
+      .channel(`table_sessions_${table.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_sessions',
+          filter: `table_id=eq.${table.id}`,
+        },
+        async (payload) => {
+          const newOrUpdated = payload.new as any;
+          if (
+            newOrUpdated &&
+            (newOrUpdated.status === 'ACTIVE' ||
+              newOrUpdated.status === 'IN_PROGRESS' ||
+              newOrUpdated.status === 'READY')
+          ) {
+            const activeSess = await GameRepository.getActiveSession(table.id);
+            if (activeSess) {
+              setSession(activeSess);
+              const initialEngineState = engine.initialize(table, currentPlayers);
+              const rawState =
+                activeSess.currentState && Object.keys(activeSess.currentState).length > 0
+                  ? activeSess.currentState
+                  : initialEngineState;
+              const normalized = normalizeGameStateByType(
+                table.gameType,
+                rawState,
+                initialEngineState,
+                currentPlayers
+              );
+              const canonicalTurn =
+                activeSess.currentTurnUserId ||
+                (normalized.state as any)?.currentTurnUserId ||
+                (normalized.state as any)?.turnUserId;
+              if (canonicalTurn) {
+                (normalized.state as any).currentTurnUserId = canonicalTurn;
+                (normalized.state as any).turnUserId = canonicalTurn;
+              }
+              const sanitized = engine.getSanitizedStateForPlayer
+                ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
+                : normalized.state;
+              setGameState(sanitized);
+              setErrorMsg(null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tableSessionChannel);
+    };
+  }, [session?.id, table, engine, currentPlayers, currentUserId]);
 
   // Procesar abandono de mesa confirmado
   const handleConfirmAbandon = async () => {

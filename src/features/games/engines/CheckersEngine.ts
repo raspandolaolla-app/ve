@@ -196,14 +196,21 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
         capturedCounts[action.userId] = (capturedCounts[action.userId] || 0) + 1;
       }
 
-      // Determinar oponente
-      const opponent = state.players.find((p) => p.userId !== action.userId)!;
+      // Determinar oponente de forma robusta
+      const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+      const opponent =
+        state.players.find((p) => String(p.userId || '').trim().toLowerCase() !== actionUserNorm) ||
+        state.players[0];
+      const nextTurnUserId = opponent?.userId || action.userId;
 
       // Contar fichas restantes del oponente
       let opponentPieces = 0;
       for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-          if (newBoard[r][c]?.userId === opponent.userId) {
+          if (
+            newBoard[r][c]?.userId &&
+            String(newBoard[r][c]?.userId || '').trim().toLowerCase() === String(opponent?.userId || '').trim().toLowerCase()
+          ) {
             opponentPieces++;
           }
         }
@@ -214,12 +221,13 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
       const updatedState: CheckersState = {
         ...state,
         board: newBoard,
-        turnUserId: isWon ? state.turnUserId : opponent.userId,
+        turnUserId: isWon ? state.turnUserId : nextTurnUserId,
         capturedCount: capturedCounts,
         status: isWon ? 'game_won' : 'playing',
         winnerUserId: isWon ? action.userId : null,
         lastMove: move,
       };
+      (updatedState as any).currentTurnUserId = updatedState.turnUserId;
 
       return {
         newState: updatedState,

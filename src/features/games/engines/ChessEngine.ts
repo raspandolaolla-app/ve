@@ -257,6 +257,7 @@ export class ChessEngine implements IGameEngine<ChessState> {
         ...state,
         fen: chess.fen(),
         currentTurnUserId: isGameOver ? undefined : nextTurnUserId,
+        turnUserId: isGameOver ? undefined : nextTurnUserId,
         turnDurationSeconds: 15,
         moveHistory: nextHistory,
         winnerUserId,

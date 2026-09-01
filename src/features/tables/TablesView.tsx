@@ -14,6 +14,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { TableRepository } from '../../services/repositories/TableRepository';
+import { GameRepository } from '../../services/repositories/GameRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
@@ -72,6 +73,7 @@ export function TablesView() {
   const [activeTable, setActiveTable] = useState<GameTable | null>(null);
   const [tablePlayers, setTablePlayers] = useState<TablePlayer[]>([]);
   const [joiningSeat, setJoiningSeat] = useState<number | null>(null);
+  const [isStartingTable, setIsStartingTable] = useState(false);
   const [seatActionFeedback, setSeatActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>(PresenceService.getOnlineUserIds());
 
@@ -984,25 +986,54 @@ export function TablesView() {
                             variant="primary"
                             size="sm"
                             leftIcon={<Play className="w-4 h-4 fill-current" />}
-                            disabled={!canStart}
+                            disabled={!canStart || isStartingTable}
                             onClick={async () => {
-                              if (!user || !canStart) return;
+                              if (!user || !canStart || isStartingTable) return;
                               try {
+                                setIsStartingTable(true);
                                 const engine = getGameEngine(activeTable.gameType);
                                 const initialEngineState = engine.initialize(activeTable, uniquePlayers);
-                                const turnDuration = activeTable.gameType === 'chess' ? 15 : ((initialEngineState as any)?.turnDurationSeconds || 30);
-                                await TableRepository.startGameSession(activeTable.id, initialEngineState, turnDuration);
-                              } catch (e) {
-                                console.warn('Session already started or host auto-start:', e);
+                                const turnDuration =
+                                  activeTable.gameType === 'chess'
+                                    ? 15
+                                    : (initialEngineState as any)?.turnDurationSeconds || 30;
+
+                                await TableRepository.startGameSession(
+                                  activeTable.id,
+                                  initialEngineState,
+                                  turnDuration
+                                );
+
+                                setInGameData({
+                                  table: activeTable,
+                                  players: uniquePlayers,
+                                });
+                                setActiveTable(null);
+                              } catch (e: any) {
+                                console.error('[TablesView] Error al iniciar sesión en el servidor:', e);
+                                // Comprobar si la sesión ya existe en base de datos (CASO B)
+                                const activeSess = await GameRepository.getActiveSession(activeTable.id);
+                                if (activeSess) {
+                                  setInGameData({
+                                    table: activeTable,
+                                    players: uniquePlayers,
+                                  });
+                                  setActiveTable(null);
+                                } else {
+                                  // CASO C: Error de RPC/infraestructura -> Prohibido entrar con estado inventado
+                                  alert(
+                                    e?.message ||
+                                      'No se pudo iniciar la partida en el servidor. Por favor verifica tu conexión e intenta nuevamente.'
+                                  );
+                                }
+                              } finally {
+                                setIsStartingTable(false);
                               }
-                              setInGameData({
-                                table: activeTable,
-                                players: uniquePlayers,
-                              });
-                              setActiveTable(null);
                             }}
                           >
-                            {canStart
+                            {isStartingTable
+                              ? 'INICIANDO...'
+                              : canStart
                               ? 'INICIAR PARTIDA'
                               : `Esperando Jugadores (${uniquePlayers.length}/${minRequired})`}
                           </Button>

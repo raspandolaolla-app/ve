@@ -177,8 +177,22 @@ export class DominoEngine implements IGameEngine<DominoState> {
       };
     }
 
-    const currentIdx = state.playerOrder.indexOf(action.userId);
-    const nextTurnUserId = state.playerOrder[(currentIdx + 1) % state.playerOrder.length];
+    const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+    const pOrder = (Array.isArray(state.playerOrder) && state.playerOrder.length > 0
+      ? state.playerOrder
+      : Object.keys(state.hands || state.playerNames || {})
+    ).map((id) => String(id).trim());
+
+    const currentIdx = pOrder.findIndex((id) => id.toLowerCase() === actionUserNorm);
+    let nextTurnUserId = action.userId;
+    if (pOrder.length > 1) {
+      if (currentIdx !== -1) {
+        nextTurnUserId = pOrder[(currentIdx + 1) % pOrder.length];
+      } else {
+        const otherId = pOrder.find((id) => id.toLowerCase() !== actionUserNorm);
+        if (otherId) nextTurnUserId = otherId;
+      }
+    }
 
     if (action.actionType === 'PLAY_TILE') {
       const tile = action.actionData.tile as DominoTile;
@@ -283,6 +297,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
         turnUserId: nextTurnUserId,
         passesInRow: 0,
       };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
 
       return {
         newState: updatedState,
@@ -331,6 +346,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
           roundWinnerUserId: trancaWinnerId,
           isTranca: true,
         };
+        (updatedState as any).currentTurnUserId = isMatchWon ? trancaWinnerId : nextTurnUserId;
 
         return {
           newState: updatedState,
@@ -347,6 +363,7 @@ export class DominoEngine implements IGameEngine<DominoState> {
         turnUserId: nextTurnUserId,
         passesInRow: newPasses,
       };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
 
       return {
         newState: updatedState,

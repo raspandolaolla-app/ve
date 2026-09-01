@@ -160,13 +160,16 @@ export function run8GamesTransversalAudit(): {
         actionData: { move: { from: { row: 2, col: 1 }, to: { row: 3, col: 0 } } },
         clientTimestamp: Date.now(),
       }),
-      invalidAction: (nonTurnUser: string, _state?: any): GameActionPayload => ({
-        sessionId: 'sess_checkers',
-        userId: nonTurnUser,
-        actionType: 'MOVE_PIECE',
-        actionData: { move: { from: { row: 5, col: 0 }, to: { row: 4, col: 1 } } },
-        clientTimestamp: Date.now(),
-      }),
+      invalidAction: (_nonTurnUser: string, state?: any): GameActionPayload => {
+        const currentTurn = state?.turnUserId || 'user_p1';
+        return {
+          sessionId: 'sess_checkers',
+          userId: currentTurn,
+          actionType: 'MOVE_PIECE',
+          actionData: { move: { from: { row: 0, col: 0 }, to: { row: 1, col: 1 } } },
+          clientTimestamp: Date.now(),
+        };
+      },
     },
     {
       id: 'domino_venezolano',

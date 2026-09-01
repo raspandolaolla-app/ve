@@ -26,9 +26,18 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   className = '',
 }) => {
   const [remaining, setRemaining] = useState<number>(durationSeconds);
+  const timedOutRef = React.useRef(false);
 
   useEffect(() => {
-    if (status !== 'playing' && status !== 'ACTIVE') {
+    timedOutRef.current = false;
+  }, [turnExpiresAt]);
+
+  useEffect(() => {
+    const normalizedStatus = String(status || '').toLowerCase();
+    // No consumir tiempo competitivo durante STARTING, READY o WAITING
+    const isActive = ['playing', 'active', 'in_progress'].includes(normalizedStatus);
+
+    if (!isActive) {
       setRemaining(durationSeconds);
       return;
     }
@@ -36,17 +45,25 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     const computeTime = () => {
       if (!turnExpiresAt) return durationSeconds;
       const expireMs = new Date(turnExpiresAt).getTime();
+      if (isNaN(expireMs)) return durationSeconds;
       const diffSec = Math.ceil((expireMs - Date.now()) / 1000);
-      return Math.max(0, Math.min(durationSeconds, diffSec));
+      return Math.max(0, diffSec);
     };
 
-    setRemaining(computeTime());
+    const initial = computeTime();
+    setRemaining(initial);
+
+    if (initial === 0 && !timedOutRef.current && onTimeout) {
+      timedOutRef.current = true;
+      onTimeout();
+    }
 
     const interval = setInterval(() => {
       const left = computeTime();
       setRemaining(left);
 
-      if (left === 0 && onTimeout) {
+      if (left === 0 && !timedOutRef.current && onTimeout) {
+        timedOutRef.current = true;
         clearInterval(interval);
         onTimeout();
       }

@@ -109,7 +109,7 @@ export function normalizeTicTacToeState(
 
   const normalizedState: TicTacToeState = {
     board: normalizedBoard,
-    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || firstPlayerId,
+    turnUserId: raw.turnUserId || raw.currentTurnUserId || fallbackInitialState?.turnUserId || firstPlayerId,
     playerSymbols: guaranteedPlayerSymbols,
     playerNames: guaranteedPlayerNames,
     lives: guaranteedLives,
@@ -123,9 +123,19 @@ export function normalizeTicTacToeState(
     moveHistory: Array.isArray(raw.moveHistory) ? raw.moveHistory : (fallbackInitialState?.moveHistory || []),
   };
 
+  (normalizedState as any).currentTurnUserId = normalizedState.turnUserId;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    Array.isArray(normalizedState.board) &&
+    normalizedState.board.length === 9 &&
+    typeof normalizedState.playerSymbols === 'object' &&
+    normalizedState.turnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -198,9 +208,16 @@ export function normalizeRPSState(
     history: Array.isArray(raw.history) ? raw.history : (fallbackInitialState?.history || []),
   };
 
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.playerChoices === 'object' &&
+    typeof normalizedState.scores === 'object' &&
+    typeof normalizedState.playerNames === 'object'
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -222,7 +239,7 @@ export function normalizeCheckersState(
 
   if (!Array.isArray(raw.board)) missingProps.push('board');
   if (!Array.isArray(raw.players)) missingProps.push('players');
-  if (!raw.turnUserId) missingProps.push('turnUserId');
+  if (!raw.turnUserId && !raw.currentTurnUserId) missingProps.push('turnUserId');
 
   const normalizedPlayers = Array.isArray(raw.players) && raw.players.length > 0
     ? raw.players
@@ -232,21 +249,35 @@ export function normalizeCheckersState(
         name: p.displayName || `Jugador ${idx + 1}`,
       })));
 
+  const turnUser = raw.turnUserId || raw.currentTurnUserId || fallbackInitialState?.turnUserId || (fallbackInitialState as any)?.currentTurnUserId || normalizedPlayers[0]?.userId || '';
+
+  const defaultBoard = Array(8).fill(null).map(() => Array(8).fill(null));
+
   const normalizedState: CheckersState = {
-    board: Array.isArray(raw.board) ? raw.board : (fallbackInitialState?.board || []),
-    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || normalizedPlayers[0]?.userId || '',
+    board: Array.isArray(raw.board) && raw.board.length === 8 ? raw.board : (Array.isArray(fallbackInitialState?.board) && fallbackInitialState.board.length === 8 ? fallbackInitialState.board : defaultBoard),
+    turnUserId: turnUser,
     players: normalizedPlayers,
     capturedCount: raw.capturedCount || fallbackInitialState?.capturedCount || {},
-    lives: raw.lives || fallbackInitialState?.lives,
+    lives: raw.lives || fallbackInitialState?.lives || {},
     status: raw.status || fallbackInitialState?.status || 'playing',
     winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
     lastMove: raw.lastMove ?? fallbackInitialState?.lastMove ?? null,
     validMovesForCurrentPlayer: Array.isArray(raw.validMovesForCurrentPlayer) ? raw.validMovesForCurrentPlayer : undefined,
   };
 
+  (normalizedState as any).currentTurnUserId = turnUser;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    Array.isArray(normalizedState.board) &&
+    normalizedState.board.length === 8 &&
+    Array.isArray(normalizedState.players) &&
+    normalizedState.turnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -298,12 +329,14 @@ export function normalizeDominoState(
     });
   }
 
+  const turnUser = raw.turnUserId || raw.currentTurnUserId || fallbackInitialState?.turnUserId || (fallbackInitialState as any)?.currentTurnUserId || Object.keys(guaranteedNames)[0] || '';
+
   const normalizedState: DominoState = {
     hands: guaranteedHands,
     board: Array.isArray(raw.board) ? raw.board : (fallbackInitialState?.board || []),
     leftEnd: raw.leftEnd !== undefined ? raw.leftEnd : (fallbackInitialState?.leftEnd ?? null),
     rightEnd: raw.rightEnd !== undefined ? raw.rightEnd : (fallbackInitialState?.rightEnd ?? null),
-    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
+    turnUserId: turnUser,
     playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
     playerNames: guaranteedNames,
     lives: raw.lives || fallbackInitialState?.lives,
@@ -317,9 +350,18 @@ export function normalizeDominoState(
     isTranca: Boolean(raw.isTranca),
   };
 
+  (normalizedState as any).currentTurnUserId = turnUser;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.hands === 'object' &&
+    Array.isArray(normalizedState.board) &&
+    normalizedState.turnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -371,12 +413,14 @@ export function normalizeTrucoState(
     });
   }
 
+  const turnUser = raw.turnUserId || raw.currentTurnUserId || fallbackInitialState?.turnUserId || (fallbackInitialState as any)?.currentTurnUserId || Object.keys(guaranteedNames)[0] || '';
+
   const normalizedState: TrucoState = {
     vira: raw.vira || fallbackInitialState?.vira || { id: 'default_vira', number: 1, suit: 'espadas' },
     hands: guaranteedHands,
     playedTricks: Array.isArray(raw.playedTricks) ? raw.playedTricks : (fallbackInitialState?.playedTricks || []),
     trickWinners: Array.isArray(raw.trickWinners) ? raw.trickWinners : (fallbackInitialState?.trickWinners || []),
-    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || Object.keys(guaranteedNames)[0] || '',
+    turnUserId: turnUser,
     playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedNames)),
     playerNames: guaranteedNames,
     points: guaranteedPoints,
@@ -392,9 +436,18 @@ export function normalizeTrucoState(
     winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
   };
 
+  (normalizedState as any).currentTurnUserId = turnUser;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.hands === 'object' &&
+    normalizedState.vira &&
+    normalizedState.turnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -456,9 +509,15 @@ export function normalizeBingoState(
     systemFeeBs: typeof raw.systemFeeBs === 'number' ? raw.systemFeeBs : (fallbackInitialState?.systemFeeBs || 0),
   };
 
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.cards === 'object' &&
+    Array.isArray(normalizedState.drawnBalls)
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -484,12 +543,13 @@ export function normalizeChessState(
 
   const pWhite = raw.playerWhiteUserId || fallbackInitialState?.playerWhiteUserId || players?.[0]?.userId || '';
   const pBlack = raw.playerBlackUserId || fallbackInitialState?.playerBlackUserId || players?.[1]?.userId || '';
+  const turnUser = raw.currentTurnUserId || raw.turnUserId || fallbackInitialState?.currentTurnUserId || (fallbackInitialState as any)?.turnUserId || pWhite;
 
   const normalizedState: ChessState = {
     fen: raw.fen && typeof raw.fen === 'string' ? raw.fen : (fallbackInitialState?.fen || defaultFen),
     playerWhiteUserId: pWhite,
     playerBlackUserId: pBlack,
-    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || pWhite,
+    currentTurnUserId: turnUser,
     turnExpiresAt: raw.turnExpiresAt || fallbackInitialState?.turnExpiresAt,
     turnDurationSeconds: raw.turnDurationSeconds || fallbackInitialState?.turnDurationSeconds || 15,
     playerNames: raw.playerNames || fallbackInitialState?.playerNames || {},
@@ -499,9 +559,17 @@ export function normalizeChessState(
     drawReason: raw.drawReason || fallbackInitialState?.drawReason,
   };
 
+  (normalizedState as any).turnUserId = turnUser;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.fen === 'string' &&
+    normalizedState.currentTurnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -559,9 +627,15 @@ export function normalizePollaState(
     blockWinners: Array.isArray(raw.blockWinners) ? raw.blockWinners : fallbackInitialState?.blockWinners,
   };
 
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    Array.isArray(normalizedState.fixtures) &&
+    typeof normalizedState.predictions === 'object'
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -614,6 +688,7 @@ export function normalizeAtrapaitoState(
   }
 
   const firstUserId = Object.keys(guaranteedPlayers)[0] || players?.[0]?.userId || '';
+  const turnUser = raw.currentTurnUserId || raw.turnUserId || fallbackInitialState?.currentTurnUserId || fallbackInitialState?.turnUserId || firstUserId;
 
   const normalizedState: AtrapaitoState = {
     mode: raw.mode || fallbackInitialState?.mode || 'INDIVIDUAL_4',
@@ -621,7 +696,7 @@ export function normalizeAtrapaitoState(
     pieces: guaranteedPieces,
     players: guaranteedPlayers,
     playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedPlayers)),
-    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || raw.turnUserId || firstUserId,
+    currentTurnUserId: turnUser,
     activeColor: raw.activeColor || fallbackInitialState?.activeColor || 'yellow',
     turnPhase: raw.turnPhase || fallbackInitialState?.turnPhase || 'ROLL_DICE',
     diceValue: raw.diceValue !== undefined ? raw.diceValue : (fallbackInitialState?.diceValue ?? null),
@@ -635,14 +710,21 @@ export function normalizeAtrapaitoState(
     lastActionDescription: raw.lastActionDescription || fallbackInitialState?.lastActionDescription || null,
     lives: guaranteedLives,
     playerNames: guaranteedNames,
-    turnUserId: raw.turnUserId || fallbackInitialState?.turnUserId || raw.currentTurnUserId || firstUserId,
+    turnUserId: turnUser,
     turnStartedAt: typeof raw.turnStartedAt === 'number' ? raw.turnStartedAt : (fallbackInitialState?.turnStartedAt || Date.now()),
     turnDeadlineAt: typeof raw.turnDeadlineAt === 'number' ? raw.turnDeadlineAt : (fallbackInitialState?.turnDeadlineAt || Date.now() + 15000),
   };
 
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.pieces === 'object' &&
+    typeof normalizedState.players === 'object' &&
+    normalizedState.currentTurnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }
@@ -684,11 +766,12 @@ export function normalizeUnaOllaState(
   }
 
   const defaultTopCard = { id: 'top_default', color: 'red' as const, type: 'number' as const, number: 7 };
+  const turnUser = raw.currentTurnUserId || raw.turnUserId || fallbackInitialState?.currentTurnUserId || (fallbackInitialState as any)?.turnUserId || Object.keys(guaranteedPlayers)[0] || '';
 
   const normalizedState: UnaOllaState = {
     players: guaranteedPlayers,
     playerOrder: Array.isArray(raw.playerOrder) ? raw.playerOrder : (fallbackInitialState?.playerOrder || Object.keys(guaranteedPlayers)),
-    currentTurnUserId: raw.currentTurnUserId || fallbackInitialState?.currentTurnUserId || Object.keys(guaranteedPlayers)[0] || '',
+    currentTurnUserId: turnUser,
     direction: raw.direction === -1 ? -1 : 1,
     topCard: raw.topCard || fallbackInitialState?.topCard || defaultTopCard,
     currentColor: raw.currentColor || fallbackInitialState?.currentColor || 'red',
@@ -706,9 +789,18 @@ export function normalizeUnaOllaState(
     activeEffects: raw.activeEffects || fallbackInitialState?.activeEffects,
   };
 
+  (normalizedState as any).turnUserId = turnUser;
+
+  const isStructurallyValid = Boolean(
+    normalizedState &&
+    typeof normalizedState.players === 'object' &&
+    normalizedState.topCard &&
+    normalizedState.currentTurnUserId
+  );
+
   return {
     state: normalizedState,
-    isValid: missingProps.length === 0,
+    isValid: isStructurallyValid && missingProps.length === 0,
     missingProps,
   };
 }

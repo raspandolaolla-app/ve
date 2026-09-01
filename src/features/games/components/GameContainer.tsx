@@ -265,6 +265,72 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             };
           }
 
+          // Obtener turno canónico unificado
+          const canonicalTurnUserId =
+            loadedState.currentTurnUserId ||
+            loadedState.turnUserId ||
+            activeSession.currentTurnUserId ||
+            uniquePlayers[0]?.userId;
+
+          loadedState.turnUserId = canonicalTurnUserId;
+          loadedState.currentTurnUserId = canonicalTurnUserId;
+
+          // Determinar si la sesión en base de datos necesita hidratación inicial (únicamente si faltan propiedades)
+          const isDbStateIncomplete =
+            !activeSession.currentState ||
+            Object.keys(activeSession.currentState).length === 0 ||
+            normalized.missingProps.length > 0;
+
+          const turnDuration = table.gameType === 'chess' ? 15 : (loadedState.turnDurationSeconds || 30);
+          let updatedSession: GameSession = {
+            ...activeSession,
+            currentTurnUserId: canonicalTurnUserId,
+            currentState: loadedState,
+          };
+
+          if (isDbStateIncomplete && activeSession.status !== 'completed' && (activeSession.status as any) !== 'SETTLED') {
+            console.warn('[GameContainer] Sesión con estado incompleto, invocando reparación autoritativa...');
+            const repairResult = await GameRepository.repairInitialSessionState(
+              activeSession.id,
+              loadedState,
+              canonicalTurnUserId,
+              turnDuration
+            );
+            if (repairResult.repaired) {
+              updatedSession.turnExpiresAt = new Date(Date.now() + turnDuration * 1000).toISOString();
+            }
+          }
+
+          setSession(updatedSession);
+
+          // Logs de transición Server-Authoritative
+          console.log('[GAME_START]', {
+            sessionId: activeSession.id,
+            tableId: table.id,
+            gameType: table.gameType,
+          });
+          console.log('[GAME_STATE_READY]', {
+            sessionId: activeSession.id,
+            gameType: table.gameType,
+            stateValid: normalized.isValid,
+            missingProps: normalized.missingProps,
+          });
+          console.log('[TURN_ASSIGNED]', {
+            sessionId: activeSession.id,
+            currentTurnUserId: canonicalTurnUserId,
+          });
+          console.log('[TURN_DEADLINE]', {
+            sessionId: activeSession.id,
+            turnDeadlineAt: updatedSession.turnExpiresAt,
+          });
+          console.log('[GAME_ACTIVE]', {
+            sessionId: activeSession.id,
+            gameType: table.gameType,
+            stateValid: normalized.isValid,
+            currentTurnUserId: canonicalTurnUserId,
+            turnDeadlineAt: updatedSession.turnExpiresAt,
+          });
+
           const sanitizedState = engine.getSanitizedStateForPlayer
             ? engine.getSanitizedStateForPlayer(loadedState, currentUserId)
             : loadedState;
@@ -369,6 +435,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               prev
                 ? {
                     ...prev,
+                    currentTurnUserId: updated.current_turn_user_id || prev.currentTurnUserId,
                     turnExpiresAt: updated.turn_deadline_at || prev.turnExpiresAt,
                     currentState: updated.current_state || prev.currentState,
                     status: updated.status || prev.status,
@@ -385,6 +452,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               gameState,
               currentPlayers
             );
+            const canonicalTurn = updated.current_turn_user_id || (normalized.state as any)?.currentTurnUserId || (normalized.state as any)?.turnUserId;
+            if (canonicalTurn) {
+              (normalized.state as any).currentTurnUserId = canonicalTurn;
+              (normalized.state as any).turnUserId = canonicalTurn;
+            }
             const sanitized = engine.getSanitizedStateForPlayer
               ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
               : normalized.state;
@@ -537,6 +609,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         return;
       }
 
+      console.log('[FIRST_MOVE]', {
+        sessionId: session.id,
+        userId: currentUserId,
+        actionType,
+        actionData: finalActionData,
+        isValid: true,
+      });
+
       setIsSubmittingAction(true);
 
       // 2. Actualizar estado optimista
@@ -551,6 +631,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
         const nextTurnUserId = (result.newState as any)?.currentTurnUserId || (result.newState as any)?.turnUserId || null;
         const turnDuration = table.gameType === 'chess' ? 15 : ((result.newState as any)?.turnDurationSeconds || 10);
+
+        console.log('[TURN_CHANGED]', {
+          sessionId: session.id,
+          previousTurnUserId: (gameState as any)?.currentTurnUserId || (gameState as any)?.turnUserId,
+          nextTurnUserId,
+          isGameOver: Boolean(result.isGameOver),
+          winnerUserId: result.winnerUserId || null,
+        });
 
         // 4. Actualizar estado público en Supabase (Game Sessions)
         await GameRepository.updateSessionState(

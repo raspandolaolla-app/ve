@@ -24,6 +24,7 @@ import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
 import { GameRulesModal } from '../games/GameRulesModal';
+import { getGameEngine } from '../games/engines';
 import {
   Lock,
   QrCode,
@@ -987,7 +988,10 @@ export function TablesView() {
                             onClick={async () => {
                               if (!user || !canStart) return;
                               try {
-                                await TableRepository.startGameSession(activeTable.id);
+                                const engine = getGameEngine(activeTable.gameType);
+                                const initialEngineState = engine.initialize(activeTable, uniquePlayers);
+                                const turnDuration = activeTable.gameType === 'chess' ? 15 : ((initialEngineState as any)?.turnDurationSeconds || 30);
+                                await TableRepository.startGameSession(activeTable.id, initialEngineState, turnDuration);
                               } catch (e) {
                                 console.warn('Session already started or host auto-start:', e);
                               }

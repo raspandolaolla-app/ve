@@ -10,6 +10,7 @@
 // • 3 temas venezolanos
 // • Anfitrión puede INICIAR SORTEO desde la fase de venta
 // • Contador global de cartones de TODA la mesa
+// • Detección dual de host (motor viejo + nuevo)
 // ==============================================================================
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -141,7 +142,12 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const [buyCount, setBuyCount] = useState(3);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const isHost = (s.hostUserId || s.hostId || '') === currentUserId;
+  // ✅ DETECCIÓN DUAL DE HOST: funciona con motor VIEJO (sin hostUserId) y NUEVO
+  const playerNamesKeys = s.playerNames ? Object.keys(s.playerNames) : [];
+  const firstPlayerId = playerNamesKeys.length > 0 ? playerNamesKeys[0] : null;
+  const isHost = (s.hostUserId || s.hostId || '') === currentUserId
+    || (firstPlayerId === currentUserId); // fallback para motor viejo
+
   const [autoDraw, setAutoDraw] = useState(false);
   const [speed, setSpeed] = useState(2);
 
@@ -179,7 +185,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return src.map((raw: any, idx: number) => normalizeCard(raw, idx, s));
   }, [s, currentUserId, refreshKey]);
 
-  // ✅ CORREGIDO: Bucle for...in con Number() (siempre devuelve number, nunca unknown)
   const totalCardsInTable = useMemo((): number => {
     let total = 0;
     if (s.cardsPurchased && typeof s.cardsPurchased === 'object') {
@@ -229,6 +234,13 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   const status = s.status || 'playing';
   const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS'].includes(status);
   const salesOpen = isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting';
+
+  // Log de diagnóstico (se puede quitar después)
+  useEffect(() => {
+    if (salesOpen) {
+      console.log('[BINGO_DEBUG]', { status, isHost, isPlaying, salesOpen, currentUserId, hostUserId: s.hostUserId, firstPlayerId });
+    }
+  }, [status, isHost, isPlaying, salesOpen, currentUserId, s.hostUserId, firstPlayerId]);
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -363,6 +375,12 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
             style={{ borderColor: T.border, color: T.text, background: 'rgba(255,255,255,0.05)' }}>
             <Users className="w-3 h-3" /> {totalCardsInTable} cartones
           </span>
+          {isHost && (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black"
+              style={{ borderColor: '#34D399', color: '#34D399', background: 'rgba(52,211,153,0.1)' }}>
+              👑 Anfitrión
+            </span>
+          )}
           {onToggleMute && (
             <button onClick={onToggleMute} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
               {isMuted ? <VolumeX className="w-3.5 h-3.5" style={{ color: T.sub }} /> : <Volume2 className="w-3.5 h-3.5" style={{ color: T.accent }} />}
@@ -401,13 +419,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="px-2.5 py-1 rounded-full border text-[10px] font-mono"
             style={{ background: 'rgba(255,255,255,0.05)', borderColor: T.border, color: T.sub }}>
             BCV: {Number(bcvRate).toFixed(2)} Bs/$
-          </div>
-        )}
-        {salesOpen && isHost && totalCardsInTable === 0 && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black"
-            style={{ background: 'rgba(255,255,255,0.05)', borderColor: T.border, color: T.sub }}>
-            <Zap className="w-3 h-3" />
-            Invita a más jugadores a comprar cartones
           </div>
         )}
       </div>
@@ -611,7 +622,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
-        <span>🇻🇪 Bingo Criollo 🇻</span>
+        <span>🇻🇪 Bingo Criollo 🇻🇪</span>
         <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
     </div>

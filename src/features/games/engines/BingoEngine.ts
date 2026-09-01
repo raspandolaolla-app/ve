@@ -71,7 +71,7 @@ export class BingoEngine implements IGameEngine<any> {
     });
     return {
       mode,
-      status: 'SALES', // fase de venta de cartones (sin cartones por defecto)
+      status: 'SALES',
       hostUserId: table.hostUserId,
       players: playersRec,
       drawnBalls: [],
@@ -99,7 +99,7 @@ export class BingoEngine implements IGameEngine<any> {
       return { valid: true };
     }
     if (t === 'DRAW_BALL') {
-      if (state.status !== 'PLAYING') return { valid: false, reason: 'El sorteo no ha iniciado.' };
+      if (state.status !== 'PLAYING' && state.status !== 'SALES') return { valid: false, reason: 'La partida no está activa.' };
       const ball = Number(action.actionData?.ball);
       if (!ball || state.drawnBalls.includes(ball)) return { valid: false, reason: 'Balota ya cantada.' };
       return { valid: true };
@@ -136,6 +136,11 @@ export class BingoEngine implements IGameEngine<any> {
     }
 
     if (t === 'DRAW_BALL') {
+      if (next.status === 'SALES') {
+        next.status = 'PLAYING';
+        next.salesClosed = true;
+        next.lastActionLog = '🔔 ¡Venta cerrada! Comienza el sorteo';
+      }
       const ball = Number(action.actionData?.ball);
       next.drawnBalls.push(ball);
       next.currentBall = ball;
@@ -168,7 +173,6 @@ export class BingoEngine implements IGameEngine<any> {
   }
 
   public getSanitizedStateForPlayer(state: any, userId: string): any {
-    // Oculta los cartones de los demás jugadores
     const sanitized = JSON.parse(JSON.stringify(state));
     Object.keys(sanitized.players || {}).forEach((uid) => {
       if (uid !== userId) {

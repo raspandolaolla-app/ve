@@ -954,6 +954,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onMarkNumber={(row, col) => handleGameAction('MARK_NUMBER', { row, col })}
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
             onDrawBall={() => handleGameAction('DRAW_BALL', {})}
+            // ⬇️ NUEVA LÍNEA: conecta el botón "COMPRAR" del tablero con Supabase
+            onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
           />
         );
 

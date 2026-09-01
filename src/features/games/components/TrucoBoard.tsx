@@ -1,564 +1,636 @@
 // ==============================================================================
-// RASPANDO LA OLLA — TABLERO DE JUEGO: TRUCO VENEZOLANO 2.0
+// RASPANDO LA OLLA — TABLERO DE JUEGO: TRUCO VENEZOLANO
 // ==============================================================================
-// Baraja Española vectorizada de alta fidelidad, sistema completo de cantos
-// en tiempo real y panel de toma de decisiones integrado.
+// • Baraja española REALISTA (marfil, índices, oros/copas/espadas/bastos, figuras)
+// • Mesa HORIZONTAL 16:9 con pantalla completa obligatoria en móviles
+// • 3 temas de mesa con fondos alusivos animados
+// • Animaciones de lanzamiento de cartas y botones de CANTOS (Truco/Envido/Flor)
+// • Compatible con GameContainer: onPlayCard(cardId) y onCanto(cantoType)
 // ==============================================================================
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Flame, Sparkles, AlertTriangle, Check, X, ShieldAlert, Timer, Users } from 'lucide-react';
-import type { TrucoState, TrucoCard, TrucoSuit } from '../../../types/games';
-import { TrucoEngine } from '../engines/TrucoEngine';
+import { Palette, RotateCw, Maximize2, Flame, Zap, Trophy, Swords, Sparkles } from 'lucide-react';
 
-// ==============================================================================
-// COMPONENTES VECTORIALES — PALOS DE LA BARAJA ESPAÑOLA
-// ==============================================================================
-
-const EspadaSvg: React.FC<{ className?: string }> = ({ className = "w-14 h-14" }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M50 10L56 32H44L50 10Z" fill="#94A3B8" stroke="#0F172A" strokeWidth="2.5" strokeLinejoin="round" />
-    <path d="M50 32V75" stroke="#475569" strokeWidth="7" strokeLinecap="round" />
-    <path d="M30 75H70" stroke="#1E293B" strokeWidth="5" strokeLinecap="round" />
-    <path d="M50 75V88" stroke="#0F172A" strokeWidth="8" strokeLinecap="round" />
-    <path d="M50 10L52.5 32H47.5L50 10Z" fill="#F1F5F9" />
-  </svg>
-);
-
-const BastoSvg: React.FC<{ className?: string }> = ({ className = "w-14 h-14" }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M44 82L47 18H53L56 82L44 82Z" fill="#854D0E" stroke="#0F172A" strokeWidth="2.5" />
-    <circle cx="47" cy="20" r="7" fill="#10B981" stroke="#047857" strokeWidth="1.5" />
-    <circle cx="53" cy="45" r="6" fill="#059669" stroke="#047857" strokeWidth="1.5" />
-    <circle cx="46" cy="65" r="8" fill="#10B981" stroke="#047857" strokeWidth="1.5" />
-    <path d="M40 82H60" stroke="#0F172A" strokeWidth="5" strokeLinecap="round" />
-  </svg>
-);
-
-const OroSvg: React.FC<{ className?: string }> = ({ className = "w-14 h-14" }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="34" fill="#F59E0B" stroke="#78350F" strokeWidth="3" />
-    <circle cx="50" cy="50" r="26" stroke="#FEF08A" strokeWidth="1.5" strokeDasharray="5 3" />
-    <circle cx="50" cy="50" r="16" fill="#D97706" stroke="#78350F" strokeWidth="2" />
-    <path d="M50 22L54 36L68 40L55 48L58 62L50 53L42 62L45 48L32 40L46 36Z" fill="#FDE047" />
-  </svg>
-);
-
-const CopaSvg: React.FC<{ className?: string }> = ({ className = "w-14 h-14" }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M32 20H68L62 52H38L32 20Z" fill="#DC2626" stroke="#450A0A" strokeWidth="2.5" strokeLinejoin="round" />
-    <path d="M45 52V76H55V52" fill="#D97706" stroke="#450A0A" strokeWidth="2.5" />
-    <path d="M26 76H74" stroke="#450A0A" strokeWidth="5" strokeLinecap="round" />
-    <path d="M38 28H62" stroke="#FBBF24" strokeWidth="2.5" />
-    <circle cx="50" cy="40" r="5" fill="#FBBF24" />
-  </svg>
-);
-
-const SuitSymbol: React.FC<{ suit: TrucoSuit; className?: string }> = ({ suit, className }) => {
-  switch (suit) {
-    case 'espadas': return <EspadaSvg className={className} />;
-    case 'bastos': return <BastoSvg className={className} />;
-    case 'oros': return <OroSvg className={className} />;
-    case 'copas': return <CopaSvg className={className} />;
-  }
-};
-
-const getSuitEmoji = (suit: string) => {
-  switch (suit) {
-    case 'espadas': return '🗡️';
-    case 'bastos': return '🪵';
-    case 'oros': return '🪙';
-    case 'copas': return '🍷';
-    default: return '🃏';
-  }
-};
-
-// ==============================================================================
-// COMPONENTE: TRUCO CARD VISUAL (REDISEÑO BARAJA ESPAÑOLA)
-// ==============================================================================
-
-interface TrucoCardVisualProps {
-  card: TrucoCard;
-  isRival?: boolean;
-  isSmall?: boolean;
+interface TrucoBoardProps {
+  state: any;
+  currentUserId: string;
+  onPlayCard: (cardId: string) => void;
+  onCanto: (cantoType: string) => void;
 }
 
-const TrucoCardVisual: React.FC<TrucoCardVisualProps> = ({ card, isRival = false, isSmall = false }) => {
-  if (isRival || card.id.startsWith('hidden_')) {
-    // Reverso decorado tradicional
+// ==============================================================================
+// 3 TEMAS DE MESA
+// ==============================================================================
+type ThemeKey = 'taberna' | 'neon' | 'llano';
+
+const THEMES: Record<ThemeKey, any> = {
+  taberna: {
+    label: 'Taberna Criolla',
+    swatch: ['#8B5A2B', '#F5E9CE', '#C62828'],
+    felt: 'radial-gradient(ellipse at 50% 45%, #4E342E 0%, #3E2B1F 50%, #241811 82%, #1C120C 100%)',
+    frame: 'linear-gradient(145deg, #8B5A2B 0%, #6B4423 45%, #4E2E17 100%)',
+    accent: '#FFC94B',
+    text: '#F0E2C8',
+    sub: '#A8865A',
+    panel: 'linear-gradient(145deg, #2B1D14 0%, #1C120C 100%)',
+    border: '#3E2B1F',
+  },
+  neon: {
+    label: 'Neón Tricolor',
+    swatch: ['#FFD100', '#00E0FF', '#FF2D55'],
+    felt: 'radial-gradient(ellipse at 50% 45%, #101A45 0%, #0A1030 50%, #030512 100%)',
+    frame: 'linear-gradient(145deg, #1B2A5E 0%, #0A1030 100%)',
+    accent: '#FFD100',
+    text: '#EAF2FF',
+    sub: '#7C8DB5',
+    panel: 'linear-gradient(145deg, #0A1030 0%, #05081A 100%)',
+    border: '#1B2A5E',
+  },
+  llano: {
+    label: 'Llano Verde',
+    swatch: ['#0E5A34', '#FAF0E1', '#FFC94B'],
+    felt: 'radial-gradient(ellipse at 50% 45%, #147A46 0%, #0E5A34 50%, #052A18 100%)',
+    frame: 'linear-gradient(145deg, #6B4423 0%, #4E2E17 100%)',
+    accent: '#FFC94B',
+    text: '#F5EFDD',
+    sub: '#9CC4A8',
+    panel: 'linear-gradient(145deg, rgba(5,25,15,0.92) 0%, rgba(3,18,10,0.92) 100%)',
+    border: '#147A46',
+  },
+};
+
+// ==============================================================================
+// UTILIDADES DE CARTAS (lectura defensiva del estado)
+// ==============================================================================
+const normalizeSuit = (s: any): string => {
+  const v = (s || '').toString().toLowerCase();
+  if (['oro', 'oros', 'coins', 'gold', 'o'].includes(v)) return 'oro';
+  if (['copa', 'copas', 'cups', 'c'].includes(v)) return 'copa';
+  if (['espada', 'espadas', 'swords', 'e'].includes(v)) return 'espada';
+  if (['basto', 'bastos', 'bastos', 'clubs', 'b'].includes(v)) return 'basto';
+  return 'oro';
+};
+
+const getRank = (card: any): number => {
+  const r = card?.rank ?? card?.number ?? card?.value ?? card?.num;
+  return Number(r) || 1;
+};
+
+const SUIT_COLOR: Record<string, string> = {
+  oro: '#D4A017',
+  copa: '#C62828',
+  espada: '#3949AB',
+  basto: '#2E7D32',
+};
+
+const FACE_NAMES: Record<number, string> = { 10: 'SOTA', 11: 'CABALLO', 12: 'REY' };
+
+// ==============================================================================
+// SVG DE PALOS ESPAÑOLES (realistas y estilizados)
+// ==============================================================================
+const SuitSVG: React.FC<{ suit: string; className?: string }> = ({ suit, className = '' }) => {
+  const s = normalizeSuit(suit);
+  if (s === 'oro') {
     return (
-      <div className={`rounded-xl border-2 border-neutral-800 shadow-xl bg-gradient-to-br from-red-800 to-rose-950 p-2 flex flex-col items-center justify-between relative ${isSmall ? 'w-14 h-20' : 'w-24 h-36 md:w-28 md:h-40'}`}>
-        <div className="absolute inset-1.5 border border-red-500/40 rounded-lg bg-opacity-20 flex items-center justify-center overflow-hidden">
-          {/* Patrón reticulado geométrico elegante */}
-          <div className="w-full h-full opacity-30 bg-[radial-gradient(#f43f5e_1px,transparent_1px)] [background-size:12px_12px]" />
-          <div className="absolute w-8 h-8 md:w-10 md:h-10 border-2 border-amber-500/40 rotate-45 flex items-center justify-center">
-            <div className="w-4 h-4 border border-amber-400/30" />
-          </div>
-        </div>
-      </div>
+      <svg viewBox="0 0 24 24" className={className}>
+        <circle cx="12" cy="12" r="9" fill="#F2B705" stroke="#8B6914" strokeWidth="1.5" />
+        <circle cx="12" cy="12" r="4.5" fill="#FFE082" stroke="#8B6914" strokeWidth="1" />
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
+          <line key={a} x1="12" y1="4" x2="12" y2="6" stroke="#8B6914" strokeWidth="1" transform={`rotate(${a} 12 12)`} />
+        ))}
+      </svg>
     );
   }
-
-  // Anverso (Bara Española Marfil)
+  if (s === 'copa') {
+    return (
+      <svg viewBox="0 0 24 24" className={className}>
+        <path d="M5 3h14v4c0 4-3 6-5 7v4h3v3H7v-3h3v-4c-2-1-5-3-5-7z" fill="#C62828" stroke="#7F1010" strokeWidth="1" />
+        <path d="M6 4h12v2H6z" fill="#EF9A9A" opacity="0.6" />
+      </svg>
+    );
+  }
+  if (s === 'espada') {
+    return (
+      <svg viewBox="0 0 24 24" className={className}>
+        <path d="M12 1l2.5 5v9h-5V6z" fill="#90A4AE" stroke="#37474F" strokeWidth="1" />
+        <rect x="7" y="15" width="10" height="2.4" rx="1" fill="#3949AB" stroke="#1A237E" strokeWidth="0.8" />
+        <rect x="10.8" y="17.4" width="2.4" height="5" rx="1" fill="#3949AB" stroke="#1A237E" strokeWidth="0.8" />
+      </svg>
+    );
+  }
   return (
-    <div className={`rounded-xl border-2 border-neutral-800 bg-[#FAF6EE] text-neutral-900 shadow-2xl p-2.5 flex flex-col justify-between relative overflow-hidden select-none transition-all ${
-      isSmall ? 'w-14 h-20' : 'w-24 h-36 md:w-28 md:h-40'
-    } ${card.isPerico || card.isPerica ? 'ring-4 ring-amber-500 border-amber-600' : ''}`}>
-      
-      {/* Indicador de Piezas Especiales */}
-      {card.isPerico && (
-        <span className="absolute top-1 right-1 bg-amber-500 text-neutral-950 text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full font-black tracking-wider animate-pulse shadow-md z-10">
-          PERICO
-        </span>
-      )}
-      {card.isPerica && (
-        <span className="absolute top-1 right-1 bg-purple-600 text-white text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full font-black tracking-wider animate-pulse shadow-md z-10">
-          PERICA
-        </span>
-      )}
+    <svg viewBox="0 0 24 24" className={className}>
+      <path
+        d="M10 2h4c1.2 3 1.2 5 0 7 2.2 1 2.2 4 0 5 1.2 2 1.2 5 0 8h-4c-1.2-3-1.2-6 0-8-2.2-1-2.2-4 0-5-1.2-2-1.2-4 0-7z"
+        fill="#2E7D32"
+        stroke="#1B5E20"
+        strokeWidth="1"
+      />
+    </svg>
+  );
+};
+
+// Posiciones de palos en el centro (como cartas reales)
+const PIP_MAP: Record<number, number[]> = {
+  1: [4], 2: [1, 7], 3: [1, 4, 7], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8], 7: [0, 2, 3, 4, 5, 6, 8],
+};
+
+// ==============================================================================
+// CARTA ESPAÑOLA REALISTA
+// ==============================================================================
+const SpanishCard: React.FC<{
+  card: any;
+  size?: 'sm' | 'md' | 'lg';
+  onClick?: () => void;
+  playable?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+}> = ({ card, size = 'md', onClick, playable, selected, disabled }) => {
+  const rank = getRank(card);
+  const suit = normalizeSuit(card?.suit ?? card?.palo);
+  const isFace = rank >= 10;
+
+  const dims = size === 'lg' ? 'w-24 h-36 rounded-lg' : size === 'md' ? 'w-16 h-24 rounded-md' : 'w-10 h-16 rounded';
+  const cornerText = size === 'lg' ? 'text-sm' : size === 'md' ? 'text-[11px]' : 'text-[8px]';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative select-none ${dims} border-2 transition-all duration-200 ${
+        playable ? 'cursor-pointer hover:-translate-y-3 hover:scale-105' : ''
+      } ${selected ? '-translate-y-3 scale-105' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+      style={{
+        background: 'linear-gradient(160deg, #FFFBEE 0%, #F7EDD3 55%, #EFE2C0 100%)',
+        borderColor: selected ? '#FFC94B' : '#C9B896',
+        boxShadow: selected
+          ? '0 0 0 3px #FFC94B, 0 14px 26px rgba(0,0,0,0.6)'
+          : playable
+          ? '0 8px 18px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.8)'
+          : '0 4px 10px rgba(0,0,0,0.45)',
+      }}
+    >
+      {/* Marco interior español */}
+      <div className="absolute inset-[6%] border pointer-events-none rounded-sm" style={{ borderColor: 'rgba(139,107,67,0.45)' }} />
 
       {/* Esquina superior izquierda */}
-      <div className="flex flex-col items-start leading-none">
-        <span className={`font-black tracking-tight ${isSmall ? 'text-xs' : 'text-lg md:text-xl'}`}>{card.number}</span>
-        <span className={`${isSmall ? 'text-[9px]' : 'text-xs md:text-sm'}`}>{getSuitEmoji(card.suit)}</span>
+      <div className="absolute top-[4%] left-[7%] flex flex-col items-center leading-none">
+        <span className={`font-black ${cornerText}`} style={{ color: '#3E2B1F' }}>{rank}</span>
+        <SuitSVG suit={suit} className={size === 'lg' ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} />
       </div>
 
-      {/* Símbolo central */}
-      <div className="flex items-center justify-center flex-1 my-1">
-        <SuitSymbol suit={card.suit} className={isSmall ? 'w-8 h-8' : 'w-12 h-12 md:w-16 md:h-16 drop-shadow-md'} />
+      {/* Esquina inferior derecha (invertida) */}
+      <div className="absolute bottom-[4%] right-[7%] flex flex-col items-center leading-none transform rotate-180">
+        <span className={`font-black ${cornerText}`} style={{ color: '#3E2B1F' }}>{rank}</span>
+        <SuitSVG suit={suit} className={size === 'lg' ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} />
       </div>
 
-      {/* Esquina inferior derecha (Rotada) */}
-      <div className="flex flex-col items-start leading-none rotate-180 self-end">
-        <span className={`font-black tracking-tight ${isSmall ? 'text-xs' : 'text-lg md:text-xl'}`}>{card.number}</span>
-        <span className={`${isSmall ? 'text-[9px]' : 'text-xs md:text-sm'}`}>{getSuitEmoji(card.suit)}</span>
+      {/* Centro */}
+      <div className="absolute inset-[18%] flex items-center justify-center">
+        {isFace ? (
+          <div
+            className="w-full h-full rounded-sm border flex flex-col items-center justify-center gap-0.5"
+            style={{ background: `linear-gradient(160deg, ${SUIT_COLOR[suit]}22, ${SUIT_COLOR[suit]}44)`, borderColor: `${SUIT_COLOR[suit]}88` }}
+          >
+            <SuitSVG suit={suit} className={size === 'lg' ? 'w-8 h-8' : 'w-5 h-5'} />
+            <span className="font-black tracking-tight" style={{ color: SUIT_COLOR[suit], fontSize: size === 'lg' ? 9 : 6 }}>
+              {FACE_NAMES[rank]}
+            </span>
+          </div>
+        ) : (
+          <div className="w-full h-full grid grid-cols-3 grid-rows-3">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-center">
+                {PIP_MAP[rank]?.includes(i) && (
+                  <SuitSVG suit={suit} className={size === 'lg' ? 'w-5 h-5' : size === 'md' ? 'w-3.5 h-3.5' : 'w-2 h-2'} />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+    </button>
+  );
+};
+
+// Reverso español (azul con rombos dorados)
+const CardBack: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
+  const dims = size === 'lg' ? 'w-24 h-36 rounded-lg' : size === 'md' ? 'w-16 h-24 rounded-md' : 'w-8 h-12 rounded';
+  return (
+    <div
+      className={`${dims} border-2 border-white/80 relative overflow-hidden`}
+      style={{
+        background: 'linear-gradient(160deg, #1A237E 0%, #0D1442 100%)',
+        boxShadow: '0 6px 14px rgba(0,0,0,0.55), inset 0 1px 2px rgba(255,255,255,0.25)',
+      }}
+    >
+      <div
+        className="absolute inset-[8%] rounded-sm border border-amber-300/50"
+        style={{
+          background:
+            'repeating-linear-gradient(45deg, rgba(255,201,75,0.25) 0px, rgba(255,201,75,0.25) 2px, transparent 2px, transparent 8px), repeating-linear-gradient(-45deg, rgba(255,201,75,0.25) 0px, rgba(255,201,75,0.25) 2px, transparent 2px, transparent 8px)',
+        }}
+      />
     </div>
   );
 };
 
 // ==============================================================================
-// COMPONENTE PRINCIPAL: TRUCO BOARD
+// CANTOS DEL TRUCO VENEZOLANO
 // ==============================================================================
+const CANTOS = [
+  { id: 'ENVIDO', label: 'ENVIDO', grad: 'linear-gradient(145deg,#43A047,#1B5E20)' },
+  { id: 'REAL_ENVIDO', label: 'REAL ENVIDO', grad: 'linear-gradient(145deg,#2E7D32,#0D3D10)' },
+  { id: 'FALTA_ENVIDO', label: 'FALTA ENVIDO', grad: 'linear-gradient(145deg,#1B5E20,#052A18)' },
+  { id: 'TRUCO', label: '¡TRUCO!', grad: 'linear-gradient(145deg,#E53935,#8B1E2D)' },
+  { id: 'RETRUCO', label: 'RETRUCO', grad: 'linear-gradient(145deg,#C62828,#6B1420)' },
+  { id: 'VALE_NUEVE', label: 'VALE 9', grad: 'linear-gradient(145deg,#B71C1C,#4A0D16)' },
+  { id: 'VALE_JUEGO', label: 'VALE JUEGO', grad: 'linear-gradient(145deg,#8B1E2D,#2A050B)' },
+  { id: 'FLOR', label: '¡FLOR!', grad: 'linear-gradient(145deg,#F2B705,#B8860B)' },
+];
 
-interface TrucoBoardProps {
-  state: TrucoState;
-  currentUserId: string;
-  onPlayCard: (cardId: string) => void;
-  onCanto: (cantoType: string) => void;
-  onRespondCanto?: (response: string) => void;
-}
+const RESPUESTAS = [
+  { id: 'QUIERO', label: '¡QUIERO!', grad: 'linear-gradient(145deg,#43A047,#1B5E20)' },
+  { id: 'NO_QUIERO', label: 'NO QUIERO', grad: 'linear-gradient(145deg,#757575,#424242)' },
+];
 
-export const TrucoBoard: React.FC<TrucoBoardProps> = ({
-  state,
-  currentUserId,
-  onPlayCard,
-  onCanto,
-}) => {
-  const isMyTurn = state.turnUserId === currentUserId && state.status === 'playing';
-  const myHand = state.hands[currentUserId] || [];
-  const currentTrick = state.playedTricks[state.playedTricks.length - 1];
+// ==============================================================================
+// COMPONENTE PRINCIPAL
+// ==============================================================================
+export const TrucoBoard: React.FC<TrucoBoardProps> = ({ state, currentUserId, onPlayCard, onCanto }) => {
+  const s: any = state || {};
 
-  // Identificar oponente para visualización
-  const opponentUserId = state.playerOrder.find((uId) => uId !== currentUserId) || '';
-  const opponentHandCount = state.hands[opponentUserId]?.length || 0;
-
-  // Analizar canto pendiente
-  const { pendingCanto, envidoStatus, trucoStatus, florStatus, lastCantoBy } = (state.cantoState as any);
-  const isCantoPendingForMe = pendingCanto && pendingCanto.respondByUserId === currentUserId;
-
-  const engine = useMemo(() => new TrucoEngine(), []);
-
-  // Verificar si poseo Flor para habilitar el botón
-  const hasMyFlor = useMemo(() => {
-    return engine.hasFlor(myHand, state.vira);
-  }, [myHand, state.vira, engine]);
-
-  // Manejar respuesta de canto mapeando al llamador de handleGameAction ('RESPOND_CANTO')
-  const handleRespond = (response: string) => {
-    if (onCanto) {
-      onCanto(response); // La callback de onCanto en el GameContainer enruta tanto cantos como respuestas
-    }
+  // ----- Tema -----
+  const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
+    try {
+      const saved = localStorage.getItem('rlo_truco_theme');
+      if (saved && THEMES[saved as ThemeKey]) return saved as ThemeKey;
+    } catch {}
+    return 'taberna';
+  });
+  const T = THEMES[themeKey];
+  const changeTheme = (k: ThemeKey) => {
+    setThemeKey(k);
+    try { localStorage.setItem('rlo_truco_theme', k); } catch {}
   };
 
+  // ----- Pantalla completa obligatoria en móvil -----
+  const isTouch = typeof window !== 'undefined' && (navigator as any).maxTouchPoints > 0;
+  const [fsPrompt, setFsPrompt] = useState<boolean>(isTouch);
+  const goFullscreen = async () => {
+    try {
+      await (document.documentElement as any).requestFullscreen?.();
+    } catch {}
+    try {
+      (screen.orientation as any)?.lock?.('landscape').catch(() => {});
+    } catch {}
+    setFsPrompt(false);
+  };
+
+  // ----- Lectura defensiva -----
+  const players: any[] = Array.isArray(s.players) ? s.players : [];
+  const opponents = players.filter((p) => p.userId !== currentUserId);
+  const me = players.find((p) => p.userId === currentUserId);
+  const turnUserId = s.turnUserId || s.currentTurnUserId || '';
+  const status = s.status || 'playing';
+  const isMyTurn = turnUserId === currentUserId && status === 'playing';
+
+  const getHand = (uid: string): any[] => {
+    if (Array.isArray(s.hands?.[uid])) return s.hands[uid];
+    if (Array.isArray(s.playerHands?.[uid])) return s.playerHands[uid];
+    const p = players.find((pl) => pl.userId === uid);
+    if (Array.isArray(p?.hand)) return p.hand;
+    return [];
+  };
+  const myHand: any[] = getHand(currentUserId);
+
+  // Cartas jugadas en la mesa
+  const played: any[] = Array.isArray(s.playedCards) ? s.playedCards
+    : Array.isArray(s.tableCards) ? s.tableCards
+    : Array.isArray(s.roundCards) ? s.roundCards
+    : Array.isArray(s.trickCards) ? s.trickCards
+    : [];
+
+  // Canto pendiente de respuesta (del rival)
+  const pendingCanto = s.pendingCanto || s.awaitingCanto || s.lastCantoPending || null;
+
+  // Puntajes (nosotros/ellos o por jugador)
+  const myScore = s.scores?.[currentUserId] ?? s.myScore ?? s.teamAScore ?? 0;
+  const rivalScore = opponents[0] ? (s.scores?.[opponents[0].userId] ?? s.teamBScore ?? 0) : (s.teamBScore ?? 0);
+
+  const getDisplayName = (p: any): string => p?.displayName || p?.name || 'JUGADOR';
+
   return (
-    <div id="truco-board-master" className="flex flex-col items-center justify-between p-4 max-w-3xl mx-auto w-full min-h-[550px] space-y-4">
-      
-      {/* 1. MARCADOR DE PIEDRAS / PUNTOS (PULSOplay Luxury style) */}
-      <div id="truco-scoreboard-luxury" className="grid grid-cols-2 gap-4 w-full">
-        {state.playerOrder.map((uId) => {
-          const isPlayerActive = state.turnUserId === uId && state.status === 'playing';
-          const points = state.points[uId] || 0;
-          return (
-            <div
-              key={uId}
-              id={`truco-p-card-${uId}`}
-              className={`p-3.5 rounded-2xl border transition-all duration-300 relative ${
-                isPlayerActive
-                  ? 'bg-amber-500/10 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)] ring-1 ring-amber-400/40'
-                  : 'bg-neutral-900/80 border-neutral-800'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-neutral-100 truncate block max-w-[120px]">
-                      {state.playerNames[uId] || 'Jugador'}
-                    </span>
-                    {uId === currentUserId && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold border border-amber-500/20">
-                        TÚ
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-neutral-400 font-mono mt-0.5 block">
-                    {state.hands[uId]?.length || 0} cartas en mano
-                  </span>
-                </div>
-                
-                {/* Visualización de Piedras / Tantos */}
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-wrap gap-0.5 max-w-[40px] items-center justify-end">
-                    {/* Generar visualizaciones de palitos de 5 puntos (Piedras de Truco) */}
-                    {Array.from({ length: Math.min(12, points) }).map((_, i) => (
-                      <span key={i} className="w-1.5 h-3.5 bg-amber-500 rounded-sm inline-block shadow-sm" />
-                    ))}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-black text-white font-mono leading-none">
-                      {points}
-                    </span>
-                    <span className="text-[9px] text-neutral-500 block font-mono leading-none mt-1">
-                      /{state.targetPoints} Tantos
-                    </span>
-                  </div>
-                </div>
-              </div>
+    <div className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-6xl mx-auto w-full">
 
-              {/* Halo indicador de Turno */}
-              {isPlayerActive && (
-                <div className="absolute -bottom-1 left-4 right-4 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent rounded-full animate-pulse" />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 2. MAZO DE CARTAS DEL RIVAL (OCULTAS) */}
-      <div id="truco-rival-hand" className="flex items-center justify-center space-x-1.5 opacity-80 scale-90">
-        {Array.from({ length: opponentHandCount }).map((_, idx) => (
-          <TrucoCardVisual key={idx} card={{ id: `hidden_${idx}`, number: 1, suit: 'espadas' }} isRival={true} isSmall={true} />
-        ))}
-      </div>
-
-      {/* 3. TAPETE DE FIELTRO MAESTRO (MESA CENTRAL) */}
-      <div
-        id="truco-felt-table"
-        className="w-full flex-1 min-h-[250px] rounded-3xl bg-radial from-emerald-900 to-emerald-950 border-4 border-amber-900/60 p-4 flex flex-col md:flex-row items-center justify-around relative shadow-2xl space-y-4 md:space-y-0"
-      >
-        {/* Decoración del felt */}
-        <div className="absolute inset-2 border border-emerald-500/20 rounded-2xl pointer-events-none" />
-
-        {/* VIRA (Muestra autoritativa) */}
-        <div className="flex flex-col items-center z-10">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-400 mb-1.5 drop-shadow">
-            VIRA (Muestra)
-          </span>
-          <div className="relative group">
-            <div className="absolute -inset-1 rounded-2xl bg-amber-400/20 blur opacity-60 group-hover:opacity-100 transition duration-500" />
-            <TrucoCardVisual card={state.vira} />
-          </div>
-        </div>
-
-        {/* BAZA DE JUEGO ACTUAL */}
-        <div className="flex flex-col items-center justify-center min-w-[200px] z-10">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-neutral-300 mb-2">
-            BAZA {state.playedTricks.length} ({state.trickWinners.length} resueltas)
-          </span>
-
-          <div className="flex space-x-3 min-h-[110px] items-center justify-center p-3 rounded-2xl bg-black/25 border border-white/5 w-full">
-            {currentTrick?.cards.length === 0 ? (
-              <div className="text-center py-4 flex flex-col items-center justify-center">
-                <Timer className="w-5 h-5 text-emerald-400/50 animate-pulse mb-1" />
-                <span className="text-xs text-emerald-300/40 font-mono tracking-tight">Mesa limpia. Esperando jugada...</span>
-              </div>
-            ) : (
-              <AnimatePresence>
-                {currentTrick?.cards.map(({ userId, card }) => (
-                  <motion.div
-                    key={card.id}
-                    initial={{ y: 30, scale: 0.8, opacity: 0 }}
-                    animate={{ y: 0, scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                    className="flex flex-col items-center space-y-1"
-                  >
-                    <TrucoCardVisual card={card} isSmall={true} />
-                    <span className="text-[10px] font-bold text-neutral-300 bg-black/40 px-2 py-0.5 rounded-full border border-white/5 truncate max-w-[80px]">
-                      {state.playerNames[userId] || 'Jugador'}
-                    </span>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )}
-          </div>
-
-          {/* Historial rápido de bazas ganadas */}
-          {state.trickWinners.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 bg-black/35 px-3 py-1 rounded-full border border-white/5">
-              {state.trickWinners.map((wId, i) => (
-                <div key={i} className="flex items-center gap-1 text-[9px] font-mono">
-                  <span className="text-neutral-400">B{i+1}:</span>
-                  <span className={wId === currentUserId ? 'text-amber-400 font-bold' : wId ? 'text-rose-400' : 'text-neutral-400'}>
-                    {wId === currentUserId ? 'Tú' : wId ? 'Rival' : 'Parda'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* TOAST / ALERTA DE CANTOS RECIENTES */}
-        {lastCantoBy && !pendingCanto && (
-          <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black/85 border border-amber-500/30 text-amber-300 text-xs px-4 py-1.5 rounded-full shadow-lg font-bold flex items-center space-x-1.5 z-20">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Última jugada por: {state.playerNames[lastCantoBy]}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 4. PANEL INTERACTIVO DE CANTOS (MÁQUINA DE ESTADOS EN TIEMPO REAL) */}
-      <AnimatePresence mode="wait">
-        {isCantoPendingForMe ? (
-          // ====================================================================
-          // RIVAL ME HA CANTADO: PANEL DE DECISIONES SOBERANO (RESPUESTAS)
-          // ====================================================================
+      {/* ===== OVERLAY: PANTALLA COMPLETA OBLIGATORIA (MÓVIL) ===== */}
+      <AnimatePresence>
+        {fsPrompt && (
           <motion.div
-            key="response-panel"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="w-full bg-slate-950 border-2 border-red-500/40 rounded-3xl p-5 shadow-[0_0_30px_rgba(239,68,68,0.15)] flex flex-col items-center justify-center space-y-4 z-30"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
           >
-            <div className="flex items-center gap-2.5 text-red-400">
-              <AlertTriangle className="w-5 h-5 text-red-500 animate-bounce" />
-              <h3 className="text-sm font-black uppercase tracking-wider">
-                Te han cantado: {pendingCanto.cantoType}
-              </h3>
-            </div>
-            
-            <p className="text-xs text-neutral-300 text-center leading-relaxed">
-              Propuesto por <span className="text-amber-400 font-bold">{state.playerNames[pendingCanto.calledByUserId!]}</span>. 
-              Si aceptas, se juegan <span className="text-emerald-400 font-black">{pendingCanto.pointsIfAccepted} puntos</span>. 
-              Si te achicas, el rival se lleva <span className="text-red-400 font-black">{pendingCanto.pointsIfDeclined} punto(s)</span>.
-            </p>
-
-            {/* BOTONES DE RESPUESTA DIRECTA */}
-            <div className="flex flex-wrap gap-3 items-center justify-center w-full">
-              <button
-                onClick={() => handleRespond('QUIERO')}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs uppercase shadow-lg shadow-emerald-950/40 transition-all active:scale-95 cursor-pointer"
+            <div className="max-w-sm w-full text-center space-y-5 p-6 rounded-3xl border-2"
+              style={{ background: T.panel, borderColor: T.accent }}>
+              <motion.div
+                animate={{ rotate: [0, 90, 90, 0] }}
+                transition={{ duration: 2.5, repeat: Infinity }}
+                className="mx-auto w-14 h-14 rounded-2xl border-2 flex items-center justify-center"
+                style={{ borderColor: T.accent }}
               >
-                <Check className="w-4 h-4" />
-                <span>¡Quiero!</span>
-              </button>
-
+                <RotateCw className="w-7 h-7" style={{ color: T.accent }} />
+              </motion.div>
+              <div>
+                <div className="text-lg font-black uppercase tracking-wider" style={{ color: T.text }}>
+                  Truco Venezolano
+                </div>
+                <p className="text-xs mt-1" style={{ color: T.sub }}>
+                  Gira el dispositivo a <strong style={{ color: T.accent }}>HORIZONTAL</strong> y activa pantalla completa para la mejor experiencia de mesa.
+                </p>
+              </div>
               <button
-                onClick={() => handleRespond('NO_QUIERO')}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs uppercase shadow-lg shadow-rose-950/40 transition-all active:scale-95 cursor-pointer"
+                onClick={goFullscreen}
+                className="w-full py-4 rounded-2xl font-black uppercase tracking-wider text-base flex items-center justify-center gap-2"
+                style={{
+                  background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
+                  color: '#1A120C',
+                  boxShadow: `0 8px 26px ${T.accent}66`,
+                }}
               >
-                <X className="w-4 h-4" />
-                <span>No Quiero</span>
+                <Maximize2 className="w-5 h-5" /> Jugar en Pantalla Completa
               </button>
-
-              {/* ESCALACIONES / CONTRACANTOS DISPONIBLES */}
-              {pendingCanto.cantoType === 'ENVIDO' && (
-                <>
-                  <button
-                    onClick={() => onCanto('REAL_ENVIDO')}
-                    className="px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all active:scale-95"
-                  >
-                    Envido Envido (+3 pts)
-                  </button>
-                  <button
-                    onClick={() => onCanto('FALTA_ENVIDO')}
-                    className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-black transition-all active:scale-95"
-                  >
-                    ¡Falta Envido!
-                  </button>
-                </>
-              )}
-
-              {pendingCanto.cantoType === 'REAL_ENVIDO' && (
-                <button
-                  onClick={() => onCanto('FALTA_ENVIDO')}
-                  className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-black transition-all active:scale-95"
-                >
-                  ¡Falta Envido!
-                </button>
-              )}
-
-              {pendingCanto.cantoType === 'FLOR' && (
-                <>
-                  <button
-                    onClick={() => onCanto('CONTRA_FLOR')}
-                    className="px-4 py-2.5 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-xl text-xs font-bold transition-all active:scale-95"
-                  >
-                    Contra-Flor
-                  </button>
-                  <button
-                    onClick={() => onCanto('CONTRA_FLOR_AL_RESTO')}
-                    className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-black transition-all active:scale-95"
-                  >
-                    Contra-Flor al Resto
-                  </button>
-                </>
-              )}
-
-              {pendingCanto.cantoType === 'TRUCO' && (
-                <button
-                  onClick={() => onCanto('RETRUCO')}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
-                >
-                  <Flame className="w-3.5 h-3.5 text-red-400" />
-                  <span>Quiero Retruco (6 pts)</span>
-                </button>
-              )}
-
-              {pendingCanto.cantoType === 'RETRUCO' && (
-                <button
-                  onClick={() => onCanto('VALE_CUATRO')}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer"
-                >
-                  <Flame className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  <span>Quiero Vale Cuatro (9 pts)</span>
-                </button>
-              )}
+              <button onClick={() => setFsPrompt(false)} className="text-[10px] underline" style={{ color: T.sub }}>
+                continuar sin pantalla completa
+              </button>
             </div>
           </motion.div>
-        ) : (
-          // ====================================================================
-          // MI TURNO NORMAL: ACCIONES DE CANTO (PROPOSICIÓN)
-          // ====================================================================
-          isMyTurn && (
-            <motion.div
-              key="canto-actions"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              className="flex flex-wrap gap-2.5 justify-center w-full bg-neutral-900/40 p-2.5 rounded-2xl border border-neutral-800"
-            >
-              {/* Botón de Envido (sólo en 1ra baza antes de jugar cartas) */}
-              {state.playedTricks.length === 1 && currentTrick?.cards.length < 2 && envidoStatus === 'NONE' && (
-                <>
-                  <button
-                    onClick={() => onCanto('ENVIDO')}
-                    className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-extrabold shadow transition-all active:scale-95 cursor-pointer"
-                  >
-                    Envido (2 pts)
-                  </button>
-
-                  <button
-                    onClick={() => onCanto('REAL_ENVIDO')}
-                    className="px-4 py-2 bg-amber-600/10 hover:bg-amber-600/20 text-amber-300 border border-amber-600/30 rounded-xl text-xs font-extrabold shadow transition-all active:scale-95 cursor-pointer"
-                  >
-                    Real Envido (3 pts)
-                  </button>
-
-                  <button
-                    onClick={() => onCanto('FALTA_ENVIDO')}
-                    className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-black shadow transition-all active:scale-95 cursor-pointer"
-                  >
-                    Falta Envido
-                  </button>
-                </>
-              )}
-
-              {/* Botón de Flor (si califica y es primera baza) */}
-              {state.playedTricks.length === 1 && currentTrick?.cards.length < 2 && florStatus === 'NONE' && hasMyFlor && (
-                <button
-                  onClick={() => onCanto('FLOR')}
-                  className="px-4 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-black flex items-center space-x-1.5 shadow transition-all active:scale-95 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>¡Cantar Flor!</span>
-                </button>
-              )}
-
-              {/* Botón de Truco (escalado de puntos) */}
-              {trucoStatus === 'NONE' && (
-                <button
-                  onClick={() => onCanto('TRUCO')}
-                  className="px-5 py-2 bg-red-600/15 hover:bg-red-600/25 text-red-300 border border-red-500/30 rounded-xl text-xs font-black flex items-center space-x-1.5 shadow transition-all active:scale-95 cursor-pointer"
-                >
-                  <Flame className="w-3.5 h-3.5 text-red-400" />
-                  <span>¡Truco! (3 pts)</span>
-                </button>
-              )}
-
-              {state.cantoState.trucoPoints === 3 && (
-                <button
-                  onClick={() => onCanto('RETRUCO')}
-                  className="px-5 py-2 bg-red-700/20 hover:bg-red-700/30 text-red-300 border border-red-600/40 rounded-xl text-xs font-black flex items-center space-x-1.5 shadow transition-all active:scale-95 cursor-pointer"
-                >
-                  <Flame className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  <span>¡Retruco! (6 pts)</span>
-                </button>
-              )}
-
-              {state.cantoState.trucoPoints === 6 && (
-                <button
-                  onClick={() => onCanto('VALE_CUATRO')}
-                  className="px-5 py-2 bg-red-800/25 hover:bg-red-800/35 text-red-400 border border-red-600/50 rounded-xl text-xs font-black flex items-center space-x-1.5 shadow transition-all active:scale-95 cursor-pointer"
-                >
-                  <Flame className="w-4 h-4 text-red-500 animate-pulse" />
-                  <span>¡Vale Cuatro! (9 pts)</span>
-                </button>
-              )}
-            </motion.div>
-          )
         )}
       </AnimatePresence>
 
-      {/* 5. CARTAS EN MANO PROPIAS DEL JUGADOR */}
-      <div id="truco-player-hand" className="w-full bg-neutral-900/95 border border-neutral-800 rounded-3xl p-5 shadow-2xl">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-neutral-400 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-neutral-400" />
-            <span>Tus Cartas</span>
-          </span>
-          {isMyTurn && !pendingCanto && (
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold animate-pulse">
-              ¡Tu turno de jugar carta!
-            </span>
-          )}
+      {/* ===== BARRA DE TEMAS + MARCADOR ===== */}
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="w-full mb-2.5 flex items-center justify-between px-3 py-2 rounded-xl border"
+        style={{ background: T.panel, borderColor: T.border }}
+      >
+        <div className="flex items-center gap-2">
+          <Palette className="w-4 h-4" style={{ color: T.accent }} />
+          <div className="flex items-center gap-1.5">
+            {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
+              <button key={k} onClick={() => changeTheme(k)} title={THEMES[k].label}
+                className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg border transition-all"
+                style={{
+                  borderColor: themeKey === k ? THEMES[k].accent : T.border,
+                  background: themeKey === k ? 'rgba(255,255,255,0.1)' : 'transparent',
+                }}>
+                {THEMES[k].swatch.map((c: string, i: number) => (
+                  <span key={i} className="w-2.5 h-2.5 rounded-full border border-black/30" style={{ background: c }} />
+                ))}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={goFullscreen} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }} title="Pantalla completa">
+            <Maximize2 className="w-3.5 h-3.5" style={{ color: T.accent }} />
+          </button>
+          <div className="flex items-center gap-2 text-xs font-black font-mono">
+            <span style={{ color: '#34D399' }}>NOSOTROS {Number(myScore)}</span>
+            <span style={{ color: T.sub }}>—</span>
+            <span style={{ color: '#F87171' }}>{Number(rivalScore)} ELLOS</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ===== MESA HORIZONTAL 16:9 ===== */}
+      <div
+        className="relative w-full rounded-[36px] border-[10px] sm:border-[14px] overflow-hidden"
+        style={{
+          aspectRatio: '16 / 9',
+          borderColor: '#3a2012',
+          background: T.felt,
+          boxShadow: '0 25px 60px -15px rgba(0,0,0,0.9), inset 0 4px 24px rgba(0,0,0,0.6)',
+        }}
+      >
+        {/* Textura del paño */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none"
+          style={{ background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, transparent 2px, transparent 6px)' }}
+        />
+
+        {/* Logo en relieve */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08]">
+          <div className="px-10 py-4 rounded-full border-4 border-amber-400/60 transform -rotate-12">
+            <span className="text-4xl sm:text-6xl font-black tracking-tighter uppercase" style={{ color: T.accent }}>TRUCO</span>
+          </div>
         </div>
 
-        <div className="flex gap-4 justify-center items-center">
-          {myHand.length === 0 ? (
-            <span className="text-xs text-neutral-500 font-mono italic">Mano jugada completa.</span>
+        {/* ===== RIVALES (arriba) ===== */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-start gap-3 z-10">
+          {opponents.slice(0, 3).map((p: any, i: number) => {
+            const isActive = turnUserId === p.userId && status === 'playing';
+            return (
+              <motion.div
+                key={p.userId}
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: i * 0.08 }}
+                className="flex flex-col items-center gap-1 p-2 rounded-2xl border-2"
+                style={{
+                  background: T.panel,
+                  borderColor: isActive ? T.accent : T.border,
+                  boxShadow: isActive ? `0 0 22px ${T.accent}66` : '0 6px 14px rgba(0,0,0,0.45)',
+                }}
+              >
+                <div className="text-[10px] font-black uppercase truncate max-w-[80px]" style={{ color: T.text }}>
+                  {getDisplayName(p).toUpperCase()}
+                </div>
+                <div className="flex">
+                  {Array.from({ length: Math.min(getHand(p.userId).length, 3) }).map((_, j) => (
+                    <div key={j} className={j > 0 ? '-ml-3' : ''} style={{ transform: `rotate(${(j - 1) * 6}deg)` }}>
+                      <CardBack size="sm" />
+                    </div>
+                  ))}
+                </div>
+                <span className="text-[9px] font-mono font-bold" style={{ color: T.sub }}>{getHand(p.userId).length} cartas</span>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* ===== CENTRO: CARTAS JUGADAS CON ANIMACIÓN ===== */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4 sm:gap-8 z-10">
+          {played.length === 0 ? (
+            <motion.span
+              animate={{ opacity: [0.4, 0.9, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-xs sm:text-sm font-bold uppercase tracking-widest"
+              style={{ color: T.text }}
+            >
+              {isMyTurn ? 'Lanza tu carta al centro' : 'Esperando jugadas...'}
+            </motion.span>
           ) : (
-            myHand.map((card) => {
-              const playable = isMyTurn && !pendingCanto;
+            played.map((entry: any, i: number) => {
+              const card = entry?.card || entry;
+              const owner = players.find((p: any) => p.userId === (entry?.userId || entry?.playerId));
               return (
-                <motion.button
-                  key={card.id}
-                  id={`truco-card-btn-${card.id}`}
-                  whileHover={playable ? { y: -10, scale: 1.04 } : {}}
-                  onClick={() => playable && onPlayCard(card.id)}
-                  disabled={!playable}
-                  className={`relative focus:outline-none transition-all duration-300 ${
-                    playable
-                      ? 'cursor-pointer'
-                      : 'opacity-65 cursor-not-allowed'
-                  }`}
+                <motion.div
+                  key={`${entry?.userId || i}-${i}`}
+                  initial={{ scale: 0.3, rotate: -160, y: 60, opacity: 0 }}
+                  animate={{ scale: 1, rotate: (i % 2 === 0 ? -6 : 6), y: 0, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                  className="flex flex-col items-center gap-1"
                 >
-                  <TrucoCardVisual card={card} />
-                </motion.button>
+                  <SpanishCard card={card} size="lg" />
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(0,0,0,0.55)', color: T.accent }}>
+                    {owner ? getDisplayName(owner).toUpperCase() : 'CARTA'}
+                  </span>
+                </motion.div>
               );
             })
           )}
         </div>
+
+        {/* Banner de canto */}
+        <AnimatePresence>
+          {s.lastCanto && (
+            <motion.div
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.4, opacity: 0 }}
+              className="absolute left-1/2 top-[24%] -translate-x-1/2 z-20 px-6 py-2 rounded-2xl font-black text-xl uppercase tracking-widest"
+              style={{
+                background: 'linear-gradient(145deg, #E53935, #8B1E2D)',
+                color: '#FFF',
+                boxShadow: '0 0 30px rgba(229,57,53,0.7)',
+                transform: 'rotate(-6deg)',
+              }}
+            >
+              ¡{String(s.lastCanto).replace(/_/g, ' ')}!
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ===== MI PERFIL (abajo izquierda) ===== */}
+        {me && (
+          <div className="absolute bottom-2 left-2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-2xl border-2"
+            style={{
+              background: T.panel,
+              borderColor: isMyTurn ? T.accent : T.border,
+              boxShadow: isMyTurn ? `0 0 22px ${T.accent}66` : '0 6px 14px rgba(0,0,0,0.45)',
+            }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center font-black"
+              style={{ background: 'linear-gradient(145deg,#4A5568,#2D3748)', color: '#F7FAFC', border: `2px solid ${isMyTurn ? T.accent : 'rgba(255,255,255,0.25)'}` }}>
+              {getDisplayName(me).slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-[10px] font-black uppercase" style={{ color: T.text }}>
+                {getDisplayName(me).toUpperCase()} <span style={{ color: T.accent }}>(TÚ)</span>
+              </div>
+              {isMyTurn && (
+                <div className="text-[9px] font-black uppercase animate-pulse" style={{ color: '#34D399' }}>¡Tu turno!</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===== ZONA DE CANTOS ===== */}
+      <div className="w-full mt-2.5 p-2.5 rounded-2xl border" style={{ background: T.panel, borderColor: T.border }}>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Swords className="w-3.5 h-3.5" style={{ color: T.accent }} />
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.sub }}>
+            {pendingCanto ? 'El rival cantó — responde:' : 'Tus cantos:'}
+          </span>
+        </div>
+        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1">
+          {(pendingCanto ? RESPUESTAS : CANTOS).map((canto, i) => (
+            <motion.button
+              key={canto.id}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: i * 0.05 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => onCanto(canto.id)}
+              disabled={!isMyTurn && !pendingCanto}
+              className="shrink-0 px-3.5 sm:px-5 py-2.5 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wider text-white border border-white/30 disabled:opacity-40"
+              style={{
+                background: canto.grad,
+                boxShadow: `0 5px 14px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.3)${pendingCanto ? `, 0 0 16px ${T.accent}88` : ''}`,
+              }}
+            >
+              {canto.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* ===== MI MANO ===== */}
+      <div className="w-full mt-2.5 p-3 rounded-2xl border" style={{ background: T.panel, borderColor: T.border }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: T.text }}>
+            🃏 Tu mano ({myHand.length})
+          </span>
+          {isMyTurn && (
+            <span className="flex items-center gap-1 text-[10px] font-black uppercase animate-pulse" style={{ color: '#34D399' }}>
+              <Zap className="w-3 h-3" /> Toca una carta para lanzar
+            </span>
+          )}
+        </div>
+        <div className="flex items-end justify-center gap-1.5 sm:gap-3 pt-4 pb-1 overflow-x-auto no-scrollbar">
+          {myHand.length > 0 ? (
+            myHand.map((c: any, i: number) => (
+              <motion.div
+                key={c.id || i}
+                initial={{ y: 60, opacity: 0, rotate: 0 }}
+                animate={{ y: 0, opacity: 1, rotate: (i - (myHand.length - 1) / 2) * 3 }}
+                transition={{ delay: i * 0.08 }}
+                className="shrink-0"
+              >
+                <SpanishCard
+                  card={c}
+                  size="md"
+                  playable={isMyTurn}
+                  onClick={() => isMyTurn && onPlayCard(c.id)}
+                />
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-[10px] py-3 font-mono" style={{ color: T.sub }}>Esperando reparto de cartas...</div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== BANNER FINAL ===== */}
+      <AnimatePresence>
+        {status !== 'playing' && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mt-3 w-full p-4 rounded-2xl text-center font-black text-sm flex items-center justify-center gap-2"
+            style={{
+              background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
+              color: '#1A120C',
+              boxShadow: `0 8px 24px ${T.accent}66`,
+            }}
+          >
+            <Trophy className="w-5 h-5" />
+            ¡MANO CONCLUIDA! {s.roundWinnerUserId ? `GANADOR: ${(players.find((p: any) => p.userId === s.roundWinnerUserId)?.name || '').toUpperCase()}` : ''}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pie */}
+      <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
+        <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
+        <span>🇻🇪 Truco Venezolano 🇻🇪</span>
+        <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
     </div>
   );

@@ -1,14 +1,13 @@
 // ==============================================================================
 // RASPANDO LA OLLA — TABLERO DE JUEGO: PIEDRA, PAPEL O TIJERA
 // ==============================================================================
-// Diseño épico 3D con sistema de sonidos inmersivo
-// Optimizado para móviles con identidad venezolana
+// Diseño épico 3D con identidad venezolana, optimizado para móviles
 // Compatible 100% con Supabase y GameContainer
 // ==============================================================================
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, ShieldCheck, Sparkles, RefreshCw, Flame, Zap, Volume2, VolumeX } from 'lucide-react';
+import { Trophy, ShieldCheck, RefreshCw, Flame, Zap } from 'lucide-react';
 import type { RPSState, RPSChoice } from '../../../types/games';
 
 interface RockPaperScissorsBoardProps {
@@ -18,104 +17,11 @@ interface RockPaperScissorsBoardProps {
   onNextRound?: () => void;
 }
 
-const CHOICES: { id: RPSChoice; label: string; icon: string; beats: string; color: string; sound: string }[] = [
-  { id: 'rock', label: 'Piedra', icon: '🪨', beats: 'Tijera', color: 'from-amber-600 to-yellow-600', sound: 'rock' },
-  { id: 'paper', label: 'Papel', icon: '📄', beats: 'Piedra', color: 'from-blue-600 to-cyan-600', sound: 'paper' },
-  { id: 'scissors', label: 'Tijera', icon: '✂️', beats: 'Papel', color: 'from-emerald-600 to-teal-600', sound: 'scissors' }
+const CHOICES: { id: RPSChoice; label: string; icon: string; beats: string; color: string }[] = [
+  { id: 'rock', label: 'Piedra', icon: '🪨', beats: 'Tijera', color: 'from-amber-600 to-yellow-600' },
+  { id: 'paper', label: 'Papel', icon: '📄', beats: 'Piedra', color: 'from-blue-600 to-cyan-600' },
+  { id: 'scissors', label: 'Tijera', icon: '✂️', beats: 'Papel', color: 'from-emerald-600 to-teal-600' }
 ];
-
-// Sistema de Sonidos Web Audio API
-class SoundManager {
-  private audioContext: AudioContext | null = null;
-  private enabled: boolean = true;
-
-  constructor() {
-    if (typeof window !== 'undefined') {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-  }
-
-  private playTone(frequency: number, duration: number, type: OscillatorType = 'sine', volume: number = 0.3) {
-    if (!this.audioContext || !this.enabled) return;
-
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
-
-    oscillator.frequency.value = frequency;
-    oscillator.type = type;
-
-    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
-
-    oscillator.start(this.audioContext.currentTime);
-    oscillator.stop(this.audioContext.currentTime + duration);
-  }
-
-  playSelect() {
-    this.playTone(523.25, 0.1, 'sine', 0.3);
-    setTimeout(() => this.playTone(659.25, 0.1, 'sine', 0.3), 50);
-  }
-
-  playCommit() {
-    this.playTone(440, 0.15, 'square', 0.2);
-    setTimeout(() => this.playTone(554.37, 0.15, 'square', 0.2), 100);
-    setTimeout(() => this.playTone(659.25, 0.2, 'square', 0.25), 200);
-  }
-
-  playReveal() {
-    this.playTone(392, 0.1, 'sine', 0.25);
-    setTimeout(() => this.playTone(523.25, 0.1, 'sine', 0.25), 80);
-    setTimeout(() => this.playTone(659.25, 0.15, 'sine', 0.3), 160);
-  }
-
-  playWin() {
-    this.playTone(523.25, 0.15, 'sine', 0.4);
-    setTimeout(() => this.playTone(659.25, 0.15, 'sine', 0.4), 100);
-    setTimeout(() => this.playTone(783.99, 0.2, 'sine', 0.5), 200);
-    setTimeout(() => this.playTone(1046.5, 0.3, 'sine', 0.6), 300);
-  }
-
-  playDraw() {
-    this.playTone(440, 0.2, 'triangle', 0.3);
-    setTimeout(() => this.playTone(440, 0.2, 'triangle', 0.3), 200);
-  }
-
-  playMatchWin() {
-    const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5];
-    notes.forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 0.2, 'sine', 0.5), i * 120);
-    });
-  }
-
-  playRock() {
-    this.playTone(220, 0.3, 'sawtooth', 0.15);
-    setTimeout(() => this.playTone(110, 0.2, 'sawtooth', 0.1), 100);
-  }
-
-  playPaper() {
-    this.playTone(800, 0.1, 'sine', 0.2);
-    setTimeout(() => this.playTone(1200, 0.08, 'sine', 0.15), 50);
-    setTimeout(() => this.playTone(600, 0.1, 'sine', 0.15), 100);
-  }
-
-  playScissors() {
-    this.playTone(1500, 0.05, 'square', 0.2);
-    setTimeout(() => this.playTone(1800, 0.05, 'square', 0.2), 60);
-    setTimeout(() => this.playTone(2200, 0.05, 'square', 0.15), 120);
-  }
-
-  toggle() {
-    this.enabled = !this.enabled;
-    return this.enabled;
-  }
-
-  isEnabled() {
-    return this.enabled;
-  }
-}
 
 export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   state,
@@ -123,11 +29,6 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   onSubmitChoice,
   onNextRound,
 }) => {
-  const [soundManager] = useState(() => new SoundManager());
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [lastPhase, setLastPhase] = useState(state?.phase || 'selecting');
-  const prevPhaseRef = useRef(state?.phase);
-
   const playerNames = state?.playerNames || {};
   const playerChoices = state?.playerChoices || {};
   const scores = state?.scores || {};
@@ -150,61 +51,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   const isSelecting = phase === 'selecting';
   const isRoundResult = phase === 'round_result' || phase === 'match_ended';
 
-  useEffect(() => {
-    if (prevPhaseRef.current !== phase) {
-      const prevPhase = prevPhaseRef.current;
-      prevPhaseRef.current = phase;
-
-      if (phase === 'round_result' && prevPhase === 'selecting') {
-        setTimeout(() => {
-          soundManager.playReveal();
-          const lastHistory = state.history?.[state.history.length - 1];
-          if (lastHistory) {
-            setTimeout(() => {
-              if (lastHistory.winnerId === currentUserId) {
-                soundManager.playWin();
-              } else if (lastHistory.winnerId === 'TIE' || !lastHistory.winnerId) {
-                soundManager.playDraw();
-              }
-            }, 300);
-          }
-        }, 200);
-      }
-
-      if (phase === 'match_ended') {
-        setTimeout(() => {
-          soundManager.playMatchWin();
-        }, 500);
-      }
-    }
-  }, [phase, state.history, currentUserId, soundManager]);
-
-  useEffect(() => {
-    if (hasCommitted && lastPhase === 'selecting') {
-      soundManager.playCommit();
-    }
-    setLastPhase(phase);
-  }, [hasCommitted, phase, soundManager, lastPhase]);
-
-  const handleChoiceSelect = useCallback((choice: RPSChoice) => {
-    if (choice === 'rock') soundManager.playRock();
-    else if (choice === 'paper') soundManager.playPaper();
-    else if (choice === 'scissors') soundManager.playScissors();
-
-    setTimeout(() => soundManager.playSelect(), 150);
-    onSubmitChoice(choice);
-  }, [onSubmitChoice, soundManager]);
-
-  const handleNextRound = useCallback(() => {
-    soundManager.playSelect();
-    onNextRound?.();
-  }, [onNextRound, soundManager]);
-
-  const toggleSound = useCallback(() => {
-    const enabled = soundManager.toggle();
-    setSoundEnabled(enabled);
-  }, [soundManager]);
-
+  // Componente de partículas para efectos
   const ParticleEffect = ({ color }: { color: string }) => (
     <>
       {[...Array(8)].map((_, i) => (
@@ -225,6 +72,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
 
   return (
     <div id="rps-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-xl mx-auto w-full">
+      {/* Header Épico con Gradiente Venezolano */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -254,28 +102,15 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSound}
-              className="p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/50 transition-all"
-              title={soundEnabled ? 'Silenciar' : 'Activar sonido'}
-            >
-              {soundEnabled ? (
-                <Volume2 className="w-4 h-4 text-amber-400" />
-              ) : (
-                <VolumeX className="w-4 h-4 text-neutral-500" />
-              )}
-            </button>
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500/20 to-red-500/20 border border-amber-500/30">
-                <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider">
-                  Al Mejor de {targetWins * 2 - 1}
-                </span>
-              </div>
-              <div className="text-[9px] sm:text-[10px] text-amber-300/80 font-mono mt-0.5">
-                (Primero a {targetWins} victorias)
-              </div>
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500/20 to-red-500/20 border border-amber-500/30">
+              <Zap className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider">
+                Al Mejor de {targetWins * 2 - 1}
+              </span>
+            </div>
+            <div className="text-[9px] sm:text-[10px] text-amber-300/80 font-mono mt-0.5">
+              (Primero a {targetWins} victorias)
             </div>
           </div>
         </div>
@@ -283,7 +118,9 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
       </motion.div>
 
+      {/* Marcador Épico con Efectos 3D */}
       <div id="rps-scoreboard" className="grid grid-cols-2 gap-2 sm:gap-3 w-full mb-4">
+        {/* Jugador 1 */}
         {p1Id && (
           <motion.div
             initial={{ x: -50, opacity: 0 }}
@@ -368,6 +205,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
           </motion.div>
         )}
 
+        {/* Jugador 2 */}
         {p2Id && (
           <motion.div
             initial={{ x: 50, opacity: 0 }}
@@ -453,6 +291,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         )}
       </div>
 
+      {/* Arena de Duelo Épica */}
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -465,6 +304,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         }}
       >
+        {/* Efectos de fondo animados */}
         <div className="absolute inset-0 opacity-20">
           <motion.div
             animate={{
@@ -486,7 +326,9 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             </span>
           </div>
 
+          {/* Zona de Confrontación */}
           <div className="flex items-center justify-around py-4">
+            {/* Lado Mi Jugador */}
             <div className="flex flex-col items-center">
               <span className="text-[10px] sm:text-xs text-amber-400 mb-2 font-bold uppercase tracking-wider">
                 {p1Id === currentUserId ? 'TÚ' : playerNames[p1Id]?.toUpperCase()}
@@ -554,6 +396,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
               </span>
             </div>
 
+            {/* VS Icon Animado */}
             <div className="flex flex-col items-center relative">
               <motion.div
                 animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
@@ -575,6 +418,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
                 </motion.span>
               )}
 
+              {/* Efecto de choque cuando ambos comprometieron */}
               {hasCommitted && opponentHasCommitted && (
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
@@ -587,6 +431,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
               )}
             </div>
 
+            {/* Lado Oponente */}
             <div className="flex flex-col items-center">
               <span className="text-[10px] sm:text-xs text-blue-400 mb-2 font-bold uppercase tracking-wider">
                 {playerNames[opponentId]?.toUpperCase() || 'OPONENTE'}
@@ -658,6 +503,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             </div>
           </div>
 
+          {/* Resumen del Duelo */}
           <AnimatePresence>
             {isRoundResult && state.history && state.history.length > 0 && (
               <motion.div
@@ -684,6 +530,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         </div>
       </motion.div>
 
+      {/* Selector de Opciones con Animaciones Épicas */}
       <AnimatePresence mode="wait">
         {isSelecting && !hasCommitted && (
           <motion.div
@@ -708,7 +555,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.08, rotateY: 10 }}
                   whileTap={{ scale: 0.92 }}
-                  onClick={() => handleChoiceSelect(choice.id)}
+                  onClick={() => onSubmitChoice(choice.id)}
                   className={`relative flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border-2 bg-gradient-to-b ${choice.color} border-white/30 shadow-2xl text-white transition-all cursor-pointer overflow-hidden group`}
                   style={{
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.3)',
@@ -741,6 +588,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Mensaje de espera si ya elegí pero falta oponente */}
       <AnimatePresence>
         {isSelecting && hasCommitted && (
           <motion.div
@@ -773,6 +621,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Botón Siguiente Ronda */}
       <AnimatePresence>
         {state.phase === 'round_result' && onNextRound && (
           <motion.button
@@ -781,7 +630,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             exit={{ y: 50, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
             id="rps-next-round-btn"
-            onClick={handleNextRound}
+            onClick={onNextRound}
             className="mt-4 flex items-center space-x-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:via-yellow-300 hover:to-amber-400 text-neutral-950 font-black text-base shadow-2xl shadow-amber-500/40 transition-all duration-300 relative overflow-hidden group"
             style={{
               boxShadow: '0 8px 32px rgba(251, 191, 36, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.3)',
@@ -798,6 +647,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Si el partido concluyó */}
       <AnimatePresence>
         {state.phase === 'match_ended' && (
           <motion.div
@@ -823,6 +673,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Footer decorativo */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

@@ -16,6 +16,7 @@ import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../../utils/constants';
 import { ProfileRepository } from '../../services/repositories/ProfileRepository';
 import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { TermsService } from '../../services/legal/TermsService';
+import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { sanitizeUserErrorMessage, classifyError } from '../../utils/errorSanitizer';
 
 interface AuthContextValue {
@@ -504,6 +505,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await AdminRepository.endUserSession();
       } catch (err) {
         // Ignorar fallo en registro de actividad
+      }
+      if (user?.id) {
+        RealtimeManager.cleanupUserEvents(user.id);
       }
       await supabase.auth.signOut();
       setUser(null);

@@ -91,7 +91,7 @@ export function WalletView() {
   const isAuthenticated = state === 'authenticated' && user !== null;
 
   const loadWalletData = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
     setLoading(true);
     try {
       const [b, txs, accounts] = await Promise.all([
@@ -102,18 +102,18 @@ export function WalletView() {
       setBalance(b);
       setTransactions(txs);
       setPaymentAccounts(accounts);
-      if (accounts.length > 0 && !selectedAccountId) {
-        setSelectedAccountId(accounts[0].id);
+      if (accounts.length > 0) {
+        setSelectedAccountId((prev) => prev || accounts[0].id);
       }
     } catch (err) {
       console.error('Error cargando billetera:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, selectedAccountId]);
+  }, [user?.id]);
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated || !user?.id) {
       setBalance(null);
       setTransactions([]);
       setPaymentAccounts([]);
@@ -122,7 +122,7 @@ export function WalletView() {
 
     loadWalletData();
 
-    // Suscripción en tiempo real a saldo y eventos
+    // Suscripción en tiempo real a saldo y eventos (idempotente y protegida)
     const unsubscribeUserEvents = RealtimeManager.subscribeToUserEvents(
       user.id,
       () => {
@@ -136,7 +136,7 @@ export function WalletView() {
     return () => {
       unsubscribeUserEvents();
     };
-  }, [isAuthenticated, user, loadWalletData]);
+  }, [isAuthenticated, user?.id, loadWalletData]);
 
   // Manejar solicitud de recarga
   const handleDepositSubmit = async (e: React.FormEvent) => {

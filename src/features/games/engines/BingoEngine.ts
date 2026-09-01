@@ -1,11 +1,12 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE BINGO (ACUMULACIÓN SEGURA + HOST PRESERVADO)
+// RASPANDO LA OLLA — MOTOR DE BINGO (ACUMULACIÓN SEGURA + SORTEO ACTIVO)
 // ==============================================================================
 // • Los cartones NO se guardan en el estado: se regeneran determinísticamente
 // • Solo se persiste el contador cardsPurchased (que se SUMA, no se pisa)
 // • Todos los dispositivos regeneran los MISMOS cartones (semilla fija)
 // • Soporta 75 y 90 bolas (quiniela)
 // • getSanitizedStateForPlayer PRESERVA hostUserId y cardsPurchased (público)
+// • DRAW_BALL permite iniciar sorteo desde fase SALES (sin ball inicial)
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
@@ -146,12 +147,25 @@ export class BingoEngine implements IGameEngine<any> {
     }
 
     if (t === 'DRAW_BALL') {
-      if (state.status !== 'PLAYING' && state.status !== 'SALES') return { valid: false, reason: 'La partida no está activa.' };
+      if (state.status !== 'PLAYING' && state.status !== 'SALES') {
+        return { valid: false, reason: 'La partida no está activa.' };
+      }
+      // Validación de anfitrión: si hay hostUserId definido, solo él puede sacar
       if (state.hostUserId && action.userId !== state.hostUserId) {
         return { valid: false, reason: 'Solo el anfitrión puede iniciar el sorteo.' };
       }
-      const ball = Number(action.actionData?.ball);
-      if (!ball || (state.drawnBalls || []).includes(ball)) return { valid: false, reason: 'Balota ya cantada.' };
+      // Si hay ball en actionData, validar que no esté repetida
+      const ballRaw = action.actionData?.ball;
+      if (ballRaw !== undefined && ballRaw !== null) {
+        const ball = Number(ballRaw);
+        if (!ball || !Number.isFinite(ball)) {
+          return { valid: false, reason: 'Balota inválida.' };
+        }
+        if ((state.drawnBalls || []).includes(ball)) {
+          return { valid: false, reason: 'Balota ya cantada.' };
+        }
+      }
+      // Si no hay ball aún (inicio de sorteo desde SALES), se permite
       return { valid: true };
     }
 
@@ -188,18 +202,32 @@ export class BingoEngine implements IGameEngine<any> {
     }
 
     if (t === 'DRAW_BALL') {
+      // Si estamos en SALES, cerrar venta automáticamente al primer click
       if (next.status === 'SALES') {
         next.status = 'PLAYING';
         next.lastActionLog = '🔔 ¡Venta cerrada! Comienza el sorteo';
       }
-      const ball = Number(action.actionData?.ball);
-      next.drawnBalls = next.drawnBalls || [];
-      next.drawnBalls.push(ball);
-      next.currentBall = ball;
-      next.lastActionLog = `🎱 Balota cantada: ${ball}`;
+      // Sacar balota solo si vino en actionData (puede venir del RNG de Supabase)
+      const ballRaw = action.actionData?.ball;
+      if (ballRaw !== undefined && ballRaw !== null) {
+        const ball = Number(ballRaw);
+        if (ball && Number.isFinite(ball)) {
+          next.drawnBalls = next.drawnBalls || [];
+          next.drawnBalls.push(ball);
+          next.currentBall = ball;
+          next.lastActionLog = `🎱 Balota cantada: ${ball}`;
+        }
+      }
       const maxBalls = next.totalBalls || next.mode || 90;
-      const done = next.drawnBalls.length >= maxBalls;
-      return { newState: next, isValid: true, isGameOver: done, winnerUserId: done ? next.winnerUserId : null, winnerTeamIndex: null, isDraw: done && !next.winnerUserId };
+      const done = (next.drawnBalls?.length || 0) >= maxBalls;
+      return {
+        newState: next,
+        isValid: true,
+        isGameOver: done,
+        winnerUserId: done ? next.winnerUserId : null,
+        winnerTeamIndex: null,
+        isDraw: done && !next.winnerUserId,
+      };
     }
 
     if (t === 'CLAIM_BINGO') {
@@ -238,14 +266,12 @@ export class BingoEngine implements IGameEngine<any> {
     sanitized.cardPrice = state.cardPrice;
 
     // 2. cardsPurchased es PÚBLICO: NO modificar contadores de otros jugadores
-    //    (son necesarios para el contador global y para regenerar cartones determinísticamente)
     if (!sanitized.cardsPurchased) sanitized.cardsPurchased = {};
 
     // 3. Regenerar cartones determinísticamente para TODOS (para el conteo global)
     regenerateAllCards(sanitized);
 
     // 4. PRIVACIDAD: ocultar el CONTENIDO de los cartones de otros jugadores
-    //    pero mantener el array vacío para no romper la estructura
     if (sanitized.cards && typeof sanitized.cards === 'object') {
       Object.keys(sanitized.cards).forEach((uid) => {
         if (uid !== userId) {

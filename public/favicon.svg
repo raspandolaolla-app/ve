@@ -5,37 +5,14 @@
       <stop offset="100%" style="stop-color:#F5B942"/>
     </linearGradient>
   </defs>
-  
   <circle cx="256" cy="256" r="250" fill="#080B12" stroke="#FF8A00" stroke-width="6"/>
   <circle cx="256" cy="256" r="220" fill="#111722"/>
-  
-  <!-- Olla simplificada -->
-  <path d="M 160 280 Q 160 360 256 380 Q 352 360 352 280 L 352 240 Q 352 220 332 220 L 180 220 Q 160 220 160 240 Z" 
-        fill="url(#potGrad)" 
-        stroke="#F5B942" 
-        stroke-width="4"/>
-  
-  <!-- Asas -->
-  <path d="M 160 250 Q 130 250 130 270 Q 130 290 160 290" 
-        fill="none" 
-        stroke="#F5B942" 
-        stroke-width="10" 
-        stroke-linecap="round"/>
-  <path d="M 352 250 Q 382 250 382 270 Q 382 290 352 290" 
-        fill="none" 
-        stroke="#F5B942" 
-        stroke-width="10" 
-        stroke-linecap="round"/>
-  
-  <!-- Tapa -->
+  <path d="M 160 280 Q 160 360 256 380 Q 352 360 352 280 L 352 240 Q 352 220 332 220 L 180 220 Q 160 220 160 240 Z" fill="url(#potGrad)" stroke="#F5B942" stroke-width="4"/>
+  <path d="M 160 250 Q 130 250 130 270 Q 130 290 160 290" fill="none" stroke="#F5B942" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 352 250 Q 382 250 382 270 Q 382 290 352 290" fill="none" stroke="#F5B942" stroke-width="10" stroke-linecap="round"/>
   <ellipse cx="256" cy="210" rx="95" ry="25" fill="#FF8A00"/>
   <circle cx="256" cy="190" r="18" fill="#F5B942" stroke="#FF8A00" stroke-width="4"/>
-  
-  <!-- Estrella dorada -->
   <g transform="translate(256,320)">
-    <polygon points="0,-30 10,-10 30,-10 15,5 20,25 0,15 -20,25 -15,5 -30,-10 -10,-10" 
-             fill="#FFD700" 
-             stroke="#FF8A00" 
-             stroke-width="2"/>
+    <polygon points="0,-30 10,-10 30,-10 15,5 20,25 0,15 -20,25 -15,5 -30,-10 -10,-10" fill="#FFD700" stroke="#FF8A00" stroke-width="2"/>
   </g>
 </svg>

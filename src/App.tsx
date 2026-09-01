@@ -14,6 +14,7 @@ import { GiraLaOllaModal } from './components/layout/GiraLaOllaModal';
 import { SafeDevelopmentBanner } from './components/layout/SafeDevelopmentBanner';
 import { AnnouncementBanner } from './components/common/AnnouncementBanner';
 import { InactivityWarningModal } from './components/common/InactivityWarningModal';
+import { QuickMatchModal } from './components/common/QuickMatchModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { useHeartbeat } from './hooks/useHeartbeat';
@@ -43,6 +44,7 @@ function AppContent() {
   const [supportModalOpen, setSupportModalOpen] = useState<boolean>(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState<boolean>(false);
   const [giraLaOllaModalOpen, setGiraLaOllaModalOpen] = useState<boolean>(false);
+  const [quickMatchModalOpen, setQuickMatchModalOpen] = useState<boolean>(false);
 
   const { state, user, error, clearError, hasAcceptedTerms, confirmTermsAccepted, signOut } = useAuth();
   const { showWarning, secondsRemaining, keepSessionAlive } = useInactivityTimeout();
@@ -144,6 +146,7 @@ function AppContent() {
         onNavigate={setCurrentTab}
         onOpenExplore={() => setExploreDrawerOpen(true)}
         onOpenSupport={() => setSupportModalOpen(true)}
+        onOpenQuickMatch={() => setQuickMatchModalOpen(true)}
       />
 
       {/* Drawer / Menú Lateral de Explorar */}
@@ -187,6 +190,16 @@ function AppContent() {
       <GiraLaOllaModal
         isOpen={giraLaOllaModalOpen}
         onClose={() => setGiraLaOllaModalOpen(false)}
+      />
+
+      {/* Modal de Partida Rápida */}
+      <QuickMatchModal
+        isOpen={quickMatchModalOpen}
+        onClose={() => setQuickMatchModalOpen(false)}
+        onNavigateToTable={(tableId) => {
+          setQuickMatchModalOpen(false);
+          setCurrentTab('tables');
+        }}
       />
 
       {/* Modal Visor de Documentos Legales */}

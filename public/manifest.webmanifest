@@ -11,7 +11,6 @@
   "categories": ["games", "entertainment", "social", "casino"],
   "lang": "es-VE",
   "dir": "ltr",
-  "prefer_related_applications": false,
   "icons": [
     {
       "src": "favicon.svg",
@@ -53,44 +52,16 @@
     {
       "name": "Jugar Ahora",
       "short_name": "Jugar",
-      "description": "Ir directamente al lobby de juegos",
+      "description": "Ir al lobby de juegos",
       "url": "./?action=play",
       "icons": [{ "src": "favicon.svg", "sizes": "192x192" }]
     },
     {
       "name": "Abonar Saldo",
       "short_name": "Abonar",
-      "description": "Recargar tu billetera",
+      "description": "Recargar billetera",
       "url": "./?action=deposit",
       "icons": [{ "src": "favicon.svg", "sizes": "192x192" }]
-    },
-    {
-      "name": "Ver Billetera",
-      "short_name": "Billetera",
-      "description": "Ver tu saldo y transacciones",
-      "url": "./?tab=wallet",
-      "icons": [{ "src": "favicon.svg", "sizes": "192x192" }]
     }
-  ],
-  "screenshots": [
-    {
-      "src": "screenshots/lobby-mobile.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Lobby principal con juegos disponibles"
-    },
-    {
-      "src": "screenshots/game-table.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Mesa de juego multijugador en vivo"
-    }
-  ],
-  "related_applications": [],
-  "display_override": ["standalone", "minimal-ui", "browser"],
-  "edge_side_panel": {
-    "preferred_width": 400
-  }
+  ]
 }

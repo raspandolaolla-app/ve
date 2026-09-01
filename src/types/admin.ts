@@ -78,7 +78,7 @@ export interface SystemAnnouncementItem {
   id: string;
   title: string;
   content: string;
-  type: 'GENERAL' | 'IMPORTANT' | 'MAINTENANCE' | 'PROMOTION' | 'UPDATE' | 'SECURITY';
+  type: 'GENERAL' | 'IMPORTANT' | 'MAINTENANCE' | 'PROMOTION' | 'UPDATE' | 'SECURITY' | 'MARQUEE';
   priority: number;
   targetAudience: 'ALL' | 'PLAYERS' | 'OPERATORS' | 'UNVERIFIED';
   isActive: boolean;

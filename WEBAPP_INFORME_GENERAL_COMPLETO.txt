@@ -2,10 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-08-30 23:40:00 -07:00 (UTC 2026-08-31 06:40:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 16:32:00 -07:00 (UTC 2026-09-01 23:32:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-MEJORA UI/UX RECIENTE: Rediseño Visual Profesional de Ajedrez (Temas Madera Clásica/Moderno/Alto Contraste, Piezas Vectoriales 3D HD, Alertas de Jaque/Jaque Mate y Menú Táctil de Promoción)
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Integración del Banner Marquee Infinito Dinámico (`SafeDevelopmentBanner.tsx`) conectado a `system_announcements` (tipo `MARQUEE`), modal de Partida Rápida `QuickMatchModal.tsx` con listado en tiempo real de mesas disponibles para unirse con 1 clic (`join_table_transaction`), y soporte completo en el Panel Admin (`AdminAnnouncementsTab.tsx`).
+MEJORA UI/UX RECIENTE: Botón de Navegación Central "JUGAR YA" (⚡ Verde neón con animación pulse-glow), Botón "INGRESAR" destacado con gradiente ámbar en cabecera principal, animación CSS de marquee infinito continuo con pausa on-hover y badges de tipo de anuncio.
 ================================================================================
 
 --------------------------------------------------------------------------------
@@ -294,12 +295,13 @@ g) Historial de Migraciones (80 Archivos SQL):
 - Funciones RPC: 50+
 - Triggers: 12
 - Políticas RLS: 63+
-- Migraciones SQL: 80 (Ubicadas en `supabase/migrations/` desde 001 hasta 080)
+- Migraciones SQL: 85 (Ubicadas en `supabase/migrations/` desde 001 hasta 085)
 
 --------------------------------------------------------------------------------
 9. CONFIGURACIÓN Y DESPLIEGUE
 --------------------------------------------------------------------------------
 - Hosting: Netlify / GitHub Pages / Cloud Run sandboxed en puerto 3000.
+- Archivo `server.ts`: Servidor Express con Vite middleware integrado en desarrollo y servidor estático en producción, con daemon resiliente de sorteo autónomo de Bingo.
 - Archivo `netlify.toml`: Configurado con `publish = "dist"` y redirección `/*` a `index.html` para soporte SPA.
 - PWA (Progressive Web App):
   - Archivo manifest: `public/manifest.webmanifest`.
@@ -308,14 +310,16 @@ g) Historial de Migraciones (80 Archivos SQL):
 - Variables de Entorno Requeridas (`.env.example`):
   - `VITE_SUPABASE_URL`: URL del proyecto Supabase.
   - `VITE_SUPABASE_ANON_KEY`: Clave pública anónima de Supabase.
+  - `DATABASE_URL` / `SUPABASE_DB_URL`: (Opcional) Cadena de conexión directa a PostgreSQL para el worker de sorteos de Bingo en segundo plano.
 
 --------------------------------------------------------------------------------
-10. ERRORES Y PROBLEMAS DETECTADOS
+10. ERRORES Y PROBLEMAS DETECTADOS Y RESUELTOS
 --------------------------------------------------------------------------------
 - CRÍTICO: Ninguno en la compilación ni en el linter (`0` errores de compilación / `0` errores en `tsc`).
+- RESUELTO: Control de errores de autenticación PostgreSQL en `server.ts` (`password authentication failed for user "postgres"` / desconexión). El servidor captura eventos de error en el pool y pausa el worker de sorteo automáticamente sin interrumpir el servicio web HTTP ni arrojar unhandled exceptions.
 - ALTO: Eventuales micro-interrupciones de WebSocket Realtime en conexiones móviles inestables (Manejadas limpiamente por el `RealtimeManager` reconectando la suscripción sin cerrar la sesión del usuario).
-- MEDIO: `scripts/migrate.ts` requiere la variable de entorno `DATABASE_URL` para conectarse directamente al puerto PostgreSQL si se ejecutan migraciones CLI fuera del panel de Supabase.
-- BAJO: Acumulación de 80 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad).
+- MEDIO: `scripts/migrate.ts` requiere la variable de entorno `DATABASE_URL` si se ejecutan migraciones CLI fuera del panel de Supabase.
+- BAJO: Acumulación de 85 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad e historial).
 
 --------------------------------------------------------------------------------
 11. CÓDIGO DUPLICADO O INNECESARIO (SOLO IDENTIFICADO / NO ELIMINADO)

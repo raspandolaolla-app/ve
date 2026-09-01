@@ -133,6 +133,8 @@ export const AdminAnnouncementsTab: React.FC = () => {
         return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
       case 'UPDATE':
         return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+      case 'MARQUEE':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
       default:
         return 'bg-sky-500/10 text-sky-400 border-sky-500/30';
     }
@@ -323,6 +325,7 @@ export const AdminAnnouncementsTab: React.FC = () => {
                     <option value="PROMOTION">PROMOTION (Promoción)</option>
                     <option value="SECURITY">SECURITY (Seguridad)</option>
                     <option value="UPDATE">UPDATE (Actualización)</option>
+                    <option value="MARQUEE">MARQUEE (Cintillo Superior Infinito)</option>
                   </select>
                 </div>
 

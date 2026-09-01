@@ -11,30 +11,76 @@ const app = express();
 const PORT = 3000;
 
 // Configurar pool de conexión a PostgreSQL
-const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+const connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
 let pool: pg.Pool | null = null;
+let drawWorkerDisabled = false;
+let isRunningDraws = false;
+let authErrorLogged = false;
 
-if (connectionString) {
-  console.log("[BINGO_SERVER] DATABASE_URL detectada. Inicializando conexión...");
-  pool = new pg.Pool({
-    connectionString,
-    ssl: { rejectUnauthorized: false }
-  });
+if (connectionString && connectionString !== "") {
+  try {
+    const isSupabaseOrRemote = connectionString.includes("supabase.co") || 
+      connectionString.includes("sslmode=require") || 
+      !connectionString.includes("localhost");
+
+    pool = new pg.Pool({
+      connectionString,
+      ssl: isSupabaseOrRemote ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 10000,
+      max: 3,
+    });
+
+    // Capturar errores no controlados del pool para evitar caídas del proceso
+    pool.on("error", (err: any) => {
+      const msg = err?.message || String(err);
+      if (!authErrorLogged && (msg.includes("password authentication failed") || msg.includes("auth"))) {
+        authErrorLogged = true;
+        console.warn("[BINGO_SERVER] Credenciales de PostgreSQL no válidas en DATABASE_URL. Sorteo autónomo pausado.");
+      }
+    });
+
+    // Verificación no bloqueante en arranque
+    pool.query("SELECT 1")
+      .then(() => {
+        console.log("[BINGO_SERVER] Conexión a PostgreSQL establecida exitosamente.");
+      })
+      .catch((err: any) => {
+        const msg = err?.message || String(err);
+        if (msg.includes("password authentication failed") || msg.includes("ECONNREFUSED") || msg.includes("auth")) {
+          console.warn(`[BINGO_SERVER] Aviso de conexión PostgreSQL: ${msg}. El servidor Express y la app web continuarán funcionando normalmente.`);
+          drawWorkerDisabled = true;
+        } else {
+          console.warn(`[BINGO_SERVER] Aviso de verificación inicial PostgreSQL: ${msg}`);
+        }
+      });
+  } catch (initErr: any) {
+    console.warn("[BINGO_SERVER] No se pudo inicializar el pool PostgreSQL:", initErr?.message || initErr);
+    pool = null;
+    drawWorkerDisabled = true;
+  }
 } else {
-  console.warn("[BINGO_SERVER] ADVERTENCIA: DATABASE_URL o SUPABASE_DB_URL no configurada. Sorteo automático del lado del servidor inactivo.");
+  console.log("[BINGO_SERVER] DATABASE_URL no configurada. El servidor opera en modo estándar.");
 }
 
 // API routes FIRST
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", serverTime: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    serverTime: new Date().toISOString(),
+    dbWorkerActive: Boolean(pool && !drawWorkerDisabled),
+  });
 });
 
 // Función del Motor de Sorteo Automatizado del Servidor (Cron / Intervalo de Base de Datos)
 async function runAutomatedBingoDraws() {
-  if (!pool) return;
+  if (!pool || drawWorkerDisabled || isRunningDraws) return;
+  isRunningDraws = true;
 
-  const client = await pool.connect();
+  let client: pg.PoolClient | null = null;
   try {
+    client = await pool.connect();
+    
     // 1. INICIAR MESA AUTOMÁTICA EN COUNTDOWN (RECONCILIACIÓN DE INICIO)
     // Busca mesas en READY/OPEN con cronogramas que ya expiraron (tiempo de inicio cumplido)
     const readyQuery = `
@@ -115,17 +161,36 @@ async function runAutomatedBingoDraws() {
         }
       }
     }
-  } catch (err) {
-    console.error("[BINGO_SERVER] [BINGO_ERROR] Error en el bucle del motor de sorteo:", err);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes("password authentication failed") || msg.includes("ECONNREFUSED") || msg.includes("auth")) {
+      if (!authErrorLogged) {
+        authErrorLogged = true;
+        console.warn(`[BINGO_SERVER] Base de datos no autenticada (${msg}). El daemon en segundo plano se suspende.`);
+      }
+      drawWorkerDisabled = true;
+    } else {
+      console.error("[BINGO_SERVER] [BINGO_ERROR] Error en el bucle del motor de sorteo:", msg);
+    }
   } finally {
-    client.release();
+    if (client) {
+      try {
+        client.release();
+      } catch (releaseErr) {
+        // Ignorar errores al liberar si el cliente ya fue desconectado
+      }
+    }
+    isRunningDraws = false;
   }
 }
 
-// Registrar el motor en segundo plano (cada 2 segundos)
+// Registrar el motor en segundo plano (cada 2 segundos) de forma segura
 if (pool) {
-  console.log("[BINGO_SERVER] Iniciando daemon de sorteo automático en segundo plano (intervalo: 2s)...");
-  setInterval(runAutomatedBingoDraws, 2000);
+  setInterval(() => {
+    runAutomatedBingoDraws().catch((err) => {
+      console.warn("[BINGO_SERVER] Excepción no capturada en worker:", err?.message || err);
+    });
+  }, 2000);
 }
 
 async function startServer() {

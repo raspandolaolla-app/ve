@@ -17,80 +17,27 @@
       </feMerge>
     </filter>
   </defs>
-  
-  <!-- Fondo circular con gradiente oscuro -->
   <circle cx="256" cy="256" r="250" fill="#080B12" stroke="#FF8A00" stroke-width="4"/>
-  
-  <!-- Círculo interior con brillo -->
   <circle cx="256" cy="256" r="220" fill="#111722" opacity="0.8"/>
-  
-  <!-- Olla principal -->
-  <path d="M 140 280 Q 140 380 256 400 Q 372 380 372 280 L 372 240 Q 372 220 352 220 L 160 220 Q 140 220 140 240 Z" 
-        fill="url(#potGradient)" 
-        stroke="#F5B942" 
-        stroke-width="3"
-        filter="url(#glow)"/>
-  
-  <!-- Detalles de la olla (líneas decorativas) -->
+  <path d="M 140 280 Q 140 380 256 400 Q 372 380 372 280 L 372 240 Q 372 220 352 220 L 160 220 Q 140 220 140 240 Z" fill="url(#potGradient)" stroke="#F5B942" stroke-width="3" filter="url(#glow)"/>
   <path d="M 160 260 L 352 260" stroke="#F5B942" stroke-width="2" opacity="0.6"/>
   <path d="M 160 280 L 352 280" stroke="#F5B942" stroke-width="2" opacity="0.6"/>
-  
-  <!-- Asas de la olla -->
-  <path d="M 140 250 Q 120 250 120 270 Q 120 290 140 290" 
-        fill="none" 
-        stroke="url(#handleGradient)" 
-        stroke-width="8" 
-        stroke-linecap="round"/>
-  <path d="M 372 250 Q 392 250 392 270 Q 392 290 372 290" 
-        fill="none" 
-        stroke="url(#handleGradient)" 
-        stroke-width="8" 
-        stroke-linecap="round"/>
-  
-  <!-- Tapa de la olla -->
+  <path d="M 140 250 Q 120 250 120 270 Q 120 290 140 290" fill="none" stroke="url(#handleGradient)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 372 250 Q 392 250 392 270 Q 392 290 372 290" fill="none" stroke="url(#handleGradient)" stroke-width="8" stroke-linecap="round"/>
   <ellipse cx="256" cy="210" rx="110" ry="30" fill="#F5B942" opacity="0.9"/>
   <ellipse cx="256" cy="205" rx="100" ry="25" fill="#FF8A00" opacity="0.95"/>
-  
-  <!-- Agarradera de la tapa -->
   <circle cx="256" cy="190" r="15" fill="#F5B942" stroke="#FF8A00" stroke-width="3"/>
   <circle cx="256" cy="190" r="8" fill="#FF8A00"/>
-  
-  <!-- Raspador/Cuchara -->
   <g transform="rotate(-25 320 200)">
     <rect x="300" y="150" width="8" height="80" rx="4" fill="#8B4513"/>
     <ellipse cx="304" cy="230" rx="20" ry="12" fill="#D2691E" stroke="#8B4513" stroke-width="2"/>
-    <ellipse cx="304" cy="228" rx="16" ry="8" fill="#DEB887" opacity="0.6"/>
   </g>
-  
-  <!-- Estrellas decorativas (premios) -->
   <g fill="#FFD700" opacity="0.9">
     <polygon points="100,150 105,160 115,160 108,167 112,177 100,171 88,177 92,167 85,160 95,160"/>
     <polygon points="412,130 417,140 427,140 420,147 424,157 412,151 400,157 404,147 397,140 407,140"/>
     <polygon points="80,350 85,360 95,360 88,367 92,377 80,371 68,377 72,367 65,360 75,360"/>
     <polygon points="432,330 437,340 447,340 440,347 444,357 432,351 420,357 424,347 417,340 427,340"/>
   </g>
-  
-  <!-- Texto "RASPANDO" -->
-  <text x="256" y="440" 
-        font-family="Arial Black, sans-serif" 
-        font-size="48" 
-        font-weight="900" 
-        fill="#F8FAFC" 
-        text-anchor="middle"
-        letter-spacing="2">
-    RASPANDO
-  </text>
-  
-  <!-- Texto "LA OLLA" con efecto -->
-  <text x="256" y="485" 
-        font-family="Arial Black, sans-serif" 
-        font-size="56" 
-        font-weight="900" 
-        fill="url(#potGradient)" 
-        text-anchor="middle"
-        letter-spacing="3"
-        stroke="#F5B942"
-        stroke-width="1">
-    LA OLLA
-  </text>
+  <text x="256" y="440" font-family="Arial Black, sans-serif" font-size="48" font-weight="900" fill="#F8FAFC" text-anchor="middle" letter-spacing="2">RASPANDO</text>
+  <text x="256" y="485" font-family="Arial Black, sans-serif" font-size="56" font-weight="900" fill="url(#potGradient)" text-anchor="middle" letter-spacing="3" stroke="#F5B942" stroke-width="1">LA OLLA</text>
 </svg>

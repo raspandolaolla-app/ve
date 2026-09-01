@@ -7,7 +7,16 @@
 import { getSupabaseClient } from '../../lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+interface UserEventsChannelEntry {
+  channel: RealtimeChannel;
+  balanceListeners: Set<(payload: any) => void>;
+  notificationListeners: Set<(payload: any) => void>;
+  status: string;
+}
+
 export class RealtimeManager {
+  private static userChannels: Map<string, UserEventsChannelEntry> = new Map();
+
   /**
    * Se suscribe a los cambios de una mesa específica y sus jugadores en tiempo real.
    */
@@ -156,47 +165,190 @@ export class RealtimeManager {
   }
 
   /**
-   * Se suscribe a las notificaciones y saldo personal del usuario.
+   * Se suscribe a las notificaciones y saldo personal del usuario de forma idempotente y segura.
+   * Garantiza que exista como máximo UN canal Realtime por userId y que TODOS los listeners
+   * postgres_changes se registren ANTES de llamar a subscribe().
    */
   public static subscribeToUserEvents(
     userId: string,
     onBalanceChange: (payload: any) => void,
     onNotification: (payload: any) => void
   ): () => void {
-    const supabase = getSupabaseClient();
-    if (!supabase) return () => {};
+    if (!userId || typeof userId !== 'string' || !userId.trim() || userId === 'null' || userId === 'undefined') {
+      console.warn('[WALLET_REALTIME] Invalid userId provided, skipping subscription:', userId);
+      return () => {};
+    }
 
-    const channelName = `user_${userId}`;
-    const channel: RealtimeChannel = supabase
-      .channel(channelName)
-      .on(
+    const cleanUserId = userId.trim();
+    const channelName = `user_${cleanUserId}`;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      console.warn('[WALLET_REALTIME] Supabase client not available, skipping realtime subscription');
+      return () => {};
+    }
+
+    let entry = this.userChannels.get(cleanUserId);
+
+    if (entry) {
+      // Canal ya existente: registrar listeners en el registro multiplexado
+      if (onBalanceChange) entry.balanceListeners.add(onBalanceChange);
+      if (onNotification) entry.notificationListeners.add(onNotification);
+      console.log(
+        `[WALLET_REALTIME] Reusing active channel ${channelName}. Listeners registered (balance: ${entry.balanceListeners.size}, notifications: ${entry.notificationListeners.size})`
+      );
+    } else {
+      console.log(`[WALLET_REALTIME] Creating channel ${channelName}`);
+
+      // Remover canal previo huérfano en el cliente de Supabase si existiese
+      try {
+        const existingSupabaseChannels = supabase.getChannels();
+        for (const ch of existingSupabaseChannels) {
+          if (ch.topic === `realtime:${channelName}` || ch.topic === channelName) {
+            console.log(`[WALLET_REALTIME] Removing stale Supabase channel before creation: ${channelName}`);
+            supabase.removeChannel(ch);
+          }
+        }
+      } catch (err) {
+        console.warn('[WALLET_REALTIME] Error checking stale channels:', err);
+      }
+
+      const balanceListeners = new Set<(payload: any) => void>();
+      const notificationListeners = new Set<(payload: any) => void>();
+
+      if (onBalanceChange) balanceListeners.add(onBalanceChange);
+      if (onNotification) notificationListeners.add(onNotification);
+
+      const channel = supabase.channel(channelName);
+
+      // PASO 2: Registrar TODOS los listeners postgres_changes ANTES de subscribe()
+      console.log(`[WALLET_REALTIME] Registering wallet listener for ${channelName}`);
+      channel.on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'wallets',
-          filter: `user_id=eq.${userId}`,
+          filter: `user_id=eq.${cleanUserId}`,
         },
         (payload) => {
-          onBalanceChange(payload);
+          const currentEntry = RealtimeManager.userChannels.get(cleanUserId);
+          if (currentEntry) {
+            currentEntry.balanceListeners.forEach((listener) => {
+              try {
+                listener(payload);
+              } catch (e) {
+                console.error('[WALLET_REALTIME] Error in balance listener:', e);
+              }
+            });
+          }
         }
-      )
-      .on(
+      );
+
+      console.log(`[WALLET_REALTIME] Registering notifications listener for ${channelName}`);
+      channel.on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${userId}`,
+          filter: `user_id=eq.${cleanUserId}`,
         },
         (payload) => {
-          onNotification(payload);
+          const currentEntry = RealtimeManager.userChannels.get(cleanUserId);
+          if (currentEntry) {
+            currentEntry.notificationListeners.forEach((listener) => {
+              try {
+                listener(payload);
+              } catch (e) {
+                console.error('[WALLET_REALTIME] Error in notification listener:', e);
+              }
+            });
+          }
         }
-      )
-      .subscribe();
+      );
 
+      console.log(`[WALLET_REALTIME] All listeners registered for ${channelName}`);
+      console.log(`[WALLET_REALTIME] Calling subscribe() for ${channelName}`);
+
+      entry = {
+        channel,
+        balanceListeners,
+        notificationListeners,
+        status: 'SUBSCRIBING',
+      };
+      this.userChannels.set(cleanUserId, entry);
+
+      // PASO 4: Ejecutar subscribe()
+      channel.subscribe((status, err) => {
+        if (!entry) return;
+        entry.status = status;
+        if (status === 'SUBSCRIBED') {
+          console.log(`[WALLET_REALTIME] SUBSCRIBED: channel ${channelName}`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn(`[WALLET_REALTIME] CHANNEL_ERROR on channel ${channelName}:`, err);
+        } else if (status === 'TIMED_OUT') {
+          console.warn(`[WALLET_REALTIME] CHANNEL_TIMEOUT on channel ${channelName}`);
+        } else if (status === 'CLOSED') {
+          console.log(`[WALLET_REALTIME] CHANNEL_CLOSED on channel ${channelName}`);
+        }
+      });
+    }
+
+    // Retornar función de limpieza idempotente
     return () => {
-      supabase.removeChannel(channel);
+      const currentEntry = RealtimeManager.userChannels.get(cleanUserId);
+      if (!currentEntry) return;
+
+      if (onBalanceChange) currentEntry.balanceListeners.delete(onBalanceChange);
+      if (onNotification) currentEntry.notificationListeners.delete(onNotification);
+
+      console.log(
+        `[WALLET_REALTIME] Listener unsubscribed for ${channelName} (remaining balance: ${currentEntry.balanceListeners.size}, notifications: ${currentEntry.notificationListeners.size})`
+      );
+
+      if (currentEntry.balanceListeners.size === 0 && currentEntry.notificationListeners.size === 0) {
+        console.log(`[WALLET_REALTIME] CLEANUP: No remaining listeners, removing channel ${channelName}`);
+        RealtimeManager.userChannels.delete(cleanUserId);
+        try {
+          supabase.removeChannel(currentEntry.channel);
+        } catch (err) {
+          console.warn(`[WALLET_REALTIME] Error removing channel ${channelName}:`, err);
+        }
+      }
     };
   }
+
+  /**
+   * Limpieza explícita de canales de usuario (al cerrar sesión o desmontar app).
+   */
+  public static cleanupUserEvents(userId?: string): void {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    if (userId) {
+      const cleanUserId = userId.trim();
+      const entry = this.userChannels.get(cleanUserId);
+      if (entry) {
+        console.log(`[WALLET_REALTIME] CLEANUP: Explicit cleanup for user_${cleanUserId}`);
+        this.userChannels.delete(cleanUserId);
+        try {
+          supabase.removeChannel(entry.channel);
+        } catch (err) {
+          console.warn(`[WALLET_REALTIME] Error removing channel user_${cleanUserId}:`, err);
+        }
+      }
+    } else {
+      console.log('[WALLET_REALTIME] CLEANUP: Explicit cleanup for all user channels');
+      for (const [uid, entry] of this.userChannels.entries()) {
+        try {
+          supabase.removeChannel(entry.channel);
+        } catch (err) {
+          console.warn(`[WALLET_REALTIME] Error removing channel user_${uid}:`, err);
+        }
+      }
+      this.userChannels.clear();
+    }
+  }
 }
+

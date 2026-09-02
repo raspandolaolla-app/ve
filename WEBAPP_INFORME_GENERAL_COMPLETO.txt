@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 21:24:00 -07:00 (UTC 2026-09-02 04:24:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 21:50:00 -07:00 (UTC 2026-09-02 04:50:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 093_fix_settle_game_session_ledger_entries_canonical.sql (Corrección canónica de ledger_entries en liquidaciones de sesión, compatibilidad estricta con balance_after y balance_after_available)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Sistema de Audio Definitivo para Bingo con Web Audio API: 1) Creación de `src/utils/bingoAudio.ts` con arquitectura `AudioContext`, `AudioBuffer` decodificados, precarga paralela en lotes de 95 archivos (letras B-I-N-G-O y números 1-90), detección dinámica de base URL y prevención de bloqueos de autoplay mediante desbloqueo por gesto de usuario (`unlock`). 2) Sincronización de balota y duración adaptable por intervalo con nodos de ganancia (`GainNode`). 3) Integración en `BingoGame.tsx` con paneles de activación, control de volumen con slider interactivo, silenciado persistente (`localStorage`) y botón de prueba.
-MEJORA UI/UX RECIENTE: Paneles de activación de audio responsivos para anfitriones y jugadores en Bingo, control de volumen en tiempo real, indicador de estado de audio activo, soporte de cámara para fotografía de ganadores con almacenamiento en Supabase Storage.
+ÚLTIMA MIGRACIÓN INTEGRADA: 095_update_bingo_draw_rpc.sql (Migración 094 pg_cron para Edge Function de sorteo server-side y 095 de RPC autoritativo para extracciones controladas)
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Arquitectura Server-Authoritative para Sorteo de Bingo: 1) Creación de Supabase Edge Function `supabase/functions/bingo-auto-draw/index.ts` y cron job con `pg_cron` para sorteo automático continuo e inmune a desconexiones de clientes. 2) Migraciones 094 y 095 para programación y protección RPC. 3) Integración en `BingoGame.tsx` con banner de estado server-authoritative y controles de sorteo manual. 4) Sistema de audio robusto Web Audio API.
+MEJORA UI/UX RECIENTE: Indicador de Sorteo Server-Authoritative en Bingo, soporte completo de audio con desbloqueo de navegador, controles responsivos y persistencia de estado en tiempo real.
 ================================================================================
 
 --------------------------------------------------------------------------------

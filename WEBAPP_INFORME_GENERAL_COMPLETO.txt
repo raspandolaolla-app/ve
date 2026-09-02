@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 17:48:00 -07:00 (UTC 2026-09-02 00:48:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 18:03:00 -07:00 (UTC 2026-09-02 01:03:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Conexión Integral de Partida Rápida y Detección de Partida Activa (`BottomNavigation.tsx`, `TablesView.tsx`, `App.tsx`): Integración del evento `open-quick-match` y `game-active-change` para abrir el modal de emparejamiento directamente desde el botón 'JUGAR YA' y ocultar automáticamente Header y BottomNavigation en dispositivos móviles, tablets y PC.
-MEJORA UI/UX RECIENTE: Modal de Fin de Partida (`GameArena.tsx`, `GameEndModal.tsx`) con 3 opciones de acción inmediata (Jugar de nuevo, Ver última jugada, Regresar al lobby), Fullscreen automático con fallback y botón central destacado 'JUGAR YA' con gradiente naranja/dorado.
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Corrección y Alineación de Estado en Piedra, Papel o Tijera (`RockPaperScissorsGame.tsx`): Sincronización total de la interfaz con `RockPaperScissorsEngine.ts` y tipos globales `RPSState` (`round`, `targetWins`, `scores: Record<string, number>`, `playerChoices: Record<string, {choice, committed}>`, `phase: selecting | round_result | match_ended`, `history: RPSRoundRecord[]`), resolviendo el procesamiento de elecciones simultáneas protegidas y avance de rondas.
+MEJORA UI/UX RECIENTE: Conexión de Partida Rápida con botón 'JUGAR YA' (`BottomNavigation.tsx`), detección de partida activa para ocultar navegación (`TablesView.tsx`, `App.tsx`) y Modal de Fin de Partida (`GameArena.tsx`, `GameEndModal.tsx`).
 ================================================================================
 
 --------------------------------------------------------------------------------

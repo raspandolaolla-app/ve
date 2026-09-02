@@ -1,35 +1,16 @@
 // ==============================================================================
-// RASPANDO LA OLLA — PIEDRA, PAPEL O TIJERA (1v1)
+// RASPANDO LA OLLA — PIEDRA, PAPEL O TIJERA (1v1) - VERSIÓN CORREGIDA
 // ==============================================================================
-// Mecanismo de compromiso simultáneo (Commit-Reveal), mejor de 3 rondas,
-// resolución de victorias y liquidación de pozo.
+// Alineado con RockPaperScissorsEngine.ts - Selección simultánea protegida
 // ==============================================================================
 
-import { useState } from 'react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
+import type { RPSState, RPSChoice } from '../../../types/games';
 import { useGameEngine } from '../useGameEngine';
 import { Button } from '../../../components/common/Button';
-import { Trophy, RefreshCw, Hand, Scissors, ShieldAlert, Sparkles } from 'lucide-react';
+import { Trophy, RefreshCw } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
-
-type Choice = 'ROCK' | 'PAPER' | 'SCISSORS';
-
-interface RPSState {
-  player1UserId: string;
-  player2UserId: string;
-  player1Score: number;
-  player2Score: number;
-  currentRound: number;
-  maxScore: number; // Por defecto gana el primero a 2 puntos (Mejor de 3)
-  player1Choice: Choice | null;
-  player2Choice: Choice | null;
-  player1Committed: boolean;
-  player2Committed: boolean;
-  roundWinnerUserId: string | 'TIE' | null;
-  winnerUserId: string | null;
-  isTie: boolean;
-}
 
 export function RockPaperScissorsGame({
   table,
@@ -46,25 +27,6 @@ export function RockPaperScissorsGame({
     new Map(players.map((p) => [p.userId, p])).values()
   ).sort((a, b) => a.seatNumber - b.seatNumber);
 
-  const p1 = uniquePlayers[0]?.userId || table.hostUserId;
-  const p2 = uniquePlayers[1]?.userId && uniquePlayers[1]?.userId !== p1 ? uniquePlayers[1].userId : '';
-
-  const initialRPSState: RPSState = {
-    player1UserId: p1,
-    player2UserId: p2,
-    player1Score: 0,
-    player2Score: 0,
-    currentRound: 1,
-    maxScore: 2, // Primero a 2 puntos gana
-    player1Choice: null,
-    player2Choice: null,
-    player1Committed: false,
-    player2Committed: false,
-    roundWinnerUserId: null,
-    winnerUserId: null,
-    isTie: false,
-  };
-
   const {
     gameState,
     isSettling,
@@ -73,116 +35,152 @@ export function RockPaperScissorsGame({
     table,
     players: uniquePlayers,
     currentUserId,
-    initialState: initialRPSState,
+    initialState: {},
   });
 
-  const state = (gameState as unknown as RPSState) || initialRPSState;
-  const isP1 = currentUserId === state.player1UserId;
+  const state = (gameState as unknown as RPSState) || {
+    round: 1,
+    targetWins: 2,
+    scores: {},
+    playerNames: {},
+    playerChoices: {},
+    phase: 'selecting',
+    status: 'playing',
+    winnerUserId: null,
+    roundWinnerUserId: null,
+    history: [],
+  };
 
-  const hasCommitted = isP1 ? state.player1Committed : state.player2Committed;
-  const opponentCommitted = isP1 ? state.player2Committed : state.player1Committed;
-  const bothCommitted = state.player1Committed && state.player2Committed;
+  const myChoice = state.playerChoices[currentUserId || '']?.choice || null;
+  const hasCommitted = state.playerChoices[currentUserId || '']?.committed || false;
 
-  const myChoice = isP1 ? state.player1Choice : state.player2Choice;
-  const opponentChoice = bothCommitted ? (isP1 ? state.player2Choice : state.player1Choice) : null;
+  const opponentId = Object.keys(state.playerChoices).find((id) => id !== currentUserId);
+  const opponentChoice =
+    opponentId && state.phase !== 'selecting'
+      ? state.playerChoices[opponentId]?.choice
+      : null;
+  const opponentCommitted = opponentId ? state.playerChoices[opponentId]?.committed || false : false;
 
-  const handleMakeChoice = async (choice: Choice) => {
-    if (hasCommitted || state.winnerUserId || isSettling) return;
+  const myScore = state.scores[currentUserId || ''] || 0;
+  const opponentScore = opponentId ? state.scores[opponentId] || 0 : 0;
 
-    let p1Choice = state.player1Choice;
-    let p2Choice = state.player2Choice;
-    let p1Comm = state.player1Committed;
-    let p2Comm = state.player2Committed;
-
-    if (isP1) {
-      p1Choice = choice;
-      p1Comm = true;
-    } else {
-      p2Choice = choice;
-      p2Comm = true;
+  const handleMakeChoice = async (choice: RPSChoice) => {
+    if (hasCommitted || state.status === 'game_won' || isSettling || state.phase !== 'selecting') {
+      return;
     }
 
-    let roundWinner: string | 'TIE' | null = null;
-    let p1Score = state.player1Score;
-    let p2Score = state.player2Score;
-    let winnerId: string | null = null;
-    let roundNum = state.currentRound;
-
-    // Si ambos ya eligieron en esta ronda, calculamos el ganador de la ronda
-    if (p1Comm && p2Comm && p1Choice && p2Choice) {
-      if (p1Choice === p2Choice) {
-        roundWinner = 'TIE';
-      } else if (
-        (p1Choice === 'ROCK' && p2Choice === 'SCISSORS') ||
-        (p1Choice === 'PAPER' && p2Choice === 'ROCK') ||
-        (p1Choice === 'SCISSORS' && p2Choice === 'PAPER')
-      ) {
-        roundWinner = state.player1UserId;
-        p1Score += 1;
-      } else {
-        roundWinner = state.player2UserId;
-        p2Score += 1;
-      }
-
-      if (p1Score >= state.maxScore) {
-        winnerId = state.player1UserId;
-      } else if (p2Score >= state.maxScore) {
-        winnerId = state.player2UserId;
-      }
-    }
-
-    const nextState: RPSState = {
-      ...state,
-      player1Choice: p1Choice,
-      player2Choice: p2Choice,
-      player1Committed: p1Comm,
-      player2Committed: p2Comm,
-      player1Score: p1Score,
-      player2Score: p2Score,
-      roundWinnerUserId: roundWinner,
-      winnerUserId: winnerId,
+    // Simular el nuevo estado localmente
+    const updatedChoices = {
+      ...state.playerChoices,
+      [currentUserId || '']: {
+        choice,
+        committed: true,
+      },
     };
+
+    const playerIds = Object.keys(updatedChoices);
+    const allCommitted = playerIds.length >= 2 && playerIds.every((id) => updatedChoices[id]?.committed);
+
+    let nextState: RPSState;
+
+    if (!allCommitted) {
+      // Aún falta el oponente
+      nextState = {
+        ...state,
+        playerChoices: updatedChoices,
+      };
+    } else {
+      // Ambos han elegido - evaluar ronda
+      const [id1, id2] = playerIds;
+      const c1 = updatedChoices[id1]?.choice!;
+      const c2 = updatedChoices[id2]?.choice!;
+
+      let roundWinnerId: string | null = null;
+      const newScores = { ...state.scores };
+
+      if (c1 !== c2) {
+        if (
+          (c1 === 'rock' && c2 === 'scissors') ||
+          (c1 === 'scissors' && c2 === 'paper') ||
+          (c1 === 'paper' && c2 === 'rock')
+        ) {
+          roundWinnerId = id1;
+        } else {
+          roundWinnerId = id2;
+        }
+        newScores[roundWinnerId] = (newScores[roundWinnerId] || 0) + 1;
+      }
+
+      const isMatchWon = roundWinnerId !== null && newScores[roundWinnerId] >= state.targetWins;
+
+      nextState = {
+        ...state,
+        playerChoices: updatedChoices,
+        scores: newScores,
+        phase: isMatchWon ? 'match_ended' : 'round_result',
+        status: isMatchWon ? 'game_won' : 'round_won',
+        winnerUserId: isMatchWon ? roundWinnerId : null,
+        roundWinnerUserId: roundWinnerId,
+        history: [
+          ...state.history,
+          {
+            roundNumber: state.round,
+            choices: { [id1]: c1, [id2]: c2 },
+            winnerUserId: roundWinnerId,
+            summary: '',
+          },
+        ],
+      };
+    }
 
     await dispatchAction(
       'SUBMIT_CHOICE',
-      { choice, userId: currentUserId },
+      { choice },
       nextState as unknown as Record<string, unknown>,
-      null,
-      winnerId,
+      null, // En RPS no hay turnos secuenciales
+      nextState.status === 'game_won' ? nextState.winnerUserId : null,
       false
     );
   };
 
   const handleNextRound = async () => {
-    if (!bothCommitted || state.winnerUserId || isSettling) return;
+    if (state.phase !== 'round_result' || isSettling) return;
+
+    const resetChoices: Record<string, { choice?: RPSChoice; committed: boolean }> = {};
+    Object.keys(state.playerChoices).forEach((id) => {
+      resetChoices[id] = { committed: false };
+    });
 
     const nextState: RPSState = {
       ...state,
-      currentRound: state.currentRound + 1,
-      player1Choice: null,
-      player2Choice: null,
-      player1Committed: false,
-      player2Committed: false,
+      round: state.round + 1,
+      playerChoices: resetChoices,
+      phase: 'selecting',
+      status: 'playing',
       roundWinnerUserId: null,
     };
 
     await dispatchAction(
       'NEXT_ROUND',
-      { round: state.currentRound + 1 },
+      { round: state.round + 1 },
       nextState as unknown as Record<string, unknown>,
       null
     );
   };
 
-  const isGameOver = Boolean(state.winnerUserId);
+  const isGameOver = state.status === 'game_won';
   const isWinner = state.winnerUserId === currentUserId;
   const estimatedPrize = table.entryFee * table.maxPlayers * (FINANCIAL_RULES.WINNER_PERCENT / 100);
 
-  const renderIcon = (c: Choice | null) => {
-    if (c === 'ROCK') return '🪨';
-    if (c === 'PAPER') return '📄';
-    if (c === 'SCISSORS') return '✂️';
+  const renderIcon = (c: RPSChoice | null | undefined) => {
+    if (c === 'rock') return '🪨';
+    if (c === 'paper') return '📄';
+    if (c === 'scissors') return '✂️';
     return '❓';
+  };
+
+  const getChoiceLabel = (c: RPSChoice) => {
+    return c === 'rock' ? 'Piedra' : c === 'paper' ? 'Papel' : 'Tijera';
   };
 
   return (
@@ -204,7 +202,7 @@ export function RockPaperScissorsGame({
 
           <div className="text-right">
             <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-              Ronda {state.currentRound}
+              Ronda {state.round}
             </span>
           </div>
         </div>
@@ -214,13 +212,15 @@ export function RockPaperScissorsGame({
           <div className="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
             <div className="text-xs text-slate-400 font-medium">Tú</div>
             <div className="text-2xl font-black text-amber-400 font-mono">
-              {isP1 ? state.player1Score : state.player2Score} / {state.maxScore}
+              {myScore} / {state.targetWins}
             </div>
           </div>
           <div className="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-            <div className="text-xs text-slate-400 font-medium">Rival</div>
+            <div className="text-xs text-slate-400 font-medium">
+              {opponentId ? state.playerNames[opponentId] || 'Rival' : 'Rival'}
+            </div>
             <div className="text-2xl font-black text-slate-300 font-mono">
-              {isP1 ? state.player2Score : state.player1Score} / {state.maxScore}
+              {opponentScore} / {state.targetWins}
             </div>
           </div>
         </div>
@@ -228,7 +228,7 @@ export function RockPaperScissorsGame({
 
       {/* Arena de Duelo */}
       <div className="w-full bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 text-center">
-        {bothCommitted ? (
+        {state.phase === 'round_result' || state.phase === 'match_ended' ? (
           <div className="space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-center gap-8">
               <div className="text-center space-y-2">
@@ -238,21 +238,25 @@ export function RockPaperScissorsGame({
               <div className="text-2xl font-black text-slate-500">VS</div>
               <div className="text-center space-y-2">
                 <div className="text-5xl animate-bounce">{renderIcon(opponentChoice)}</div>
-                <div className="text-xs text-slate-400 font-bold">Rival</div>
+                <div className="text-xs text-slate-400 font-bold">
+                  {opponentId ? state.playerNames[opponentId] || 'Rival' : 'Rival'}
+                </div>
               </div>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-sm font-bold">
-              {state.roundWinnerUserId === 'TIE' ? (
+              {state.roundWinnerUserId === null ? (
                 <span className="text-amber-300">¡Ronda empatada! Nadie anota punto.</span>
               ) : state.roundWinnerUserId === currentUserId ? (
                 <span className="text-emerald-400">¡Ganaste esta ronda! (+1 punto)</span>
               ) : (
-                <span className="text-red-400">El rival ganó esta ronda.</span>
+                <span className="text-red-400">
+                  {opponentId ? state.playerNames[opponentId] || 'El rival' : 'El rival'} ganó esta ronda.
+                </span>
               )}
             </div>
 
-            {!isGameOver && (
+            {state.phase === 'round_result' && (
               <Button variant="primary" onClick={handleNextRound} className="w-full py-3">
                 Siguiente Ronda
               </Button>
@@ -272,11 +276,11 @@ export function RockPaperScissorsGame({
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              {(['ROCK', 'PAPER', 'SCISSORS'] as Choice[]).map((c) => (
+              {(['rock', 'paper', 'scissors'] as RPSChoice[]).map((c) => (
                 <button
                   key={c}
-                  id={`rps-choice-${c.toLowerCase()}`}
-                  disabled={hasCommitted || isGameOver || isSettling}
+                  id={`rps-choice-${c}`}
+                  disabled={hasCommitted || isGameOver || isSettling || state.phase !== 'selecting'}
                   onClick={() => handleMakeChoice(c)}
                   className={`p-4 sm:p-6 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all select-none ${
                     myChoice === c
@@ -288,14 +292,16 @@ export function RockPaperScissorsGame({
                 >
                   <span className="text-4xl sm:text-5xl">{renderIcon(c)}</span>
                   <span className="text-xs font-bold uppercase tracking-wider">
-                    {c === 'ROCK' ? 'Piedra' : c === 'PAPER' ? 'Papel' : 'Tijera'}
+                    {getChoiceLabel(c)}
                   </span>
                 </button>
               ))}
             </div>
 
             <div className="text-[11px] text-slate-500">
-              {opponentCommitted ? '🟢 El rival ya hizo su jugada secreta.' : '⚪ El rival está pensando su jugada.'}
+              {opponentCommitted
+                ? '🟢 El rival ya hizo su jugada secreta.'
+                : '⚪ El rival está pensando su jugada.'}
             </div>
           </div>
         )}
@@ -308,14 +314,16 @@ export function RockPaperScissorsGame({
             <div>
               <div className="text-3xl font-black text-emerald-400 mb-1">¡VICTORIA EN EL DUELO! 🏆</div>
               <p className="text-xs text-slate-300">
-                Has alcanzado los 2 puntos y ganas:{' '}
+                Has alcanzado los {state.targetWins} puntos y ganas:{' '}
                 <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
               </p>
             </div>
           ) : (
             <div>
               <div className="text-3xl font-black text-slate-300 mb-1">DUELO FINALIZADO</div>
-              <p className="text-xs text-slate-400">Tu rival alcanzó primero el puntaje de victoria.</p>
+              <p className="text-xs text-slate-400">
+                {opponentId ? state.playerNames[opponentId] || 'Tu rival' : 'Tu rival'} alcanzó primero el puntaje de victoria.
+              </p>
             </div>
           )}
 

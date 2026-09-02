@@ -71,6 +71,13 @@ function AppContent() {
     setCurrentTab('tables');
   };
 
+  const handleOpenQuickMatch = () => {
+    setCurrentTab('tables');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('open-quick-match'));
+    }, 50);
+  };
+
   const handleOpenLegalDoc = (docId: LegalDocId = 'terms') => {
     setLegalModalDoc(docId);
     setLegalModalOpen(true);
@@ -151,7 +158,7 @@ function AppContent() {
           onNavigate={setCurrentTab}
           onOpenExplore={() => setExploreDrawerOpen(true)}
           onOpenSupport={() => setSupportModalOpen(true)}
-          onOpenQuickMatch={() => setQuickMatchModalOpen(true)}
+          onOpenQuickMatch={handleOpenQuickMatch}
         />
       )}
 

@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 17:21:00 -07:00 (UTC 2026-09-02 00:21:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 17:48:00 -07:00 (UTC 2026-09-02 00:48:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Estandarización Monetaria Oficial en Partida Rápida (`QuickMatchModal.tsx`): Actualización de montos a escala real en Bolívares (25 Bs, 50 Bs, 100 Bs, 250 Bs, 500 Bs, 1.000 Bs, 2.500 Bs y 5.000 Bs) sin opción de 0/gratis, y adopción de iconografía bancaria (Banknote) y badge de entrada mínima.
-MEJORA UI/UX RECIENTE: Modo Juego Activo e Inmersivo (`useGameMode.tsx`, `GameArena.tsx`, `GameContainer.tsx`) con pantalla completa automática y modal de fin de partida (`GameEndModal.tsx`) con 3 opciones (Jugar de nuevo, Ver última jugada, Regresar al lobby).
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Conexión Integral de Partida Rápida y Detección de Partida Activa (`BottomNavigation.tsx`, `TablesView.tsx`, `App.tsx`): Integración del evento `open-quick-match` y `game-active-change` para abrir el modal de emparejamiento directamente desde el botón 'JUGAR YA' y ocultar automáticamente Header y BottomNavigation en dispositivos móviles, tablets y PC.
+MEJORA UI/UX RECIENTE: Modal de Fin de Partida (`GameArena.tsx`, `GameEndModal.tsx`) con 3 opciones de acción inmediata (Jugar de nuevo, Ver última jugada, Regresar al lobby), Fullscreen automático con fallback y botón central destacado 'JUGAR YA' con gradiente naranja/dorado.
 ================================================================================
 
 --------------------------------------------------------------------------------

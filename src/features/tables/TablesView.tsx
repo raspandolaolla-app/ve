@@ -119,6 +119,22 @@ export function TablesView() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [rulesGameId, setRulesGameId] = useState<string>('domino_venezolano');
 
+  // Exponer control del modal de Partida Rápida al padre
+  useEffect(() => {
+    const handleOpenQuickMatch = () => {
+      setShowMatchmakingModal(true);
+    };
+    window.addEventListener('open-quick-match', handleOpenQuickMatch);
+    return () => window.removeEventListener('open-quick-match', handleOpenQuickMatch);
+  }, []);
+
+  // Notificar al padre cuando hay partida activa
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('game-active-change', {
+      detail: { isActive: !!activeTable || !!inGameData }
+    }));
+  }, [activeTable, inGameData]);
+
   const isAuthenticated = state === 'authenticated' && user !== null;
 
   // Cargar montos de entrada dinámicos

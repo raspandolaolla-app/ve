@@ -83,13 +83,22 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             <span className="text-[11px] mt-1 tracking-tight font-semibold">Soporte</span>
           </button>
 
-          {/* 3. JUGAR YA — Botón central que abre QuickMatchModal */}
+          {/* 3. JUGAR YA — Botón central que abre QuickMatch / Matchmaking */}
           <button
             id="bottom-nav-quick-match"
-            onClick={() => onOpenQuickMatch && onOpenQuickMatch()}
-            className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 group active:scale-95"
+            onClick={() => {
+              if (onOpenQuickMatch) {
+                onOpenQuickMatch();
+              } else {
+                onNavigate('tables');
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('open-quick-match'));
+                }, 100);
+              }
+            }}
+            className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 group active:scale-95 cursor-pointer"
           >
-            <div className="w-14 h-14 -mt-5 rounded-full bg-gradient-to-tr from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-white shadow-xl shadow-[#FF8A00]/40 group-hover:scale-110 transition-transform animate-pulse-glow">
+            <div className="w-14 h-14 -mt-5 rounded-full bg-gradient-to-tr from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-[#080B12] shadow-xl shadow-[#FF8A00]/40 group-hover:scale-110 transition-transform animate-pulse-glow">
               <Zap className="w-7 h-7" strokeWidth={3} />
             </div>
             <span className="text-[11px] font-black text-[#FF8A00] mt-1 tracking-tight uppercase">

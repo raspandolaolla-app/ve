@@ -9,6 +9,7 @@ import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant } 
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { BcvRepository } from '../../../services/repositories/BcvRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
+import { getBingoAudioPlayer, destroyBingoAudioPlayer } from '../../../utils/bingoAudioPlayer';
 import { BingoBoard } from './BingoBoard';
 import { Button } from '../../../components/common/Button';
 import { Trophy, RefreshCw, Sparkles, CheckCircle2, ShoppingBag, ShieldCheck, ArrowLeft, Radio, Lock } from 'lucide-react';
@@ -74,6 +75,12 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   // Control de audio y silenciador persistente
+  const audioPlayer = getBingoAudioPlayer({
+    baseUrl: `${import.meta.env.BASE_URL || '/'}bingo-audio/`,
+    volume: 0.8,
+    preload: true,
+  });
+  const [audioVolume, setAudioVolume] = useState<number>(() => audioPlayer.getVolume());
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     return localStorage.getItem('bingo_audio_muted') === 'true';
   });
@@ -83,9 +90,19 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     setIsMuted((prev) => {
       const newVal = !prev;
       localStorage.setItem('bingo_audio_muted', String(newVal));
+      if (newVal) {
+        audioPlayer.stop();
+      }
       return newVal;
     });
   };
+
+  // Cleanup del reproductor de audio al desmontar
+  useEffect(() => {
+    return () => {
+      destroyBingoAudioPlayer();
+    };
+  }, []);
 
   const isHost = table.hostUserId === currentUserId;
 
@@ -277,34 +294,14 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   }, [currentUserId]);
 
-  // Función para reproducir locución por audio de la balota extraída
-  const playBallAudio = (ball: number) => {
+  // Función mejorada para reproducir audio de balota con sincronización
+  const playBallAudio = async (ball: number): Promise<void> => {
     if (isMuted) return;
 
-    let letter = '';
-    if (ball <= 15) letter = 'b';
-    else if (ball <= 30) letter = 'i';
-    else if (ball <= 45) letter = 'n';
-    else if (ball <= 60) letter = 'g';
-    else if (ball <= 75) letter = 'o';
-
-    const baseUrl = import.meta.env.BASE_URL || '/';
-
-    if (letter) {
-      const letterAudio = new Audio(`${baseUrl}bingo-audio/${letter}.mp3`);
-      letterAudio.play().then(() => {
-        letterAudio.onended = () => {
-          const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
-          numberAudio.play().catch((err) => console.warn('[Audio] Error al reproducir número:', err));
-        };
-      }).catch((err) => {
-        console.warn('[Audio] Error al reproducir letra, usando fallback de número directo:', err);
-        const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
-        numberAudio.play().catch((nErr) => console.warn('[Audio] Fallback número error:', nErr));
-      });
-    } else {
-      const numberAudio = new Audio(`${baseUrl}bingo-audio/${ball}.mp3`);
-      numberAudio.play().catch((err) => console.warn('[Audio] Error al reproducir número:', err));
+    try {
+      await audioPlayer.playBall(ball, variant, drawIntervalMs);
+    } catch (error) {
+      console.warn('[BingoGame] Error reproduciendo audio de balota:', error);
     }
   };
 
@@ -313,9 +310,14 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     const ball = bingoState.currentBall;
     if (ball !== null && ball !== undefined && ball !== lastPlayedBallRef.current) {
       lastPlayedBallRef.current = ball;
-      playBallAudio(ball);
+
+      const timer = setTimeout(() => {
+        playBallAudio(ball);
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
-  }, [bingoState.currentBall, isMuted]);
+  }, [bingoState.currentBall, isMuted, drawIntervalMs, variant]);
 
   // Sorteo automático - Soporte Dual: Host Humano o Autónomo por Clientes en Mesas de Sistema
   useEffect(() => {
@@ -701,6 +703,40 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
                 🔮 Extraer 1 Bola
               </Button>
             </div>
+          </div>
+
+          {/* Panel de Control de Audio */}
+          <div className="flex items-center justify-between flex-wrap gap-2 border-t border-slate-800 pt-3 mt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Volumen:</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={Math.round(audioVolume * 100)}
+                onChange={(e) => {
+                  const vol = Number(e.target.value) / 100;
+                  audioPlayer.setVolume(vol);
+                  setAudioVolume(vol);
+                }}
+                disabled={isMuted}
+                className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <span className="text-xs text-slate-300 font-mono w-9">
+                {Math.round(audioVolume * 100)}%
+              </span>
+            </div>
+
+            <button
+              onClick={toggleMute}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                isMuted
+                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}
+            >
+              {isMuted ? '🔇 Silenciado' : '🔊 Audio ON'}
+            </button>
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X, Zap, Users, DollarSign, ArrowLeft, Loader2,
+  X, Zap, Users, Banknote, ArrowLeft, Loader2,
   Clock, Trophy, Sparkles, ChevronRight
 } from 'lucide-react';
 import { getSupabaseClient } from '../../lib/supabase/client';
@@ -43,9 +43,9 @@ const GAMES_CATALOG = [
   { id: 'chess', name: 'Ajedrez', emoji: '♚', shortName: 'Ajedrez' },
 ];
 
-// Montos de entrada disponibles
+// Montos de entrada disponibles (Moneda oficial: Bs)
 const ENTRY_AMOUNTS = [
-  { value: 0, label: 'GRATIS', color: 'emerald' },
+  { value: 25, label: '25 Bs', color: 'emerald' },
   { value: 50, label: '50 Bs', color: 'cyan' },
   { value: 100, label: '100 Bs', color: 'blue' },
   { value: 250, label: '250 Bs', color: 'indigo' },
@@ -315,13 +315,13 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
                     }}
                     className="group relative bg-[#171E2A] hover:bg-[#1E2938] border-2 border-[#1E2938] hover:border-[#FF8A00] rounded-2xl p-5 transition-all active:scale-95"
                   >
-                    <DollarSign className="w-5 h-5 text-[#F5B942] mx-auto mb-2 group-hover:scale-110 transition" />
+                    <Banknote className="w-5 h-5 text-[#F5B942] mx-auto mb-2 group-hover:scale-110 transition" />
                     <p className="text-xl sm:text-2xl font-black text-[#F8FAFC]">
                       {amount.label}
                     </p>
-                    {amount.value === 0 && (
+                    {amount.value === 25 && (
                       <span className="inline-block mt-2 text-[9px] bg-[#22C55E] text-[#080B12] font-black px-2 py-0.5 rounded-full uppercase">
-                        Sin riesgo
+                        Entrada mínima
                       </span>
                     )}
                   </button>
@@ -347,7 +347,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
                   <div>
                     <p className="text-sm font-black text-[#F8FAFC]">{selectedGameInfo?.name}</p>
                     <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider">
-                      Entrada: <span className="text-[#F5B942] font-bold">{selectedAmount === 0 ? 'GRATIS' : `${selectedAmount} Bs`}</span>
+                      Entrada: <span className="text-[#F5B942] font-bold">{`${selectedAmount} Bs`}</span>
                     </p>
                   </div>
                 </div>
@@ -385,7 +385,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="text-6xl mb-4">🎮</div>
                   <p className="text-[#F8FAFC] font-bold text-lg mb-2">
-                    No hay mesas con {selectedAmount === 0 ? 'entrada gratis' : `${selectedAmount} Bs`}
+                    No hay mesas con entrada de {selectedAmount} Bs
                   </p>
                   <p className="text-[#94A3B8] text-sm max-w-xs mb-4">
                     Prueba con otro monto o crea tu propia mesa

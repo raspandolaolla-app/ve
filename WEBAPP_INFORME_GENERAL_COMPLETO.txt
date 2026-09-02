@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 16:55:00 -07:00 (UTC 2026-09-01 23:55:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 17:21:00 -07:00 (UTC 2026-09-02 00:21:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Implementación del Flujo UX de 3 Pasos en Modal de Partida Rápida (`QuickMatchModal.tsx`): Paso 1 (Selección de Juego en catálogo de 10 juegos), Paso 2 (Selección de Monto de Entrada con botones de 0 Bs a 5.000 Bs), Paso 3 (Listado de Mesas Disponibles en tiempo real con ocupación y llamada segura a RPC `join_table_transaction`).
-MEJORA UI/UX RECIENTE: Botón Central 'JUGAR YA' en `BottomNavigation.tsx` (naranja/dorado #FF8A00, circular prominente con animación pulse-glow), barra de progreso de pasos dinámica, navegación hacia atrás fluida, y redirección a la mesa al unirse.
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Estandarización Monetaria Oficial en Partida Rápida (`QuickMatchModal.tsx`): Actualización de montos a escala real en Bolívares (25 Bs, 50 Bs, 100 Bs, 250 Bs, 500 Bs, 1.000 Bs, 2.500 Bs y 5.000 Bs) sin opción de 0/gratis, y adopción de iconografía bancaria (Banknote) y badge de entrada mínima.
+MEJORA UI/UX RECIENTE: Modo Juego Activo e Inmersivo (`useGameMode.tsx`, `GameArena.tsx`, `GameContainer.tsx`) con pantalla completa automática y modal de fin de partida (`GameEndModal.tsx`) con 3 opciones (Jugar de nuevo, Ver última jugada, Regresar al lobby).
 ================================================================================
 
 --------------------------------------------------------------------------------

@@ -47,6 +47,7 @@ import { AtrapaitoBoard } from './AtrapaitoBoard';
 import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
+import { useGameMode } from '../../../hooks/useGameMode';
 
 interface GameContainerProps {
   table: GameTable;
@@ -88,6 +89,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
+  const { enterGameMode, exitGameMode } = useGameMode();
+
+  // Activar modo juego y pantalla completa al montar
+  useEffect(() => {
+    enterGameMode(table.gameType, table.id);
+    return () => {
+      exitGameMode();
+    };
+  }, [table.gameType, table.id, enterGameMode, exitGameMode]);
 
   // Detección de orientación y soporte Fullscreen API
   useEffect(() => {

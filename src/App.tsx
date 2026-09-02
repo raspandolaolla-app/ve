@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import { BcvProvider } from './context/BcvContext';
 import { WalletProvider } from './context/WalletContext';
+import { GameModeProvider, useGameMode } from './hooks/useGameMode';
 import { PresenceService } from './services/PresenceService';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -32,6 +33,7 @@ import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
 function AppContent() {
+  const { isGameActive } = useGameMode();
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalDoc, setLegalModalDoc] = useState<LegalDocId>('terms');
@@ -88,12 +90,14 @@ function AppContent() {
       <AnnouncementBanner />
 
       {/* Cabecera Fija */}
-      <Header
-        currentTab={currentTab}
-        onNavigate={setCurrentTab}
-        onOpenNotifications={() => setNotificationsModalOpen(true)}
-        onOpenProfile={() => setProfileModalOpen(true)}
-      />
+      {!isGameActive && (
+        <Header
+          currentTab={currentTab}
+          onNavigate={setCurrentTab}
+          onOpenNotifications={() => setNotificationsModalOpen(true)}
+          onOpenProfile={() => setProfileModalOpen(true)}
+        />
+      )}
 
       {/* Banner Global de Notificaciones / Errores de Autenticación */}
       {error && (
@@ -141,13 +145,15 @@ function AppContent() {
       <Footer onOpenLegalDoc={handleOpenLegalDoc} />
 
       {/* Barra de Navegación Inferior Fija (Mobile-First) */}
-      <BottomNavigation
-        currentTab={currentTab}
-        onNavigate={setCurrentTab}
-        onOpenExplore={() => setExploreDrawerOpen(true)}
-        onOpenSupport={() => setSupportModalOpen(true)}
-        onOpenQuickMatch={() => setQuickMatchModalOpen(true)}
-      />
+      {!isGameActive && (
+        <BottomNavigation
+          currentTab={currentTab}
+          onNavigate={setCurrentTab}
+          onOpenExplore={() => setExploreDrawerOpen(true)}
+          onOpenSupport={() => setSupportModalOpen(true)}
+          onOpenQuickMatch={() => setQuickMatchModalOpen(true)}
+        />
+      )}
 
       {/* Drawer / Menú Lateral de Explorar */}
       <ExploreDrawer
@@ -244,7 +250,9 @@ export default function App() {
       <AuthProvider>
         <BcvProvider>
           <WalletProvider>
-            <AppContent />
+            <GameModeProvider>
+              <AppContent />
+            </GameModeProvider>
           </WalletProvider>
         </BcvProvider>
       </AuthProvider>

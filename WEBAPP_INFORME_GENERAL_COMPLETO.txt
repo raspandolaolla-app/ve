@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 22:15:00 -07:00 (UTC 2026-09-02 05:15:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 12:58:00 -07:00 (UTC 2026-09-02 19:58:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 097_draw_audit_trail.sql (Migración 096 pg_cron para Edge Function de sorteos de Polla y 097 de tabla y auditoría de sorteos draw_audit_trail)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Arquitectura Server-Authoritative Ampliada para Sorteos (Bingo y Polla): 1) Edge Function `supabase/functions/polla-auto-draw/index.ts` y cron job con `pg_cron` (migración 096) para procesar loterías de animalitos en horarios oficiales venezolanos. 2) Tabla de auditoría `draw_audit_trail` (migración 097). 3) Suscripciones WebSocket en tiempo real en `RealtimeManager.ts` (`subscribeToDrawResults`, `subscribeToBingoSession`). 4) Hook reactivo `useDrawResults.ts` integrado en `PollaBoard.tsx` para sincronización instantánea de resultados.
-MEJORA UI/UX RECIENTE: Actualización reactiva en tiempo real de resultados de sorteos de Polla, integración auditada de sorteos y soporte de audio con desbloqueo interactivo.
+ÚLTIMA MIGRACIÓN INTEGRADA: 098_server_bingo_operation_rpc.sql (Migraciones 094 y 096 actualizadas con cron_job_secret, y 098 RPC segura server_bingo_operation)
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Corrección de Certificados SSL PostgreSQL y Resiliencia del Motor de Sorteo: 1) Soporte dinámico de CA personalizado (`DATABASE_SSL_CA`, `DATABASE_SSL_CA_PATH`, `PGSSLROOTCERT`) con fallback no bloqueante para certificados autofirmados de la cadena intermedia de Supabase en `server.ts`. 2) Captura robusta de errores de handshake TLS y autenticación para evitar ciclos repetitivos de error en el loop de sorteo. 3) Migración 098 `server_bingo_operation` para operaciones server-side autoritativas.
+MEJORA UI/UX RECIENTE: Arquitectura segura de extremo a extremo, estabilidad del daemon backend sin interrupciones por certificados y sincronización server-authoritative de sorteos en tiempo real.
 ================================================================================
 
 --------------------------------------------------------------------------------

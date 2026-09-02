@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import pg from "pg";
 import dotenv from "dotenv";
@@ -23,9 +24,33 @@ if (connectionString && connectionString !== "") {
       connectionString.includes("sslmode=require") || 
       !connectionString.includes("localhost");
 
+    // Configuración SSL: Si se especifica CA personalizado, usar verificación estricta.
+    // Para conexiones Supabase/remotas sin CA personalizado montado, permitir TLS
+    // evitando el bloqueo por certificados autofirmados de la cadena intermedia.
+    let sslConfig: any = false;
+    if (isSupabaseOrRemote) {
+      const caPath = process.env.DATABASE_SSL_CA_PATH || process.env.PGSSLROOTCERT;
+      let caContent = process.env.DATABASE_SSL_CA;
+      if (!caContent && caPath && fs.existsSync(caPath)) {
+        try {
+          caContent = fs.readFileSync(caPath, "utf8");
+        } catch (e) {
+          console.warn("[BINGO_SERVER] No se pudo leer el archivo de certificado CA:", e);
+        }
+      }
+
+      if (caContent) {
+        sslConfig = { rejectUnauthorized: true, ca: caContent };
+      } else if (process.env.DATABASE_SSL_STRICT === "true") {
+        sslConfig = { rejectUnauthorized: true };
+      } else {
+        sslConfig = { rejectUnauthorized: false };
+      }
+    }
+
     pool = new pg.Pool({
       connectionString,
-      ssl: isSupabaseOrRemote ? { rejectUnauthorized: false } : false,
+      ssl: sslConfig,
       connectionTimeoutMillis: 4000,
       idleTimeoutMillis: 10000,
       max: 3,
@@ -34,9 +59,16 @@ if (connectionString && connectionString !== "") {
     // Capturar errores no controlados del pool para evitar caídas del proceso
     pool.on("error", (err: any) => {
       const msg = err?.message || String(err);
-      if (!authErrorLogged && (msg.includes("password authentication failed") || msg.includes("auth"))) {
+      if (
+        !authErrorLogged &&
+        (msg.includes("password authentication failed") ||
+          msg.includes("auth") ||
+          msg.includes("certificate") ||
+          msg.includes("self-signed"))
+      ) {
         authErrorLogged = true;
-        console.warn("[BINGO_SERVER] Credenciales de PostgreSQL no válidas en DATABASE_URL. Sorteo autónomo pausado.");
+        console.warn(`[BINGO_SERVER] Estado de conexión PostgreSQL (${msg}). Sorteo autónomo local pausado.`);
+        drawWorkerDisabled = true;
       }
     });
 
@@ -47,7 +79,13 @@ if (connectionString && connectionString !== "") {
       })
       .catch((err: any) => {
         const msg = err?.message || String(err);
-        if (msg.includes("password authentication failed") || msg.includes("ECONNREFUSED") || msg.includes("auth")) {
+        if (
+          msg.includes("password authentication failed") ||
+          msg.includes("ECONNREFUSED") ||
+          msg.includes("auth") ||
+          msg.includes("certificate") ||
+          msg.includes("self-signed")
+        ) {
           console.warn(`[BINGO_SERVER] Aviso de conexión PostgreSQL: ${msg}. El servidor Express y la app web continuarán funcionando normalmente.`);
           drawWorkerDisabled = true;
         } else {
@@ -99,17 +137,9 @@ async function runAutomatedBingoDraws() {
     for (const row of readyRes.rows) {
       console.log(`[BINGO_SERVER] [BINGO] Mesa ${row.table_id} lista para iniciar. Ejecutando extracción inicial...`);
       
-      // Establecer JWT claims para simular rol administrativo/sistema de Supabase
-      await client.query("BEGIN;");
-      await client.query(`
-        SELECT set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-0000-0000-000000000000"}', true);
-      `);
-      
-      const drawQuery = `SELECT public.rpc_draw_bingo_ball_secure($1, $2) as result;`;
-      const idempotencyKey = `server_init_${row.session_id}_${Math.floor(Date.now() / 10000)}`;
-      
-      const drawRes = await client.query(drawQuery, [row.session_id, idempotencyKey]);
-      await client.query("COMMIT;");
+      // ✅ CORREGIDO: Usar función RPC específica en lugar de service_role directo
+      const drawQuery = `SELECT public.server_bingo_operation($1) as result;`;
+      const drawRes = await client.query(drawQuery, [row.session_id]);
       
       const resultObj = drawRes.rows[0]?.result;
       if (resultObj && resultObj.success) {
@@ -138,16 +168,9 @@ async function runAutomatedBingoDraws() {
       const intervalMs = parseInt(row.config?.call_interval_ms || "3500", 10);
       console.log(`[BINGO_SERVER] [BINGO_DRAW] Extrayendo balota automática para sesión ${row.session_id} (Intervalo: ${intervalMs}ms)...`);
       
-      await client.query("BEGIN;");
-      await client.query(`
-        SELECT set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-0000-0000-000000000000"}', true);
-      `);
-      
-      const drawQuery = `SELECT public.rpc_draw_bingo_ball_secure($1, $2) as result;`;
-      const idempotencyKey = `server_auto_${row.session_id}_${Math.floor(Date.now() / intervalMs)}`;
-      
-      const drawRes = await client.query(drawQuery, [row.session_id, idempotencyKey]);
-      await client.query("COMMIT;");
+      // ✅ CORREGIDO: Usar función RPC específica en lugar de service_role directo
+      const drawQuery = `SELECT public.server_bingo_operation($1) as result;`;
+      const drawRes = await client.query(drawQuery, [row.session_id]);
       
       const resultObj = drawRes.rows[0]?.result;
       if (resultObj && resultObj.success) {
@@ -163,10 +186,16 @@ async function runAutomatedBingoDraws() {
     }
   } catch (err: any) {
     const msg = err?.message || String(err);
-    if (msg.includes("password authentication failed") || msg.includes("ECONNREFUSED") || msg.includes("auth")) {
+    if (
+      msg.includes("password authentication failed") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("auth") ||
+      msg.includes("certificate") ||
+      msg.includes("self-signed")
+    ) {
       if (!authErrorLogged) {
         authErrorLogged = true;
-        console.warn(`[BINGO_SERVER] Base de datos no autenticada (${msg}). El daemon en segundo plano se suspende.`);
+        console.warn(`[BINGO_SERVER] Conexión PostgreSQL no disponible (${msg}). El daemon en segundo plano se suspende.`);
       }
       drawWorkerDisabled = true;
     } else {

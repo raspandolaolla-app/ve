@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 20:12:00 -07:00 (UTC 2026-09-02 03:12:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 20:57:00 -07:00 (UTC 2026-09-02 03:57:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 085_cleanup_audit_game_session.sql (Limpieza segura controlada de sesiones de prueba AUDIT_TEST por usuario/juego sin tocar partidas reales, resolviendo ALREADY_IN_ACTIVE_TABLE en auditorías)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Sistema de Audio Optimizado para Bingo: 1) Creación de `src/utils/bingoAudioPlayer.ts` con precarga (1-90 y b-i-n-g-o), control de volumen, timeout de seguridad y prevención de solapamiento. 2) Sincronización dinámica de duración según la velocidad de extracción del anfitrión (3s, 5s, 7s, 10s). 3) Integración de slider de volumen y botón silenciador en `BingoGame.tsx` y `index.css`. 4) Cleanup garantizado en ciclo de vida React.
-MEJORA UI/UX RECIENTE: Control de volumen en panel de Host de Bingo, Conexión de Partida Rápida con botón 'JUGAR YA' (`BottomNavigation.tsx`), detección de partida activa para ocultar navegación (`TablesView.tsx`, `App.tsx`) y Modal de Fin de Partida (`GameArena.tsx`, `GameEndModal.tsx`).
+ÚLTIMA MIGRACIÓN INTEGRADA: 093_fix_settle_game_session_ledger_entries_canonical.sql (Corrección canónica de ledger_entries en liquidaciones de sesión, compatibilidad estricta con balance_after y balance_after_available)
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Sistema de Audio Optimizado para Bingo y Motor de Juego: 1) Gestor de audio con precarga (1-90 y b-i-n-g-o), control de volumen, timeout de seguridad y prevención de solapamiento. 2) Sincronización dinámica de locución según velocidad de extracción. 3) Integración de control de volumen y botón silenciador persistente en BingoGame. 4) Servidor RNG autoritativo para extracción de balotas con auditoría de imparcialidad.
+MEJORA UI/UX RECIENTE: Controles de volumen y silenciado de audio en Bingo, soporte completo responsive en BingoBoard y GameArena, navegación con protección de partida activa y modal de ganadores con captura de foto.
 ================================================================================
 
 --------------------------------------------------------------------------------

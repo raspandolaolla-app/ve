@@ -12,6 +12,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../../components/common/Button';
 import { generatePollaTicketPng } from '../../../utils/pollaPngGenerator';
 import { RngService } from '../../../services/rng/RngService';
+import { useDrawResults } from '../../../hooks/useDrawResults';
 
 export const PollaBoard: React.FC = () => {
   const { profile, refreshProfile } = useAuth();
@@ -90,6 +91,13 @@ export const PollaBoard: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [selectedBlock, selectedDate, activeTab]);
+
+  // Suscripción a nuevos resultados de sorteo en tiempo real
+  useDrawResults((result) => {
+    if (result.draw_type === 'POLLA') {
+      loadData();
+    }
+  });
 
   // Alternar selección de animalito
   const handleToggleAnimal = (code: string) => {

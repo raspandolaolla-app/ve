@@ -10,13 +10,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const env: Record<string, any> = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
-const rawUrl = (env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '') as string | undefined;
+
+// Configuración canónica por defecto para Raspando La Olla
+const DEFAULT_SUPABASE_URL = 'https://tncxgwycinbnkjbfwojt.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_vlxeHnnl_FxJ1ziNqUsytQ_S95ZGawj';
+
+const rawUrl = ((env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL) || '') as string | undefined;
+const rawAnonKey = ((env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY) || '') as string | undefined;
 
 // Validación explícita
 if (!rawUrl && typeof window !== 'undefined') {
-  console.error('[FATAL] VITE_SUPABASE_URL no está configurada. La aplicación no funcionará correctamente.');
+  console.warn('[Supabase] VITE_SUPABASE_URL no está configurada.');
 }
-const rawAnonKey = (env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY) as string | undefined;
 
 const supabaseUrl = rawUrl?.trim();
 const supabaseAnonKey = rawAnonKey?.trim();

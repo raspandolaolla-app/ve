@@ -2,11 +2,14 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 12:58:00 -07:00 (UTC 2026-09-02 19:58:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 13:45:00 -07:00 (UTC 2026-09-02 20:45:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 098_server_bingo_operation_rpc.sql (Migraciones 094 y 096 actualizadas con cron_job_secret, y 098 RPC segura server_bingo_operation)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Corrección de Certificados SSL PostgreSQL y Resiliencia del Motor de Sorteo: 1) Soporte dinámico de CA personalizado (`DATABASE_SSL_CA`, `DATABASE_SSL_CA_PATH`, `PGSSLROOTCERT`) con fallback no bloqueante para certificados autofirmados de la cadena intermedia de Supabase en `server.ts`. 2) Captura robusta de errores de handshake TLS y autenticación para evitar ciclos repetitivos de error en el loop de sorteo. 3) Migración 098 `server_bingo_operation` para operaciones server-side autoritativas.
-MEJORA UI/UX RECIENTE: Arquitectura segura de extremo a extremo, estabilidad del daemon backend sin interrupciones por certificados y sincronización server-authoritative de sorteos en tiempo real.
+ÚLTIMA MEJORA TÉCNICA / BACKEND:
+1) PASO 1 (Detención del bucle en Frontend): Eliminados los bucles `setInterval` / `useEffect` en `BingoBoard.tsx` y `BingoGame.tsx` que enviaban peticiones `DRAW_BALL` desde el cliente, deteniendo por completo el spam y los errores 404.
+2) PASO 2 (Oído Realtime en Frontend): Configurada la escucha reactiva pura en `GameContainer.tsx` y `BingoGame.tsx` para eventos `DRAW_BALL`, `AUTO_DRAW_BALL` y `SERVER_AUTO_DRAW` emitidos por el servidor en `game_actions` y `game_sessions`. El tablero actualiza balotas localmente de forma instantánea sin peticiones cliente a la base de datos.
+3) PASO 3 (Edge Function con RPC 098): Actualizada `bingo-auto-draw` (Edge Function Deno) para invocar de forma atómica y prioritaria la RPC segura `server_bingo_operation` (Migración 098) con clave de servicio restringida, garantizando la extracción criptográfica imparcial sin depender de los navegadores de los usuarios.
+MEJORA UI/UX RECIENTE: Indicador interactivo en tiempo real `📡 Sorteo Oficial en Vivo (Servidor)` con efecto de pulso luminoso en `BingoBoard.tsx`, impidiendo desincronizaciones de reloj entre jugadores y consolidando la experiencia Server-Authoritative.
 ================================================================================
 
 --------------------------------------------------------------------------------

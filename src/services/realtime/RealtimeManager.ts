@@ -350,5 +350,67 @@ export class RealtimeManager {
       this.userChannels.clear();
     }
   }
+
+  /**
+   * Suscribirse a resultados de sorteos en tiempo real (Bingo y Polla)
+   */
+  public static subscribeToDrawResults(
+    onNewResult: (payload: any) => void
+  ): () => void {
+    const supabase = getSupabaseClient();
+    if (!supabase) return () => {};
+
+    const channel = supabase
+      .channel('draw-results-global')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'draw_audit_trail',
+        },
+        (payload) => {
+          console.log('[RealtimeManager] Nuevo resultado de sorteo:', payload);
+          onNewResult(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
+
+  /**
+   * Suscribirse a cambios de estado de sesiones de Bingo en tiempo real
+   */
+  public static subscribeToBingoSession(
+    sessionId: string,
+    onStateChange: (payload: any) => void
+  ): () => void {
+    const supabase = getSupabaseClient();
+    if (!supabase) return () => {};
+
+    const channel = supabase
+      .channel(`bingo-session-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'game_sessions',
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          console.log('[RealtimeManager] Cambio en sesión de Bingo:', payload);
+          onStateChange(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
 }
 

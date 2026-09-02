@@ -117,36 +117,19 @@ export class RngService {
 
     if (supabase) {
       try {
-        // Intentar llamar con p_session_id (compatible con migración 086)
         const { data, error } = await supabase.rpc('rpc_draw_bingo_ball_secure', {
           p_session_id: sessionId,
+          p_idempotency_key: key,
         });
 
         if (!error && data && data.success) {
           return {
             success: true,
             ball: data.ball,
-            eventId: data.event_id || `draw_${Date.now()}`,
-            commitmentHash: data.commitment_hash || `HASH_${Date.now()}`,
+            eventId: data.event_id,
+            commitmentHash: data.commitment_hash,
             isIdempotent: data.is_idempotent,
           };
-        }
-
-        // Si falló por parámetros de firma anterior, intentar con p_idempotency_key
-        if (error && error.message?.includes('p_idempotency_key')) {
-          const retryRes = await supabase.rpc('rpc_draw_bingo_ball_secure', {
-            p_session_id: sessionId,
-            p_idempotency_key: key,
-          });
-          if (!retryRes.error && retryRes.data && retryRes.data.success) {
-            return {
-              success: true,
-              ball: retryRes.data.ball,
-              eventId: retryRes.data.event_id,
-              commitmentHash: retryRes.data.commitment_hash,
-              isIdempotent: retryRes.data.is_idempotent,
-            };
-          }
         }
 
         if (error || (data && !data.success)) {

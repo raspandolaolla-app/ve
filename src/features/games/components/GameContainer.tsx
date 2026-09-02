@@ -578,6 +578,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               setBotNotice('⏱️ Turno expirado - BOT realizó movimiento automático');
               setTimeout(() => setBotNotice(null), 5000);
             }
+            const actionType = actionRow.action_type;
+            const actionData = actionRow.action_data || actionRow.payload || {};
+
+            // ✅ PASO 2: "Oído" de Bingo Realtime en el frontend.
+            // Si el servidor o cron canta una balota, actualiza el estado local de inmediato SIN llamadas DB.
+            if (
+              table.gameType === 'bingo' &&
+              (actionType === 'DRAW_BALL' || actionType === 'AUTO_DRAW_BALL' || actionType === 'SERVER_AUTO_DRAW')
+            ) {
+              const newBall = Number(actionData.ball || actionData.ball_number);
+              if (newBall && newBall > 0) {
+                console.log(`[BINGO_REALTIME] Servidor cantó la balota: ${newBall}`);
+                setGameState((prev: any) => {
+                  if (!prev) return prev;
+                  const currentDrawn = Array.isArray(prev.drawnBalls) ? prev.drawnBalls : [];
+                  if (currentDrawn.includes(newBall)) return prev;
+                  return {
+                    ...prev,
+                    currentBall: newBall,
+                    drawnBalls: [...currentDrawn, newBall],
+                    status: prev.status === 'SALES' ? 'PLAYING' : prev.status,
+                    lastActionLog: `🎱 Balota cantada: ${newBall}`,
+                  };
+                });
+              }
+              return;
+            }
+
             if (actionRow.user_id !== currentUserId) {
               // Aplicar la acción recibida del oponente a través del motor
               setGameState((prev: any) => {
@@ -586,7 +614,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                   sessionId: session.id,
                   userId: actionRow.user_id,
                   actionType: actionRow.action_type,
-                  actionData: actionRow.payload || {},
+                  actionData: actionData,
                   clientTimestamp: Date.now(),
                 };
                 const result = engine.applyAction(prev, actionPayload);
@@ -754,6 +782,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           finalActionData.commitmentHash = rngRes.commitmentHash;
         }
       } else if (actionType === 'DRAW_BALL' && !finalActionData.ball) {
+        // En Bingo Server-Authoritative: si la partida ya está en juego, el cliente es solo observador
+        if (table.gameType === 'bingo') {
+          const currentStatus = (gameState as any)?.status;
+          if (currentStatus === 'PLAYING' || currentStatus === 'finished') {
+            console.log('[BINGO] Sorteo server-authoritative activo: la extracción la gestiona el servidor en segundo plano.');
+            return;
+          }
+        }
         const rngRes = await RngService.drawBingoBallSecure(session.id);
         if (rngRes.success && rngRes.ball) {
           finalActionData.ball = rngRes.ball;

@@ -367,42 +367,11 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   }, [bingoState.currentBall, isMuted, audioReady, drawIntervalMs, variant]);
 
-  // Sorteo automático - Soporte Dual: Host Humano o Autónomo por Clientes en Mesas de Sistema
-  useEffect(() => {
-    if (bingoState.winnerUserId || bingoState.status === 'finished') {
-      return;
-    }
+  // ✅ PASO 1 (Server-Authoritative): El frontend es un observador pasivo.
+  // Se eliminó el setInterval del cliente que llamaba a RngService.drawBingoBallSecure().
+  // Ahora el sorteo lo ejecuta el backend/Edge Function y los clientes reciben las bolas vía Realtime.
 
-    const isAutomatedTable = Boolean(table.config?.automated);
-    // Para mesas automatizadas, el sorteo lo maneja 100% el servidor en segundo plano de forma autónoma.
-    // Solo permitimos el interval en el cliente si es un anfitrión humano en una mesa no automatizada.
-    const shouldDraw = isHost && isAutoDrawing && !isAutomatedTable;
-
-    if (!shouldDraw || !sessionId) {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      try {
-        const { RngService } = await import('../../../services/rng/RngService');
-        const res = await RngService.drawBingoBallSecure(sessionId);
-        if (!res.success) {
-          // El rate limit del servidor se maneja silenciosamente
-          if (res.error?.includes('todas las balotas')) {
-            if (isHost) {
-              setIsAutoDrawing(false);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[BingoGame] Error en sorteo automático:', err);
-      }
-    }, drawIntervalMs);
-
-    return () => clearInterval(interval);
-  }, [isAutoDrawing, drawIntervalMs, sessionId, isHost, table.config?.automated, countdownSeconds, bingoState.winnerUserId, bingoState.status]);
-
-  // Suscripción Realtime a game_sessions para balotas, inicio de sorteo y fotos de ganadores
+  // Suscripción Realtime a game_sessions y game_actions para balotas, inicio de sorteo y fotos de ganadores
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase || !table.id) return;
@@ -434,12 +403,36 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'game_actions' },
+        (payload: any) => {
+          const actionRow = payload.new;
+          if (actionRow && (actionRow.session_id === sessionId || !sessionId)) {
+            const actionType = actionRow.action_type;
+            if (actionType === 'DRAW_BALL' || actionType === 'AUTO_DRAW_BALL' || actionType === 'SERVER_AUTO_DRAW') {
+              const data = actionRow.action_data || actionRow.payload || {};
+              const newBall = Number(data.ball || data.ball_number);
+              if (newBall && newBall > 0) {
+                setBingoState((prev) => {
+                  if (prev.drawnBalls.includes(newBall)) return prev;
+                  return {
+                    ...prev,
+                    currentBall: newBall,
+                    drawnBalls: [...prev.drawnBalls, newBall],
+                  };
+                });
+              }
+            }
+          }
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [table.id]);
+  }, [table.id, sessionId]);
 
   // Manejo de marcado interactivo de números en el cartón
   const handleMarkNumber = (row: number, col: number) => {

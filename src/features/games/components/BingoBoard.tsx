@@ -262,11 +262,9 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     }
   }, [calledSet, myCards, isPlaying]);
 
-  useEffect(() => {
-    if (!autoDraw || !isHost || !isPlaying || !onDrawBall || salesOpen) return;
-    const id = setInterval(() => onDrawBall(), Math.max(1, speed) * 1000);
-    return () => clearInterval(id);
-  }, [autoDraw, isHost, isPlaying, speed, onDrawBall, salesOpen]);
+  // ✅ PASO 1 (Server-Authoritative): El cliente es un observador pasivo.
+  // Se detiene el bucle interval en el frontend; el backend/Edge Function dicta las balotas por Realtime.
+  // (Anteriormente un setInterval ejecutaba onDrawBall() causando sobrecarga y errores 404).
 
   const safeActive = Math.min(activeIndex, Math.max(0, myCards.length - 1));
 
@@ -471,41 +469,24 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                 )}
               </div>
               <div className="flex gap-1.5 mt-2">
-                {onDrawBall && (
-                  <button type="button" onClick={onDrawBall} disabled={!(isPlaying || (salesOpen && isHost))}
-                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5 disabled:opacity-40"
+                {salesOpen && isHost && onDrawBall && (
+                  <button type="button" onClick={onDrawBall}
+                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
                     style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
-                    <Dices className="w-3.5 h-3.5" /> {salesOpen ? '🚀 Iniciar Sorteo' : 'Sacar Balota'}
+                    <Dices className="w-3.5 h-3.5" /> 🚀 Iniciar Sorteo
                   </button>
                 )}
-                {isHost && isPlaying && !salesOpen && (
-                  <button onClick={() => setAutoDraw(!autoDraw)}
-                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
-                    style={{
-                      background: autoDraw ? 'linear-gradient(145deg,#43A047,#1B5E20)' : 'rgba(255,255,255,0.08)',
-                      color: autoDraw ? '#FFF' : T.sub,
-                      border: `1.5px solid ${autoDraw ? '#34D399' : T.border}`,
-                    }}>
-                    {autoDraw ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                    {autoDraw ? 'Auto ON' : 'Auto OFF'}
-                  </button>
+                {isPlaying && !salesOpen && (
+                  <div className="flex-1 py-2.5 px-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 border"
+                    style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', borderColor: 'rgba(16, 185, 129, 0.35)' }}>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>📡 Sorteo Oficial en Vivo (Servidor)</span>
+                  </div>
                 )}
               </div>
-              {isHost && autoDraw && (
-                <div className="flex gap-1 mt-1.5">
-                  {[{ s: 1, l: '⚡ Turbo' }, { s: 2, l: 'Rápido' }, { s: 4, l: 'Normal' }].map((o) => (
-                    <button key={o.s} onClick={() => setSpeed(o.s)}
-                      className="flex-1 py-1 rounded-lg border text-[9px] font-black uppercase"
-                      style={{
-                        borderColor: speed === o.s ? T.accent : T.border,
-                        color: speed === o.s ? T.accent : T.sub,
-                        background: speed === o.s ? `${T.accent}22` : 'transparent',
-                      }}>
-                      {o.l} {o.s}s
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>

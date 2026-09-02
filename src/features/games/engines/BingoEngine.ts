@@ -163,12 +163,16 @@ export class BingoEngine implements IGameEngine<any> {
       return { valid: true };
     }
 
-    if (t === 'DRAW_BALL') {
+    if (t === 'DRAW_BALL' || t === 'AUTO_DRAW_BALL' || t === 'SERVER_AUTO_DRAW') {
       if (state.status !== 'PLAYING' && state.status !== 'SALES') {
         return { valid: false, reason: 'La partida no está activa.' };
       }
-      if (state.hostUserId && action.userId !== state.hostUserId) {
-        return { valid: false, reason: 'Solo el anfitrión puede iniciar el sorteo.' };
+      const isSystemAction =
+        action.userId === '00000000-0000-0000-0000-000000000000' ||
+        Boolean(action.actionData?.serverSide) ||
+        Boolean(action.actionData?.automated);
+      if (!isSystemAction && state.hostUserId && action.userId !== state.hostUserId) {
+        return { valid: false, reason: 'Solo el anfitrión o el servidor puede extraer balotas.' };
       }
       // Si ya se sacaron todas las bolas, no se puede sacar más
       const maxBalls = state.totalBalls || state.mode || 90;
@@ -210,13 +214,13 @@ export class BingoEngine implements IGameEngine<any> {
       return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
 
-    if (t === 'DRAW_BALL') {
+    if (t === 'DRAW_BALL' || t === 'AUTO_DRAW_BALL' || t === 'SERVER_AUTO_DRAW') {
       if (next.status === 'SALES') {
         next.status = 'PLAYING';
       }
-      // Intentar usar la ball de actionData (si vino del RNG de Supabase)
-      let ball = Number(action.actionData?.ball);
-      // Si no vino o es inválida, generarla determinísticamente (todos los clientes ven la misma)
+      // Intentar usar la ball de actionData (si vino del RNG del servidor o RPC)
+      let ball = Number(action.actionData?.ball || action.actionData?.ball_number);
+      // Si no vino o es inválida, generarla determinísticamente
       if (!ball || !Number.isFinite(ball) || (next.drawnBalls || []).includes(ball)) {
         ball = generateNextBall(next);
       }

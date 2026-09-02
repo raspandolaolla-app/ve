@@ -873,7 +873,7 @@ export class TableRepository {
       p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
       p_entry_fee: entryFeeNum,
       p_max_players: Number(payload.maxPlayers || 2),
-      p_config: payload.config || {},
+      p_config: { ...(payload.config || {}), name: tableName },
     };
 
     // Invocar exclusivamente la RPC segura create_game_table_secure con soporte de Self-Healing

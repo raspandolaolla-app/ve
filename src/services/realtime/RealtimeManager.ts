@@ -412,5 +412,20 @@ export class RealtimeManager {
       supabase.removeChannel(channel);
     };
   }
+
+  /**
+   * Obtiene el estado general de conexión a los canales Realtime de Supabase
+   */
+  public static getConnectionStatus(): { connected: boolean; userChannels: number } {
+    const supabase = getSupabaseClient();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    return {
+      connected: isOnline && Boolean(supabase),
+      userChannels: this.userChannels.size,
+    };
+  }
 }
+
+// Exportar instancia singleton para compatibilidad
+export const realtimeManager = RealtimeManager;
 

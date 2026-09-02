@@ -867,13 +867,18 @@ export class TableRepository {
     const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
     const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
 
+    const isBingo = dbGameType === 'BINGO' || payload.gameType === 'bingo';
     const rpcPayload = {
       p_game_type: dbGameType,
       p_name: tableName,
       p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
       p_entry_fee: entryFeeNum,
       p_max_players: Number(payload.maxPlayers || 2),
-      p_config: { ...(payload.config || {}), name: tableName },
+      p_config: { 
+        ...(payload.config || {}), 
+        name: tableName,
+        ...(isBingo ? { automated: true, callIntervalMs: 4000 } : {})
+      },
     };
 
     // Invocar exclusivamente la RPC segura create_game_table_secure con soporte de Self-Healing

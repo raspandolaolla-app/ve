@@ -9,10 +9,10 @@ import type { BingoState, BingoCard75, BingoCard80, BingoCard90, BingoVariant } 
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { BcvRepository } from '../../../services/repositories/BcvRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
-import { getBingoAudioPlayer, destroyBingoAudioPlayer } from '../../../utils/bingoAudioPlayer';
+import { getBingoAudio, destroyBingoAudio } from '../../../utils/bingoAudio';
 import { BingoBoard } from './BingoBoard';
 import { Button } from '../../../components/common/Button';
-import { Trophy, RefreshCw, Sparkles, CheckCircle2, ShoppingBag, ShieldCheck, ArrowLeft, Radio, Lock } from 'lucide-react';
+import { Trophy, RefreshCw, Sparkles, CheckCircle2, ShoppingBag, ShieldCheck, ArrowLeft, Radio, Lock, Volume2, VolumeX } from 'lucide-react';
 
 interface BingoGameProps {
   table: GameTable;
@@ -74,33 +74,58 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
-  // Control de audio y silenciador persistente
-  const audioPlayer = getBingoAudioPlayer({
-    baseUrl: `${import.meta.env.BASE_URL || '/'}bingo-audio/`,
-    volume: 0.8,
-    preload: true,
-  });
-  const [audioVolume, setAudioVolume] = useState<number>(() => audioPlayer.getVolume());
+  // Control de audio Web Audio API y silenciador persistente
+  const [audioReady, setAudioReady] = useState<boolean>(false);
+  const [audioLoading, setAudioLoading] = useState<boolean>(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioVolume, setAudioVolume] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     return localStorage.getItem('bingo_audio_muted') === 'true';
   });
+  const bingoAudio = getBingoAudio();
   const lastPlayedBallRef = React.useRef<number | null>(null);
 
   const toggleMute = () => {
     setIsMuted((prev) => {
       const newVal = !prev;
       localStorage.setItem('bingo_audio_muted', String(newVal));
-      if (newVal) {
-        audioPlayer.stop();
-      }
       return newVal;
     });
+  };
+
+  // Activar sistema de audio (requiere interacción del usuario)
+  const handleActivateAudio = async () => {
+    console.log('[BingoGame] handleActivateAudio llamada');
+    setAudioLoading(true);
+    setAudioError(null);
+
+    try {
+      console.log('[BingoGame] Inicializando sistema de audio...');
+      await bingoAudio.initialize();
+      await bingoAudio.unlock();
+      setAudioReady(true);
+      
+      const stats = bingoAudio.getStats();
+      console.log('[BingoGame] ✓ Audio activado correctamente:', stats);
+      
+      // Probar reproducción con balota de prueba
+      console.log('[BingoGame] Probando reproducción de balota 1...');
+      await bingoAudio.playBall(1, variant, 5000);
+      console.log('[BingoGame] ✓ Prueba de audio exitosa');
+    } catch (error: any) {
+      console.error('[BingoGame] Error activando audio:', error);
+      setAudioError(error.message || 'Error al activar audio');
+      setAudioReady(false);
+    } finally {
+      setAudioLoading(false);
+    }
   };
 
   // Cleanup del reproductor de audio al desmontar
   useEffect(() => {
     return () => {
-      destroyBingoAudioPlayer();
+      console.log('[BingoGame] Destruyendo sistema de audio...');
+      destroyBingoAudio();
     };
   }, []);
 
@@ -294,30 +319,53 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   }, [currentUserId]);
 
-  // Función mejorada para reproducir audio de balota con sincronización
+  // Función mejorada para reproducir audio de balota
   const playBallAudio = async (ball: number): Promise<void> => {
-    if (isMuted) return;
+    console.log(`[BingoGame] playBallAudio llamada con ball=${ball}, isMuted=${isMuted}, audioReady=${audioReady}`);
+    
+    if (isMuted) {
+      console.log('[BingoGame] Audio silenciado, saltando reproducción');
+      return;
+    }
+
+    if (!audioReady) {
+      console.warn('[BingoGame] Audio no está listo. Usuario debe activarlo primero.');
+      return;
+    }
 
     try {
-      await audioPlayer.playBall(ball, variant, drawIntervalMs);
+      console.log(`[BingoGame] Reproduciendo balota ${ball}...`);
+      await bingoAudio.playBall(ball, variant, drawIntervalMs);
+      console.log(`[BingoGame] ✓ Balota ${ball} reproducida`);
     } catch (error) {
-      console.warn('[BingoGame] Error reproduciendo audio de balota:', error);
+      console.error('[BingoGame] Error reproduciendo audio:', error);
     }
   };
 
-  // Reproducir locución de audio cuando cambie la balota actual
+  // Reproducir audio cuando cambie la balota actual
   useEffect(() => {
     const ball = bingoState.currentBall;
+    
+    console.log(`[BingoGame] useEffect detectó cambio de balota:`, {
+      ball,
+      lastPlayed: lastPlayedBallRef.current,
+      audioReady,
+      isMuted
+    });
+
     if (ball !== null && ball !== undefined && ball !== lastPlayedBallRef.current) {
       lastPlayedBallRef.current = ball;
-
+      
+      console.log(`[BingoGame] Nueva balota detectada: ${ball}`);
+      
+      // Pequeño delay para asegurar que el estado se actualizó
       const timer = setTimeout(() => {
         playBallAudio(ball);
-      }, 100);
+      }, 200);
 
       return () => clearTimeout(timer);
     }
-  }, [bingoState.currentBall, isMuted, drawIntervalMs, variant]);
+  }, [bingoState.currentBall, isMuted, audioReady, drawIntervalMs, variant]);
 
   // Sorteo automático - Soporte Dual: Host Humano o Autónomo por Clientes en Mesas de Sistema
   useEffect(() => {
@@ -706,38 +754,158 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
           </div>
 
           {/* Panel de Control de Audio */}
-          <div className="flex items-center justify-between flex-wrap gap-2 border-t border-slate-800 pt-3 mt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Volumen:</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={Math.round(audioVolume * 100)}
-                onChange={(e) => {
-                  const vol = Number(e.target.value) / 100;
-                  audioPlayer.setVolume(vol);
-                  setAudioVolume(vol);
-                }}
-                disabled={isMuted}
-                className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
-              />
-              <span className="text-xs text-slate-300 font-mono w-9">
-                {Math.round(audioVolume * 100)}%
-              </span>
-            </div>
+          <div className="mt-4 border-t border-slate-800 pt-4">
+            <h4 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-2">
+              <span>🔊</span>
+              <span>Control de Audio</span>
+            </h4>
 
-            <button
-              onClick={toggleMute}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                isMuted
-                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              }`}
-            >
-              {isMuted ? '🔇 Silenciado' : '🔊 Audio ON'}
-            </button>
+            {!audioReady && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-3">
+                <p className="text-xs text-amber-200">
+                  <strong>⚠️ Audio no activado</strong>
+                  <br />
+                  Los navegadores requieren interacción del usuario para reproducir audio automáticamente.
+                </p>
+                
+                <button
+                  onClick={handleActivateAudio}
+                  disabled={audioLoading}
+                  className="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {audioLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Cargando audios...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔊</span>
+                      <span>Activar Audio del Bingo</span>
+                    </>
+                  )}
+                </button>
+
+                {audioError && (
+                  <div className="p-2 bg-red-500/20 border border-red-500/40 rounded-lg">
+                    <p className="text-xs text-red-300">
+                      <strong>Error:</strong> {audioError}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {audioReady && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="font-bold">Audio activado y listo</span>
+                </div>
+
+                {/* Control de Volumen */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 min-w-[60px]">Volumen:</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={Math.round(audioVolume * 100)}
+                    onChange={(e) => {
+                      const volume = Number(e.target.value) / 100;
+                      bingoAudio.setVolume(volume);
+                      setAudioVolume(volume);
+                    }}
+                    disabled={isMuted}
+                    className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <span className="text-xs text-slate-300 font-mono min-w-[35px]">{Math.round(audioVolume * 100)}%</span>
+                </div>
+
+                {/* Botón Mute */}
+                <button
+                  onClick={toggleMute}
+                  className={`w-full px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+                    isMuted
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                  }`}
+                >
+                  {isMuted ? '🔇 Audio Silenciado' : '🔊 Audio Activado'}
+                </button>
+
+                {/* Botón de Prueba */}
+                <button
+                  onClick={() => bingoAudio.playBall(42, variant, 5000)}
+                  disabled={isMuted}
+                  className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700/50 disabled:cursor-not-allowed text-slate-200 text-xs font-bold rounded-lg transition-colors"
+                >
+                  🎵 Probar Audio (Balota 42)
+                </button>
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Control de Audio para Jugadores (No Host) */}
+      {!isHost && !isGameOver && (
+        <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3">
+          {!audioReady ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 text-xs text-amber-300">
+                <span>🔊</span>
+                <span>Activa el audio para escuchar las balotas cantadas:</span>
+              </div>
+              <button
+                onClick={handleActivateAudio}
+                disabled={audioLoading}
+                className="w-full sm:w-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md"
+              >
+                {audioLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span>{audioLoading ? 'Cargando...' : 'Activar Audio'}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-emerald-400 font-bold">Audio activo</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(audioVolume * 100)}
+                  onChange={(e) => {
+                    const volume = Number(e.target.value) / 100;
+                    bingoAudio.setVolume(volume);
+                    setAudioVolume(volume);
+                  }}
+                  disabled={isMuted}
+                  className="w-20 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleMute}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-colors ${
+                    isMuted
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  {isMuted ? '🔇 Mudo' : '🔊 ON'}
+                </button>
+                <button
+                  onClick={() => bingoAudio.playBall(42, variant, 5000)}
+                  disabled={isMuted}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold"
+                >
+                  🎵 Probar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -12,7 +12,13 @@ const app = express();
 const PORT = 3000;
 
 // Configurar pool de conexión a PostgreSQL
-const connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
+let connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
+
+// Sanitizar contraseñas con corchetes accidentales de plantillas (ej: postgres:[mypassword]@ -> postgres:mypassword@)
+if (connectionString) {
+  connectionString = connectionString.replace(/:\/\/([^:]+):\[([^\]]+)\]@/, '://$1:$2@');
+}
+
 let pool: pg.Pool | null = null;
 let drawWorkerDisabled = false;
 let isRunningDraws = false;
@@ -213,16 +219,51 @@ async function runAutomatedBingoDraws() {
   }
 }
 
-// Registrar el motor en segundo plano (cada 2 segundos) de forma segura
+// Registrar motor de sorteo de Bingo y motor de expiración de turnos
+let isRunningTurns = false;
+
+async function runAutomatedTurnExpirations() {
+  if (!pool || drawWorkerDisabled || isRunningTurns) return;
+  isRunningTurns = true;
+  let client: pg.PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    const res = await client.query('SELECT public.expire_game_turn_secure() as result;');
+    const resultObj = res.rows[0]?.result;
+    if (resultObj && resultObj.success && resultObj.expired_count > 0) {
+      console.log(`[GAME_SERVER] [TURN_TIMEOUT] Turnos expirados y avanzados automáticamente: ${resultObj.expired_count}`);
+    }
+  } catch (err: any) {
+    // Si la conexión falla, se gestiona centralizadamente
+  } finally {
+    if (client) {
+      try { client.release(); } catch {}
+    }
+    isRunningTurns = false;
+  }
+}
+
+// Registrar workers en segundo plano
 if (pool) {
   setInterval(() => {
     runAutomatedBingoDraws().catch((err) => {
-      console.warn("[BINGO_SERVER] Excepción no capturada en worker:", err?.message || err);
+      console.warn("[BINGO_SERVER] Excepción no capturada en worker Bingo:", err?.message || err);
     });
   }, 2000);
+
+  setInterval(() => {
+    runAutomatedTurnExpirations().catch((err) => {
+      console.warn("[GAME_SERVER] Excepción no capturada en worker Turnos:", err?.message || err);
+    });
+  }, 3000);
 }
 
 async function startServer() {
+  // API routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", service: "raspando-la-olla" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

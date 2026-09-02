@@ -253,11 +253,60 @@ export class TableRepository {
       p_idempotency_key: effectiveKey,
     });
 
+    // Auto-cierre preventivo si la mesa quedó sin jugadores
+    try {
+      await supabase.rpc('close_game_table_if_orphaned', { p_table_id: tableId });
+    } catch {
+      // no-op silencioso
+    }
+
     if (error) {
       console.error('[TableRepository] Error procesando abandono de mesa:', error.message);
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar salida de la mesa') };
     }
 
+    return { success: true, data };
+  }
+
+  /**
+   * Limpia participaciones obsoletas o huérfanas del usuario autenticado (Self-healing).
+   */
+  public static async cleanupStaleParticipation(): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+    const { data, error } = await supabase.rpc('cleanup_stale_user_game_participation');
+    if (error) {
+      console.warn('[TableRepository] Error en cleanup_stale_user_game_participation:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  }
+
+  /**
+   * Fuerza la salida del usuario de todas las mesas donde aparezca activo (Rescate de bloqueo).
+   */
+  public static async forceLeaveAllTables(): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+    const { data, error } = await supabase.rpc('force_leave_all_game_tables');
+    if (error) {
+      console.warn('[TableRepository] Error en force_leave_all_game_tables:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  }
+
+  /**
+   * Fuerza la salida del usuario de una mesa específica.
+   */
+  public static async forceLeaveTable(tableId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+    const { data, error } = await supabase.rpc('force_leave_game_table', { p_table_id: tableId });
+    if (error) {
+      console.warn('[TableRepository] Error en force_leave_game_table:', error.message);
+      return { success: false, error: error.message };
+    }
     return { success: true, data };
   }
 
@@ -818,15 +867,49 @@ export class TableRepository {
     const dbGameType = GameRepository.mapGameTypeToDbEnum(payload.gameType);
     const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
 
-    // Invocar exclusivamente la RPC segura create_game_table_secure
-    const { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', {
+    const rpcPayload = {
       p_game_type: dbGameType,
       p_name: tableName,
       p_visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
       p_entry_fee: entryFeeNum,
       p_max_players: Number(payload.maxPlayers || 2),
       p_config: payload.config || {},
-    });
+    };
+
+    // Invocar exclusivamente la RPC segura create_game_table_secure con soporte de Self-Healing
+    let { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', rpcPayload);
+
+    // Si detecta bloqueo por participación previa o registros huérfanos, aplicar auto-limpieza
+    if (rpcError && (
+      rpcError.message?.includes('Ya estás participando') ||
+      rpcError.message?.includes('ALREADY_IN_ACTIVE_TABLE')
+    )) {
+      console.warn('[TableRepository] Bloqueo por mesa previa detectado. Ejecutando cleanup_stale_user_game_participation...');
+      try {
+        await supabase.rpc('cleanup_stale_user_game_participation');
+        const retry1 = await supabase.rpc('create_game_table_secure', rpcPayload);
+        rpcData = retry1.data;
+        rpcError = retry1.error;
+      } catch (cleanErr) {
+        console.warn('[TableRepository] Error en intento 1 de self-healing:', cleanErr);
+      }
+
+      // Si aún persiste el bloqueo, forzar salida de mesas previas huérfanas
+      if (rpcError && (
+        rpcError.message?.includes('Ya estás participando') ||
+        rpcError.message?.includes('ALREADY_IN_ACTIVE_TABLE')
+      )) {
+        console.warn('[TableRepository] Persiste el bloqueo. Ejecutando force_leave_all_game_tables...');
+        try {
+          await supabase.rpc('force_leave_all_game_tables');
+          const retry2 = await supabase.rpc('create_game_table_secure', rpcPayload);
+          rpcData = retry2.data;
+          rpcError = retry2.error;
+        } catch (forceErr) {
+          console.warn('[TableRepository] Error en intento 2 de self-healing:', forceErr);
+        }
+      }
+    }
 
     if (rpcError) {
       console.error('[CREATE_TABLE_REAL_ERROR]', {

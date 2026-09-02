@@ -703,55 +703,67 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
         <div id="host-draw-panel" className="w-full bg-slate-950 border-2 border-amber-500/40 rounded-2xl p-4 flex flex-col space-y-3 shadow-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Radio className={`w-4 h-4 ${isAutoDrawing ? 'text-red-500 animate-ping' : 'text-slate-500'}`} />
+              <Radio className={`w-4 h-4 ${isAutoDrawing || Boolean(table.config?.automated) ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
               <span className="text-xs font-black text-slate-100 uppercase tracking-wider font-mono">
-                Panel de Sorteo del Anfitrión
+                {Boolean(table.config?.automated) ? 'Sorteo Automático Server-Side' : 'Panel de Sorteo del Anfitrión'}
               </span>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold border border-amber-500/30">
-              Host
+              {Boolean(table.config?.automated) ? 'Server Authoritative' : 'Host'}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400">Velocidad:</span>
-              <select
-                value={drawIntervalMs}
-                onChange={(e) => setDrawIntervalMs(Number(e.target.value))}
-                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg p-1.5 focus:ring-1 focus:ring-amber-500 font-mono focus:outline-none"
-              >
-                <option value={3000}>3 Segundos</option>
-                <option value={5000}>5 Segundos (Recomendado)</option>
-                <option value={7000}>7 Segundos</option>
-                <option value={10000}>10 Segundos</option>
-              </select>
+          {Boolean(table.config?.automated) ? (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1.5 text-xs text-emerald-200">
+              <p className="font-bold text-emerald-300 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Sorteo controlado 100% por Supabase en segundo plano</span>
+              </p>
+              <p className="text-[11px] text-emerald-200/80">
+                Las balotas se extraen automáticamente de forma autoritativa. Si te desconectas o recargas, el sorteo continúa sin interrupciones.
+              </p>
             </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-400">Velocidad:</span>
+                <select
+                  value={drawIntervalMs}
+                  onChange={(e) => setDrawIntervalMs(Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg p-1.5 focus:ring-1 focus:ring-amber-500 font-mono focus:outline-none"
+                >
+                  <option value={3000}>3 Segundos</option>
+                  <option value={5000}>5 Segundos (Recomendado)</option>
+                  <option value={7000}>7 Segundos</option>
+                  <option value={10000}>10 Segundos</option>
+                </select>
+              </div>
 
-            <div className="flex items-center space-x-2">
-              <Button
-                variant={isAutoDrawing ? 'danger' : 'primary'}
-                className="font-black text-[11px] py-2 px-4 rounded-xl shadow-md"
-                onClick={() => setIsAutoDrawing(!isAutoDrawing)}
-              >
-                {isAutoDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant={isAutoDrawing ? 'danger' : 'primary'}
+                  className="font-black text-[11px] py-2 px-4 rounded-xl shadow-md"
+                  onClick={() => setIsAutoDrawing(!isAutoDrawing)}
+                >
+                  {isAutoDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
+                </Button>
 
-              <Button
-                variant="secondary"
-                disabled={isAutoDrawing}
-                className="font-black text-[11px] py-2 px-4 rounded-xl border border-slate-700 hover:bg-slate-800"
-                onClick={async () => {
-                  const { RngService } = await import('../../../services/rng/RngService');
-                  if (sessionId) {
-                    await RngService.drawBingoBallSecure(sessionId);
-                  }
-                }}
-              >
-                🔮 Extraer 1 Bola
-              </Button>
+                <Button
+                  variant="secondary"
+                  disabled={isAutoDrawing}
+                  className="font-black text-[11px] py-2 px-4 rounded-xl border border-slate-700 hover:bg-slate-800"
+                  onClick={async () => {
+                    const { RngService } = await import('../../../services/rng/RngService');
+                    if (sessionId) {
+                      await RngService.drawBingoBallSecure(sessionId);
+                    }
+                  }}
+                >
+                  🔮 Extraer 1 Bola
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Panel de Control de Audio */}
           <div className="mt-4 border-t border-slate-800 pt-4">

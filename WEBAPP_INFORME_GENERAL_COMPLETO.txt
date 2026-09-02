@@ -2,11 +2,11 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 20:57:00 -07:00 (UTC 2026-09-02 03:57:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-01 21:24:00 -07:00 (UTC 2026-09-02 04:24:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 093_fix_settle_game_session_ledger_entries_canonical.sql (Corrección canónica de ledger_entries en liquidaciones de sesión, compatibilidad estricta con balance_after y balance_after_available)
-ÚLTIMA MEJORA TÉCNICA / BACKEND: Sistema de Audio Optimizado para Bingo y Motor de Juego: 1) Gestor de audio con precarga (1-90 y b-i-n-g-o), control de volumen, timeout de seguridad y prevención de solapamiento. 2) Sincronización dinámica de locución según velocidad de extracción. 3) Integración de control de volumen y botón silenciador persistente en BingoGame. 4) Servidor RNG autoritativo para extracción de balotas con auditoría de imparcialidad.
-MEJORA UI/UX RECIENTE: Controles de volumen y silenciado de audio en Bingo, soporte completo responsive en BingoBoard y GameArena, navegación con protección de partida activa y modal de ganadores con captura de foto.
+ÚLTIMA MEJORA TÉCNICA / BACKEND: Sistema de Audio Definitivo para Bingo con Web Audio API: 1) Creación de `src/utils/bingoAudio.ts` con arquitectura `AudioContext`, `AudioBuffer` decodificados, precarga paralela en lotes de 95 archivos (letras B-I-N-G-O y números 1-90), detección dinámica de base URL y prevención de bloqueos de autoplay mediante desbloqueo por gesto de usuario (`unlock`). 2) Sincronización de balota y duración adaptable por intervalo con nodos de ganancia (`GainNode`). 3) Integración en `BingoGame.tsx` con paneles de activación, control de volumen con slider interactivo, silenciado persistente (`localStorage`) y botón de prueba.
+MEJORA UI/UX RECIENTE: Paneles de activación de audio responsivos para anfitriones y jugadores en Bingo, control de volumen en tiempo real, indicador de estado de audio activo, soporte de cámara para fotografía de ganadores con almacenamiento en Supabase Storage.
 ================================================================================
 
 --------------------------------------------------------------------------------

@@ -1528,9 +1528,36 @@ export function TablesView() {
 
               {/* Error (MEJORADO) */}
               {createError && (
-                <div className="p-4 bg-gradient-to-br from-red-950/40 to-red-900/30 border-2 border-red-500/50 rounded-2xl text-sm text-red-300 flex items-start gap-3">
-                  <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
-                  <span className="font-semibold">{createError}</span>
+                <div className="p-4 bg-gradient-to-br from-red-950/40 to-red-900/30 border-2 border-red-500/50 rounded-2xl text-sm text-red-300 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+                    <span className="font-semibold">{createError}</span>
+                  </div>
+                  {(createError.includes('participando') || createError.includes('mesa activa')) && (
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={creating}
+                        onClick={async () => {
+                          setCreating(true);
+                          setCreateError('Liberando participaciones previas...');
+                          try {
+                            await TableRepository.forceLeaveAllTables();
+                            await TableRepository.cleanupStaleParticipation();
+                            setCreateError(null);
+                            handleCreateTableSubmit(new Event('submit') as any);
+                          } catch (err: any) {
+                            setCreateError('No se pudo liberar automáticamente. Intenta de nuevo.');
+                            setCreating(false);
+                          }
+                        }}
+                        className="w-full text-xs font-bold py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl"
+                      >
+                        ⚡ Liberar mesas previas huérfanas y reintentar
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

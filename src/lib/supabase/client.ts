@@ -10,7 +10,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const env: Record<string, any> = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
-const rawUrl = (env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || 'https://tncxgwycinbnkjbfwojt.supabase.co') as string | undefined;
+const rawUrl = (env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) as string | undefined;
 const rawAnonKey = (env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY) as string | undefined;
 
 const supabaseUrl = rawUrl?.trim();

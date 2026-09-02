@@ -26,11 +26,22 @@ export function isValidCedulaFormat(cedula: string): boolean {
 }
 
 /**
- * Valida formato telefónico venezolano común (+58412..., 0414..., 0424..., 0416..., 0426...)
+ * Sanitiza y valida formato de UUID v4 estándar. Retorna null si no es un UUID válido.
  */
-export function isValidPhoneFormat(phone: string): boolean {
-  if (!phone) return false;
-  const clean = phone.replace(/[\s\-()]/g, '');
-  const regex = /^(\+58|58|0)(412|414|424|416|426|212|419)\d{7}$/;
-  return regex.test(clean);
+export function sanitizeUUID(uuid: string): string | null {
+  if (!uuid || typeof uuid !== 'string') return null;
+  const clean = uuid.trim().toLowerCase();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(clean) ? clean : null;
+}
+
+/**
+ * Sanitiza una cadena general alfanumérica segura para claves de idempotencia o identifiers.
+ */
+export function sanitizeString(input: string, maxLength: number = 255): string {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[^\w\-.:_]/g, '')
+    .substring(0, maxLength)
+    .trim();
 }

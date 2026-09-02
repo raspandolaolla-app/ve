@@ -6,6 +6,7 @@
 
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { sanitizeUUID, sanitizeString } from '../../lib/security/sanitizer';
 import type { GameSession, GameActionPayload, GameType } from '../../types/games';
 
 export class GameRepository {
@@ -399,20 +400,26 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
+    const sanitizedSessionId = sanitizeUUID(sessionId) || sessionId;
+    const sanitizedWinnerIds = (winnerUserIds || [])
+      .map((id) => sanitizeUUID(id) || id)
+      .filter(Boolean);
+    const sanitizedKey = sanitizeString(idempotencyKey, 128);
+
     let { data, error } = await supabase.rpc('settle_game_session', {
-      p_session_id: sessionId,
-      p_winner_user_ids: winnerUserIds,
+      p_session_id: sanitizedSessionId,
+      p_winner_user_ids: sanitizedWinnerIds,
       p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
-      p_idempotency_key: idempotencyKey || null,
+      p_idempotency_key: sanitizedKey || null,
     });
 
     // En caso de discrepancia de nombre de parámetro o sobrecarga en PostgREST
     if (error && (error.message.includes('p_winner_team_index') || error.message.includes('does not exist') || error.message.includes('p_winner_team'))) {
       const fallback = await supabase.rpc('settle_game_session_secure', {
-        p_session_id: sessionId,
-        p_winner_user_id: winnerUserIds.length > 0 ? winnerUserIds[0] : null,
+        p_session_id: sanitizedSessionId,
+        p_winner_user_id: sanitizedWinnerIds.length > 0 ? sanitizedWinnerIds[0] : null,
         p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
-        p_idempotency_key: idempotencyKey || null,
+        p_idempotency_key: sanitizedKey || null,
       });
 
       if (!fallback.error) {
@@ -445,10 +452,14 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
+    const sanitizedSessionId = sanitizeUUID(sessionId) || sessionId;
+    const sanitizedReason = sanitizeString(reason, 255) || 'Empate o cancelación';
+    const sanitizedKey = sanitizeString(idempotencyKey, 128);
+
     const { data, error } = await supabase.rpc('refund_game_session', {
-      p_session_id: sessionId,
-      p_reason: reason,
-      p_idempotency_key: idempotencyKey,
+      p_session_id: sanitizedSessionId,
+      p_reason: sanitizedReason,
+      p_idempotency_key: sanitizedKey,
     });
 
     if (error) {

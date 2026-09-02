@@ -132,11 +132,12 @@ export function useGameEngine({
 
   // 3. Finalizar y Liquidar la partida (90% ganador / 10% tesorería o 100% reembolso en empate)
   const settleGame = useCallback(
-    async (winnerUserId: string | null, isTie: boolean) => {
+    async (winnerUserId: string | null, isTie: boolean, finalState?: Record<string, unknown>) => {
       if (!session?.id || isSettlingRef.current) return;
       isSettlingRef.current = true;
       setIsSettling(true);
 
+      const stateToPersist = finalState || gameState;
       const idempotencyKey = `settle_${session.id}_${Date.now()}`;
 
       try {
@@ -156,7 +157,7 @@ export function useGameEngine({
 
           await GameRepository.updateSessionState(
             session.id,
-            gameState,
+            stateToPersist,
             null,
             'CANCELLED',
             null
@@ -179,7 +180,7 @@ export function useGameEngine({
 
           await GameRepository.updateSessionState(
             session.id,
-            gameState,
+            stateToPersist,
             null,
             'SETTLED',
             winnerUserId
@@ -249,7 +250,7 @@ export function useGameEngine({
 
       // Si la partida concluyó, liquidar automáticamente
       if (isOver) {
-        await settleGame(winnerUserId || null, Boolean(isTie));
+        await settleGame(winnerUserId || null, Boolean(isTie), nextState);
       }
 
       return true;

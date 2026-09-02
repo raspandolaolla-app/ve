@@ -12,6 +12,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rate limiting simple
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(key: string, maxCalls: number, windowMs: number): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(key)
+  
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
+    return true
+  }
+  
+  if (record.count >= maxCalls) {
+    return false
+  }
+  
+  record.count++
+  return true
+}
+
 // Catálogo de loterías venezolanas con sus horarios oficiales
 const LOTTERY_SCHEDULE = [
   { name: 'La Granjita', times: ['08:00', '13:00', '16:00', '19:00'] },
@@ -51,6 +71,52 @@ function getCurrentTimeVenezuela(): string {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // ✅ AUTENTICACIÓN: Validar que la petición viene del Cron Job autorizado
+  const authHeader = req.headers.get('Authorization')
+  const expectedToken = Deno.env.get('CRON_JOB_SECRET')
+  
+  if (!expectedToken) {
+    console.error('[POLLA_AUTO_DRAW] CRON_JOB_SECRET no configurado')
+    return new Response(
+      JSON.stringify({ error: 'Server configuration error' }),
+      { status: 500, headers: corsHeaders }
+    )
+  }
+
+  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    console.warn('[POLLA_AUTO_DRAW] Intento de acceso no autorizado')
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: corsHeaders }
+    )
+  }
+
+  // ✅ CORS: Restringir orígenes permitidos
+  const origin = req.headers.get('Origin') || ''
+  const ALLOWED_ORIGINS = [
+    'https://raspandolaolla-app.github.io',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ]
+  const isAllowedOrigin = ALLOWED_ORIGINS.some(allowed => origin.includes(allowed))
+  
+  const restrictedCorsHeaders = {
+    ...corsHeaders,
+    'Access-Control-Allow-Origin': isAllowedOrigin ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Credentials': 'true'
+  }
+
+  // ✅ RATE LIMITING: Prevenir abuso
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
+  const rateLimitKey = `polla_draw_${clientIP}`
+  
+  if (!checkRateLimit(rateLimitKey, 10, 60000)) { // Max 10 llamadas por minuto
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded' }),
+      { status: 429, headers: restrictedCorsHeaders }
+    )
   }
 
   try {
@@ -96,7 +162,7 @@ Deno.serve(async (req: Request) => {
       console.log('[POLLA_AUTO_DRAW] No hay sorteos programados para esta hora')
       return new Response(
         JSON.stringify({ success: true, message: 'No scheduled draws', processed: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -189,14 +255,14 @@ Deno.serve(async (req: Request) => {
         results: results,
         timestamp: new Date().toISOString()
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
     console.error('[POLLA_AUTO_DRAW] Error inesperado:', error)
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

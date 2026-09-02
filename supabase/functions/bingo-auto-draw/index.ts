@@ -12,6 +12,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rate limiting simple
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(key: string, maxCalls: number, windowMs: number): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(key)
+  
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
+    return true
+  }
+  
+  if (record.count >= maxCalls) {
+    return false
+  }
+  
+  record.count++
+  return true
+}
+
 interface BingoState {
   variant: '75' | '80' | '90'
   drawnBalls: number[]
@@ -26,6 +46,52 @@ Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // ✅ AUTENTICACIÓN: Validar que la petición viene del Cron Job autorizado
+  const authHeader = req.headers.get('Authorization')
+  const expectedToken = Deno.env.get('CRON_JOB_SECRET')
+  
+  if (!expectedToken) {
+    console.error('[BINGO_AUTO_DRAW] CRON_JOB_SECRET no configurado')
+    return new Response(
+      JSON.stringify({ error: 'Server configuration error' }),
+      { status: 500, headers: corsHeaders }
+    )
+  }
+
+  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    console.warn('[BINGO_AUTO_DRAW] Intento de acceso no autorizado')
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: corsHeaders }
+    )
+  }
+
+  // ✅ CORS: Restringir orígenes permitidos
+  const origin = req.headers.get('Origin') || ''
+  const ALLOWED_ORIGINS = [
+    'https://raspandolaolla-app.github.io',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ]
+  const isAllowedOrigin = ALLOWED_ORIGINS.some(allowed => origin.includes(allowed))
+  
+  const restrictedCorsHeaders = {
+    ...corsHeaders,
+    'Access-Control-Allow-Origin': isAllowedOrigin ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Credentials': 'true'
+  }
+
+  // ✅ RATE LIMITING: Prevenir abuso
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
+  const rateLimitKey = `bingo_draw_${clientIP}`
+  
+  if (!checkRateLimit(rateLimitKey, 10, 60000)) { // Max 10 llamadas por minuto
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded' }),
+      { status: 429, headers: restrictedCorsHeaders }
+    )
   }
 
   try {
@@ -63,7 +129,7 @@ Deno.serve(async (req: Request) => {
       console.error('[BINGO_AUTO_DRAW] Error buscando mesas:', tablesError)
       return new Response(
         JSON.stringify({ success: false, error: tablesError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -71,7 +137,7 @@ Deno.serve(async (req: Request) => {
       console.log('[BINGO_AUTO_DRAW] No hay mesas de Bingo activas')
       return new Response(
         JSON.stringify({ success: true, message: 'No active bingo tables', processed: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -108,7 +174,28 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
-      // 3. Generar balota aleatoria disponible
+      // 3. Invocar la RPC Segura del Servidor (Migración 098 - server_bingo_operation)
+      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('server_bingo_operation', {
+        p_session_id: session.id,
+      })
+
+      if (!rpcError && rpcData && rpcData.success) {
+        processedCount++
+        drawnBalls.push({
+          tableId: table.id,
+          sessionId: session.id,
+          ball: rpcData.ball,
+          variant: rpcData.variant || state.variant || '75',
+        })
+        console.log(`[BINGO_AUTO_DRAW] ✓ Mesa ${table.id}: Balota ${rpcData.ball} extraída con server_bingo_operation RPC (Migración 098)`)
+        continue
+      }
+
+      if (rpcError) {
+        console.warn(`[BINGO_AUTO_DRAW] RPC server_bingo_operation no disponible (${rpcError.message}), ejecutando fallback seguro`)
+      }
+
+      // Fallback seguro: Generar balota aleatoria disponible
       const availableBalls: number[] = []
       for (let i = 1; i <= maxBalls; i++) {
         if (!drawnBallsList.includes(i)) {
@@ -148,18 +235,20 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
-      // 5. Registrar acción en game_actions para auditoría
+      // 5. Registrar acción en game_actions para auditoría y Realtime
       await supabaseAdmin
         .from('game_actions')
         .insert({
           session_id: session.id,
           user_id: '00000000-0000-0000-0000-000000000000', // System user
-          action_type: 'AUTO_DRAW_BALL',
+          action_type: 'DRAW_BALL',
           action_data: {
             ball: newBall,
+            ball_number: newBall,
             variant: variant,
             totalDrawn: newDrawnBalls.length,
-            automated: true
+            automated: true,
+            serverSide: true
           },
           is_valid: true,
           created_at: new Date().toISOString()
@@ -185,14 +274,14 @@ Deno.serve(async (req: Request) => {
         drawnBalls: drawnBalls,
         timestamp: new Date().toISOString()
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
     console.error('[BINGO_AUTO_DRAW] Error inesperado:', error)
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -1,287 +1,116 @@
 // ==============================================================================
-// RASPANDO LA OLLA — EDGE FUNCTION: SORTEO AUTOMÁTICO DE BINGO
+// RASPANDO LA OLLA — EDGE FUNCTION: SORTEO AUTOMÁTICO DE BINGO (SERVER-AUTHORITATIVE)
 // ==============================================================================
-// Se ejecuta cada 5 segundos desde Supabase Cron o invocación periódica
-// Extrae balotas automáticamente de forma autoritativa sin depender del host
+// Se ejecuta cada 4-5 segundos desde Supabase Cron o invocación autorizada
+// Extrae balotas de forma 100% autoritativa en el servidor e inserta en game_actions
 // ==============================================================================
 
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
-// Rate limiting simple
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-
-function checkRateLimit(key: string, maxCalls: number, windowMs: number): boolean {
-  const now = Date.now()
-  const record = rateLimitMap.get(key)
-  
-  if (!record || now > record.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-  
-  if (record.count >= maxCalls) {
-    return false
-  }
-  
-  record.count++
-  return true
-}
-
-interface BingoState {
-  variant: '75' | '80' | '90'
-  drawnBalls: number[]
-  currentBall: number | null
-  status: string
-  automated?: boolean
-  callIntervalMs?: number
-  winnerUserId?: string | null
-}
-
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
+serve(async (req: Request) => {
+  // Manejo de preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // ✅ AUTENTICACIÓN: Validar que la petición viene del Cron Job autorizado
+  // 1. Validar autenticación del Cron Job o Service Role
   const authHeader = req.headers.get('Authorization')
-  const expectedToken = Deno.env.get('CRON_JOB_SECRET')
-  
-  if (!expectedToken) {
-    console.error('[BINGO_AUTO_DRAW] CRON_JOB_SECRET no configurado')
+  const cronSecret = Deno.env.get('CRON_JOB_SECRET')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+  const isAuthorized = 
+    (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+    (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) ||
+    (!cronSecret && !serviceRoleKey) // Solo en testing local si no hay secretos
+
+  if (!isAuthorized && (cronSecret || serviceRoleKey)) {
     return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: corsHeaders }
+      JSON.stringify({ error: 'No autorizado para ejecutar sorteo automático' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
-    console.warn('[BINGO_AUTO_DRAW] Intento de acceso no autorizado')
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: corsHeaders }
-    )
-  }
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+  const supabaseKey = serviceRoleKey || Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 
-  // ✅ CORS: Restringir orígenes permitidos
-  const origin = req.headers.get('Origin') || ''
-  const ALLOWED_ORIGINS = [
-    'https://raspandolaolla-app.github.io',
-    'http://localhost:5173',
-    'http://localhost:3000'
-  ]
-  const isAllowedOrigin = ALLOWED_ORIGINS.some(allowed => origin.includes(allowed))
-  
-  const restrictedCorsHeaders = {
-    ...corsHeaders,
-    'Access-Control-Allow-Origin': isAllowedOrigin ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Credentials': 'true'
-  }
-
-  // ✅ RATE LIMITING: Prevenir abuso
-  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
-  const rateLimitKey = `bingo_draw_${clientIP}`
-  
-  if (!checkRateLimit(rateLimitKey, 10, 60000)) { // Max 10 llamadas por minuto
-    return new Response(
-      JSON.stringify({ error: 'Rate limit exceeded' }),
-      { status: 429, headers: restrictedCorsHeaders }
-    )
-  }
+  const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 
   try {
-    console.log('[BINGO_AUTO_DRAW] Iniciando proceso de sorteo automático...')
+    // 2. Buscar sesiones de Bingo activas que requieran extracción
+    const { data: activeSessions, error: sessionsError } = await supabaseAdmin
+      .from('game_sessions')
+      .select('id, table_id, current_state, status, game_type')
+      .in('status', ['ACTIVE', 'PLAYING', 'DRAWING', 'in_progress'])
+      .in('game_type', ['BINGO', 'bingo'])
 
-    // Crear cliente de Supabase con service_role
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    // 1. Buscar mesas de Bingo activas con sorteo automático habilitado
-    const { data: activeTables, error: tablesError } = await supabaseAdmin
-      .from('game_tables')
-      .select(`
-        id,
-        config,
-        game_sessions!inner (
-          id,
-          status,
-          current_state
-        )
-      `)
-      .eq('game_type', 'bingo')
-      .in('status', ['OPEN', 'FULL', 'IN_PROGRESS'])
-      .not('game_sessions', 'is', null)
-
-    if (tablesError) {
-      console.error('[BINGO_AUTO_DRAW] Error buscando mesas:', tablesError)
+    if (sessionsError) {
+      console.error('[BINGO_AUTO_DRAW] Error consultando sesiones activas:', sessionsError)
       return new Response(
-        JSON.stringify({ success: false, error: tablesError.message }),
-        { status: 500, headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: sessionsError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!activeTables || activeTables.length === 0) {
-      console.log('[BINGO_AUTO_DRAW] No hay mesas de Bingo activas')
-      return new Response(
-        JSON.stringify({ success: true, message: 'No active bingo tables', processed: 0 }),
-        { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const results = []
 
-    let processedCount = 0
-    const drawnBalls: Array<{ tableId: string; sessionId: string; ball: number; variant: string }> = []
+    // 3. Por cada sesión activa de Bingo, invocar la RPC server_bingo_operation
+    for (const session of activeSessions || []) {
+      const state = session.current_state || {}
 
-    // 2. Procesar cada mesa activa
-    for (const table of activeTables) {
-      const config = (table.config || {}) as Record<string, any>
-      const session = Array.isArray(table.game_sessions) ? table.game_sessions[0] : table.game_sessions
-
-      if (!session || !config?.automated) {
+      // Si ya hay ganador o está finalizada, saltar
+      if (state.winnerUserId || state.status === 'finished') {
         continue
       }
 
-      const state = (session.current_state || {}) as BingoState
-
-      // Verificar si el sorteo debe continuar
-      if (state.status !== 'DRAWING' && state.status !== 'in_progress' && session.status !== 'ACTIVE' && session.status !== 'PLAYING') {
+      // Si las ventas siguen abiertas, saltar hasta que inicien
+      if (state.status === 'SALES') {
         continue
       }
 
-      if (state.winnerUserId) {
-        continue
-      }
-
-      const drawnBallsList = state.drawnBalls || []
-      const variant = state.variant || '75'
-      const maxBalls = variant === '75' ? 75 : variant === '80' ? 80 : 90
-
-      // Verificar si ya se extrajeron todas las balotas
-      if (drawnBallsList.length >= maxBalls) {
-        console.log(`[BINGO_AUTO_DRAW] Mesa ${table.id}: Todas las balotas extraídas`)
-        continue
-      }
-
-      // 3. Invocar la RPC Segura del Servidor (Migración 098 - server_bingo_operation)
       const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('server_bingo_operation', {
         p_session_id: session.id,
+        p_operation: 'draw_ball',
       })
-
-      if (!rpcError && rpcData && rpcData.success) {
-        processedCount++
-        drawnBalls.push({
-          tableId: table.id,
-          sessionId: session.id,
-          ball: rpcData.ball,
-          variant: rpcData.variant || state.variant || '75',
-        })
-        console.log(`[BINGO_AUTO_DRAW] ✓ Mesa ${table.id}: Balota ${rpcData.ball} extraída con server_bingo_operation RPC (Migración 098)`)
-        continue
-      }
 
       if (rpcError) {
-        console.warn(`[BINGO_AUTO_DRAW] RPC server_bingo_operation no disponible (${rpcError.message}), ejecutando fallback seguro`)
-      }
-
-      // Fallback seguro: Generar balota aleatoria disponible
-      const availableBalls: number[] = []
-      for (let i = 1; i <= maxBalls; i++) {
-        if (!drawnBallsList.includes(i)) {
-          availableBalls.push(i)
-        }
-      }
-
-      if (availableBalls.length === 0) {
-        console.log(`[BINGO_AUTO_DRAW] Mesa ${table.id}: No hay balotas disponibles`)
-        continue
-      }
-
-      const randomIndex = Math.floor(Math.random() * availableBalls.length)
-      const newBall = availableBalls[randomIndex]
-
-      console.log(`[BINGO_AUTO_DRAW] Mesa ${table.id}: Extrayendo balota ${newBall} (${variant} bolas)`)
-
-      // 4. Actualizar estado de la sesión
-      const newDrawnBalls = [...drawnBallsList, newBall]
-      const newState: BingoState = {
-        ...state,
-        drawnBalls: newDrawnBalls,
-        currentBall: newBall,
-        status: 'DRAWING'
-      }
-
-      const { error: updateError } = await supabaseAdmin
-        .from('game_sessions')
-        .update({
-          current_state: newState,
-          updated_at: new Date().toISOString()
+        console.error(`[BINGO_AUTO_DRAW] Error en sesión ${session.id}:`, rpcError)
+      } else {
+        console.log(`[BINGO_AUTO_DRAW] ✓ Sesión ${session.id} balota extraída:`, rpcData)
+        results.push({
+          sessionId: session.id,
+          result: rpcData,
         })
-        .eq('id', session.id)
-
-      if (updateError) {
-        console.error(`[BINGO_AUTO_DRAW] Error actualizando mesa ${table.id}:`, updateError)
-        continue
       }
-
-      // 5. Registrar acción en game_actions para auditoría y Realtime
-      await supabaseAdmin
-        .from('game_actions')
-        .insert({
-          session_id: session.id,
-          user_id: '00000000-0000-0000-0000-000000000000', // System user
-          action_type: 'DRAW_BALL',
-          action_data: {
-            ball: newBall,
-            ball_number: newBall,
-            variant: variant,
-            totalDrawn: newDrawnBalls.length,
-            automated: true,
-            serverSide: true
-          },
-          is_valid: true,
-          created_at: new Date().toISOString()
-        })
-
-      processedCount++
-      drawnBalls.push({
-        tableId: table.id,
-        sessionId: session.id,
-        ball: newBall,
-        variant: variant
-      })
-
-      console.log(`[BINGO_AUTO_DRAW] ✓ Mesa ${table.id}: Balota ${newBall} extraída correctamente`)
     }
-
-    console.log(`[BINGO_AUTO_DRAW] Proceso completado: ${processedCount} mesas procesadas`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        processed: processedCount,
-        drawnBalls: drawnBalls,
-        timestamp: new Date().toISOString()
+        activeCount: activeSessions?.length || 0,
+        drawn: results,
       }),
-      { headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
     )
-
-  } catch (error: any) {
-    console.error('[BINGO_AUTO_DRAW] Error inesperado:', error)
+  } catch (err: any) {
+    console.error('[BINGO_AUTO_DRAW] Error inesperado:', err)
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...restrictedCorsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: err.message || 'Internal Server Error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

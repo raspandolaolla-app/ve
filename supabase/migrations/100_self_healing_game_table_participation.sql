@@ -605,6 +605,11 @@ EXECUTE FUNCTION public.tg_close_table_if_player_left();
 -- ------------------------------------------------------------------------------
 -- Reconciliación de create_game_table_secure con Auto-Limpieza Previa (Self-Healing)
 -- ------------------------------------------------------------------------------
+ALTER TABLE public.game_tables ADD COLUMN IF NOT EXISTS name VARCHAR(100);
+ALTER TABLE public.game_tables DROP CONSTRAINT IF EXISTS chk_game_tables_players_range;
+ALTER TABLE public.game_tables ADD CONSTRAINT chk_game_tables_players_range CHECK (max_players >= min_players AND min_players >= 1);
+UPDATE public.game_tables SET name = config->>'name' WHERE name IS NULL AND config ? 'name';
+
 CREATE OR REPLACE FUNCTION public.create_game_table_secure(
   p_game_type TEXT,
   p_name VARCHAR DEFAULT NULL,
@@ -766,7 +771,7 @@ BEGIN
   END IF;
 
   IF v_enum_game_type = 'BINGO'::game_type_enum THEN
-    v_min_players := 1;
+    v_min_players := CASE WHEN p_max_players = 1 THEN 1 ELSE 2 END;
   ELSIF p_max_players = 4 THEN
     v_min_players := 2;
   ELSE
@@ -795,7 +800,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 7. Inserción Atómica de la Mesa de Juego (Host siempre en seat 1)
+  -- 7. Inserción Atómica de la Mesa de Juego (Con columna name y config)
   INSERT INTO public.game_tables (
     id, host_user_id, game_type, name, visibility,
     status, entry_fee, min_players, max_players,
@@ -804,19 +809,11 @@ BEGIN
   ) VALUES (
     v_table_id, v_user_id, v_enum_game_type, v_table_name, p_visibility,
     'OPEN'::table_status_enum, p_entry_fee, v_min_players, p_max_players,
-    1, v_invite_code, p_config,
+    1, v_invite_code, COALESCE(p_config, '{}'::jsonb) || jsonb_build_object('name', v_table_name),
     NOW(), NOW(), v_expires_at
   );
 
-  -- 8. Inserción del Creador como Jugador (Asiento 1 garantizado)
-  v_player_id := gen_random_uuid();
-  INSERT INTO public.game_table_players (
-    id, table_id, user_id, seat_number, status, joined_at, updated_at
-  ) VALUES (
-    v_player_id, v_table_id, v_user_id, 1, 'JOINED'::player_table_status_enum, NOW(), NOW()
-  );
-
-  -- 9. Retención Segura de Fondos en Billetera (Entrada)
+  -- 8. Deducción Segura de Fondos en Billetera y Registro Canónico en Ledger
   IF p_entry_fee > 0 THEN
     UPDATE public.wallets
     SET available_balance = available_balance - p_entry_fee,
@@ -826,19 +823,51 @@ BEGIN
 
     v_ledger_id := gen_random_uuid();
     INSERT INTO public.ledger_entries (
-      id, user_id, wallet_id, amount, balance_after,
-      balance_available_after, balance_held_after,
-      idempotency_key, description, created_at
+      id,
+      wallet_id,
+      user_id,
+      entry_type,
+      direction,
+      amount,
+      balance_after,
+      balance_after_available,
+      balance_after_held,
+      reference_table,
+      reference_type,
+      reference_id,
+      idempotency_key,
+      description,
+      status,
+      currency,
+      actor_id
     ) VALUES (
-      v_ledger_id, v_user_id, v_wallet_id, -p_entry_fee,
-      (COALESCE(v_wallet_available, 0.00) + COALESCE(v_wallet_held, 0.00)),
+      v_ledger_id,
+      v_wallet_id,
+      v_user_id,
+      'TABLE_ENTRY_HOLD'::ledger_entry_type_enum,
+      'HOLD'::ledger_direction_enum,
+      p_entry_fee,
+      (COALESCE(v_wallet_available, 0.00) - p_entry_fee),
       (COALESCE(v_wallet_available, 0.00) - p_entry_fee),
       (COALESCE(v_wallet_held, 0.00) + p_entry_fee),
-      'create_table_fee_' || v_table_id::text || '_' || v_user_id::text,
+      'game_tables',
+      'game_tables',
+      v_table_id,
+      'HOLD_' || v_table_id::text || '_' || v_user_id::text,
       'Retención de entrada al crear la mesa ' || v_table_name,
-      NOW()
+      'COMPLETED',
+      'VES',
+      v_user_id
     );
   END IF;
+
+  -- 9. Inserción del Creador como Jugador (Asiento 1 garantizado)
+  v_player_id := gen_random_uuid();
+  INSERT INTO public.game_table_players (
+    id, table_id, user_id, seat_number, status, entry_held_entry_id, joined_at, updated_at
+  ) VALUES (
+    v_player_id, v_table_id, v_user_id, 1, 'JOINED'::player_table_status_enum, v_ledger_id, NOW(), NOW()
+  );
 
   RETURN jsonb_build_object(
     'success', true,

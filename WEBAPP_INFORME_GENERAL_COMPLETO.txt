@@ -2,14 +2,19 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 13:45:00 -07:00 (UTC 2026-09-02 20:45:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 14:23:00 -07:00 (UTC 2026-09-02 21:23:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 098_server_bingo_operation_rpc.sql (Migraciones 094 y 096 actualizadas con cron_job_secret, y 098 RPC segura server_bingo_operation)
+ÚLTIMA MIGRACIÓN INTEGRADA: 100_self_healing_game_table_participation.sql (Sistema integral de Self-Healing para participación en mesas, prevención y auto-desbloqueo de mesas huérfanas o jugadores residuales)
 ÚLTIMA MEJORA TÉCNICA / BACKEND:
-1) PASO 1 (Detención del bucle en Frontend): Eliminados los bucles `setInterval` / `useEffect` en `BingoBoard.tsx` y `BingoGame.tsx` que enviaban peticiones `DRAW_BALL` desde el cliente, deteniendo por completo el spam y los errores 404.
-2) PASO 2 (Oído Realtime en Frontend): Configurada la escucha reactiva pura en `GameContainer.tsx` y `BingoGame.tsx` para eventos `DRAW_BALL`, `AUTO_DRAW_BALL` y `SERVER_AUTO_DRAW` emitidos por el servidor en `game_actions` y `game_sessions`. El tablero actualiza balotas localmente de forma instantánea sin peticiones cliente a la base de datos.
-3) PASO 3 (Edge Function con RPC 098): Actualizada `bingo-auto-draw` (Edge Function Deno) para invocar de forma atómica y prioritaria la RPC segura `server_bingo_operation` (Migración 098) con clave de servicio restringida, garantizando la extracción criptográfica imparcial sin depender de los navegadores de los usuarios.
-MEJORA UI/UX RECIENTE: Indicador interactivo en tiempo real `📡 Sorteo Oficial en Vivo (Servidor)` con efecto de pulso luminoso en `BingoBoard.tsx`, impidiendo desincronizaciones de reloj entre jugadores y consolidando la experiencia Server-Authoritative.
+1) MIGRACIÓN 100 (Self-Healing de participación en mesas): Implementadas las funciones seguras `get_valid_enum_label`, `close_game_table`, `close_game_table_if_orphaned`, `cleanup_orphaned_game_tables`, `cleanup_stale_user_game_participation`, `force_leave_game_table` y `force_leave_all_game_tables`.
+2) Triggers reactivos automáticos:
+   - `trg_close_table_when_session_finished` en `game_sessions`: al pasar a `SETTLED`, `COMPLETED`, `FINISHED`, etc., marca de inmediato a los jugadores residuales como `LEFT` y cierra la mesa.
+   - `trg_close_table_if_player_left` en `game_table_players`: al marcarse `LEFT` un jugador, si la mesa queda huérfana (0 jugadores activos) se cierra automáticamente.
+3) Blindaje de `create_game_table_secure`: Integrada auto-limpieza preventiva `cleanup_stale_user_game_participation(v_user_id)` al inicio de la RPC para evitar bloqueos por desconexión previa o sesiones huérfanas.
+4) Frontend Self-Healing en `TableRepository` y `TablesView`:
+   - `TableRepository.createTable`: ante error de participación activa previa, reintenta automáticamente ejecutando `cleanup_stale_user_game_participation` y `force_leave_all_game_tables`.
+   - `TableRepository.leaveTable`: auto-cierra preventivamente mesas huérfanas al abandonar.
+   - UI de Creación de Mesas (`TablesView`): botón interactivo de un solo clic `⚡ Liberar mesas previas huérfanas y reintentar` para rescatar a usuarios bloqueados sin requerir soporte ni reinicio de base de datos.
 ================================================================================
 
 --------------------------------------------------------------------------------

@@ -48,7 +48,6 @@ import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { useGameMode } from '../../../hooks/useGameMode';
-import { useBingoAutoDraw } from '../hooks/useBingoAutoDraw';
 
 interface GameContainerProps {
   table: GameTable;
@@ -90,15 +89,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
+  const bingoIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { enterGameMode, exitGameMode } = useGameMode();
-
-  // 🎱 Server-Authoritative Bingo: Mensajero frontend cada 4s protegido por Rate Limiting DB
-  useBingoAutoDraw(
-    session?.id,
-    table.gameType,
-    (gameState as any)?.status,
-    currentUserId
-  );
 
   // Activar modo juego y pantalla completa al montar
   useEffect(() => {
@@ -655,6 +647,78 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, [session?.id, currentUserId, engine, currentPlayers, table]);
 
+  // ==============================================================================
+  // INTERVALO DE SORTEO AUTOMÁTICO DE BINGO (RPC server_bingo_operation)
+  // ==============================================================================
+  useEffect(() => {
+    const sessionId = session?.id;
+    const gameType = table.gameType;
+
+    // 1. Para el Bingo, solo necesitamos que exista la sesión y que el juego sea bingo.
+    // No importa si está en "SALES", "playing" o "IN_PROGRESS".
+    if (gameType !== 'bingo' || !sessionId) {
+      if (bingoIntervalRef.current) {
+        clearInterval(bingoIntervalRef.current);
+        bingoIntervalRef.current = null;
+      }
+      return;
+    }
+
+    console.log('🎱 [BINGO] Iniciando intervalo de sorteo automático cada 4 segundos...');
+
+    const supabase = getSupabaseClient();
+
+    // 2. Configurar el intervalo
+    bingoIntervalRef.current = setInterval(async () => {
+      try {
+        if (!supabase) return;
+        const { data, error } = await supabase.rpc('server_bingo_operation', {
+          p_operation: 'draw_ball',
+          p_session_id: sessionId,
+          p_user_id: currentUserId || null,
+        });
+
+        if (error) {
+          // ✅ IGNORAR SILENCIOSAMENTE "TOO_FAST" (es comportamiento normal)
+          if (error.message?.includes('TOO_FAST')) {
+            return;
+          }
+
+          // ✅ DETENER EL INTERVALO SI EL JUEGO YA TERMINÓ
+          if (
+            error.message?.includes('BINGO_COMPLETE') ||
+            error.message?.includes('SESSION_NOT_ACTIVE') ||
+            error.message?.includes('GAME_ALREADY_FINISHED')
+          ) {
+            console.log('🏁 [BINGO] Sorteo finalizado o sesión inactiva.');
+            if (bingoIntervalRef.current) {
+              clearInterval(bingoIntervalRef.current);
+              bingoIntervalRef.current = null;
+            }
+            return;
+          }
+
+          // Loguear solo errores reales (ej. sin permisos, columna no existe)
+          console.error('[BINGO_DRAW_ERROR]', error);
+        } else if (data?.success) {
+          console.log(`🎱 Servidor cantó la bola: ${data.ball_number || data.ball} (Restantes: ${data.remaining_balls})`);
+          // Nota: El Realtime se encargará de actualizar la UI, no necesitas hacerlo manualmente aquí.
+        }
+      } catch (err) {
+        console.error('[BINGO_INTERVAL_CRASH]', err);
+      }
+    }, 4000); // Intenta cada 4000ms (4 segundos)
+
+    // 3. Limpieza al desmontar el componente
+    return () => {
+      if (bingoIntervalRef.current) {
+        console.log('🛑 [BINGO] Deteniendo intervalo de sorteo.');
+        clearInterval(bingoIntervalRef.current);
+        bingoIntervalRef.current = null;
+      }
+    };
+  }, [session?.id, table.gameType, currentUserId]);
+
   // Suscripción Realtime para detectar cuando el anfitrión crea/inicia la sesión en la mesa
   useEffect(() => {
     if (session?.id) return;
@@ -782,17 +846,26 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       const finalActionData = { ...actionData };
 
-      // En Bingo Server-Authoritative: El cliente NUNCA canta balotas directamente (100% Edge Function / Cron)
-      if (table.gameType === 'bingo' && (actionType === 'DRAW_BALL' || actionType === 'AUTO_DRAW_BALL' || actionType === 'SERVER_AUTO_DRAW')) {
-        console.log('[BINGO_AUTHORITATIVE] Acción DRAW_BALL ignorada en cliente: Las balotas son cantadas exclusivamente por el servidor en segundo plano.');
-        return;
-      }
-
       // Si la acción requiere aleatoriedad (RNG), obtener resultado autoritativo de Supabase con pgcrypto
       if (actionType === 'ROLL_DICE' && !finalActionData.diceValue) {
         const rngRes = await RngService.rollDiceSecure(session.id);
         if (rngRes.success) {
           finalActionData.diceValue = rngRes.diceValue;
+          finalActionData.rngEventId = rngRes.eventId;
+          finalActionData.commitmentHash = rngRes.commitmentHash;
+        }
+      } else if (actionType === 'DRAW_BALL' && !finalActionData.ball) {
+        // En Bingo Server-Authoritative: si la partida ya está en juego, el cliente es solo observador
+        if (table.gameType === 'bingo') {
+          const currentStatus = (gameState as any)?.status;
+          if (currentStatus === 'PLAYING' || currentStatus === 'finished') {
+            console.log('[BINGO] Sorteo server-authoritative activo: la extracción la gestiona el servidor en segundo plano.');
+            return;
+          }
+        }
+        const rngRes = await RngService.drawBingoBallSecure(session.id);
+        if (rngRes.success && rngRes.ball) {
+          finalActionData.ball = rngRes.ball;
           finalActionData.rngEventId = rngRes.eventId;
           finalActionData.commitmentHash = rngRes.commitmentHash;
         }
@@ -1107,7 +1180,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             currentUserId={currentUserId}
             onMarkNumber={(row, col) => handleGameAction('MARK_NUMBER', { row, col })}
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
-            onStartDraw={() => handleGameAction('CLOSE_SALES', {})}
+            onDrawBall={() => handleGameAction('DRAW_BALL', {})}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
           />
         );

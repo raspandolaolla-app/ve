@@ -48,6 +48,7 @@ import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { useGameMode } from '../../../hooks/useGameMode';
+import { useBingoAutoDraw } from '../hooks/useBingoAutoDraw';
 
 interface GameContainerProps {
   table: GameTable;
@@ -90,6 +91,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
   const { enterGameMode, exitGameMode } = useGameMode();
+
+  // 🎱 Server-Authoritative Bingo: Mensajero frontend cada 4s protegido por Rate Limiting DB
+  useBingoAutoDraw(
+    session?.id,
+    table.gameType,
+    (gameState as any)?.status,
+    currentUserId
+  );
 
   // Activar modo juego y pantalla completa al montar
   useEffect(() => {
@@ -773,26 +782,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       const finalActionData = { ...actionData };
 
+      // En Bingo Server-Authoritative: El cliente NUNCA canta balotas directamente (100% Edge Function / Cron)
+      if (table.gameType === 'bingo' && (actionType === 'DRAW_BALL' || actionType === 'AUTO_DRAW_BALL' || actionType === 'SERVER_AUTO_DRAW')) {
+        console.log('[BINGO_AUTHORITATIVE] Acción DRAW_BALL ignorada en cliente: Las balotas son cantadas exclusivamente por el servidor en segundo plano.');
+        return;
+      }
+
       // Si la acción requiere aleatoriedad (RNG), obtener resultado autoritativo de Supabase con pgcrypto
       if (actionType === 'ROLL_DICE' && !finalActionData.diceValue) {
         const rngRes = await RngService.rollDiceSecure(session.id);
         if (rngRes.success) {
           finalActionData.diceValue = rngRes.diceValue;
-          finalActionData.rngEventId = rngRes.eventId;
-          finalActionData.commitmentHash = rngRes.commitmentHash;
-        }
-      } else if (actionType === 'DRAW_BALL' && !finalActionData.ball) {
-        // En Bingo Server-Authoritative: si la partida ya está en juego, el cliente es solo observador
-        if (table.gameType === 'bingo') {
-          const currentStatus = (gameState as any)?.status;
-          if (currentStatus === 'PLAYING' || currentStatus === 'finished') {
-            console.log('[BINGO] Sorteo server-authoritative activo: la extracción la gestiona el servidor en segundo plano.');
-            return;
-          }
-        }
-        const rngRes = await RngService.drawBingoBallSecure(session.id);
-        if (rngRes.success && rngRes.ball) {
-          finalActionData.ball = rngRes.ball;
           finalActionData.rngEventId = rngRes.eventId;
           finalActionData.commitmentHash = rngRes.commitmentHash;
         }
@@ -1107,7 +1107,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             currentUserId={currentUserId}
             onMarkNumber={(row, col) => handleGameAction('MARK_NUMBER', { row, col })}
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
-            onDrawBall={() => handleGameAction('DRAW_BALL', {})}
+            onStartDraw={() => handleGameAction('CLOSE_SALES', {})}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
           />
         );

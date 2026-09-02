@@ -96,6 +96,26 @@ export function useGameEngine({
     initSession();
   }, [initSession]);
 
+  // Sincronización proactiva al volver a enfocar la pestaña o reconectar red
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        initSession();
+      }
+    };
+    const handleOnline = () => {
+      initSession();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [initSession]);
+
   // 2. Suscribirse a Realtime
   useEffect(() => {
     if (!session?.id) return;
@@ -121,6 +141,11 @@ export function useGameEngine({
         if (actionPayload.new) {
           const action = actionPayload.new;
           seqNumRef.current = Math.max(seqNumRef.current, (action.sequence_number || 0) + 1);
+
+          // Si un turno expiró o se ejecutó movimiento de bot, recargar estado actualizado
+          if (action.action_type === 'TURN_EXPIRED' || action.action_type === 'BOT_MOVE') {
+            initSession();
+          }
         }
       }
     );
@@ -128,7 +153,7 @@ export function useGameEngine({
     return () => {
       unsubscribe();
     };
-  }, [session?.id]);
+  }, [session?.id, initSession]);
 
   // 3. Finalizar y Liquidar la partida (90% ganador / 10% tesorería o 100% reembolso en empate)
   const settleGame = useCallback(

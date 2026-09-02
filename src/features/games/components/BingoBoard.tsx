@@ -22,6 +22,7 @@ interface BingoBoardProps {
   onMarkNumber: (row: number, col: number) => void;
   onClaimBingo: () => void;
   onDrawBall?: () => void;
+  onStartDraw?: () => void;
   onBuyCards?: (count: number) => void;
   isSalesClosed?: boolean;
   countdownSeconds?: number;
@@ -119,7 +120,7 @@ const formatBs = (n: number): string => {
 };
 
 export const BingoBoard: React.FC<BingoBoardProps> = ({
-  state, currentUserId, onMarkNumber, onClaimBingo, onDrawBall, onBuyCards,
+  state, currentUserId, onMarkNumber, onClaimBingo, onDrawBall, onStartDraw, onBuyCards,
   isSalesClosed, countdownSeconds, bcvRate, isMuted, onToggleMute,
 }) => {
   const s: any = state || {};
@@ -469,8 +470,8 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                 )}
               </div>
               <div className="flex gap-1.5 mt-2">
-                {salesOpen && isHost && onDrawBall && (
-                  <button type="button" onClick={onDrawBall}
+                {salesOpen && isHost && (onStartDraw || onDrawBall) && (
+                  <button type="button" onClick={onStartDraw || onDrawBall}
                     className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
                     style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
                     <Dices className="w-3.5 h-3.5" /> 🚀 Iniciar Sorteo

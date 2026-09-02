@@ -948,7 +948,7 @@ export class TableRepository {
       mode: payload.mode || (payload.maxPlayers === 4 ? '2v2' : '1v1'),
       entryFee: Number(rpcData.entry_fee ?? payload.entryFee),
       currency: 'VES',
-      minPlayers: payload.maxPlayers === 4 ? 2 : payload.maxPlayers,
+      minPlayers: Number(rpcData.min_players ?? (payload.maxPlayers === 4 ? 2 : payload.maxPlayers)),
       maxPlayers: payload.maxPlayers,
       currentPlayersCount: 1,
       status: 'OPEN',

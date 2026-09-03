@@ -51,9 +51,13 @@ import {
 } from 'lucide-react';
 import { MediaBanner } from '../../components/common/MediaBanner';
 import { AdPlacementContainer } from '../../components/advertising/AdPlacementContainer';
+import { useWallet } from '../../context/WalletContext';
+import { CreateBingoTableForm, type CreateBingoTableParams } from './components/CreateBingoTableForm';
 
 export function TablesView() {
   const { state, user, profile, isSigningIn, signInWithGoogle } = useAuth();
+  const { balance } = useWallet();
+  const userBalance = balance?.availableBalance ?? 0;
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameType | 'all'>('all');
   const [publicTables, setPublicTables] = useState<GameTable[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -551,6 +555,44 @@ export function TablesView() {
     }
   };
 
+  const handleCreateBingoTable = async (params: CreateBingoTableParams) => {
+    if (!isAuthenticated) {
+      setCreateError('Debes iniciar sesión para crear una mesa de Bingo con saldo real.');
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const newTable = await TableRepository.createTable({
+        gameType: 'bingo',
+        gameVariant: params.gameVariant,
+        name: `Bingo ${params.gameVariant} Bolas`,
+        mode: '1v1',
+        entryFee: params.entryFee,
+        maxPlayers: params.maxPlayers,
+        isPrivate: params.isPrivate,
+        config: {
+          gameVariant: params.gameVariant,
+          variant: params.gameVariant,
+          automated: true,
+          callIntervalMs: 4000,
+        },
+      });
+
+      if (newTable) {
+        setShowCreateModal(false);
+        setActiveTable(newTable);
+        loadPublicTables();
+      } else {
+        setCreateError('No fue posible crear la mesa de Bingo.');
+      }
+    } catch (err: any) {
+      setCreateError(sanitizeUserErrorMessage(err, 'No fue posible crear la mesa de Bingo. Inténtalo nuevamente.'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const visiblePublicTables = publicTables.filter((table) => {
     if (recentlyClosedTableIds.current.has(table.id)) return false;
     if (!TableRepository.isTableAvailable(table)) return false;
@@ -643,6 +685,9 @@ export function TablesView() {
               size="sm"
               onClick={() => {
                 setCreateIsPractice(false);
+                if (selectedGameFilter !== 'all') {
+                  setCreateGameType(selectedGameFilter);
+                }
                 setShowCreateModal(true);
               }}
               leftIcon={<PlusCircle className="w-4 h-4" />}
@@ -1241,44 +1286,59 @@ export function TablesView() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateTableSubmit} className="space-y-6">
-              
-              {/* Selección de Juego (MEJORADA) */}
-              <div>
-                <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
-                  <span className="text-2xl">🎮</span>
-                  Seleccionar Juego
-                </label>
-                <select
-                  value={createGameType}
-                  onChange={(e) => {
-                    const g = e.target.value as GameType;
-                    setCreateGameType(g);
-                    const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === g);
-                    if (meta) {
-                      if (!createIsPractice) {
-                        setCreateEntryFee(meta.minEntryFee);
-                      }
-                      setCreateMaxPlayers(meta.maxPlayers);
-                      setCreateMode(meta.allowedModes[0]);
+            {/* Selección de Juego */}
+            <div>
+              <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
+                <span className="text-2xl">🎮</span>
+                Seleccionar Juego
+              </label>
+              <select
+                value={createGameType}
+                onChange={(e) => {
+                  const g = e.target.value as GameType;
+                  setCreateGameType(g);
+                  const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === g);
+                  if (meta) {
+                    if (!createIsPractice) {
+                      setCreateEntryFee(meta.minEntryFee);
                     }
-                  }}
-                  className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-2xl text-slate-100 text-base font-semibold focus:outline-none focus:border-amber-500 transition-colors"
-                >
-                  {SUPPORTED_GAMES_METADATA.map((game) => (
-                    <option key={game.id} value={game.id} className="py-2">
-                      {game.name} ({game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    setCreateMaxPlayers(meta.maxPlayers);
+                    setCreateMode(meta.allowedModes[0]);
+                  }
+                }}
+                className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-2xl text-slate-100 text-base font-semibold focus:outline-none focus:border-amber-500 transition-colors"
+              >
+                {SUPPORTED_GAMES_METADATA.map((game) => (
+                  <option key={game.id} value={game.id} className="py-2">
+                    {game.name} ({game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Selector de Jugadores (MEJORADO) */}
-              <div>
-                <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
-                  <span className="text-2xl">👥</span>
-                  Jugadores y Modalidad
-                </label>
+            {createGameType === 'bingo' && !createIsPractice ? (
+              <div className="pt-2">
+                {createError && (
+                  <div className="mb-4 p-4 bg-gradient-to-br from-red-950/40 to-red-900/30 border-2 border-red-500/50 rounded-2xl text-sm text-red-300 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <span className="font-semibold">{createError}</span>
+                  </div>
+                )}
+                <CreateBingoTableForm
+                  onCreateTable={handleCreateBingoTable}
+                  userBalance={userBalance}
+                  isSubmitting={creating}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              </div>
+            ) : (
+              <form onSubmit={handleCreateTableSubmit} className="space-y-6">
+                {/* Selector de Jugadores (MEJORADO) */}
+                <div>
+                  <label className="block font-black text-slate-100 text-lg mb-3 flex items-center gap-2">
+                    <span className="text-2xl">👥</span>
+                    Jugadores y Modalidad
+                  </label>
                 {(() => {
                   const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === createGameType);
                   if (!meta) return null;
@@ -1585,6 +1645,7 @@ export function TablesView() {
                 </Button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
@@ -1729,3 +1790,5 @@ export function TablesView() {
     </div>
   );
 }
+
+export { CreateBingoTableForm } from './components/CreateBingoTableForm';

@@ -22,7 +22,12 @@ interface BingoGameProps {
 }
 
 export function BingoGame({ table, players, currentUserId = '', onLeave }: BingoGameProps) {
-  const variant: BingoVariant = (table.config?.variant as BingoVariant) || '75';
+  const variant: BingoVariant = 
+    (table.gameVariant as BingoVariant) ||
+    (table.config?.gameVariant as BingoVariant) || 
+    (table.config?.variant as BingoVariant) || 
+    ((table as any).game_variant as BingoVariant) || 
+    '90';
   const totalBalls = variant === '90' ? 90 : variant === '80' ? 80 : 75;
 
   const [bcvRate, setBcvRate] = useState<number>(50);

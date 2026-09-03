@@ -2,11 +2,33 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 19:51:00 -07:00 (UTC 2026-09-03 02:51:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 20:14:00 -07:00 (UTC 2026-09-03 03:14:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 103_fix_server_bingo_operation_overload.sql (RPC canónico server_bingo_operation con rate limiting y eliminación de sobrecargas PGRST203)
+ÚLTIMA MIGRACIÓN INTEGRADA: 110_add_game_variant_column_to_game_tables.sql (Columna game_variant en game_tables y game_sessions, soporte de variantes 75/90 en create_game_table_secure)
 ÚLTIMAS MEJORAS TÉCNICAS Y SISTEMAS INTEGRADOS:
-1) MODERNIZACIÓN INTEGRAL DEL MOTOR DE AUDIO Y LIMPIEZA DE ASSETS ESTÁTICOS:
+1) FORMULARIO ULTRA COMPACTO DE CREACIÓN DE MESAS DE BINGO (`CreateBingoTableForm.tsx`):
+   - Nuevo componente visual ultra-compacto, sin scroll innecesario y de alta velocidad operativa.
+   - Selector visual de variante:
+     * 75 Bolas: 2 Ganadores (Línea + Bingo completo), tarjeta azul destacada con badge explicativo.
+     * 90 Bolas: 1 Ganador (Cartón Lleno / Tradicional), tarjeta morada destacada.
+   - Campo prominente de Costo por Cartón con tipografía de alto impacto, formato numérico claro y sufijo BS.
+   - Selector de Capacidad de Jugadores rápida (2, 4, 6, 8 e Ilimitado / 99 jugadores para eventos masivos).
+   - Botón de acción con gradiente esmeralda, feedback reactivo e indicador dinámico ("CREAR MESA (X Bolas)").
+   - Visualización directa del saldo disponible del jugador en tiempo real en Bolívares.
+   - Opción de mesa privada mediante código ("Trancaíto").
+2) INTEGRACIÓN EN `TablesView.tsx` Y FLUJO DE CREACIÓN DE MESAS:
+   - Detección automática al seleccionar Bingo en el selector de juegos o al abrir el modal desde el filtro de Bingo.
+   - Sustitución del formulario genérico extenso por el nuevo formulario visual ultra-compacto.
+   - Handler `handleCreateBingoTable` conectado a `TableRepository.createTable`.
+   - Inyección de `gameVariant` tanto en el payload de creación como en la configuración (`p_config.gameVariant` y `p_config.variant`).
+3) MIGRACIÓN DE BASE DE DATOS Y PERSISTENCIA DE VARIANTES (MIGRACIÓN 110):
+   - Columnas `game_variant TEXT DEFAULT '90'` agregadas a `public.game_tables` y `public.game_sessions`.
+   - Actualización de la función RPC `public.create_game_table_secure` para extraer y persistir `game_variant` automáticamente desde `p_config`.
+   - Compatibilidad retroactiva con índices dedicados `idx_game_tables_variant` e `idx_game_sessions_variant`.
+4) MOTOR DE BINGO (`BingoGame.tsx`):
+   - Detección precisa de variante (`table.gameVariant || table.config?.gameVariant || table.config?.variant || '90'`).
+   - Sincronización con el tablero de balotas (75 vs 90) y reglas de premiación asociadas.
+5) MODERNIZACIÓN INTEGRAL DEL MOTOR DE AUDIO Y LIMPIEZA DE ASSETS ESTÁTICOS:
    - Depuración y eliminación completa de más de 100 archivos binarios pesados `.mp3` redundantes de `public/bingo-audio/`.
    - Implementación de motor de voz inteligente nativo vía Web Speech API (`SpeechSynthesis`) con configuración lingüística en español (`es-ES`/`es-LA`) para el cantado en tiempo real de balotas ("B... 12", "I... 24", "Balota 45") con pitch y velocidad óptimos.
    - Detección reactiva no bloqueante mediante sondeo (`HEAD`) en `bingoAudio.ts` para evitar inundación de errores 404 en consola y conmutación instantánea a síntesis de voz y oscilador web.

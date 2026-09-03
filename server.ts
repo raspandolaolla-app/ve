@@ -4,12 +4,20 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import pg from "pg";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 // Cargar variables de entorno
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Configurar cliente administrativo de Supabase si existen credenciales
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+export const supabaseAdmin = (supabaseUrl && supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
 
 // Configurar pool de conexión a PostgreSQL
 let connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
@@ -116,112 +124,81 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Función del Motor de Sorteo Automatizado del Servidor (Cron / Intervalo de Base de Datos)
-async function runAutomatedBingoDraws() {
-  if (!pool || drawWorkerDisabled || isRunningDraws) return;
-  isRunningDraws = true;
+// Función del Motor de Sorteo y Cuenta Regresiva de Bingo (Daemon)
+const runAutomatedBingoDraws = () => {
+  setInterval(async () => {
+    try {
+      if (supabaseAdmin) {
+        // 1. PRIMERO: Verificar si alguna mesa debe iniciar cuenta regresiva
+        await supabaseAdmin.rpc('check_and_start_bingo_countdown');
 
-  let client: pg.PoolClient | null = null;
-  try {
-    client = await pool.connect();
-    
-    // 1. INICIAR MESA AUTOMÁTICA EN COUNTDOWN
-    // Busca mesas en READY/OPEN con cronogramas cumplidos para activarlas
-    const readyQuery = `
-      SELECT gt.id as table_id, gs.id as session_id, gt.config
-      FROM public.game_tables gt
-      JOIN public.game_sessions gs ON gs.table_id = gt.id
-      WHERE gt.game_type::text = 'BINGO'
-        AND gt.status::text IN ('OPEN', 'STARTING')
-        AND gs.status::text IN ('WAITING', 'READY', 'STARTING')
-        AND (gt.config->>'automated')::boolean IS TRUE
-        AND (gt.config->>'scheduled_start_at') IS NOT NULL
-        AND (gt.config->>'scheduled_start_at')::timestamptz <= NOW()
-      LIMIT 5;
-    `;
-    const readyRes = await client.query(readyQuery);
-    
-    for (const row of readyRes.rows) {
-      console.log(`[BINGO_SERVER] [BINGO] Mesa ${row.table_id} lista para iniciar. Activando mesa y sesión...`);
-      await client.query(
-        `UPDATE public.game_tables SET status = 'ACTIVE'::public.table_status_enum, updated_at = NOW() WHERE id = $1;`,
-        [row.table_id]
-      );
-      await client.query(
-        `UPDATE public.game_sessions SET status = 'ACTIVE'::public.session_status_enum, updated_at = NOW() WHERE id = $1;`,
-        [row.session_id]
-      );
-    }
+        // 2. Buscar sesiones con cuenta regresiva activa
+        const { data: sessions, error } = await supabaseAdmin
+          .from('game_sessions')
+          .select('id, countdown_ends_at, status')
+          .eq('game_type', 'bingo')
+          .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING'])
+          .not('countdown_ends_at', 'is', null);
 
-    // 2. EXTRAER SIGUIENTES BALOTAS DE SESIONES ACTIVAS DE BINGO (SERVER-AUTHORITATIVE)
-    // Invoca directamente la RPC canónica server_bingo_operation('draw_ball', session_id)
-    const activeQuery = `
-      SELECT gs.id as session_id, gt.id as table_id, gt.config, gs.updated_at
-      FROM public.game_sessions gs
-      JOIN public.game_tables gt ON gt.id = gs.table_id
-      WHERE gs.status::text IN ('ACTIVE', 'DRAWING', 'PLAYING')
-        AND gt.game_type::text = 'BINGO'
-        AND (gt.config->>'automated')::boolean IS TRUE
-        AND (gs.current_state->>'winnerUserId') IS NULL
-        AND COALESCE(gs.current_state->>'status', '') != 'finished'
-        AND (gs.updated_at IS NULL OR gs.updated_at <= NOW() - (COALESCE(gt.config->>'call_interval_ms', '3500')::text || ' milliseconds')::interval)
-      LIMIT 5;
-    `;
-    const activeRes = await client.query(activeQuery);
-    
-    for (const row of activeRes.rows) {
-      try {
-        const drawQuery = `SELECT public.server_bingo_operation('draw_ball', $1) as result;`;
-        const drawRes = await client.query(drawQuery, [row.session_id]);
-        const resultObj = drawRes.rows[0]?.result;
-        
-        if (resultObj && resultObj.success) {
-          console.log(`[BINGO_SERVER] [BINGO_DRAW] Balota extraída para sesión ${row.session_id}: ${resultObj.ball || resultObj.ball_number}`);
-          if (resultObj.has_winner || resultObj.winner_user_id) {
-            console.log(`[BINGO_SERVER] [BINGO_WINNER] ¡Ganador detectado en sesión ${row.session_id}! Ganador: ${resultObj.winner_user_id}`);
+        if (!error && sessions) {
+          // 3. Para cada sesión, intentar revelar la siguiente bola
+          for (const session of sessions) {
+            const countdownEndsAt = new Date(session.countdown_ends_at);
+            const now = new Date();
+            
+            // Solo revelar bolas si la cuenta regresiva terminó
+            if (countdownEndsAt <= now) {
+              const { data, error: rpcError } = await supabaseAdmin.rpc('reveal_next_bingo_ball', {
+                p_session_id: session.id
+              });
+              
+              if (rpcError && !rpcError.message.includes('TOO_FAST') && !rpcError.message.includes('BINGO_COMPLETE')) {
+                console.error(`[BINGO_SERVER] Error en sesión ${session.id}:`, rpcError.message);
+              }
+            }
           }
         }
-      } catch (drawErr: any) {
-        const errMsg = drawErr?.message || String(drawErr);
-        if (errMsg.includes('TOO_FAST')) {
-          // Intervalo normal de rate-limiting (4s), ignorar silenciosamente
-        } else if (errMsg.includes('BINGO_COMPLETE') || errMsg.includes('SESSION_NOT_ACTIVE') || errMsg.includes('GAME_ALREADY_FINISHED')) {
-          console.log(`[BINGO_SERVER] Sorteo finalizado o sesión inactiva para ${row.session_id} (${errMsg}).`);
-        } else {
-          console.warn(`[BINGO_SERVER] [BINGO_DRAW_WARN] Aviso en sorteo para sesión ${row.session_id}:`, errMsg);
+      } else if (pool && !drawWorkerDisabled) {
+        // Modo directo vía pool de PostgreSQL si supabaseAdmin no está configurado
+        let client: pg.PoolClient | null = null;
+        try {
+          client = await pool.connect();
+          await client.query('SELECT public.check_and_start_bingo_countdown();');
+          const res = await client.query(`
+            SELECT id, countdown_ends_at, status
+            FROM public.game_sessions
+            WHERE LOWER(game_type::text) = 'bingo'
+              AND status::text IN ('WAITING', 'READY', 'SALES', 'DRAWING', 'waiting', 'ready', 'sales', 'drawing')
+              AND countdown_ends_at IS NOT NULL
+              AND countdown_ends_at <= NOW()
+            LIMIT 5;
+          `);
+          for (const row of res.rows) {
+            try {
+              await client.query('SELECT public.reveal_next_bingo_ball($1);', [row.id]);
+            } catch (drawErr: any) {
+              const msg = drawErr?.message || String(drawErr);
+              if (!msg.includes('TOO_FAST') && !msg.includes('BINGO_COMPLETE')) {
+                console.warn(`[BINGO_SERVER] Error en sesión ${row.id}:`, msg);
+              }
+            }
+          }
+        } finally {
+          if (client) {
+            try { client.release(); } catch {}
+          }
         }
       }
+    } catch (err) {
+      console.error('[BINGO_SERVER] Error en daemon de bingo:', err);
     }
-  } catch (err: any) {
-    const msg = err?.message || String(err);
-    if (
-      msg.includes("password authentication failed") ||
-      msg.includes("ECONNREFUSED") ||
-      msg.includes("auth") ||
-      msg.includes("certificate") ||
-      msg.includes("self-signed")
-    ) {
-      if (!authErrorLogged) {
-        authErrorLogged = true;
-        console.warn(`[BINGO_SERVER] Conexión PostgreSQL no disponible (${msg}). El daemon en segundo plano se suspende.`);
-      }
-      drawWorkerDisabled = true;
-    } else {
-      console.error("[BINGO_SERVER] [BINGO_ERROR] Error en el bucle del motor de sorteo:", msg);
-    }
-  } finally {
-    if (client) {
-      try {
-        client.release();
-      } catch (releaseErr) {
-        // Ignorar errores al liberar si el cliente ya fue desconectado
-      }
-    }
-    isRunningDraws = false;
-  }
-}
+  }, 2000); // Ejecutar cada 2 segundos
+};
 
-// Registrar motor de sorteo de Bingo y motor de expiración de turnos
+// Iniciar el daemon de Bingo
+runAutomatedBingoDraws();
+
+// Registrar motor de expiración de turnos
 let isRunningTurns = false;
 
 async function runAutomatedTurnExpirations() {
@@ -245,14 +222,8 @@ async function runAutomatedTurnExpirations() {
   }
 }
 
-// Registrar workers en segundo plano
+// Registrar worker de turnos
 if (pool) {
-  setInterval(() => {
-    runAutomatedBingoDraws().catch((err) => {
-      console.warn("[BINGO_SERVER] Excepción no capturada en worker Bingo:", err?.message || err);
-    });
-  }, 2000);
-
   setInterval(() => {
     runAutomatedTurnExpirations().catch((err) => {
       console.warn("[GAME_SERVER] Excepción no capturada en worker Turnos:", err?.message || err);

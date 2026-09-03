@@ -2,17 +2,35 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 21:30:00 -07:00 (UTC 2026-09-03 04:30:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 21:55:00 -07:00 (UTC 2026-09-03 04:55:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 111_bingo_fairness_lock_purchases_when_drawing.sql (Candados de Justicia y Fairness en Bingo: Bloqueo absoluto de compra de cartones una vez iniciado el sorteo)
-ÚLTIMAS MEJORAS TÉCNICAS, RESTAURACIONES Y CORRECCIONES DE UI/UX:
-1) CORRECCIÓN DE CONTRASTE Y TIPOGRAFÍA EN CABECERA DE BINGO LOBBY (`BingoLobbySection.tsx`):
+ÚLTIMA MIGRACIÓN INTEGRADA: 112_bingo_strict_countdown_and_draw.sql (Sistema de Cuenta Regresiva con Validaciones Estrictas: Mínimo 2 cartones comprados, 2 jugadores únicos y cuenta regresiva obligatoria de 2 minutos antes del sorteo)
+ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+1) SISTEMA DE CUENTA REGRESIVA CON VALIDACIONES ESTRICTAS (MIGRACIÓN 112 Y DAEMON):
+   - 🔒 Migración SQL `112_bingo_strict_countdown_and_draw.sql`:
+     * Agregado de columna `countdown_ends_at TIMESTAMPTZ` a la tabla `public.game_sessions`.
+     * Función `check_and_start_bingo_countdown()`: Realiza un barrido de sesiones en estado `WAITING`, `READY` o `SALES` sin cuenta regresiva previa. Valida de manera estricta que existan al menos 2 cartones comprados (`v_cards_count >= 2`) y al menos 2 jugadores únicos distintos (`v_unique_players >= 2`). Únicamente al cumplirse ambas condiciones simultáneamente, activa la cuenta regresiva de 2 minutos (`countdown_ends_at = NOW() + INTERVAL '2 minutes'`).
+     * Función `reveal_next_bingo_ball(p_session_id UUID)`: Candado crítico de arranque. Si el estado aún no es `DRAWING`, valida que `countdown_ends_at` esté presente y haya expirado (`countdown_ends_at <= NOW()`). Si la cuenta no ha finalizado, rechaza la operación con `COUNTDOWN_NOT_FINISHED` indicando los segundos restantes. Al cumplirse el tiempo, transiciona la sesión a `DRAWING` y la mesa a `ACTIVE` (bloqueando de forma automática compras posteriores).
+     * Otorga permisos de ejecución a los roles `authenticated`, `service_role` y `anon`.
+   - ⚙️ Daemon Automatizado en Servidor (`server.ts`):
+     * Inicialización del cliente `supabaseAdmin` utilizando `@supabase/supabase-js`.
+     * Bucle de alta precisión en `runAutomatedBingoDraws()` ejecutado cada 2 segundos.
+     * En cada iteración:
+       1. Invoca `check_and_start_bingo_countdown` para evaluar y activar cronómetros en salas elegibles.
+       2. Consulta las sesiones activas con `countdown_ends_at IS NOT NULL`.
+       3. Evalúa si `countdown_ends_at <= now` antes de invocar `reveal_next_bingo_ball`.
+       4. Incluye fallback automático vía pool directo de PostgreSQL (`pg.Pool`) en caso de ejecución con credenciales directas a base de datos.
+2) SECCIÓN DE CRONÓMETROS EN EL LOBBY (`BingoLobbySection.tsx`):
+   - Integración de estado reactivo `countdownSessions` sincronizado en tiempo real mediante Supabase Channel (`bingo_countdowns_and_tables`).
+   - Componente `CountdownTimer` con actualización segundo a segundo, visualización de tiempo restante `MM:SS` (o `¡INICIANDO!`), costo de entrada en Bs, conteo de jugadores únicos, total de cartones vendidos y botón de acción inmediata `¡Unirse Ahora!`.
+   - Sección visual destacada `⏱️ Sorteos Iniciando Pronto` ubicada estratégicamente antes del grid de mesas regulares, con contenedor temático ámbar/púrpura, badge numérico y soporte adaptable a cualquier tamaño de pantalla.
+3) CORRECCIÓN DE CONTRASTE Y TIPOGRAFÍA EN CABECERA DE BINGO LOBBY (`BingoLobbySection.tsx`):
    - Corrección del título "🎱 Mesas de Bingo Disponibles EN VIVO":
      * Se reemplazó la clase dependiente de modo claro `text-gray-900` por `text-white font-black text-xl sm:text-2xl tracking-wide uppercase`, garantizando máxima legibilidad y nitidez sobre el fondo oscuro del Lobby (`#0B0F17`).
      * Subtítulo explicativo agregado en `text-slate-400`: "Partidas en tiempo real de 75 y 90 bolas con pozos acumulados en bolívares".
      * Badge `EN VIVO` rediseñado con contenedor translúcido esmeralda (`bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black`) con punto pulsante sincronizado (`animate-pulse`).
      * Tarjetas de mesas de bingo en vivo actualizadas con paleta oscura premium (`bg-gradient-to-br from-[#171E2A] to-[#111722] border-slate-800`), títulos en blanco puro, cifras de pozo en púrpura y costo en verde esmeralda, evitando fondos claros o textos oscuros no legibles.
-2) REVERSIÓN Y ROLLBACK COMPLETO DE LOS ÚLTIMOS 3 CAMBIOS:
+4) REVERSIÓN Y ROLLBACK COMPLETO DE LOS ÚLTIMOS 3 CAMBIOS:
    - Eliminación de archivos temporales/adicionales:
      * `src/components/lobby/BingoVirtualSimulation.tsx`
      * `src/components/lobby/GameCard.tsx`

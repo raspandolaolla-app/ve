@@ -26,7 +26,7 @@ export function Footer({ onOpenLegalDoc }: FooterProps) {
               <span className="font-black text-[#F8FAFC] tracking-tight text-sm uppercase">
                 RASPANDO <span className="text-[#FF8A00]">LA OLLA</span>
               </span>
-              <span className="text-xs">🇻🇪</span>
+              <span className="text-2xl sm:text-3xl select-none drop-shadow-sm" title="Venezuela">🇻🇪</span>
             </div>
             <p className="text-[#94A3B8] text-xs leading-relaxed max-w-sm">
               Plataforma interactiva multijugador con los juegos tradicionales más queridos de Venezuela, auditoría transparente y retiros instantáneos.
@@ -112,8 +112,8 @@ export function Footer({ onOpenLegalDoc }: FooterProps) {
 
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-[#94A3B8] text-[11px]">
           <span>© {new Date().getFullYear()} Raspando La Olla. Todos los derechos reservados.</span>
-          <span className="text-[#94A3B8]">
-            Juego Responsable (+18). Hecho con orgullo para Venezuela 🇻🇪
+          <span className="text-[#94A3B8] flex items-center gap-1.5">
+            Juego Responsable (+18). Hecho con orgullo para Venezuela <span className="text-2xl select-none leading-none">🇻🇪</span>
           </span>
         </div>
       </div>

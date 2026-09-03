@@ -255,9 +255,9 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
 
         {/* Pie del Drawer */}
         <div className="p-4 border-t border-[#1E2938] bg-[#080B12]/80 flex items-center justify-between text-[11px] text-[#94A3B8]">
-          <span className="flex items-center gap-1.5">
-            <span className="text-base">🇻🇪</span>
-            <span>Venezuela</span>
+          <span className="flex items-center gap-2">
+            <span className="text-3xl select-none leading-none">🇻🇪</span>
+            <span className="font-semibold text-white">Venezuela</span>
           </span>
           <span className="text-[#F5B942] font-semibold">Regla 90/10</span>
         </div>

@@ -73,12 +73,14 @@ export function Header({
                   />
                 </div>
               </div>
-              <div className="hidden xs:flex flex-col">
-                <div className="flex items-center gap-1.5 leading-none">
+              <div className="hidden xs:flex flex-col justify-center">
+                <div className="flex items-center gap-2 leading-none">
                   <span className="font-black tracking-tight text-sm sm:text-base text-[#F8FAFC] uppercase">
                     Raspando <span className="text-[#FF8A00]">La Olla</span>
                   </span>
-                  <span className="text-xs select-none" title="Venezuela">🇻🇪</span>
+                  <span className="text-3xl sm:text-[34px] leading-none select-none inline-flex items-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] transform hover:scale-110 transition-transform" title="Venezuela">
+                    🇻🇪
+                  </span>
                 </div>
                 <span className="hidden sm:block text-[9px] text-[#94A3B8] font-medium tracking-wider uppercase mt-0.5">
                   Mesas & Sorteos en Vivo
@@ -86,7 +88,7 @@ export function Header({
               </div>
             </div>
 
-            <div className="xs:hidden flex items-center text-sm" title="Venezuela">
+            <div className="xs:hidden flex items-center text-3xl select-none drop-shadow-md" title="Venezuela">
               🇻🇪
             </div>
 

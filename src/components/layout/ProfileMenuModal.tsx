@@ -86,8 +86,8 @@ export const ProfileMenuModal: React.FC<ProfileMenuModalProps> = ({
         {/* Cabecera con Nombre Real y Estado */}
         <div className="p-4 bg-gradient-to-b from-[#171E2A] to-[#111722] border-b border-[#1E2938]">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FF8A00]/10 border border-[#FF8A00]/30 text-[10px] font-bold text-[#FF8A00] uppercase tracking-wider">
-              <span>🇻🇪</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FF8A00]/10 border border-[#FF8A00]/30 text-xs font-bold text-[#FF8A00] uppercase tracking-wider">
+              <span className="text-2xl select-none leading-none">🇻🇪</span>
               <span>Raspando La Olla</span>
             </div>
 

@@ -629,6 +629,9 @@ export class TableRepository {
           scheduledStartAt: data.scheduled_start_at,
         };
       }
+      if (error) {
+        return { success: false, error: error.message || 'No fue posible completar la compra de cartones.' };
+      }
       if (data?.success === false) {
         return { success: false, error: data?.error || 'No fue posible completar la compra de cartones.' };
       }

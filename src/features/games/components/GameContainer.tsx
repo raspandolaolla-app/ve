@@ -874,6 +874,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       // ✅ NUEVO: Interceptar BUY_CARDS de Bingo para retener fondos reales en Supabase
       if (actionType === 'BUY_CARDS' && table.gameType === 'bingo') {
         const cardCount = Number(actionData.count) || 0;
+
+        // 🔒 CANDADO DE FAIRNESS: Bloquear compras si el sorteo ya comenzó
+        const isDrawingOrActive =
+          session?.status === 'DRAWING' ||
+          (session?.status as any) === 'drawing' ||
+          table.status === 'ACTIVE' ||
+          gameState?.status === 'DRAWING' ||
+          gameState?.status === 'drawing' ||
+          (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0);
+
+        if (isDrawingOrActive) {
+          setErrorMsg('Compras cerradas: El sorteo ya ha comenzado.');
+          setTimeout(() => setErrorMsg(null), 3500);
+          return;
+        }
         
         if (cardCount < 1 || cardCount > 20) {
           setErrorMsg('Cantidad de cartones inválida (1-20)');
@@ -1182,6 +1197,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
             onDrawBall={() => handleGameAction('DRAW_BALL', {})}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
+            isSalesClosed={
+              session?.status === 'DRAWING' ||
+              (session?.status as any) === 'drawing' ||
+              table.status === 'ACTIVE' ||
+              gameState?.status === 'DRAWING' ||
+              gameState?.status === 'drawing' ||
+              (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0)
+            }
           />
         );
 

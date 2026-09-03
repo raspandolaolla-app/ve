@@ -1,98 +1,60 @@
 // ==============================================================================
-// RASPANDO LA OLLA — SECCIÓN DESTACADA: SORTEO DE BINGO VIRTUAL AUTOMÁTICO
-// Modos 90, 80 y 75 Bolas — Temporizador Server-Authoritative, Pozo 90/10 y Realtime
+// RASPANDO LA OLLA — SECCIÓN DESTACADA: MESAS DE BINGO DISPONIBLES EN VIVO
+// Mesas Reales en Supabase (75 y 90 Bolas), Realtime, Creación y Conexión Directa
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Radio, Users, Trophy, Lock, Play, Timer, ArrowRight, ShieldCheck, Ticket } from 'lucide-react';
-import { BcvRepository } from '../../services/repositories/BcvRepository';
-import { TableRepository } from '../../services/repositories/TableRepository';
+import { Plus, Users, Ticket, Zap, Play, X, Trophy, Loader2 } from 'lucide-react';
 import { getSupabaseClient } from '../../lib/supabase/client';
+import { TableRepository } from '../../services/repositories/TableRepository';
+import { useWallet } from '../../context/WalletContext';
+import { CreateBingoTableForm, type CreateBingoTableParams } from '../tables/components/CreateBingoTableForm';
 
 interface BingoLobbySectionProps {
-  onSelectBingoVariant: (variant: '75' | '80' | '90', tableId: string) => void;
-  onlineCount: number;
-}
-
-interface AutomatedBingoTableInfo {
-  variant: '75' | '80' | '90';
-  tableId: string;
-  status: string;
-  currentPlayersCount: number;
-  cardsSoldCount: number;
-  totalPoolBs: number;
-  winnerPoolBs: number;
-  scheduledStartAt: string | null;
-  secondsRemaining: number | null;
+  onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
+  onlineCount?: number;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
   onSelectBingoVariant,
-  onlineCount,
+  onNavigateTab,
 }) => {
-  const [bcvRate, setBcvRate] = useState<number>(50);
-  const [loadingVariant, setLoadingVariant] = useState<string | null>(null);
-
-  const [tablesInfo, setTablesInfo] = useState<Record<string, AutomatedBingoTableInfo>>({
-    '90': {
-      variant: '90',
-      tableId: '',
-      status: 'WAITING_FOR_PLAYERS',
-      currentPlayersCount: 0,
-      cardsSoldCount: 0,
-      totalPoolBs: 0,
-      winnerPoolBs: 0,
-      scheduledStartAt: null,
-      secondsRemaining: null,
-    },
-    '80': {
-      variant: '80',
-      tableId: '',
-      status: 'WAITING_FOR_PLAYERS',
-      currentPlayersCount: 0,
-      cardsSoldCount: 0,
-      totalPoolBs: 0,
-      winnerPoolBs: 0,
-      scheduledStartAt: null,
-      secondsRemaining: null,
-    },
-    '75': {
-      variant: '75',
-      tableId: '',
-      status: 'WAITING_FOR_PLAYERS',
-      currentPlayersCount: 0,
-      cardsSoldCount: 0,
-      totalPoolBs: 0,
-      winnerPoolBs: 0,
-      scheduledStartAt: null,
-      secondsRemaining: null,
-    },
-  });
-
+  const [availableBingoTables, setAvailableBingoTables] = useState<any[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [bingoWinnersHistory, setBingoWinnersHistory] = useState<any[]>([]);
 
-  const loadBingoWinnersHistory = async () => {
-    const data = await TableRepository.getBingoWinnerHistory();
-    setBingoWinnersHistory(data);
-  };
+  const { balance } = useWallet();
+  const userBalance = balance?.availableBalance ?? 0;
 
-  // Cargar Tasa BCV y Historial
+  // Cargar mesas disponibles
   useEffect(() => {
-    BcvRepository.getBcvRate().then((res) => {
-      if (res?.rate) setBcvRate(res.rate);
-    });
+    loadBingoTables();
     loadBingoWinnersHistory();
-  }, []);
 
-  // Suscripción Realtime para el historial de ganadores de Bingo
-  useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
+    const client = getSupabaseClient();
+    if (!client) return;
 
-    const channel = supabase
-      .channel('bingo_winners_history_realtime')
+    // Suscribirse a cambios en tiempo real en mesas de bingo
+    const subscription = client
+      .channel('bingo_tables_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_tables', filter: 'game_type=eq.bingo' },
+        () => {
+          loadBingoTables();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_tables', filter: 'game_type=eq.BINGO' },
+        () => {
+          loadBingoTables();
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bingo_winner_history' },
@@ -103,255 +65,359 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(subscription);
     };
   }, []);
 
-  // Cargar/sincronizar mesas automáticas de Bingo
-  const syncBingoTables = async () => {
-    const variants: ('75' | '80' | '90')[] = ['90', '80', '75'];
-    const updatedMap = { ...tablesInfo };
-
-    for (const v of variants) {
-      const res = await TableRepository.getOrCreateAutomatedBingoTable(v);
-      if (res.success && res.tableId) {
-        const table = await TableRepository.getTableById(res.tableId);
-        if (table) {
-          const config = table.config || {};
-          const scheduledStartRaw = config.scheduled_start_at;
-          const scheduledStart = scheduledStartRaw ? new Date(String(scheduledStartRaw)) : null;
-          let secs: number | null = null;
-          let statusText: string = String(table.status || 'WAITING_FOR_PLAYERS');
-
-          if (scheduledStart) {
-            const diffMs = scheduledStart.getTime() - Date.now();
-            secs = Math.max(0, Math.floor(diffMs / 1000));
-            if (secs <= 10 && secs > 0) {
-              statusText = 'SALES_CLOSED';
-            } else if (secs === 0) {
-              statusText = 'DRAWING';
-            } else {
-              statusText = 'COUNTDOWN';
-            }
-          } else if (table.currentPlayersCount < 2) {
-            statusText = 'WAITING_FOR_PLAYERS';
-          }
-
-          const cardCount = Number(config.cards_sold || (table.currentPlayersCount * 2));
-          const totalBs = (table.entryFee || 25) * Math.max(1, cardCount);
-          const winnerBs = Math.round(totalBs * 0.90 * 100) / 100;
-
-          updatedMap[v] = {
-            variant: v,
-            tableId: table.id,
-            status: statusText,
-            currentPlayersCount: table.currentPlayersCount,
-            cardsSoldCount: cardCount,
-            totalPoolBs: totalBs,
-            winnerPoolBs: winnerBs,
-            scheduledStartAt: scheduledStartRaw ? String(scheduledStartRaw) : null,
-            secondsRemaining: secs,
-          };
-        }
-      }
+  const loadBingoWinnersHistory = async () => {
+    try {
+      const data = await TableRepository.getBingoWinnerHistory();
+      setBingoWinnersHistory(data || []);
+    } catch (err) {
+      console.warn('Error cargando historial de ganadores de bingo:', err);
     }
-
-    setTablesInfo(updatedMap);
   };
 
-  useEffect(() => {
-    syncBingoTables();
-    const timer = setInterval(() => {
-      syncBingoTables();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
+  const loadBingoTables = async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setLoading(false);
+      return;
+    }
 
-  // Suscripción Realtime a game_tables
-  useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    const channel = supabase
-      .channel('bingo_tables_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_tables' },
-        () => {
-          syncBingoTables();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const handleJoinVariant = async (variant: '75' | '80' | '90') => {
-    setLoadingVariant(variant);
     try {
-      const res = await TableRepository.getOrCreateAutomatedBingoTable(variant);
-      if (res.success && res.tableId) {
-        onSelectBingoVariant(variant, res.tableId);
+      setLoading(true);
+
+      // Consulta relacional con fallback defensivo
+      let { data: tables, error } = await client
+        .from('game_tables')
+        .select(`
+          *,
+          game_sessions (
+            status,
+            current_state,
+            winner_user_id,
+            gross_pool,
+            winner_prize_amount
+          ),
+          game_table_players (
+            user_id,
+            status
+          )
+        `)
+        .or('game_type.eq.bingo,game_type.eq.BINGO')
+        .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING', 'waiting', 'active', 'drawing'])
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Fallback a consulta simple de mesas:', error.message);
+        const fallback = await client
+          .from('game_tables')
+          .select('*')
+          .or('game_type.eq.bingo,game_type.eq.BINGO')
+          .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING', 'waiting', 'active', 'drawing'])
+          .order('created_at', { ascending: false });
+        tables = fallback.data;
+      }
+
+      // Procesar datos para mostrar
+      const processedTables = (tables || []).map((table: any) => {
+        const session = Array.isArray(table.game_sessions) ? table.game_sessions[0] : table.game_sessions;
+        const players = (table.game_table_players || []).filter((p: any) => p.status !== 'LEFT');
+        const cardsCount = Number(table.cards_sold || table.config?.cards_sold || (players.length > 0 ? players.length * 2 : 0));
+        const entryFee = Number(table.entry_fee || table.entryFee || 25);
+
+        // Calcular pozo actual
+        const sessionPrize = Number(session?.winner_prize_amount || session?.gross_pool || 0);
+        const totalPrize = sessionPrize > 0
+          ? sessionPrize
+          : (Number(table.config?.current_prize) || (cardsCount * entryFee * 0.90) || 0);
+
+        const variant = String(table.game_variant || table.config?.gameVariant || table.config?.variant || '90');
+        const status = session?.status || table.status || 'OPEN';
+
+        return {
+          ...table,
+          id: table.id,
+          status: status,
+          game_variant: variant,
+          entry_fee: entryFee,
+          players_count: players.length || table.current_players_count || 0,
+          max_players: table.max_players === 99 ? 99 : (table.max_players || 99),
+          cards_sold: cardsCount,
+          current_prize: Math.round(totalPrize * 100) / 100,
+          canJoin: status !== 'DRAWING' && status !== 'drawing' && status !== 'FINISHED' && status !== 'finished',
+        };
+      });
+
+      setAvailableBingoTables(processedTables);
+    } catch (error) {
+      console.error('Error cargando mesas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoinTable = async (tableId: string) => {
+    try {
+      const selected = availableBingoTables.find((t) => t.id === tableId);
+      const variant = selected?.game_variant === '75' ? '75' : '90';
+
+      if (onSelectBingoVariant) {
+        onSelectBingoVariant(variant, tableId);
+      }
+      if (onNavigateTab) {
+        onNavigateTab('tables');
+      }
+
+      // Notificar al componente de mesas para abrir inmediatamente la sala
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
+      }, 50);
+    } catch (error) {
+      console.error('Error al unirse:', error);
+      alert('Error al unirse a la mesa. Intenta nuevamente.');
+    }
+  };
+
+  const handleCreateTable = async (params: CreateBingoTableParams) => {
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      const newTable = await TableRepository.createTable({
+        gameType: 'bingo',
+        gameVariant: params.gameVariant,
+        name: `Bingo ${params.gameVariant} Bolas`,
+        mode: '1v1',
+        entryFee: params.entryFee,
+        maxPlayers: params.maxPlayers,
+        isPrivate: params.isPrivate,
+        config: {
+          gameVariant: params.gameVariant,
+          variant: params.gameVariant,
+          automated: true,
+          callIntervalMs: 4000,
+        },
+      });
+
+      if (newTable?.id) {
+        setShowCreateModal(false);
+        await loadBingoTables();
+        handleJoinTable(newTable.id);
       } else {
-        alert(res.error || 'No fue posible ingresar a la mesa de Bingo.');
+        setCreateError('No fue posible crear la mesa de Bingo.');
       }
     } catch (err: any) {
-      alert(err.message || 'Error al conectar.');
+      setCreateError(err?.message || 'Error al crear la mesa de Bingo. Inténtalo nuevamente.');
     } finally {
-      setLoadingVariant(null);
+      setIsCreating(false);
     }
-  };
-
-  const formatSeconds = (secs: number | null): string => {
-    if (secs === null) return '02:00';
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div id="section-bingo-virtual" className="space-y-4">
+    <div id="section-bingo-virtual" className="mb-12">
       {/* Encabezado */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-amber-400 animate-ping" />
-            <h2 className="text-xl font-black text-slate-100 uppercase tracking-wide">
-              🎱 Sorteo de Bingo Virtual Automático
-            </h2>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Mesas públicas server-authoritative con temporizador sincronizado y regla de premio 90/10
-          </p>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-300 font-mono">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>RNG Criptográfico Cero Mocks</span>
-        </div>
-      </div>
-
-      {/* Grid con las 3 Modalidades: 90, 80 y 75 Bolas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          {
-            variant: '90' as const,
-            title: 'BINGO 90 BOLAS',
-            sub: '3 filas × 9 cols (15 núms)',
-            color: 'from-amber-500/20 to-yellow-600/10 border-amber-500/40',
-            badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-          },
-          {
-            variant: '80' as const,
-            title: 'BINGO 80 BOLAS',
-            sub: '4 × 4 (16 números)',
-            color: 'from-orange-500/20 to-amber-600/10 border-orange-500/40',
-            badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
-          },
-          {
-            variant: '75' as const,
-            title: 'BINGO 75 BOLAS',
-            sub: '5 × 5 (B-I-N-G-O con Libre)',
-            color: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/40',
-            badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-          },
-        ].map((item) => {
-          const info = tablesInfo[item.variant];
-          const isClosed = info.status === 'SALES_CLOSED';
-          const isDrawing = info.status === 'DRAWING';
-          const isCountdown = info.status === 'COUNTDOWN';
-
-          return (
-            <div
-              key={item.variant}
-              id={`bingo-lobby-card-${item.variant}`}
-              className={`relative overflow-hidden rounded-2xl border-2 bg-gradient-to-b ${item.color} bg-slate-950 p-5 shadow-xl flex flex-col justify-between space-y-4`}
-            >
-              {/* Badge de Modalidad */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${item.badgeColor}`}>
-                    <span>🎱 {item.title}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-mono mt-1">
-                    {item.sub}
-                  </div>
-                </div>
-
-                {/* Tag de Estado */}
-                {isClosed ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-500/20 border border-red-500/50 text-red-400 text-[10px] font-bold uppercase animate-pulse">
-                    <Lock className="w-3 h-3" /> VENTAS CERRADAS
-                  </span>
-                ) : isDrawing ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-400 text-[10px] font-bold uppercase animate-pulse">
-                    <Radio className="w-3 h-3" /> EN SORTEO
-                  </span>
-                ) : isCountdown ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold font-mono">
-                    <Timer className="w-3 h-3" /> {formatSeconds(info.secondsRemaining)}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold uppercase">
-                    🟢 ESPERANDO (2 min)
-                  </span>
-                )}
-              </div>
-
-              {/* Métricas: Premio & Jugadores */}
-              <div className="space-y-2 py-2 border-y border-slate-800/80">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Premio Acumulado (90%):</span>
-                  <div className="text-right">
-                    <div className="text-base font-black text-emerald-400 font-mono">
-                      {info.winnerPoolBs.toFixed(2)} Bs
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-mono">
-                      {BcvRepository.formatUsdCompact(info.winnerPoolBs, bcvRate)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-300">
-                    <Users className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>{info.currentPlayersCount} Jugadores</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-300 justify-end">
-                    <Ticket className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>{info.cardsSoldCount} Cartones</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Botón de Entrada o Visualización */}
-              <div>
-                <Button
-                  id={`btn-join-bingo-${item.variant}`}
-                  variant="primary"
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs py-2.5 rounded-xl shadow-md"
-                  disabled={loadingVariant === item.variant}
-                  onClick={() => handleJoinVariant(item.variant)}
-                  leftIcon={isDrawing ? <Radio className="w-4 h-4 text-red-600 animate-spin" /> : <Play className="w-4 h-4" />}
-                >
-                  {loadingVariant === item.variant
-                    ? 'Conectando...'
-                    : isDrawing
-                    ? 'Ver Sorteo en Vivo'
-                    : isClosed
-                    ? '🔒 Entrar a la Sala'
-                    : 'UNIRSE Y COMPRAR CARTONES'}
-                </Button>
-              </div>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl sm:text-4xl select-none">🎱</span>
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
+                Mesas de Bingo Disponibles
+              </h2>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-black rounded-full tracking-wider uppercase shadow-sm shadow-emerald-500/10">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                EN VIVO
+              </span>
             </div>
-          );
-        })}
+            <p className="text-xs text-slate-400 mt-0.5">
+              Partidas en tiempo real de 75 y 90 bolas con pozos acumulados en bolívares
+            </p>
+          </div>
+        </div>
+
+        <button
+          id="btn-create-bingo-table-lobby"
+          onClick={() => {
+            setCreateError(null);
+            setShowCreateModal(true);
+          }}
+          className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95 flex items-center gap-2 cursor-pointer text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Crear Mesa
+        </button>
       </div>
+
+      {/* Grid de Mesas Disponibles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading && availableBingoTables.length === 0 ? (
+          <div className="col-span-full text-center py-12 bg-slate-900/40 rounded-2xl border-2 border-dashed border-slate-800">
+            <Loader2 className="w-8 h-8 text-[#FF8A00] animate-spin mx-auto mb-3" />
+            <p className="text-sm font-bold text-slate-400">
+              Sincronizando mesas de Bingo en vivo...
+            </p>
+          </div>
+        ) : availableBingoTables.length > 0 ? (
+          availableBingoTables.map((table: any) => {
+            const isDrawing = table.status === 'DRAWING' || table.status === 'drawing';
+            const isOpen = table.status === 'ACTIVE' || table.status === 'WAITING' || table.status === 'OPEN' || table.status === 'active' || table.status === 'waiting';
+
+            return (
+              <div
+                key={table.id}
+                id={`bingo-lobby-table-${table.id}`}
+                className={`relative bg-gradient-to-br from-[#171E2A] to-[#111722] rounded-2xl border p-5 transition-all hover:shadow-xl ${
+                  isDrawing
+                    ? 'border-amber-500/50 opacity-85'
+                    : 'border-slate-800 hover:border-purple-500/60 cursor-pointer shadow-lg hover:shadow-purple-500/10'
+                }`}
+                onClick={() => !isDrawing && handleJoinTable(table.id)}
+              >
+                {/* Badge de Estado */}
+                <div className="absolute top-4 right-4">
+                  {isDrawing ? (
+                    <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-full flex items-center gap-1">
+                      <Zap className="w-3 h-3 animate-pulse text-amber-400" />
+                      SORTEO EN CURSO
+                    </span>
+                  ) : isOpen ? (
+                    <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold rounded-full">
+                      ABIERTO
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-400 text-xs font-bold rounded-full">
+                      LLENO
+                    </span>
+                  )}
+                </div>
+
+                {/* Información de la Mesa */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl select-none">{table.game_variant === '75' ? '🎯' : '🎱'}</span>
+                    <div>
+                      <h3 className="font-black text-lg text-white">
+                        Bingo {table.game_variant} Bolas
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        {table.game_variant === '75' ? '2 Ganadores (Línea + Bingo)' : '1 Ganador (Bingo)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Precio y Pozo */}
+                  <div className="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 p-3 rounded-xl">
+                    <div>
+                      <p className="text-xs text-slate-400">Costo por cartón</p>
+                      <p className="text-xl font-black text-emerald-400 font-mono">
+                        {table.entry_fee} BS
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">Pozo Actual</p>
+                      <p className="text-xl font-black text-purple-400 font-mono">
+                        {table.current_prize || 0} BS
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Jugadores */}
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Users className="w-4 h-4 text-purple-400" />
+                      <span className="font-semibold">
+                        {table.players_count || 0} / {table.max_players === 99 ? '∞' : table.max_players}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-400">
+                      <Ticket className="w-4 h-4 text-purple-400" />
+                      <span className="font-semibold">{table.cards_sold || 0} cartones</span>
+                    </div>
+                  </div>
+
+                  {/* Botón de Acción */}
+                  {isDrawing ? (
+                    <button
+                      disabled
+                      className="w-full py-3 bg-slate-800/80 border border-amber-500/30 text-amber-300/90 font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-2 text-xs sm:text-sm"
+                    >
+                      <Zap className="w-4 h-4 animate-pulse text-amber-400" />
+                      Sorteo en curso - No se permiten ingresos
+                    </button>
+                  ) : (
+                    <button
+                      id={`btn-join-bingo-table-${table.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoinTable(table.id);
+                      }}
+                      className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transform transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Play className="w-5 h-5" />
+                      Unirse a la Mesa
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          /* Estado Vacío */
+          <div className="col-span-full text-center py-12 bg-slate-900/40 rounded-2xl border-2 border-dashed border-slate-800">
+            <div className="text-6xl mb-4 select-none">🎱</div>
+            <h3 className="text-xl font-black text-white mb-2">
+              No hay mesas de Bingo disponibles
+            </h3>
+            <p className="text-slate-400 mb-6 text-sm">
+              ¡Sé el primero en crear una mesa y empezar el juego!
+            </p>
+            <button
+              id="btn-create-first-bingo-table"
+              onClick={() => {
+                setCreateError(null);
+                setShowCreateModal(true);
+              }}
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-lg rounded-xl shadow-lg transform transition hover:scale-105 flex items-center gap-3 mx-auto cursor-pointer"
+            >
+              <Plus className="w-6 h-6" />
+              Crear Primera Mesa de Bingo
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Modal de Crear Mesa de Bingo (Conectar con Formulario Mejorado) */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="relative bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-800 p-2 sm:p-4 text-slate-100">
+            <button
+              onClick={() => setShowCreateModal(false)}
+              className="absolute top-4 right-4 p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors z-10 cursor-pointer"
+              title="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {createError && (
+              <div className="mb-3 mx-2 p-3 bg-red-500/15 border border-red-500/30 rounded-xl text-xs font-bold text-red-400">
+                {createError}
+              </div>
+            )}
+
+            {/* Formulario ultra-compacto de Bingo */}
+            <CreateBingoTableForm
+              onCreateTable={handleCreateTable}
+              userBalance={userBalance}
+              isSubmitting={isCreating}
+              onCancel={() => setShowCreateModal(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* SECCIÓN: HISTORIAL DE GANADORES BINGO LA OLLA */}
-      <div id="bingo-la-olla-history" className="mt-8 pt-6 border-t border-slate-800/60">
+      <div id="bingo-la-olla-history" className="mt-12 pt-6 border-t border-slate-800/60">
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -396,7 +462,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
                   )}
                   {/* Badge de Premio en la foto */}
                   <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-emerald-500/90 text-slate-950 text-xs font-black font-mono shadow-md">
-                    +{w.prizeBs.toFixed(2)} Bs
+                    +{Number(w.prizeBs || 0).toFixed(2)} Bs
                   </div>
                 </div>
 
@@ -412,7 +478,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
                         month: '2-digit',
                         hour: '2-digit',
                         minute: '2-digit',
-                        hour12: true
+                        hour12: true,
                       })}
                     </div>
                   </div>

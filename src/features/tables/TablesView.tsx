@@ -132,6 +132,21 @@ export function TablesView() {
     return () => window.removeEventListener('open-quick-match', handleOpenQuickMatch);
   }, []);
 
+  // Escuchar evento para abrir mesa específica desde el Lobby (Bingo, etc.)
+  useEffect(() => {
+    const handleOpenTable = async (e: any) => {
+      const tableId = e.detail?.tableId;
+      if (tableId) {
+        const table = await TableRepository.getTableById(tableId);
+        if (table) {
+          setActiveTable(table);
+        }
+      }
+    };
+    window.addEventListener('open-table' as any, handleOpenTable);
+    return () => window.removeEventListener('open-table' as any, handleOpenTable);
+  }, []);
+
   // Notificar al padre cuando hay partida activa
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('game-active-change', {

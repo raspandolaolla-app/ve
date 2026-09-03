@@ -15,11 +15,6 @@ import {
   Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause,
   Minus, Plus, ShoppingCart, Zap, Users, Crown, Home, RotateCcw, X,
 } from 'lucide-react';
-import { NearWinAlert } from '../../../components/bingo/NearWinAlert';
-import { Leaderboard } from '../../../components/bingo/Leaderboard';
-import { SoundControls } from '../../../components/bingo/SoundControls';
-import { useBingoProgress } from '../../../hooks/useBingoProgress';
-import { useBingoSounds } from '../../../hooks/useBingoSounds';
 
 interface BingoBoardProps {
   state: any;
@@ -305,59 +300,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return list;
   }, [s, currentUserId, myCards]);
 
-  const { progress, anyCloseToWin, anyVeryCloseToWin } = useBingoProgress(drawn, allCardsInBoard);
-
-  const {
-    playBallDrawn,
-    playCloseToWin,
-    playVeryCloseToWin,
-    playBingoWin,
-    playCountdown,
-    toggleSounds,
-    setVolume,
-    isEnabled: soundEnabled,
-    volume: soundVolume,
-  } = useBingoSounds({
-    enabled: isMuted !== undefined ? !isMuted : true,
-    volume: 0.7,
-  });
-
-  const [showSoundControls, setShowSoundControls] = useState(false);
-
-  // Efecto para reproducir sonidos según el estado del juego y balotas
-  const lastDrawnCountRef = useRef<number>(drawn.length);
-  useEffect(() => {
-    if (drawn.length > 0 && drawn.length !== lastDrawnCountRef.current) {
-      playBallDrawn();
-    }
-    lastDrawnCountRef.current = drawn.length;
-
-    if (anyVeryCloseToWin) {
-      playVeryCloseToWin();
-    } else if (anyCloseToWin) {
-      playCloseToWin();
-    }
-  }, [drawn.length, anyCloseToWin, anyVeryCloseToWin, playBallDrawn, playCloseToWin, playVeryCloseToWin]);
-
-  // Efecto de victoria
-  const isFinishedGame = isFinished || status === 'FINISHED' || status === 'COMPLETED';
-  const hasWonRef = useRef(false);
-  useEffect(() => {
-    if (isFinishedGame && !hasWonRef.current) {
-      hasWonRef.current = true;
-      playBingoWin();
-    } else if (!isFinishedGame) {
-      hasWonRef.current = false;
-    }
-  }, [isFinishedGame, playBingoWin]);
-
-  // Efecto de cuenta regresiva
-  useEffect(() => {
-    if (countdownSeconds !== undefined && countdownSeconds <= 5 && countdownSeconds > 0) {
-      playCountdown(countdownSeconds);
-    }
-  }, [countdownSeconds, playCountdown]);
-
   const maxBall = useMemo(() => {
     if (s.variant === '90' || s.totalBalls === 90 || s.mode === 90) return 90;
     if (s.variant === '75' || s.totalBalls === 75 || s.mode === 75) return 75;
@@ -365,8 +307,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return has90 || drawn.some((n) => n > 75) ? 90 : 75;
   }, [myCards, drawn, s]);
 
-  const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS'].includes(status);
-  const salesOpen = isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting';
+  const isDrawing = status === 'DRAWING' || status === 'drawing' || (s.current_state?.status === 'DRAWING') || drawn.length > 0;
+  const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS', 'DRAWING', 'drawing'].includes(status) || isDrawing;
+  const isSalesExplicitlyClosed = isSalesClosed === true || isDrawing || status === 'ACTIVE' || status === 'active' || status === 'PLAYING' || status === 'playing';
+  const salesOpen = !isSalesExplicitlyClosed && (isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting');
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -520,9 +464,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative"
       style={{ background: T.bg, minHeight: '100%' }}>
 
-      {/* ===== ALERTA VISUAL CASI GANA (NEAR WIN) ===== */}
-      <NearWinAlert progress={progress} />
-
       {/* ===== BARRA SUPERIOR ===== */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}>
@@ -555,20 +496,21 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
               👑 Host
             </span>
           )}
-          <button
-            id="bingo-audio-panel-btn"
-            onClick={() => setShowSoundControls(!showSoundControls)}
-            className="flex items-center gap-1 p-1.5 rounded-lg border text-[9px] font-black uppercase transition-colors"
-            style={{
-              borderColor: showSoundControls ? T.accent : T.border,
-              color: soundEnabled ? T.accent : T.sub,
-              background: showSoundControls ? `${T.accent}22` : 'transparent',
-            }}
-            title={soundEnabled ? 'Ajustes de Sonido' : 'Sonido Silenciado'}
-          >
-            {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{soundEnabled ? `${Math.round(soundVolume * 100)}%` : 'Mute'}</span>
-          </button>
+          {onToggleMute && (
+            <button
+              onClick={onToggleMute}
+              className="flex items-center gap-1 p-1.5 rounded-lg border text-[9px] font-black uppercase transition-colors"
+              style={{
+                borderColor: T.border,
+                color: isMuted ? T.sub : T.accent,
+                background: 'transparent',
+              }}
+              title={isMuted ? 'Activar Sonido' : 'Silenciar'}
+            >
+              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isMuted ? 'Mute' : 'Audio'}</span>
+            </button>
+          )}
           <button onClick={() => setAutoGlow(!autoGlow)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase"
             style={{ borderColor: autoGlow ? T.accent : T.border, color: autoGlow ? T.accent : T.sub, background: autoGlow ? `${T.accent}22` : 'transparent' }}>
             <Eye className="w-3 h-3" /> Auto
@@ -579,28 +521,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           </button>
         </div>
       </div>
-
-      {/* ===== CONTROLES DE SONIDO EN VIVO ===== */}
-      <AnimatePresence>
-        {showSoundControls && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="w-full max-w-sm ml-auto overflow-hidden"
-          >
-            <SoundControls
-              isEnabled={soundEnabled}
-              volume={soundVolume}
-              onToggle={() => {
-                toggleSounds();
-                onToggleMute?.();
-              }}
-              onVolumeChange={setVolume}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="w-full flex items-center gap-2 flex-wrap">
         {isSalesClosed !== undefined && (
@@ -654,6 +574,35 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                   style={{ background: 'linear-gradient(145deg,#43A047,#1B5E20)', boxShadow: '0 5px 14px rgba(27,94,32,0.5)' }}>
                   <ShoppingCart className="w-3.5 h-3.5" /> Comprar
                 </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {!salesOpen && !isFinished && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="w-full overflow-hidden">
+            <div className="p-3 rounded-2xl border flex items-center justify-between gap-3 flex-wrap"
+              style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.35)' }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm bg-amber-500/20 text-amber-300">
+                  🔒
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                    Compras cerradas
+                  </div>
+                  <div className="text-[9px] text-amber-200/80">
+                    {isDrawing || drawn.length > 0
+                      ? 'El sorteo ya comenzó. ¡Buena suerte con tus cartones!'
+                      : 'Las ventas de cartones han concluido para esta ronda.'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-[10px] font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {myCards.length} {myCards.length === 1 ? 'cartón activo' : 'cartones activos'}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -728,13 +677,6 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ===== TABLA DE POSICIONES EN VIVO ===== */}
-      {progress.length > 0 && !isFinished && (
-        <div className="w-full">
-          <Leaderboard progress={progress} maxDisplay={4} />
-        </div>
-      )}
 
       <div className="w-full">
         <div className="flex items-center justify-between mb-2">

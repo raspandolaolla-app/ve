@@ -39,6 +39,7 @@ export const GameCard: React.FC<GameCardProps> = ({
 
   return (
     <div
+      id={`lobby-game-card-${game.id}`}
       onClick={handleClick}
       className="relative group cursor-pointer overflow-hidden rounded-2xl bg-gradient-to-br from-[#171E2A] to-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#FF8A00]/20 hover:-translate-y-1"
     >

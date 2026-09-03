@@ -11,6 +11,7 @@ import { getAssetUrl } from '../../utils/assetUtils';
 import { formatBolivares } from '../../utils/formatters';
 import {
   LogIn,
+  LogOut,
   Shield,
   Wallet,
   Grid,
@@ -37,12 +38,14 @@ export function Header({
   onOpenProfile,
   hasUnreadNotifications = true,
 }: HeaderProps) {
-  const { state, user, profile, role, isSigningIn, signInWithGoogle } = useAuth();
+  const { state, user, profile, role, isSigningIn, signInWithGoogle, signOut } = useAuth();
   const { balance, isBalanceVisible, toggleBalanceVisibility, openDepositModal } = useWallet();
 
   const isAuthenticated = state === 'authenticated' && user !== null;
   const userAvatar = profile?.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
-  const userFirstName = (profile?.firstName || user?.user_metadata?.given_name || user?.email?.split('@')[0] || 'Jugador').toUpperCase();
+  const displayName = (profile?.firstName && profile?.lastName
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : profile?.firstName || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.given_name || user?.email?.split('@')[0] || 'Jugador');
 
   const formattedBalance = isBalanceVisible
     ? formatBolivares(balance?.availableBalance ?? 0)
@@ -138,6 +141,7 @@ export function Header({
           {/* SECCIÓN CENTRAL: NAVEGACIÓN DESKTOP */}
           <nav className="hidden lg:flex items-center gap-1">
             <button
+              id="nav-home"
               onClick={() => onNavigate('home')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'home'
@@ -149,6 +153,7 @@ export function Header({
               <span>Lobby</span>
             </button>
             <button
+              id="nav-polla"
               onClick={() => onNavigate('polla')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'polla'
@@ -160,6 +165,7 @@ export function Header({
               <span>Polla Venezolana</span>
             </button>
             <button
+              id="nav-trancaito"
               onClick={() => onNavigate('tables')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'tables'
@@ -171,6 +177,7 @@ export function Header({
               <span>Mesas & Salas</span>
             </button>
             <button
+              id="nav-wallet"
               onClick={() => onNavigate('wallet')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 currentTab === 'wallet'
@@ -183,6 +190,7 @@ export function Header({
             </button>
             {role === 'ADMIN' || role === 'SUPER_ADMIN' ? (
               <button
+                id="nav-admin"
                 onClick={() => onNavigate('admin')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                   currentTab === 'admin'
@@ -219,39 +227,54 @@ export function Header({
             {state === 'loading' ? (
               <div className="w-10 h-10 rounded-full bg-[#111722] animate-pulse" />
             ) : isAuthenticated ? (
-              <button
-                onClick={onOpenProfile}
-                className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all text-xs text-[#F8FAFC]"
-              >
-                {userAvatar ? (
-                  <img
-                    src={userAvatar}
-                    alt={userFirstName}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-[#FF8A00] shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#171E2A] border-2 border-[#FF8A00] flex items-center justify-center text-xs font-bold text-[#FF8A00] shrink-0">
-                    {userFirstName.charAt(0)}
-                  </div>
-                )}
-                <span className="hidden md:block font-bold max-w-[100px] truncate text-[11px]">
-                  {userFirstName}
-                </span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  id="header-user-profile-btn"
+                  onClick={onOpenProfile}
+                  className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/50 transition-all text-xs text-[#F8FAFC]"
+                  title="Ver perfil de usuario"
+                >
+                  {userAvatar ? (
+                    <img
+                      src={userAvatar}
+                      alt={displayName}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-[#FF8A00] shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#171E2A] border-2 border-[#FF8A00] flex items-center justify-center text-xs font-bold text-[#FF8A00] shrink-0">
+                      {displayName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="hidden md:block font-bold max-w-[120px] truncate text-[11px]">
+                    {displayName}
+                  </span>
+                </button>
+                <button
+                  id="header-signout-btn"
+                  onClick={() => signOut()}
+                  className="p-2 rounded-xl bg-[#111722] hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-[#1E2938] hover:border-red-500/30 transition-colors"
+                  title="Cerrar sesión"
+                  aria-label="Cerrar sesión"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
               // BOTÓN INGRESAR GRANDE Y DESTACADO
               <button
+                id="header-signin-google-btn"
                 onClick={signInWithGoogle}
                 disabled={isSigningIn}
-                className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-[#FF8A00] via-[#F5B942] to-[#FF8A00] hover:brightness-110 text-[#080B12] font-black text-base sm:text-lg transition-all flex items-center gap-2 shadow-xl shadow-[#FF8A00]/40 hover:scale-105 active:scale-95 animate-pulse-glow"
+                className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-[#FF8A00] via-[#F5B942] to-[#FF8A00] hover:brightness-110 text-[#080B12] font-black text-xs sm:text-sm transition-all flex items-center gap-2 shadow-xl shadow-[#FF8A00]/40 hover:scale-105 active:scale-95 animate-pulse-glow"
               >
                 {isSigningIn ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <LogIn className="w-5 h-5" strokeWidth={3} />
+                  <LogIn className="w-4 h-4" strokeWidth={3} />
                 )}
-                <span className="tracking-wide">INGRESAR</span>
+                <span className="tracking-wide hidden sm:inline">Continuar con Google</span>
+                <span className="tracking-wide sm:hidden">INGRESAR</span>
               </button>
             )}
           </div>

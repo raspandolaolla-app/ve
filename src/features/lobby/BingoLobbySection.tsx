@@ -4,7 +4,7 @@
 // ==============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Ticket, Zap, Play, X, Trophy, Loader2 } from 'lucide-react';
+import { Plus, Users, Ticket, Zap, Play, X, Trophy, Loader2, Clock } from 'lucide-react';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { useWallet } from '../../context/WalletContext';
@@ -16,11 +16,100 @@ interface BingoLobbySectionProps {
   onNavigateTab?: (tab: string) => void;
 }
 
+interface CountdownTimerProps {
+  session: any;
+  onJoinTable: (tableId: string) => void;
+}
+
+const CountdownTimer: React.FC<CountdownTimerProps> = ({ session, onJoinTable }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const target = new Date(session.countdown_ends_at).getTime();
+      const distance = target - now;
+
+      if (distance <= 0) {
+        setTimeLeft('¡INICIANDO!');
+        return;
+      }
+
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+      setTimeLeft(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [session.countdown_ends_at]);
+
+  const rawTable = Array.isArray(session.game_tables) ? session.game_tables[0] : session.game_tables;
+  const tableId = rawTable?.id || session.table_id;
+  const variant = rawTable?.game_variant || session.current_state?.gameVariant || '90';
+  const entryFee = rawTable?.entry_fee || 25;
+  const purchases = session.bingo_card_purchases || [];
+  const uniquePlayers = new Set(purchases.map((p: any) => p.user_id)).size;
+
+  return (
+    <div
+      id={`bingo-countdown-card-${session.id}`}
+      className="bg-gradient-to-br from-[#1c1829] via-[#171c2b] to-[#121520] border-2 border-amber-500/50 rounded-2xl p-5 shadow-xl shadow-amber-500/10 flex flex-col justify-between transition-all hover:border-amber-400"
+    >
+      <div>
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl select-none">{variant === '75' ? '🎯' : '🎱'}</span>
+            <div>
+              <p className="font-black text-white text-base">
+                Bingo {variant} Bolas
+              </p>
+              <p className="text-xs text-amber-400 font-medium">
+                Entrada: <span className="font-bold font-mono">{entryFee} BS</span>
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-wider animate-pulse">
+              {timeLeft}
+            </p>
+            <p className="text-[10px] font-black text-amber-300/80 uppercase tracking-widest flex items-center justify-end gap-1">
+              <Clock className="w-3 h-3 text-amber-400" /> INICIA EN
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 px-3 py-2 rounded-xl text-xs text-slate-300 my-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-purple-400" />
+            <span className="font-semibold text-white">{uniquePlayers || 2} jugadores</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Ticket className="w-4 h-4 text-emerald-400" />
+            <span className="font-semibold text-emerald-300 font-mono">{purchases.length || 2} cartones</span>
+          </div>
+        </div>
+      </div>
+
+      <button
+        id={`btn-join-countdown-${session.id}`}
+        onClick={() => tableId && onJoinTable(tableId)}
+        className="w-full mt-3 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black rounded-xl text-sm transition-all transform active:scale-95 shadow-md shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wide"
+      >
+        <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
+        ¡Unirse Ahora!
+      </button>
+    </div>
+  );
+};
+
 export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
   onSelectBingoVariant,
   onNavigateTab,
 }) => {
   const [availableBingoTables, setAvailableBingoTables] = useState<any[]>([]);
+  const [countdownSessions, setCountdownSessions] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -30,22 +119,34 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
   const { balance } = useWallet();
   const userBalance = balance?.availableBalance ?? 0;
 
-  // Cargar mesas disponibles
+  // Cargar mesas disponibles y cuentas regresivas
   useEffect(() => {
     loadBingoTables();
     loadBingoWinnersHistory();
+    loadCountdowns();
 
     const client = getSupabaseClient();
     if (!client) return;
 
-    // Suscribirse a cambios en tiempo real en mesas de bingo
+    const interval = setInterval(loadCountdowns, 3000);
+
+    // Suscribirse a cambios en tiempo real
     const subscription = client
-      .channel('bingo_tables_realtime')
+      .channel('bingo_countdowns_and_tables')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_sessions' },
+        () => {
+          loadCountdowns();
+          loadBingoTables();
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_tables', filter: 'game_type=eq.bingo' },
         () => {
           loadBingoTables();
+          loadCountdowns();
         }
       )
       .on(
@@ -53,6 +154,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         { event: '*', schema: 'public', table: 'game_tables', filter: 'game_type=eq.BINGO' },
         () => {
           loadBingoTables();
+          loadCountdowns();
         }
       )
       .on(
@@ -65,9 +167,46 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       client.removeChannel(subscription);
     };
   }, []);
+
+  const loadCountdowns = async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    try {
+      const { data, error } = await client
+        .from('game_sessions')
+        .select(`
+          id,
+          table_id,
+          countdown_ends_at,
+          status,
+          current_state,
+          game_tables (
+            id,
+            game_type,
+            game_variant,
+            entry_fee,
+            name
+          ),
+          bingo_card_purchases (
+            user_id
+          )
+        `)
+        .ilike('game_type', 'bingo')
+        .not('countdown_ends_at', 'is', null)
+        .in('status', ['WAITING', 'READY', 'SALES', 'waiting', 'ready', 'sales']);
+
+      if (!error && data) {
+        setCountdownSessions(data);
+      }
+    } catch (err) {
+      console.warn('Error cargando cuentas regresivas de bingo:', err);
+    }
+  };
 
   const loadBingoWinnersHistory = async () => {
     try {
@@ -248,6 +387,26 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           Crear Mesa
         </button>
       </div>
+
+      {/* SECCIÓN CRONÓMETROS: Sorteos Iniciando Pronto */}
+      {countdownSessions.length > 0 && (
+        <div id="bingo-countdowns-showcase" className="mb-8 p-5 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-slate-900/60 border border-amber-500/30 rounded-2xl shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+            <h3 className="text-lg sm:text-xl font-black text-white tracking-wide uppercase">
+              ⏱️ Sorteos Iniciando Pronto
+            </h3>
+            <span className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full font-bold border border-amber-500/40">
+              {countdownSessions.length} {countdownSessions.length === 1 ? 'Mesa' : 'Mesas'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {countdownSessions.map((session) => (
+              <CountdownTimer key={session.id} session={session} onJoinTable={handleJoinTable} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Grid de Mesas Disponibles */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

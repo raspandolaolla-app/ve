@@ -62,9 +62,22 @@ class BingoAudioSystem {
 
   /**
    * Precarga todos los archivos de audio (letras B-I-N-G-O + números 1-90)
+   * Si no están presentes en el servidor, conmuta automáticamente a síntesis de voz y oscilador web.
    */
   private async preloadAllAudios(): Promise<void> {
     if (!this.audioContext) return;
+
+    // Verificar si existen archivos estáticos en el servidor con una prueba rápida
+    try {
+      const probe = await fetch(`${this.baseUrl}bingo-audio/b.mp3`, { method: 'HEAD' });
+      if (!probe.ok) {
+        console.log('[BingoAudio] Archivos estáticos no presentes en public/bingo-audio/. Usando motor de voz sintética nativo (TTS) y oscilador.');
+        return;
+      }
+    } catch {
+      console.log('[BingoAudio] Sin acceso a archivos estáticos. Activando motor de voz TTS nativo.');
+      return;
+    }
 
     console.log('[BingoAudio] Iniciando precarga de audios...');
     
@@ -80,8 +93,6 @@ class BingoAudioSystem {
       filesToLoad.push(`${i}.mp3`);
     }
 
-    console.log(`[BingoAudio] Cargando ${filesToLoad.length} archivos de audio...`);
-
     let loaded = 0;
     let errors = 0;
 
@@ -96,22 +107,13 @@ class BingoAudioSystem {
           const key = filename.replace('.mp3', '');
           this.audioBuffers.set(key, buffer);
           loaded++;
-          
-          if (loaded % 10 === 0) {
-            console.log(`[BingoAudio] Progreso: ${loaded}/${filesToLoad.length} archivos cargados`);
-          }
-        } catch (error) {
+        } catch {
           errors++;
-          console.warn(`[BingoAudio] Error cargando ${filename}:`, error);
         }
       }));
     }
 
-    console.log(`[BingoAudio] ✓ Precarga completada: ${loaded} exitosos, ${errors} errores`);
-    
-    if (errors > 10) {
-      console.warn('[BingoAudio] ⚠️ Muchos errores de carga. Verifica que los archivos existan en public/bingo-audio/');
-    }
+    console.log(`[BingoAudio] Precarga finalizada: ${loaded} cargados, ${errors} no disponibles.`);
   }
 
   /**
@@ -189,6 +191,50 @@ class BingoAudioSystem {
   }
 
   /**
+   * Genera un timbre / acorde sintético agradable para el sorteo de balota
+   */
+  private playChime(freq1 = 587.33, freq2 = 880, duration = 0.25): void {
+    if (!this.audioContext) return;
+    try {
+      const ctx = this.audioContext;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq1, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(freq2, ctx.currentTime + duration);
+      gain.gain.setValueAtTime(Math.max(0.01, this.volume * 0.4), ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      console.warn('[BingoAudio] Error generando chime sintético:', e);
+    }
+  }
+
+  /**
+   * Locución por síntesis de voz en español nativa del navegador
+   */
+  private speakBall(letter: string | null, ball: number): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const text = letter 
+        ? `${letter.toUpperCase()}... ${ball}` 
+        : `Balota ${ball}`;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      utterance.volume = this.volume;
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('[BingoAudio] Error en locución TTS:', e);
+    }
+  }
+
+  /**
    * Reproduce una balota con su letra (si aplica) y número
    */
   async playBall(ball: number, variant: string = '75', intervalMs: number = 5000): Promise<void> {
@@ -209,33 +255,25 @@ class BingoAudioSystem {
 
     try {
       if (letter) {
-        // Reproducir letra + número
-        console.log(`[BingoAudio] Reproduciendo letra ${letter} + número ${ball}`);
-        
         const letterBuffer = this.audioBuffers.get(letter);
         const numberBuffer = this.audioBuffers.get(String(ball));
 
-        if (letterBuffer) {
+        if (letterBuffer && numberBuffer) {
           await this.playBuffer(letterBuffer, maxDuration * 0.4);
-        } else {
-          console.warn(`[BingoAudio] Buffer de letra ${letter} no encontrado`);
-        }
-
-        if (numberBuffer) {
           await this.playBuffer(numberBuffer, maxDuration * 0.6);
         } else {
-          console.warn(`[BingoAudio] Buffer de número ${ball} no encontrado`);
+          // Fallback armónico: chime sintético + locución TTS en español
+          this.playChime(659.25, 880, 0.22);
+          this.speakBall(letter, ball);
         }
       } else {
-        // Solo número (variantes 80 y 90)
-        console.log(`[BingoAudio] Reproduciendo solo número ${ball}`);
-        
         const numberBuffer = this.audioBuffers.get(String(ball));
-        
         if (numberBuffer) {
           await this.playBuffer(numberBuffer, maxDuration);
         } else {
-          console.warn(`[BingoAudio] Buffer de número ${ball} no encontrado`);
+          // Fallback armónico: chime sintético + locución TTS en español
+          this.playChime(523.25, 783.99, 0.22);
+          this.speakBall(null, ball);
         }
       }
 

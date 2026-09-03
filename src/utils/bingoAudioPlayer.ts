@@ -92,6 +92,18 @@ class BingoAudioPlayer {
 
     try {
       const letter = this.getLetterForNumber(ball, variant);
+
+      // Si no hay audios cargados, utilizar Web Speech API nativo
+      if (this.letterAudios.size === 0 && this.numberAudios.size === 0 && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = letter ? `${letter.toUpperCase()}... ${ball}` : `Balota ${ball}`;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'es-ES';
+        utterance.volume = this.config.volume;
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+        return;
+      }
       
       // Calcular duración máxima basada en el intervalo
       const maxDuration = intervalMs * 0.8; // Usar 80% del intervalo para dejar margen

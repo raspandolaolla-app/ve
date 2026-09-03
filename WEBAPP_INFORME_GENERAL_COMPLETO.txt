@@ -2,11 +2,61 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 22:13:00 -07:00 (UTC 2026-09-03 05:13:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 14:12:00 -07:00 (UTC 2026-09-03 21:12:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 112_bingo_strict_countdown_and_draw.sql (Sistema de Cuenta Regresiva con Validaciones Estrictas: Mínimo 2 cartones comprados, 2 jugadores únicos y cuenta regresiva obligatoria de 2 minutos antes del sorteo)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
-1) SISTEMA DE CUENTA REGRESIVA CON VALIDACIONES ESTRICTAS (MIGRACIÓN 112 Y DAEMON):
+1) REDISEÑO ULTRA-COMPACTO Y ELIMINACIÓN DE SIMULACIONES EN "SORTEOS INICIANDO PRONTO":
+   - 🚫 CERO Simulaciones de Jugadores y Cartones: Se eliminaron completamente las simulaciones fijas (ej. 48 jugadores, 140 cartones y bucles de prueba). Ahora el componente se nutre exclusivamente de datos verídicos de Supabase (`new Set(purchases.map(p => p.user_id)).size` o `activeTable.players_count` y `purchases.length` o `activeTable.cards_sold`). Si la sala tiene 0 jugadores o 0 cartones, muestra fielmente 0.
+   - ⚡ Formato Ultra-Compacto de Bajo Perfil: Se optimizó el banner para que no consuma espacio vertical excesivo, reduciendo su altura de ~350px a una franja estilizada de ~58px en desktop y ~85px en móvil.
+   - ⏱️ Estado y Temporizador Real: Si existe un sorteo programado en cuenta regresiva (`session.countdown_ends_at`), calcula el tiempo restante exacto. Si no hay sorteo en conteo, muestra `--:--` con la etiqueta "SALA ABIERTA" e informa que la cuenta de 2 minutos inicia al haber mínimo 2 jugadores, cumpliendo fielmente con las reglas de negocio.
+   - 🎯 Integración Fluida en Lobby: Permite visualizar las mesas y el historial de ganadores sin desplazamientos forzados ni obstrucciones visuales.
+2) IMPLEMENTACIÓN DEL DISEÑO FIEL A CAPTURAS 1 Y 2 (BINGO ROYALE COUNTDOWN & SHOWCASE 2 COLUMNAS):
+   - 🎯 Cero alteraciones en lógica interna (Regla Crítica de Oro): Se mantuvieron 100% intactos los hooks, useEffects, llamadas Supabase, estados reactivos y manejadores onClick.
+   - ⏱️ Banner Neón de Cuenta Regresiva Bingo Royale (`BingoCountdownBanner.tsx` - Captura 2):
+     * Caja LED digital de cuenta regresiva `MM:SS` (Minutos y Segundos) con tipografía monoespaciada de alto contraste, caja de fondo oscuro y efecto de urgencia automática cuando faltan menos de 30 segundos.
+     * Barra de progreso horizontal animada con gradiente esmeralda a ámbar (`from-emerald-500 via-amber-500 to-orange-500`).
+     * Métricas en tiempo real: Conteo de jugadores activos con icono `Users`, total de cartones vendidos con icono `Ticket` y pozo/valor de entrada en Bs con icono `Zap`.
+     * Botón de llamada a la acción "¡UNIRSE AHORA!" con gradiente ámbar/naranja resplandeciente (`from-amber-400 to-orange-500`), texto oscuro de máxima legibilidad e icono de flecha dinámica.
+     * Soporte responsivo para vista móvil (`px-4 py-5 flex-col`) y desktop (`sm:flex-row`).
+   - ⚡ Sección 2 Columnas idéntica a Captura 1 (`BingoLobbySection.tsx`):
+     * Columna Izquierda ("⚡ En Vivo" con badge `● EN VIVO`): Tarjeta con esfera 3D de Bingo resplandeciente con letra "B" en gradiente cian/azul/índigo (`from-cyan-500 via-blue-600 to-indigo-700`), título "Mesas de Bingo", contador de mesas activas o mensaje motivacional de apertura, y botón de acción "+ Crear Primera Mesa" / "+ Crear Mesa".
+     * Columna Derecha ("🏆 Historial de Ganadores"): Botones de paginación interactiva `<` y `>` para navegar entre los ganadores de los últimos 7 días, visualización de foto/trofeo de victoria, nombre del jugador en mayúsculas y premio ganado en Bs (`+X.XX Bs`).
+   - 📱 Optimización Móvil First:
+     * Disposición fluida de rejilla adaptativa (`grid-cols-1 lg:grid-cols-2`).
+     * Componente dock de navegación inferior flotante con botón central de juego de 56px de alto impacto.
+     * Carrusel de torneos y tarjetas de juegos con etiquetas "HOT", sombras suaves y bordes de precisión.
+2) REDISEÑO VISUAL "PREMIUM DARK CASINO" INTEGRADO (REGLA CRÍTICA DE ORO RESPETADA):
+   - 🎨 Cero alteraciones en lógica interna: Se mantuvieron 100% intactos los hooks, useEffects, llamadas Supabase, estados reactivos y manejadores onClick.
+   - 🌟 Barra de Navegación Inferior (`BottomNavigation.tsx`):
+     * Fondo `#0B0F17]/95` con desenfoque de fondo (`backdrop-blur-md`), borde superior `border-slate-800` y sombra profunda.
+     * Botón central flotante "JUGAR YA" elevado con gradiente ámbar/naranja (`from-amber-400 to-orange-500`), borde grueso de 4px en `#0B0F17`, resplandor `shadow-[0_0_20px_rgba(245,158,11,0.6)]`, icono `Zap` relleno y etiqueta brillante en mayúsculas.
+     * Pestañas con micro-interacciones activas (`text-white`), inactivas (`text-slate-500 hover:text-slate-300`) y tipografía nítida en mayúsculas de 10px.
+   - 🃏 Tarjetas de Catálogo de Juegos (`GameCard.tsx`):
+     * Fondo `#131926` con transición al pasar el cursor a `#1A2235`, bordes de precisión `border-slate-800 hover:border-amber-500/50`.
+     * Badge flotante "🔥 HOT" con gradiente naranja/rojo y animación sutil de pulso.
+     * Contenedor de iconos y emojis a 5xl con efecto de sombra `drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]` y escala dinámica.
+     * Botón de acción "Jugar Ahora" con gradiente dorado/ámbar de alta visibilidad (`from-amber-500 to-orange-500`), texto `slate-950` de máximo contraste e icono `Play`.
+   - 🎱 Sección de Mesas de Bingo (`BingoLobbySection.tsx`, `BingoTableCard.tsx`, `BingoEmptyState.tsx`):
+     * Tarjetas de mesas con gradiente vertical `#1A2235` a `#0F1523`, esquinas redondeadas de 2xl y borde sutil.
+     * Insignia distintiva para cada variante (Azul para 75 Bolas, Púrpura para 90 Bolas) con detalle de reglas (Línea + Bingo vs Cartón Lleno).
+     * Cuadrícula de estadísticas con contenedor `#0B0F17]/60` para Entrada (en verde esmeralda `emerald-400`) y Pozo actual (en púrpura `purple-400`).
+     * Estado en vivo "En Juego" (amarillo con pulso) vs "Abierto" (esmeralda), y botón de acción con icono de corona `Crown` ("Unirse Ahora").
+     * Estado vacío premium (`BingoEmptyState`) con esfera 🎱, contenedor púrpura translúcido y botón para crear la primera mesa.
+   - 🔍 Armonización del Lobby Principal (`LobbyView.tsx`):
+     * Buscador estilizado con fondo `#131926`, bordes `slate-800` y foco ámbar.
+     * Filtros de categorías (Todos, Tradicionales, Cartas, Tablero, Duelos Rápidos) sincronizados con la paleta oscura y contrastes dorados.
+2) BLINDAJE DE SEGURIDAD Y ESTABILIDAD (RESOLUCIÓN DE 3 VULNERABILIDADES):
+   - 🛡️ Vulnerabilidad 1 (Eliminación de Claves Hardcodeadas en Frontend):
+     * En `src/lib/supabase/client.ts`, se eliminaron de raíz las constantes `DEFAULT_SUPABASE_URL` y `DEFAULT_SUPABASE_ANON_KEY`.
+     * El cliente ahora obtiene de forma estricta `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` desde variables de entorno. Si no están configuradas, falla de manera segura registrando error crítico y dejando la instancia en `null`, evitando conexiones no deseadas a URLs por defecto.
+   - 🛡️ Vulnerabilidad 2 (Eliminación de Degradación de Privilegios en Backend):
+     * En `server.ts`, se erradicó por completo el fallback a `VITE_SUPABASE_ANON_KEY`.
+     * El cliente administrativo `supabaseAdmin` ahora exige exclusivamente `SUPABASE_SERVICE_ROLE_KEY`. Si la clave de servicio no está presente, `supabaseAdmin` permanece inactivo (`null`) y emite una advertencia de seguridad explícita, impidiendo que el backend ejecute tareas administrativas bajo el contexto de políticas RLS anónimas.
+     * Se documentaron `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en `.env.example`.
+   - 🛡️ Problema 3 (Eliminación de Lockfiles en Conflicto):
+     * Se eliminó el archivo residual `bun.lock` de la raíz del proyecto para asegurar que `npm` (utilizado por el build system y CI/CD) mantenga la gobernanza absoluta y determinista del árbol de dependencias mediante `package-lock.json`.
+2) SISTEMA DE CUENTA REGRESIVA CON VALIDACIONES ESTRICTAS (MIGRACIÓN 112 Y DAEMON):
    - 🔒 Migración SQL `112_bingo_strict_countdown_and_draw.sql`:
      * Agregado de columna `countdown_ends_at TIMESTAMPTZ` a la tabla `public.game_sessions`.
      * Función `check_and_start_bingo_countdown()`: Realiza un barrido de sesiones en estado `WAITING`, `READY` o `SALES` sin cuenta regresiva previa. Valida de manera estricta que existan al menos 2 cartones comprados (`v_cards_count >= 2`) y al menos 2 jugadores únicos distintos (`v_unique_players >= 2`). Únicamente al cumplirse ambas condiciones simultáneamente, activa la cuenta regresiva de 2 minutos (`countdown_ends_at = NOW() + INTERVAL '2 minutes'`).

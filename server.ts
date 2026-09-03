@@ -12,11 +12,16 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Configurar cliente administrativo de Supabase si existen credenciales
+// Configurar cliente administrativo de Supabase estrictamente con SERVICE_ROLE_KEY (NUNCA clave anónima)
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-export const supabaseAdmin = (supabaseUrl && supabaseKey)
-  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+if (!supabaseServiceKey) {
+  console.warn('🚨 [SEGURIDAD] SUPABASE_SERVICE_ROLE_KEY no está configurada en el servidor. El cliente supabaseAdmin permanecerá desactivado para evitar degradación de privilegios con claves públicas o anónimas.');
+}
+
+export const supabaseAdmin = (supabaseUrl && supabaseServiceKey)
+  ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : null;
 
 // Configurar pool de conexión a PostgreSQL

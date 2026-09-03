@@ -39,6 +39,7 @@ export interface GameTable {
   startedAt?: string;
   finishedAt?: string;
   config: Record<string, unknown>;
+  gameVariant?: '75' | '90' | string;
 }
 
 export interface TablePlayer {
@@ -63,6 +64,7 @@ export interface CreateTablePayload {
   entryFee: number;
   maxPlayers: number;
   isPrivate: boolean;
+  gameVariant?: '75' | '90' | string;
   config?: Record<string, unknown>;
 }
 

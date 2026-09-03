@@ -15,6 +15,11 @@ import {
   Dices, Grid3X3, Eye, Volume2, VolumeX, Clock, Ticket, Play, Pause,
   Minus, Plus, ShoppingCart, Zap, Users, Crown, Home, RotateCcw, X,
 } from 'lucide-react';
+import { NearWinAlert } from '../../../components/bingo/NearWinAlert';
+import { Leaderboard } from '../../../components/bingo/Leaderboard';
+import { SoundControls } from '../../../components/bingo/SoundControls';
+import { useBingoProgress } from '../../../hooks/useBingoProgress';
+import { useBingoSounds } from '../../../hooks/useBingoSounds';
 
 interface BingoBoardProps {
   state: any;
@@ -207,7 +212,23 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   function normalizeCard(raw: any, idx: number, s: any) {
     let grid: (number | null)[][] = [];
-    if (Array.isArray(raw) && raw.length && typeof raw[0] === 'number') {
+    if (raw?.b && raw?.i && raw?.n && raw?.g && raw?.o) {
+      grid = [];
+      for (let r = 0; r < 5; r++) {
+        const parseCell = (v: any) => {
+          if (v === 'FREE' || v === 'free') return null;
+          const num = Number(v);
+          return !isNaN(num) && num > 0 ? num : null;
+        };
+        grid.push([
+          parseCell(raw.b[r]),
+          parseCell(raw.i[r]),
+          parseCell(raw.n[r]),
+          parseCell(raw.g[r]),
+          parseCell(raw.o[r]),
+        ]);
+      }
+    } else if (Array.isArray(raw) && raw.length && typeof raw[0] === 'number') {
       grid = chunk(raw, raw.length === 15 ? 9 : 5);
     } else if (Array.isArray(raw?.grid) && Array.isArray(raw.grid[0])) grid = raw.grid;
     else if (Array.isArray(raw?.rows) && Array.isArray(raw.rows[0])) grid = raw.rows;
@@ -217,14 +238,125 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     const markedSrc = raw?.marked || s.marked?.[raw?.id ?? idx] || s.markedCells?.[raw?.id ?? idx] || [];
     const markedSet = new Set<string>();
     if (Array.isArray(markedSrc)) {
-      markedSrc.forEach((m: any) => {
-        if (Array.isArray(m)) markedSet.add(`${m[0]}_${m[1]}`);
-        else if (typeof m === 'string') markedSet.add(m);
-        else if (m && m.row !== undefined) markedSet.add(`${m.row}_${m.col}`);
-      });
+      if (Array.isArray(markedSrc[0])) {
+        markedSrc.forEach((rowArr: any[], r: number) => {
+          if (Array.isArray(rowArr)) {
+            rowArr.forEach((val: any, c: number) => {
+              if (val === true) markedSet.add(`${r}_${c}`);
+            });
+          }
+        });
+      } else {
+        markedSrc.forEach((m: any) => {
+          if (Array.isArray(m)) markedSet.add(`${m[0]}_${m[1]}`);
+          else if (typeof m === 'string') markedSet.add(m);
+          else if (m && m.row !== undefined) markedSet.add(`${m.row}_${m.col}`);
+        });
+      }
     }
     return { id: raw?.id ?? `card_${idx}`, grid, markedSet, raw };
   }
+
+  const allCardsInBoard = useMemo(() => {
+    const list: any[] = [];
+    const srcCards = s.cards;
+    if (srcCards && typeof srcCards === 'object' && !Array.isArray(srcCards)) {
+      Object.entries(srcCards).forEach(([uid, cardsArr]) => {
+        if (Array.isArray(cardsArr)) {
+          cardsArr.forEach((c: any, idx: number) => {
+            const userName = s.playerNames?.[uid] || s.players?.[uid]?.name || (uid === currentUserId ? 'Mi Cartón' : `Jugador`);
+            list.push({
+              ...c,
+              id: c.id || `${uid}_${idx}`,
+              userId: uid,
+              userName,
+            });
+          });
+        }
+      });
+    }
+    if (s.players && typeof s.players === 'object') {
+      Object.entries(s.players).forEach(([uid, pData]: [string, any]) => {
+        if (Array.isArray(pData?.cards)) {
+          pData.cards.forEach((c: any, idx: number) => {
+            if (!list.some(item => item.id === (c.id || `${uid}_${idx}`))) {
+              list.push({
+                ...c,
+                id: c.id || `${uid}_${idx}`,
+                userId: uid,
+                userName: pData.name || s.playerNames?.[uid] || 'Jugador',
+              });
+            }
+          });
+        }
+      });
+    }
+    if (list.length === 0 && myCards.length > 0) {
+      myCards.forEach((c: any) => {
+        list.push({
+          ...(c.raw || {}),
+          id: c.id,
+          grid: c.grid,
+          userId: currentUserId,
+          userName: s.playerNames?.[currentUserId] || 'Mi Cartón',
+        });
+      });
+    }
+    return list;
+  }, [s, currentUserId, myCards]);
+
+  const { progress, anyCloseToWin, anyVeryCloseToWin } = useBingoProgress(drawn, allCardsInBoard);
+
+  const {
+    playBallDrawn,
+    playCloseToWin,
+    playVeryCloseToWin,
+    playBingoWin,
+    playCountdown,
+    toggleSounds,
+    setVolume,
+    isEnabled: soundEnabled,
+    volume: soundVolume,
+  } = useBingoSounds({
+    enabled: isMuted !== undefined ? !isMuted : true,
+    volume: 0.7,
+  });
+
+  const [showSoundControls, setShowSoundControls] = useState(false);
+
+  // Efecto para reproducir sonidos según el estado del juego y balotas
+  const lastDrawnCountRef = useRef<number>(drawn.length);
+  useEffect(() => {
+    if (drawn.length > 0 && drawn.length !== lastDrawnCountRef.current) {
+      playBallDrawn();
+    }
+    lastDrawnCountRef.current = drawn.length;
+
+    if (anyVeryCloseToWin) {
+      playVeryCloseToWin();
+    } else if (anyCloseToWin) {
+      playCloseToWin();
+    }
+  }, [drawn.length, anyCloseToWin, anyVeryCloseToWin, playBallDrawn, playCloseToWin, playVeryCloseToWin]);
+
+  // Efecto de victoria
+  const isFinishedGame = isFinished || status === 'FINISHED' || status === 'COMPLETED';
+  const hasWonRef = useRef(false);
+  useEffect(() => {
+    if (isFinishedGame && !hasWonRef.current) {
+      hasWonRef.current = true;
+      playBingoWin();
+    } else if (!isFinishedGame) {
+      hasWonRef.current = false;
+    }
+  }, [isFinishedGame, playBingoWin]);
+
+  // Efecto de cuenta regresiva
+  useEffect(() => {
+    if (countdownSeconds !== undefined && countdownSeconds <= 5 && countdownSeconds > 0) {
+      playCountdown(countdownSeconds);
+    }
+  }, [countdownSeconds, playCountdown]);
 
   const maxBall = useMemo(() => {
     if (s.variant === '90' || s.totalBalls === 90 || s.mode === 90) return 90;
@@ -269,27 +401,81 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   const safeActive = Math.min(activeIndex, Math.max(0, myCards.length - 1));
 
+  const getCardProximity = (card: any) => {
+    const is5x5 = card.grid.length === 5 && (card.grid[0]?.length === 5 || card.grid[0]?.length === undefined);
+    if (is5x5) {
+      let minMissing = 5;
+      for (let r = 0; r < 5; r++) {
+        const lineNums = (card.grid[r] || []).filter((x: any) => Number(x) > 0).map(Number);
+        const missing = lineNums.filter((n: number) => !calledSet.has(n)).length;
+        if (missing < minMissing) minMissing = missing;
+      }
+      for (let c = 0; c < 5; c++) {
+        const lineNums: number[] = [];
+        for (let r = 0; r < 5; r++) {
+          const v = Number(card.grid[r]?.[c]);
+          if (v > 0) lineNums.push(v);
+        }
+        const missing = lineNums.filter((n: number) => !calledSet.has(n)).length;
+        if (missing < minMissing) minMissing = missing;
+      }
+      const diag1 = [card.grid[0]?.[0], card.grid[1]?.[1], card.grid[2]?.[2], card.grid[3]?.[3], card.grid[4]?.[4]].filter((x: any) => Number(x) > 0).map(Number);
+      const diag2 = [card.grid[0]?.[4], card.grid[1]?.[3], card.grid[2]?.[2], card.grid[3]?.[1], card.grid[4]?.[0]].filter((x: any) => Number(x) > 0).map(Number);
+      const missingD1 = diag1.filter((n: number) => !calledSet.has(n)).length;
+      const missingD2 = diag2.filter((n: number) => !calledSet.has(n)).length;
+      if (missingD1 < minMissing) minMissing = missingD1;
+      if (missingD2 < minMissing) minMissing = missingD2;
+
+      return minMissing;
+    }
+    const prog = cardProgress(card);
+    return Math.max(0, prog.total - prog.hit);
+  };
+
   const renderCard = (card: any, index: number, compact: boolean) => {
     const prog = cardProgress(card);
+    const proximity = getCardProximity(card);
     const cols = card.grid[0]?.length || 9;
     const isQuiniela = cols === 9;
+    const isBingo75 = cols === 5 || maxBall === 75;
+
     return (
       <motion.div
         key={card.id}
+        id={index === 0 && isBingo75 ? 'bingo-card-75' : `bingo-card-${card.id}`}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: compact ? index * 0.03 : 0 }}
         className="rounded-xl border-2 overflow-hidden"
         style={{ background: T.panel, borderColor: !compact ? T.accent : T.border, boxShadow: '0 6px 16px rgba(0,0,0,0.45)' }}
       >
-        <div className="flex items-center justify-between px-2 py-1"
+        <div className="flex items-center justify-between px-2 py-1 gap-2"
           style={{ background: isQuiniela
             ? 'linear-gradient(90deg, #FFC94B33, #EF334033, #003DA533)'
             : `linear-gradient(90deg, ${T.accent}33, transparent)` }}>
-          <span className="text-[9px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: T.accent }}>
-            {isQuiniela ? '🇻🇪 Quiniela' : '🎫 Cartón'} #{index + 1}
-          </span>
-          <span className="text-[9px] font-mono font-bold" style={{ color: T.sub }}>{prog.hit}/{prog.total}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[9px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: T.accent }}>
+              {isQuiniela ? '🇻🇪 Quiniela' : '🎫 Cartón'} #{index + 1}
+            </span>
+
+            {/* Indicador de Proximidad al Ganador (Near Win) */}
+            {proximity === 1 && (
+              <span className="text-[9px] font-black bg-red-600 text-white px-2 py-0.5 rounded-full uppercase animate-pulse flex items-center gap-1 shadow-md">
+                <span>⚠️ A 1 BALOTA</span>
+              </span>
+            )}
+            {proximity > 1 && proximity <= 3 && (
+              <span className="text-[9px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full uppercase">
+                ⚠️ A {proximity} BALOTAS
+              </span>
+            )}
+            {proximity === 0 && (
+              <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase animate-bounce">
+                🎉 ¡BINGO!
+              </span>
+            )}
+          </div>
+          <span className="text-[9px] font-mono font-bold shrink-0" style={{ color: T.sub }}>{prog.hit}/{prog.total}</span>
         </div>
         <div className="h-1 w-full" style={{ background: 'rgba(0,0,0,0.4)' }}>
           <div className="h-full transition-all duration-500"
@@ -334,6 +520,9 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative"
       style={{ background: T.bg, minHeight: '100%' }}>
 
+      {/* ===== ALERTA VISUAL CASI GANA (NEAR WIN) ===== */}
+      <NearWinAlert progress={progress} />
+
       {/* ===== BARRA SUPERIOR ===== */}
       <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
         style={{ background: T.panel, borderColor: T.border }}>
@@ -366,11 +555,20 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
               👑 Host
             </span>
           )}
-          {onToggleMute && (
-            <button onClick={onToggleMute} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
-              {isMuted ? <VolumeX className="w-3.5 h-3.5" style={{ color: T.sub }} /> : <Volume2 className="w-3.5 h-3.5" style={{ color: T.accent }} />}
-            </button>
-          )}
+          <button
+            id="bingo-audio-panel-btn"
+            onClick={() => setShowSoundControls(!showSoundControls)}
+            className="flex items-center gap-1 p-1.5 rounded-lg border text-[9px] font-black uppercase transition-colors"
+            style={{
+              borderColor: showSoundControls ? T.accent : T.border,
+              color: soundEnabled ? T.accent : T.sub,
+              background: showSoundControls ? `${T.accent}22` : 'transparent',
+            }}
+            title={soundEnabled ? 'Ajustes de Sonido' : 'Sonido Silenciado'}
+          >
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{soundEnabled ? `${Math.round(soundVolume * 100)}%` : 'Mute'}</span>
+          </button>
           <button onClick={() => setAutoGlow(!autoGlow)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase"
             style={{ borderColor: autoGlow ? T.accent : T.border, color: autoGlow ? T.accent : T.sub, background: autoGlow ? `${T.accent}22` : 'transparent' }}>
             <Eye className="w-3 h-3" /> Auto
@@ -381,6 +579,28 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ===== CONTROLES DE SONIDO EN VIVO ===== */}
+      <AnimatePresence>
+        {showSoundControls && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="w-full max-w-sm ml-auto overflow-hidden"
+          >
+            <SoundControls
+              isEnabled={soundEnabled}
+              volume={soundVolume}
+              onToggle={() => {
+                toggleSounds();
+                onToggleMute?.();
+              }}
+              onVolumeChange={setVolume}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="w-full flex items-center gap-2 flex-wrap">
         {isSalesClosed !== undefined && (
@@ -509,6 +729,13 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </AnimatePresence>
 
+      {/* ===== TABLA DE POSICIONES EN VIVO ===== */}
+      {progress.length > 0 && !isFinished && (
+        <div className="w-full">
+          <Leaderboard progress={progress} maxDisplay={4} />
+        </div>
+      )}
+
       <div className="w-full">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
@@ -566,7 +793,13 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       </div>
 
       {!isFinished && (
-        <motion.button type="button" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }} onClick={onClaimBingo} disabled={!isPlaying}
+        <motion.button
+          id="claim-bingo-btn"
+          type="button"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onClaimBingo}
+          disabled={!isPlaying}
           className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
           style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 10px 30px rgba(229,57,53,0.5)' }}>
           <Trophy className="relative z-10 w-6 h-6 text-amber-300" />

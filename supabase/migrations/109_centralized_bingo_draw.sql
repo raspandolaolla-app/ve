@@ -57,6 +57,12 @@ BEGIN
     updated_at = NOW()
   WHERE id = p_session_id;
 
+  -- Bloquear mesa en 'ACTIVE' para cerrar compras de cartones
+  UPDATE public.game_tables
+  SET status = 'ACTIVE'::table_status_enum,
+      updated_at = NOW()
+  WHERE id = v_session.table_id AND status != 'ACTIVE'::table_status_enum;
+
   RETURN jsonb_build_object('success', true, 'total_balls', v_total_balls, 'hash', v_hash);
 END;
 $$;
@@ -79,6 +85,12 @@ BEGIN
   IF NOT FOUND OR v_session.status != 'DRAWING' THEN 
     RETURN jsonb_build_object('success', false, 'reason', 'NOT_DRAWING'); 
   END IF;
+
+  -- Bloquear inmediatamente la mesa en 'ACTIVE' para cerrar compras
+  UPDATE public.game_tables
+  SET status = 'ACTIVE'::table_status_enum,
+      updated_at = NOW()
+  WHERE id = v_session.table_id AND status != 'ACTIVE'::table_status_enum;
 
   v_next_index := v_session.current_ball_index + 1;
   

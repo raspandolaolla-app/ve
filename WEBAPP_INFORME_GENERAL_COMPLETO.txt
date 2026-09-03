@@ -2,11 +2,62 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 20:14:00 -07:00 (UTC 2026-09-03 03:14:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 21:30:00 -07:00 (UTC 2026-09-03 04:30:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 110_add_game_variant_column_to_game_tables.sql (Columna game_variant en game_tables y game_sessions, soporte de variantes 75/90 en create_game_table_secure)
-ÚLTIMAS MEJORAS TÉCNICAS Y SISTEMAS INTEGRADOS:
-1) FORMULARIO ULTRA COMPACTO DE CREACIÓN DE MESAS DE BINGO (`CreateBingoTableForm.tsx`):
+ÚLTIMA MIGRACIÓN INTEGRADA: 111_bingo_fairness_lock_purchases_when_drawing.sql (Candados de Justicia y Fairness en Bingo: Bloqueo absoluto de compra de cartones una vez iniciado el sorteo)
+ÚLTIMAS MEJORAS TÉCNICAS, RESTAURACIONES Y CORRECCIONES DE UI/UX:
+1) CORRECCIÓN DE CONTRASTE Y TIPOGRAFÍA EN CABECERA DE BINGO LOBBY (`BingoLobbySection.tsx`):
+   - Corrección del título "🎱 Mesas de Bingo Disponibles EN VIVO":
+     * Se reemplazó la clase dependiente de modo claro `text-gray-900` por `text-white font-black text-xl sm:text-2xl tracking-wide uppercase`, garantizando máxima legibilidad y nitidez sobre el fondo oscuro del Lobby (`#0B0F17`).
+     * Subtítulo explicativo agregado en `text-slate-400`: "Partidas en tiempo real de 75 y 90 bolas con pozos acumulados en bolívares".
+     * Badge `EN VIVO` rediseñado con contenedor translúcido esmeralda (`bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black`) con punto pulsante sincronizado (`animate-pulse`).
+     * Tarjetas de mesas de bingo en vivo actualizadas con paleta oscura premium (`bg-gradient-to-br from-[#171E2A] to-[#111722] border-slate-800`), títulos en blanco puro, cifras de pozo en púrpura y costo en verde esmeralda, evitando fondos claros o textos oscuros no legibles.
+2) REVERSIÓN Y ROLLBACK COMPLETO DE LOS ÚLTIMOS 3 CAMBIOS:
+   - Eliminación de archivos temporales/adicionales:
+     * `src/components/lobby/BingoVirtualSimulation.tsx`
+     * `src/components/lobby/GameCard.tsx`
+     * `src/components/bingo/NearWinAlert.tsx`
+     * `src/components/bingo/Leaderboard.tsx`
+     * `src/components/bingo/SoundControls.tsx`
+     * `src/hooks/useBingoSounds.ts`
+     * `src/hooks/useBingoProgress.ts`
+   - Reversión de animaciones CSS en `src/index.css`: Eliminadas `@keyframes bounce-in`, `@keyframes float`, `@keyframes pulse-glow`, `@keyframes slide-up`, `.shimmer`, `.game-card`, `.live-badge`, `.ripple-btn` y estilos de control de volumen no requeridos.
+   - Restauración de `BingoBoard.tsx`: Eliminadas dependencias de alertas de casi gana, leaderboard de cartones en vivo y panel de sonidos. Mantiene su diseño y audio nativo limpio.
+   - Restauración de `LobbyView.tsx`: Restaurada la estructura completa del Lobby conectando `MediaBanner`, `TournamentsCarousel`, `BingoLobbySection` (mesas reales de bingo en vivo e historial de ganadores), Catálogo de Juegos con `GameCard` original, `PublicMatchHistorySection` y `FAQAccordion`.
+2) MODERNIZACIÓN INTERACTIVA DE LA SECCIÓN DE BINGO EN EL LOBBY (`BingoLobbySection.tsx`):
+   - Sustitución de la simulación visual estática previa por una sección interactiva conectada a mesas reales en Supabase en tiempo real.
+   - Encabezado con título "🎱 Mesas de Bingo Disponibles", badge pulsante "EN VIVO" y botón "+ Crear Mesa" con gradiente púrpura/índigo.
+   - Grid dinámico de tarjetas con datos reales de mesas de Bingo (75 y 90 Bolas):
+     * Badges de estado en tiempo real: "SORTEO EN CURSO" (amarillo con baliza pulsante), "ABIERTO" (verde esmeralda), "LLENO".
+     * Información visual: Variante (75/90 bolas), desglose de ganadores (Línea + Bingo vs Bingo tradicional), costo por cartón en BS, pozo acumulado calculado en tiempo real, conteo de jugadores activos y cartones vendidos.
+     * Botón de acción: "Unirse a la Mesa" interactivo con despacho de evento `open-table` y conmutación de pestaña, o botón deshabilitado "Sorteo en curso - No se permiten ingresos" si el juego ya arrancó.
+     * Estado vacío amigable y orientado a la acción: "No hay mesas de Bingo disponibles - ¡Sé el primero en crear una mesa y empezar el juego!" con botón "+ Crear Primera Mesa de Bingo".
+   - Conexión del Modal de Creación de Mesa:
+     * Botones "Crear Mesa" abren el formulario ultra-compacto `CreateBingoTableForm`.
+     * Integración directa con `TableRepository.createTable`, saldo real del usuario desde `useWallet`, feedback de carga (`isCreating`) y auto-ingreso inmediato a la mesa tras su creación exitosa.
+   - Sincronización Realtime (Supabase Channels):
+     * Suscripción a eventos `postgres_changes` en `game_tables` y `bingo_winner_history` para actualización instantánea sin recargar la página.
+   - Flujo de Interoperabilidad Global:
+     * `LobbyView.tsx`: Pasa prop `onNavigateTab` y conecta callback para conmutar a la mesa seleccionada.
+     * `TablesView.tsx`: Agregado listener para el evento global `open-table` para activar y renderizar directamente la mesa seleccionada desde el Lobby.
+     * `App.tsx`: Conexión de `onSelectBingoVariant` para navegar a `tables` y abrir la mesa correspondiente.
+   - Preservación y coexistencia con el Historial de Ganadores "Bingo La Olla" (fotos, nombres y montos en Bs).
+2) SISTEMA DE JUSTICIA Y FAIRNESS EN BINGO (MIGRACIÓN 111 & FRONTEND):
+   - 🔒 PASO 1 (Candado en Base de Datos): Modificación de la función RPC `buy_bingo_cards_secure`:
+     * Bloqueo estricto `FOR UPDATE` sobre `game_tables` y verificación de la sesión activa en `game_sessions`.
+     * Si la sesión se encuentra en estado `'DRAWING'`, `'FINISHED'`, `'COMPLETED'` o `'CANCELLED'` (o si ya se han extraído balotas), la base de datos dispara de inmediato:
+       `RAISE EXCEPTION 'El sorteo ya comenzó. No se pueden comprar más cartones.';`
+     * La transacción se aborta de forma atómica a nivel de Postgres, garantizando que ningún usuario o cliente directo pueda alterar el pozo ni adquirir cartones en desventaja competitiva.
+   - 🔒 PASO 2 (Candado en Motor de Revelado de Balotas):
+     * Actualización de `reveal_next_bingo_ball`: Al extraer cualquier balota del sorteo, se actualiza automáticamente `game_tables.status = 'ACTIVE'` para bloquear compras y uniones en la mesa.
+     * Actualización de `prepare_bingo_draw`: Al programar y sellar la secuencia criptográfica del sorteo, la mesa transiciona de inmediato a `'ACTIVE'`.
+   - 🔒 PASO 3 (UI / UX de Compras Cerradas):
+     * Componente `BingoBoard.tsx`: Sustitución condicional de los botones de selección y compra de cartones cuando `salesOpen` es false o el estado es `'DRAWING'` / `'ACTIVE'`.
+     * Despliegue de banner estilizado con icono de candado `🔒 Compras cerradas: El sorteo ya comenzó. ¡Buena suerte con tus cartones!` indicando la cantidad de cartones activos en juego del usuario.
+     * `GameContainer.tsx`: Interceptación preventiva de la acción `BUY_CARDS` en cliente con feedback de error inmediato antes de consultar la red, además de inyectar la prop `isSalesClosed` calculada reactivamente.
+     * `TableRepository.ts`: Supresión de cualquier fallback que pudiera generar cartones sintéticos cuando el servidor rechaza una compra.
+     * `src/types/games.ts`: Ampliación del tipo `GameSession.status` para admitir formalmente `'DRAWING'`, `'WAITING'`, `'ACTIVE'`, `'FINISHED'` sin alertas de TypeScript.
+2) FORMULARIO ULTRA COMPACTO DE CREACIÓN DE MESAS DE BINGO (`CreateBingoTableForm.tsx`):
    - Nuevo componente visual ultra-compacto, sin scroll innecesario y de alta velocidad operativa.
    - Selector visual de variante:
      * 75 Bolas: 2 Ganadores (Línea + Bingo completo), tarjeta azul destacada con badge explicativo.

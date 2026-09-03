@@ -38,7 +38,7 @@ const GAMES_CATALOG = [
   { id: 'truco_venezolano', name: 'Truco', emoji: '🃏', shortName: 'Truco' },
   { id: 'bingo', name: 'Bingo', emoji: '🎱', shortName: 'Bingo' },
   { id: 'polla_venezolana', name: 'Polla Venezolana', emoji: '🐾', shortName: 'Polla' },
-  { id: 'atrapaito', name: 'Atrapaíto', emoji: '🎲', shortName: 'Parchís' },
+  { id: 'atrapaito', name: 'Atrapaíto Criollo', emoji: '🎯', shortName: '1v1 Táctico' },
   { id: 'una_olla', name: 'Una-Olla', emoji: '🃏', shortName: 'Cartas' },
   { id: 'chess', name: 'Ajedrez', emoji: '♚', shortName: 'Ajedrez' },
 ];

@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Zap,
   Flame,
+  BookOpen,
 } from 'lucide-react';
 import { SUPPORTED_GAMES_METADATA, GLOBAL_DRAWS_METADATA } from '../../utils/constants';
 import type { GameMetadata } from '../../types/games';
@@ -25,6 +26,7 @@ interface ExploreDrawerProps {
   onSelectGame: (game: GameMetadata) => void;
   onNavigateTab: (tab: string) => void;
   onOpenSupport: () => void;
+  onOpenRules?: (gameId?: string) => void;
 }
 
 export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
@@ -33,6 +35,7 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
   onSelectGame,
   onNavigateTab,
   onOpenSupport,
+  onOpenRules,
 }) => {
   // Bloquear scroll de la ventana principal cuando el drawer está abierto
   useEffect(() => {
@@ -203,6 +206,22 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
             </div>
 
             <div className="grid grid-cols-1 gap-1.5">
+              {onOpenRules && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenRules('atrapaito');
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-300 border border-amber-500/30 transition-colors flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BookOpen className="w-4 h-4 text-amber-400" />
+                    <span>📖 Manual & Reglas Oficiales</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-amber-400 group-hover:text-amber-200" />
+                </button>
+              )}
+
               <button
                 onClick={() => handleTabClick('tables')}
                 className="w-full text-left p-2.5 rounded-xl bg-[#171E2A]/70 hover:bg-[#1E2938] text-xs font-medium text-[#F8FAFC] transition-colors flex items-center justify-between group"

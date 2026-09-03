@@ -29,6 +29,7 @@ import { LegalModal } from './components/legal/LegalModal';
 import { TermsAcceptanceModal } from './components/legal/TermsAcceptanceModal';
 import { AlertCircle, X } from 'lucide-react';
 import { PollaBoard } from './features/games/components/PollaBoard';
+import { AtrapaitoGame } from './features/games/components/AtrapaitoGame';
 import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
@@ -63,6 +64,10 @@ function AppContent() {
   }, [state, user?.id, user?.user_metadata, user?.email]);
 
   const handleSelectGame = (game: GameMetadata) => {
+    if (game.id === 'atrapaito') {
+      setCurrentTab('atrapaito');
+      return;
+    }
     setRulesGameId(game.id);
     setCurrentTab('tables');
   };
@@ -132,6 +137,7 @@ function AppContent() {
             onSelectGame={handleSelectGame}
             onJoinTrancaito={handleJoinTrancaito}
             onNavigateTab={setCurrentTab}
+            onOpenRules={handleOpenGameRules}
             onSelectBingoVariant={(_variant, tableId) => {
               setCurrentTab('tables');
               setTimeout(() => {
@@ -142,6 +148,10 @@ function AppContent() {
         )}
 
         {currentTab === 'polla' && <PollaBoard />}
+
+        {currentTab === 'atrapaito' && (
+          <AtrapaitoGame onLeave={() => setCurrentTab('home')} onExit={() => setCurrentTab('home')} />
+        )}
 
         {currentTab === 'tables' && <TablesView />}
 
@@ -175,6 +185,7 @@ function AppContent() {
         onSelectGame={handleSelectGame}
         onNavigateTab={setCurrentTab}
         onOpenSupport={() => setSupportModalOpen(true)}
+        onOpenRules={handleOpenGameRules}
       />
 
       {/* Menú Desplegable / Modal de Perfil */}

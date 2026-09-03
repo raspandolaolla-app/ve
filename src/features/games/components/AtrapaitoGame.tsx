@@ -14,6 +14,7 @@ import {
   Scale,
   AlertTriangle,
   Clock,
+  Wifi,
   WifiOff,
   Globe,
   LogOut,
@@ -915,7 +916,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   ]);
 
   // --- HOOK DE SINCRONIZACIÓN ONLINE (Fases 1, 2, 3 y 4) ---
-  const { submitMove, abandonGame, secondsLeft, isMyTurn } = useAtrapaitoOnline({
+  const { submitMove, submitWall, abandonGame, isConnected, secondsLeft, isMyTurn } = useAtrapaitoOnline({
     sessionId: effectiveIsOnline ? effectiveSessionId : null,
     userId: effectiveIsOnline ? effectiveUserId : null,
     playerColor: effectivePlayerColor,
@@ -963,6 +964,9 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
       }
       render();
     },
+    onReconnect: () => {
+      setUi((prev) => ({ ...prev, statusMsg: 'Conexión restablecida con el servidor.' }));
+    },
   });
 
   // --- CONFIRMAR MURO ---
@@ -984,7 +988,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     }
 
     if (effectiveIsOnline) {
-      submitMove('PLACE_WALL', {
+      submitWall({
         col: s.pendingWall.col,
         row: s.pendingWall.row,
         isHorizontal: s.pendingWall.isHorizontal,
@@ -1277,9 +1281,13 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
         {effectiveIsOnline && (
           <div className="mb-2.5 flex items-center justify-between p-2 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
             <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                  isConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400 animate-pulse'
+                }`}
+              >
+                {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+                <span>{isConnected ? 'Conectado' : 'Reconectando...'}</span>
               </span>
               <span className="font-bold text-slate-300">
                 Tu color:{' '}

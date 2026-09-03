@@ -2,7 +2,7 @@
 // RASPANDO LA OLLA — HOOK DE CONEXIÓN ONLINE EN TIEMPO REAL: ATRAPAITO CRIOLLO
 // ==============================================================================
 // Patrón: "Estado Remoto con Reflejo Local"
-// Supabase es la única fuente de verdad; el Canvas dibuja lo que la DB dicta.
+// Supabase es la única fuente de verdad autoritativa; el Canvas dibuja lo que la DB dicta.
 // Incluye suscripción Realtime, temporizador de 15 segundos y gestión de abandono.
 // ==============================================================================
 
@@ -16,6 +16,7 @@ export interface UseAtrapaitoOnlineProps {
   onStateUpdate: (state: any) => void; // Callback para actualizar el Canvas
   onTurnTimeout: () => void; // Callback cuando se acaba el tiempo
   onGameEnd: (winner: string | null) => void; // Callback cuando alguien gana o abandona
+  onReconnect?: () => void; // Callback opcional al recuperar conexión
 }
 
 export const useAtrapaitoOnline = ({
@@ -25,11 +26,14 @@ export const useAtrapaitoOnline = ({
   onStateUpdate,
   onTurnTimeout,
   onGameEnd,
+  onReconnect,
 }: UseAtrapaitoOnlineProps) => {
   const stateRef = useRef<any>(null);
   const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState<number>(15);
+
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isMyTurn, setIsMyTurn] = useState<boolean>(false);
 
   // Obtener cliente Supabase disponible
@@ -37,39 +41,139 @@ export const useAtrapaitoOnline = ({
     return getSupabaseClient() || defaultSupabase;
   }, []);
 
-  // 1. ESCUCHAR EL ESTADO DEL SERVIDOR EN TIEMPO REAL
-  useEffect(() => {
-    if (!sessionId) return;
+  // 1. TEMPORIZADOR DE TURNO (SERVER-AUTHORITATIVE)
+  const updateTurnTimer = useCallback((expiresAtStr?: string) => {
+    if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+    if (!expiresAtStr) {
+      setTimeLeft(0);
+      return;
+    }
+
+    const expiresAt = new Date(expiresAtStr).getTime();
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const remainingMs = expiresAt - now;
+      const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
+      setTimeLeft(remainingSecs);
+
+      if (remainingSecs <= 0) {
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        onTurnTimeout();
+      }
+    };
+
+    updateCountdown();
+    countdownIntervalRef.current = setInterval(updateCountdown, 500);
+
+    const initialRemaining = expiresAt - Date.now();
+    if (initialRemaining > 0) {
+      turnTimerRef.current = setTimeout(() => {
+        setTimeLeft(0);
+        onTurnTimeout();
+      }, initialRemaining);
+    }
+  }, [onTurnTimeout]);
+
+  // 2. CARGAR ESTADO INICIAL DESDE SUPABASE
+  const loadInitialState = useCallback(async () => {
+    if (!sessionId || !userId) return;
     const client = getClient();
     if (!client) return;
 
-    // Cargar estado inicial desde Supabase
-    client
-      .from('game_sessions')
-      .select('current_state, turn_expires_at, current_turn_user_id, status, winner_user_id')
-      .eq('id', sessionId)
-      .single()
-      .then(({ data, error }) => {
-        if (!error && data) {
-          const loadedState = {
-            ...data.current_state,
-            turn_expires_at: data.turn_expires_at || data.current_state?.turn_expires_at,
-            current_turn_user_id: data.current_turn_user_id || data.current_state?.current_turn_user_id,
-            status: data.status || data.current_state?.status,
-            winner_user_id: data.winner_user_id,
-          };
-          stateRef.current = loadedState;
-          onStateUpdate(loadedState);
-
-          if (loadedState.status === 'FINISHED' || loadedState.status === 'ABANDONED' || loadedState.status === 'completed') {
-            onGameEnd(loadedState.winner_user_id || loadedState.winner);
-          }
-        }
+    try {
+      // 1. Intentar función RPC dedicada get_atrapaito_state
+      const { data: rpcData, error: rpcError } = await client.rpc('get_atrapaito_state', {
+        p_session_id: sessionId,
+        p_user_id: userId,
       });
+
+      if (!rpcError && rpcData?.success && rpcData.state) {
+        const loaded = {
+          ...rpcData.state,
+          turn_expires_at: rpcData.turnExpiresAt || rpcData.state.turn_expires_at,
+          current_turn_user_id: rpcData.currentTurnUserId || rpcData.state.current_turn_user_id,
+          status: rpcData.status || rpcData.state.status,
+          winner_user_id: rpcData.winner_user_id || rpcData.state.winner_user_id,
+        };
+
+        stateRef.current = loaded;
+        onStateUpdate(loaded);
+
+        const myTurn =
+          loaded.current_turn_user_id === userId ||
+          loaded.turn === playerColor;
+        setIsMyTurn(Boolean(myTurn));
+
+        if (loaded.turn_expires_at) {
+          updateTurnTimer(loaded.turn_expires_at);
+        }
+
+        if (loaded.status === 'FINISHED' || loaded.status === 'completed' || loaded.winner) {
+          onGameEnd(loaded.winner_user_id || loaded.winner);
+        }
+        return;
+      }
+    } catch (err) {
+      console.warn('[useAtrapaitoOnline] get_atrapaito_state RPC failed, fallback a select directo:', err);
+    }
+
+    // 2. Fallback: consulta directa a game_sessions
+    try {
+      const { data, error } = await client
+        .from('game_sessions')
+        .select('current_state, turn_expires_at, current_turn_user_id, status, winner_user_id')
+        .eq('id', sessionId)
+        .single();
+
+      if (!error && data) {
+        const loadedState = {
+          ...data.current_state,
+          turn_expires_at: data.turn_expires_at || data.current_state?.turn_expires_at,
+          current_turn_user_id: data.current_turn_user_id || data.current_state?.current_turn_user_id,
+          status: data.status || data.current_state?.status,
+          winner_user_id: data.winner_user_id,
+        };
+
+        stateRef.current = loadedState;
+        onStateUpdate(loadedState);
+
+        const myTurn =
+          loadedState.current_turn_user_id === userId ||
+          loadedState.turn === playerColor;
+        setIsMyTurn(Boolean(myTurn));
+
+        if (loadedState.turn_expires_at) {
+          updateTurnTimer(loadedState.turn_expires_at);
+        }
+
+        if (
+          loadedState.status === 'FINISHED' ||
+          loadedState.status === 'ABANDONED' ||
+          loadedState.status === 'completed' ||
+          loadedState.winner
+        ) {
+          onGameEnd(loadedState.winner_user_id || loadedState.winner);
+        }
+      }
+    } catch (dbErr) {
+      console.error('[useAtrapaitoOnline] Error al cargar estado inicial de sesión:', dbErr);
+    }
+  }, [sessionId, userId, playerColor, getClient, onStateUpdate, onGameEnd, updateTurnTimer]);
+
+  // 3. SUSCRIPCIÓN EN TIEMPO REAL
+  useEffect(() => {
+    if (!sessionId || !userId) return;
+    const client = getClient();
+    if (!client) return;
+
+    let isMounted = true;
 
     // Suscripción al canal Realtime
     const channel = client
-      .channel(`atrapaito_session_${sessionId}`)
+      .channel(`atrapaito_${sessionId}`)
       .on(
         'postgres_changes',
         {
@@ -79,6 +183,7 @@ export const useAtrapaitoOnline = ({
           filter: `id=eq.${sessionId}`,
         },
         (payload: any) => {
+          if (!isMounted) return;
           const newRow = payload.new;
           if (!newRow) return;
 
@@ -93,6 +198,15 @@ export const useAtrapaitoOnline = ({
           stateRef.current = newState;
           onStateUpdate(newState);
 
+          const myTurn =
+            newState.current_turn_user_id === userId ||
+            newState.turn === playerColor;
+          setIsMyTurn(Boolean(myTurn));
+
+          if (newState.turn_expires_at) {
+            updateTurnTimer(newState.turn_expires_at);
+          }
+
           // Manejar fin de juego por victoria o abandono
           if (
             newState.status === 'FINISHED' ||
@@ -104,65 +218,54 @@ export const useAtrapaitoOnline = ({
           }
         }
       )
-      .subscribe();
-
-    return () => {
-      client.removeChannel(channel);
-    };
-  }, [sessionId, getClient, onStateUpdate, onGameEnd]);
-
-  // 2. TEMPORIZADOR DE 15 SEGUNDOS (SERVER-AUTHORITATIVE)
-  useEffect(() => {
-    const currentState = stateRef.current;
-    if (!currentState?.turn_expires_at) return;
-
-    const myTurn =
-      currentState.current_turn_user_id === userId ||
-      currentState.turn === playerColor;
-
-    setIsMyTurn(Boolean(myTurn));
-
-    if (myTurn) {
-      const expiresAt = new Date(currentState.turn_expires_at).getTime();
-
-      const updateCountdown = () => {
-        const now = Date.now();
-        const diff = Math.max(0, Math.ceil((expiresAt - now) / 1000));
-        setSecondsLeft(diff);
-
-        if (diff <= 0) {
-          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-          onTurnTimeout();
+      .on('system' as any, { event: 'connected' }, () => {
+        if (!isMounted) return;
+        setIsConnected(true);
+        if (onReconnect) onReconnect();
+      })
+      .on('system' as any, { event: 'disconnected' }, () => {
+        if (!isMounted) return;
+        setIsConnected(false);
+      })
+      .subscribe((status: string) => {
+        if (!isMounted) return;
+        if (status === 'SUBSCRIBED') {
+          setIsConnected(true);
+          loadInitialState();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setIsConnected(false);
         }
-      };
-
-      updateCountdown();
-      countdownIntervalRef.current = setInterval(updateCountdown, 500);
-
-      const timeLeft = expiresAt - Date.now();
-      if (timeLeft <= 0) {
-        onTurnTimeout();
-      } else {
-        turnTimerRef.current = setTimeout(() => {
-          onTurnTimeout();
-        }, timeLeft);
-      }
-    } else {
-      setSecondsLeft(15);
-    }
+      });
 
     return () => {
+      isMounted = false;
+      client.removeChannel(channel);
       if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-  }, [stateRef.current?.turn_expires_at, stateRef.current?.turn, stateRef.current?.current_turn_user_id, userId, playerColor, onTurnTimeout]);
+  }, [sessionId, userId, playerColor, getClient, loadInitialState, onStateUpdate, onGameEnd, onReconnect, updateTurnTimer]);
 
-  // 3. ENVIAR JUGADAS AL SERVIDOR
+  // 4. ENVIAR MOVIMIENTO DE CANICA
+  // Soporta ambas firmas: submitMove(col, row) o submitMove('MOVE_MARBLE' | 'PLACE_WALL', data)
   const submitMove = useCallback(
-    async (actionType: 'MOVE_MARBLE' | 'PLACE_WALL', data: any) => {
-      if (!sessionId || !userId) return;
+    async (
+      colOrAction: number | 'MOVE_MARBLE' | 'PLACE_WALL',
+      rowOrData?: number | any
+    ) => {
+      if (!sessionId || !userId) return { success: false, error: 'NO_SESSION' };
       const client = getClient();
-      if (!client) return;
+      if (!client) return { success: false, error: 'NO_CLIENT' };
+
+      let actionType: 'MOVE_MARBLE' | 'PLACE_WALL' = 'MOVE_MARBLE';
+      let data: any = {};
+
+      if (typeof colOrAction === 'number') {
+        actionType = 'MOVE_MARBLE';
+        data = { col: colOrAction, row: rowOrData as number };
+      } else {
+        actionType = colOrAction;
+        data = rowOrData;
+      }
 
       const curr = stateRef.current;
       const myTurn =
@@ -172,7 +275,7 @@ export const useAtrapaitoOnline = ({
 
       if (!myTurn) {
         console.warn('[useAtrapaitoOnline] No es tu turno para jugar.');
-        return;
+        return { success: false, error: 'NOT_YOUR_TURN' };
       }
 
       // Preparar estado anticipado para reflejo local
@@ -211,39 +314,43 @@ export const useAtrapaitoOnline = ({
         }
       }
 
-      // 1. Invocar RPC segura especializada
+      // 1. Invocar RPC dedicada submit_atrapaito_action
       try {
-        const { error: rpcErr } = await client.rpc('submit_atrapaito_action_secure', {
+        const { data: rpcRes, error: rpcErr } = await client.rpc('submit_atrapaito_action', {
           p_session_id: sessionId,
           p_user_id: userId,
           p_action_type: actionType,
           p_action_data: data,
         });
 
-        if (!rpcErr) {
+        if (!rpcErr && rpcRes?.success) {
           stateRef.current = nextState;
           onStateUpdate(nextState);
-          return;
-        }
-
-        // 2. Intentar submit_game_action_secure general
-        const { error: generalErr } = await client.rpc('submit_game_action_secure', {
-          p_session_id: sessionId,
-          p_user_id: userId,
-          p_action_type: actionType,
-          p_action_data: data,
-        });
-
-        if (!generalErr) {
-          stateRef.current = nextState;
-          onStateUpdate(nextState);
-          return;
+          return rpcRes;
         }
       } catch (err) {
-        console.warn('[useAtrapaitoOnline] RPC error, aplicando sincronización directa:', err);
+        console.warn('[useAtrapaitoOnline] submit_atrapaito_action RPC error:', err);
       }
 
-      // 3. Fallback de sincronización directa a base de datos
+      // 2. Fallback: intentar submit_atrapaito_action_secure
+      try {
+        const { error: secErr } = await client.rpc('submit_atrapaito_action_secure', {
+          p_session_id: sessionId,
+          p_user_id: userId,
+          p_action_type: actionType,
+          p_action_data: data,
+        });
+
+        if (!secErr) {
+          stateRef.current = nextState;
+          onStateUpdate(nextState);
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn('[useAtrapaitoOnline] submit_atrapaito_action_secure error:', err);
+      }
+
+      // 3. Fallback: sincronización directa a base de datos
       try {
         await client
           .from('game_sessions')
@@ -256,40 +363,67 @@ export const useAtrapaitoOnline = ({
 
         stateRef.current = nextState;
         onStateUpdate(nextState);
-      } catch (dbErr) {
+        return { success: true };
+      } catch (dbErr: any) {
         console.error('[useAtrapaitoOnline] Error al sincronizar jugada con Supabase:', dbErr);
+        return { success: false, error: dbErr?.message || 'DB_ERROR' };
       }
     },
     [sessionId, userId, playerColor, getClient, onStateUpdate]
   );
 
-  // 4. ABANDONAR LA PARTIDA (Voluntario)
+  // 5. COLOCAR MURO DIRECTO
+  const submitWall = useCallback(
+    async (wallData: any) => {
+      return submitMove('PLACE_WALL', wallData);
+    },
+    [submitMove]
+  );
+
+  // 6. ABANDONAR LA PARTIDA (Voluntario)
   const abandonGame = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId) return { success: false, error: 'NO_SESSION' };
     const client = getClient();
-    if (!client) return;
+    if (!client) return { success: false, error: 'NO_CLIENT' };
 
     try {
-      // 1. Ejecutar RPC específica de Atrapaito con liquidación 90/10 al oponente
+      // 1. Ejecutar RPC específica abandon_atrapaito_game
+      const { data: abRes, error: abErr } = await client.rpc('abandon_atrapaito_game', {
+        p_session_id: sessionId,
+        p_leaving_user_id: userId,
+      });
+
+      if (!abErr) {
+        return abRes;
+      }
+
+      // 2. Fallback: handle_atrapaito_abandon
       const { error: rpcErr } = await client.rpc('handle_atrapaito_abandon', {
         p_session_id: sessionId,
         p_leaving_user_id: userId,
       });
 
-      if (rpcErr) {
-        console.warn('[useAtrapaitoOnline] handle_atrapaito_abandon error, intentando RPC general:', rpcErr);
-        await client.rpc('abandon_game_table_secure', { p_session_id: sessionId });
+      if (!rpcErr) {
+        return { success: true };
       }
-    } catch (err) {
+
+      // 3. Fallback: abandon_game_table_secure
+      await client.rpc('abandon_game_table_secure', { p_session_id: sessionId });
+      return { success: true };
+    } catch (err: any) {
       console.error('[useAtrapaitoOnline] Error al procesar abandono:', err);
+      return { success: false, error: err?.message };
     }
   }, [sessionId, userId, getClient]);
 
   return {
     submitMove,
+    submitWall,
     abandonGame,
-    currentState: stateRef.current,
-    secondsLeft,
+    isConnected,
+    timeLeft,
+    secondsLeft: timeLeft,
     isMyTurn,
+    currentState: stateRef.current,
   };
 };

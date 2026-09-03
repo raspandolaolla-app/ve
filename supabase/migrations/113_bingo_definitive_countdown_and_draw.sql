@@ -461,6 +461,5 @@ GRANT EXECUTE ON FUNCTION public.check_and_start_bingo_countdown() TO authentica
 GRANT EXECUTE ON FUNCTION public.reveal_next_bingo_ball(UUID) TO authenticated, service_role, anon;
 GRANT EXECUTE ON FUNCTION public.buy_bingo_cards_secure(UUID, INT, TEXT, NUMERIC, JSONB, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.server_bingo_operation(TEXT, UUID, UUID) TO authenticated, service_role, anon;
-GRANT EXECUTE ON FUNCTION public.server_bingo_operation(UUID, TEXT, UUID) TO authenticated, service_role, anon;
 
 NOTIFY pgrst, 'reload schema';

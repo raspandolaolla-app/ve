@@ -125,15 +125,15 @@ async function runAutomatedBingoDraws() {
   try {
     client = await pool.connect();
     
-    // 1. INICIAR MESA AUTOMÁTICA EN COUNTDOWN (PREPARAR SORTEO AUTORITATIVO)
-    // Busca mesas en READY/OPEN con cronogramas cumplidos para pre-generar la secuencia completa
+    // 1. INICIAR MESA AUTOMÁTICA EN COUNTDOWN
+    // Busca mesas en READY/OPEN con cronogramas cumplidos para activarlas
     const readyQuery = `
       SELECT gt.id as table_id, gs.id as session_id, gt.config
       FROM public.game_tables gt
       JOIN public.game_sessions gs ON gs.table_id = gt.id
-      WHERE gt.game_type = 'BINGO'::public.game_type_enum
-        AND gt.status IN ('OPEN'::public.table_status_enum, 'STARTING'::public.table_status_enum)
-        AND gs.status IN ('WAITING'::public.session_status_enum, 'READY'::public.session_status_enum, 'STARTING'::public.session_status_enum)
+      WHERE gt.game_type::text = 'BINGO'
+        AND gt.status::text IN ('OPEN', 'STARTING')
+        AND gs.status::text IN ('WAITING', 'READY', 'STARTING')
         AND (gt.config->>'automated')::boolean IS TRUE
         AND (gt.config->>'scheduled_start_at') IS NOT NULL
         AND (gt.config->>'scheduled_start_at')::timestamptz <= NOW()
@@ -142,77 +142,54 @@ async function runAutomatedBingoDraws() {
     const readyRes = await client.query(readyQuery);
     
     for (const row of readyRes.rows) {
-      console.log(`[BINGO_SERVER] [BINGO] Mesa ${row.table_id} lista para iniciar. Pre-generando secuencia con prepare_bingo_draw...`);
-      
-      const prepQuery = `SELECT public.prepare_bingo_draw($1) as result;`;
-      const prepRes = await client.query(prepQuery, [row.session_id]);
-      
-      const resultObj = prepRes.rows[0]?.result;
-      if (resultObj && resultObj.success) {
-        console.log(`[BINGO_SERVER] [BINGO_DRAW] Mesa ${row.table_id} preparada autoritativamente. Bolas: ${resultObj.total_balls}, Hash: ${resultObj.hash}`);
-        await client.query(
-          `UPDATE public.game_tables SET status = 'ACTIVE'::public.table_status_enum, updated_at = NOW() WHERE id = $1;`,
-          [row.table_id]
-        );
-      } else {
-        console.warn(`[BINGO_SERVER] [BINGO_ERROR] No se pudo preparar mesa ${row.table_id}:`, resultObj?.error || "Error desconocido");
-      }
+      console.log(`[BINGO_SERVER] [BINGO] Mesa ${row.table_id} lista para iniciar. Activando mesa y sesión...`);
+      await client.query(
+        `UPDATE public.game_tables SET status = 'ACTIVE'::public.table_status_enum, updated_at = NOW() WHERE id = $1;`,
+        [row.table_id]
+      );
+      await client.query(
+        `UPDATE public.game_sessions SET status = 'ACTIVE'::public.session_status_enum, updated_at = NOW() WHERE id = $1;`,
+        [row.session_id]
+      );
     }
 
-    // 2. REVELAR SIGUIENTE BOLA CADA 3 SEGUNDOS (MIGRACIÓN 109 - reveal_next_bingo_ball)
-    // Busca sesiones en status DRAWING que cumplieron el intervalo de 3 segundos
-    const drawingQuery = `
+    // 2. EXTRAER SIGUIENTES BALOTAS DE SESIONES ACTIVAS DE BINGO (SERVER-AUTHORITATIVE)
+    // Invoca directamente la RPC canónica server_bingo_operation('draw_ball', session_id)
+    const activeQuery = `
       SELECT gs.id as session_id, gt.id as table_id, gt.config, gs.updated_at
       FROM public.game_sessions gs
       JOIN public.game_tables gt ON gt.id = gs.table_id
-      WHERE gs.status = 'DRAWING'::public.session_status_enum
-        AND gt.game_type = 'BINGO'::public.game_type_enum
-        AND (gs.updated_at IS NULL OR gs.updated_at <= NOW() - INTERVAL '3 seconds')
-      LIMIT 10;
-    `;
-    const drawingRes = await client.query(drawingQuery);
-
-    for (const row of drawingRes.rows) {
-      const revealQuery = `SELECT public.reveal_next_bingo_ball($1) as result;`;
-      const revealRes = await client.query(revealQuery, [row.session_id]);
-      const resultObj = revealRes.rows[0]?.result;
-
-      if (resultObj && resultObj.success) {
-        console.log(`[BINGO_SERVER] [CENTRAL_DRAW] Sesión ${row.session_id}: Bola revelada: ${resultObj.ball_number} (Índice: ${resultObj.index})`);
-        if (resultObj.has_winner) {
-          console.log(`[BINGO_SERVER] [CENTRAL_DRAW] ¡Ganador detectado en sesión ${row.session_id}! Ganador: ${resultObj.winner_user_id}`);
-        }
-      } else if (resultObj?.reason === 'DRAW_COMPLETE') {
-        console.log(`[BINGO_SERVER] [CENTRAL_DRAW] Sorteo completado para sesión ${row.session_id}. Marcando como FINISHED.`);
-        await client.query(
-          `UPDATE public.game_sessions SET status = 'FINISHED'::public.session_status_enum, updated_at = NOW() WHERE id = $1;`,
-          [row.session_id]
-        );
-      }
-    }
-
-    // 3. EXTRAER SIGUIENTES BALOTAS DE SESIONES ACTIVAS LEGACY (COMPATIBILIDAD)
-    const activeQuery = `
-      SELECT gs.id as session_id, gt.id as table_id, gt.config, gt.updated_at
-      FROM public.game_sessions gs
-      JOIN public.game_tables gt ON gt.id = gs.table_id
-      WHERE gs.status = 'ACTIVE'::public.session_status_enum
-        AND gt.game_type = 'BINGO'::public.game_type_enum
+      WHERE gs.status::text IN ('ACTIVE', 'DRAWING', 'PLAYING')
+        AND gt.game_type::text = 'BINGO'
         AND (gt.config->>'automated')::boolean IS TRUE
-        AND (gs.current_state->>'status') = 'in_progress'
-        AND (gt.updated_at IS NULL OR gt.updated_at <= NOW() - (COALESCE(gt.config->>'call_interval_ms', '3500')::text || ' milliseconds')::interval)
+        AND (gs.current_state->>'winnerUserId') IS NULL
+        AND COALESCE(gs.current_state->>'status', '') != 'finished'
+        AND (gs.updated_at IS NULL OR gs.updated_at <= NOW() - (COALESCE(gt.config->>'call_interval_ms', '3500')::text || ' milliseconds')::interval)
       LIMIT 5;
     `;
     const activeRes = await client.query(activeQuery);
     
     for (const row of activeRes.rows) {
-      const intervalMs = parseInt(row.config?.call_interval_ms || "3500", 10);
-      const drawQuery = `SELECT public.server_bingo_operation('draw_ball', $1) as result;`;
-      const drawRes = await client.query(drawQuery, [row.session_id]);
-      
-      const resultObj = drawRes.rows[0]?.result;
-      if (resultObj && resultObj.success) {
-        console.log(`[BINGO_SERVER] [BINGO_DRAW] Balota extraída (legacy) para sesión ${row.session_id}: ${resultObj.ball || resultObj.ball_number}`);
+      try {
+        const drawQuery = `SELECT public.server_bingo_operation('draw_ball', $1) as result;`;
+        const drawRes = await client.query(drawQuery, [row.session_id]);
+        const resultObj = drawRes.rows[0]?.result;
+        
+        if (resultObj && resultObj.success) {
+          console.log(`[BINGO_SERVER] [BINGO_DRAW] Balota extraída para sesión ${row.session_id}: ${resultObj.ball || resultObj.ball_number}`);
+          if (resultObj.has_winner || resultObj.winner_user_id) {
+            console.log(`[BINGO_SERVER] [BINGO_WINNER] ¡Ganador detectado en sesión ${row.session_id}! Ganador: ${resultObj.winner_user_id}`);
+          }
+        }
+      } catch (drawErr: any) {
+        const errMsg = drawErr?.message || String(drawErr);
+        if (errMsg.includes('TOO_FAST')) {
+          // Intervalo normal de rate-limiting (4s), ignorar silenciosamente
+        } else if (errMsg.includes('BINGO_COMPLETE') || errMsg.includes('SESSION_NOT_ACTIVE') || errMsg.includes('GAME_ALREADY_FINISHED')) {
+          console.log(`[BINGO_SERVER] Sorteo finalizado o sesión inactiva para ${row.session_id} (${errMsg}).`);
+        } else {
+          console.warn(`[BINGO_SERVER] [BINGO_DRAW_WARN] Aviso en sorteo para sesión ${row.session_id}:`, errMsg);
+        }
       }
     }
   } catch (err: any) {

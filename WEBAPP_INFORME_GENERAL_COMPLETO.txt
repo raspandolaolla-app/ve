@@ -2,55 +2,45 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 17:15:00 -07:00 (UTC 2026-09-03 00:15:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 109_centralized_bingo_draw.sql (Arquitectura 100% Server-Authoritative para Sorteo Centralizado de Bingo en Supabase)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 18:50:00 -07:00 (UTC 2026-09-03 01:50:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
+ÚLTIMA MIGRACIÓN INTEGRADA: 103_fix_server_bingo_operation_overload.sql (RPC canónico server_bingo_operation con rate limiting y eliminación de sobrecargas PGRST203)
 ÚLTIMAS MEJORAS TÉCNICAS Y SISTEMAS INTEGRADOS:
-1) CORRECCIÓN DE ENUM EN MOTOR DE SORTEO (`server.ts`):
-   - Solucionado error `invalid input value for enum table_status_enum: "READY"` en `runAutomatedBingoDraws()`.
-   - `table_status_enum` soporta exclusivamente: `OPEN, FULL, STARTING, ACTIVE, CLOSED, EXPIRED, CANCELLED, TERMINATED` (el valor `READY` pertenece a `session_status_enum` y `player_table_status_enum`).
-   - Se ajustó la consulta para filtrar `gt.status IN ('OPEN'::public.table_status_enum, 'STARTING'::public.table_status_enum)` y `gs.status IN ('WAITING'::public.session_status_enum, 'READY'::public.session_status_enum, 'STARTING'::public.session_status_enum)`.
-   - Al invocar `prepare_bingo_draw`, la mesa transiciona explícitamente a `gt.status = 'ACTIVE'::public.table_status_enum`.
-2) ARQUITECTURA SERVER-AUTHORITATIVE Y CENTRALIZADA DE BINGO (MIGRACIÓN 109):
-   - Migración de base de datos idempotente `supabase/migrations/109_centralized_bingo_draw.sql` aplicada y verificada en PostgreSQL:
-     * Enum `session_status_enum` extendido con el valor canónico `'DRAWING'`.
-     * Columnas añadidas a `game_sessions`: `draw_sequence` (INT[]), `current_ball_index` (INT DEFAULT 0), `last_revealed_ball` (INT).
-     * RPC `prepare_bingo_draw(p_session_id UUID)`: Genera atómicamente la permutación aleatoria completa de balotas (1..N), bloquea ventas, firma criptográficamente la secuencia con hash MD5 y transiciona la sesión a estado `DRAWING`.
-     * RPC `reveal_next_bingo_ball(p_session_id UUID)`: Incrementa el índice de extracción, actualiza `last_revealed_ball`, anexa la bola a `current_state->drawnBalls` e invoca en tiempo real a los clientes mediante `game_sessions` Realtime.
-     * Permisos de ejecución otorgados a `anon`, `authenticated` y `service_role`, y esquema recargado mediante `NOTIFY pgrst, 'reload schema'`.
-2) EDGE FUNCTION DE SORTEO AUTOMÁTICO (`supabase/functions/reveal-bingo-ball/index.ts`):
-   - Creado endpoint en Deno/Edge Function con validación de cabecera `Authorization: Bearer <CRON_JOB_SECRET>`.
-   - Itera por todas las sesiones activas en estado `DRAWING` invocando `reveal_next_bingo_ball`.
-   - Transiciona automáticamente a `FINISHED` al recibir `DRAW_COMPLETE`.
-3) MOTOR DE FONDO REDUNDANTE (DAEMON) EN EXPRESS (`server.ts`):
-   - Integrado `runAutomatedBingoDraws()` con detección de mesas en cuenta regresiva para ejecutar `prepare_bingo_draw`.
-   - Bucle activo cada 3 segundos para revelar la siguiente bola llamando a `reveal_next_bingo_ball` de forma 100% autoritativa.
-   - Transición automática a `FINISHED` al completar la secuencia (`DRAW_COMPLETE`).
-4) REFACTORIZACIÓN COMPLETA DE FRONTEND (`BingoGame.tsx` y `GameContainer.tsx`):
-   - El frontend es un observador pasivo que escucha los eventos `UPDATE` de `game_sessions` vía Supabase Realtime y anima la balota extraída.
-   - Eliminados todos los temporizadores o llamadas de cliente que intentaban insertar o solicitar bolas.
-   - Botón de host conectado directamente a `prepare_bingo_draw` mediante la función `startDraw()`.
-   - Eliminada la inserción errónea en `game_actions` que causaba violaciones de restricciones NOT NULL (`sequence_number`, `payload`, `server_state_hash`).
-5) RESOLUCIÓN DE AMBIGÜEDAD POSTGREST (MIGRACIÓN 103):
-   - Eliminada la firma redundante sobrecargada, resolviendo el error `PGRST203`.
-6) SISTEMA AUTORITATIVO DE EXPIRACIÓN DE TURNOS Y ROTACIÓN AUTOMÁTICA (MIGRACIÓN 102):
-   - `public.expire_game_turn_secure(p_session_id UUID)`: Gestiona de forma idempotente y atómica con bloqueo `FOR UPDATE SKIP LOCKED` la deducción de vidas por timeout, rotación del turno al siguiente jugador activo o liquidación automática (90/10) si se agotan las vidas.
-   - `public.expire_game_turn_secure()`: Función sobrecargada sin parámetros para procesamiento en lote por segundo plano de todas las sesiones de juego activas cuyo `turn_deadline_at < NOW()`.
-   - `public.execute_bot_move_on_timeout(p_session_id UUID, p_user_id UUID, p_action_type TEXT)`: Ejecuta pases de turno o jugadas automáticas para evitar partidas congeladas.
-   - `public.detect_disconnected_players()`: Analiza `user_activity_sessions` marcando jugadores con inactividad superior a 45 segundos como `DISCONNECTED` en `game_table_players`.
-   - `public.cron_expire_turns_loop()` y Cron Job `expire-game-turns-job`: Programado en `pg_cron` de Supabase para ejecución periódica de alta fidelidad.
-4) DOBLE REDUNDANCIA EN BACKEND EXPRESS (`server.ts`):
-   - Worker en segundo plano `runAutomatedTurnExpirations()` ejecutándose cada 3 segundos junto al motor de Bingo.
-   - Si la base de datos o el cron pausaran su ejecución, el servidor Express asume la expiración autónoma de forma inmediata y resiliente.
-5) EDGE FUNCTION SERVERLESS (`supabase/functions/expire-game-turns/index.ts`):
-   - Creado endpoint Deno Edge Function con validación de credenciales (CRON_JOB_SECRET y SERVICE_ROLE_KEY) para invocaciones HTTP externas o webhooks de monitoreo.
-6) MEJORAS DE CLIENTE, RESINCRONIZACIÓN Y EXPERIENCIA DE USUARIO:
-   - `src/hooks/useGameReconnection.ts`: Hook reactivo para sincronizar estado de partida cuando el usuario regresa a la pestaña (`visibilitychange`), restablece conectividad (`online`) o ante reconexiones del socket.
-   - `src/components/game/ConnectionStatus.tsx`: Componente visual con badges y banners de estado (conectado, sin conexión, reconectando y alertas de desconexión de oponentes).
-   - `src/features/games/useGameEngine.ts`: Integrado refresco automático al enfocar pestaña o recuperar red, además de reacción inmediata a eventos `TURN_EXPIRED` y `BOT_MOVE`.
-   - `src/services/realtime/RealtimeManager.ts`: Agregado `getConnectionStatus()` y export de compatibilidad `realtimeManager`.
-7) INFRAESTRUCTURA Y COMPATIBILIDAD ANTERIOR:
-   - Preservadas íntegramente las migraciones 001 a 100, la lógica de liquidación financiera y la integridad de todas las rutas y contratos existentes.
+1) SISTEMA DE SONIDOS INTELIGENTES Y CONTROL DE AUDIO EN BINGO:
+   - Hook reactivo `useBingoSounds.ts`:
+     - Generación sintética de tonos con Web Audio API pura (sin dependencia de archivos externos ni latencias de carga).
+     - Sonido de bola cantada (`playBallDrawn` a 523.25 Hz Do medio con decay suave).
+     - Sonido de "cerca de ganar" (`playCloseToWin` secuencia ascendente Do-Mi-Sol).
+     - Sonido de "a 1 balota" (`playVeryCloseToWin` arpegio rápido Sol-Si-Re-Mi agudo para máxima emoción).
+     - Fanfarria completa de victoria (`playBingoWin` con acordes sostenidos).
+     - Tono de cuenta regresiva para los últimos 5 segundos (`playCountdown`).
+     - Lógica anti-spam inteligente basada en timestamps para prevenir colisión o saturación de ondas sonoras.
+     - Persistencia del estado mute y nivel de volumen en `localStorage` (`bingo_audio_muted`, `bingo_audio_volume`).
+   - Componente interactivo `SoundControls.tsx`:
+     - Botón de silencio rápido (mute/unmute) con indicación visual de volumen activo.
+     - Control deslizante (slider) de volumen reactivo con graduación porcentual en tiempo real.
+     - Estilizado de alto contraste accesible para temas oscuros y claros con identificadores `#bingo-sound-controls`, `#btn-toggle-sound` y `#bingo-volume-slider`.
+   - Integración total en `BingoBoard.tsx`:
+     - Botón de audio `#bingo-audio-panel-btn` en la barra superior con indicador de volumen porcentual.
+     - Panel animado expandible para ajustar volumen sin abandonar la pantalla de juego.
+     - Sincronización de eventos de juego: sorteo de balotas, alertas de cercanía ("A 1 balota" / "A 2-3 balotas"), cuenta regresiva y fanfarria de fin de partida.
+2) SISTEMA PROFESIONAL DE PROXIMIDAD DE VICTORIA ("CASI GANA" / NEAR WIN SYSTEM) EN BINGO:
+   - Hook reactivo `useBingoProgress.ts`: Cálculo en tiempo real de proximidad al bingo para cada cartón y jugador en mesa (números faltantes, porcentaje de completitud, detección de 'a 1 balota' y 'a 3 balotas o menos', soporte para patrones en 75/80/90 bolas).
+   - Componente flotante `NearWinAlert.tsx`: Alertas visuales dinámicas con animaciones de entrada (`bounce-in`, `pulse-fast`, `spin-slow`) que aumentan la adrenalina y tensión comunitaria al anunciar cuando un contrincante está a punto de ganar.
+   - Componente de clasificación en vivo `Leaderboard.tsx`: Podio y lista ordenada con los mejores jugadores de la sala, barras de progreso y estado en tiempo real.
+   - Insignias visuales directas por cartón: `⚠️ A 1 BALOTA`, `⚠️ A X BALOTAS` y `🎉 ¡BINGO!`.
+3) CORRECCIÓN DE CAST DE ENUM EN MOTOR DE SORTEO DE BINGO (`server.ts`):
+   - Solucionado error `invalid input value for enum session_status_enum: "PLAYING"`.
+   - En PostgreSQL, el tipo `session_status_enum` soporta exclusivamente: `WAITING, READY, STARTING, ACTIVE, PAUSED, FINISHED, CANCELLED, ABANDONED, SETTLED`.
+   - Se migró la condición a comparación segura por texto: `gs.status::text IN ('ACTIVE', 'DRAWING', 'PLAYING')` y `gt.game_type::text = 'BINGO'`, eliminando excepciones de tipado estricto de enums literales en consultas SQL.
+4) MOTOR DE FONDO (DAEMON) EN EXPRESS (`server.ts`):
+   - Actualizada la función `runAutomatedBingoDraws()` para iniciar mesas programadas cuya cuenta regresiva haya finalizado (`scheduled_start_at <= NOW()`).
+   - Sorteo autoritativo de balotas directamente vía `SELECT public.server_bingo_operation('draw_ball', $1)`.
+   - Manejo silencioso de rate-limiting (`TOO_FAST`), logging controlado y detección de fin de partida (`BINGO_COMPLETE`, `GAME_ALREADY_FINISHED`).
+5) VERIFICACIÓN DE LINTER Y COMPILACIÓN COMPLETA:
+   - `tsc --noEmit` completado con 0 errores de tipos en todo el proyecto.
+   - `vite build` y compilación de backend con `esbuild` finalizadas exitosamente con resultado PASS.
+================================================================================
 ================================================================================
 
 --------------------------------------------------------------------------------

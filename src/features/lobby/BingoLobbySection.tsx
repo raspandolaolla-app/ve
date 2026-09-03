@@ -235,8 +235,10 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         .select(`
           *,
           game_sessions (
+            id,
             status,
             current_state,
+            countdown_ends_at,
             winner_user_id,
             gross_pool,
             winner_prize_amount
@@ -261,18 +263,51 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         tables = fallback.data;
       }
 
+      // Obtener compras reales de cartones para calcular pozo neto (90%) y cartones reales
+      const tableIds = (tables || []).map((t: any) => t.id);
+      const purchasesByTable: Record<string, any[]> = {};
+      if (tableIds.length > 0) {
+        try {
+          const { data: purchases } = await client
+            .from('bingo_card_purchases')
+            .select('id, game_table_id, user_id, card_count, total_cost, winner_pool')
+            .in('game_table_id', tableIds);
+
+          if (purchases) {
+            purchases.forEach((p: any) => {
+              if (!purchasesByTable[p.game_table_id]) {
+                purchasesByTable[p.game_table_id] = [];
+              }
+              purchasesByTable[p.game_table_id].push(p);
+            });
+          }
+        } catch (pErr) {
+          console.warn('Error obteniendo compras de cartones:', pErr);
+        }
+      }
+
       // Procesar datos para mostrar
       const processedTables = (tables || []).map((table: any) => {
         const session = Array.isArray(table.game_sessions) ? table.game_sessions[0] : table.game_sessions;
         const players = (table.game_table_players || []).filter((p: any) => p.status !== 'LEFT');
-        const cardsCount = Number(table.cards_sold || table.config?.cards_sold || (players.length > 0 ? players.length * 2 : 0));
+        const tablePurchases = purchasesByTable[table.id] || [];
+
+        const realCardsSold = tablePurchases.length > 0
+          ? tablePurchases.reduce((acc, p) => acc + (Number(p.card_count) || 1), 0)
+          : Number(table.cards_sold || 0);
+
+        const realPlayersCount = tablePurchases.length > 0
+          ? new Set(tablePurchases.map((p) => p.user_id)).size
+          : (players.length || table.current_players_count || 0);
+
         const entryFee = Number(table.entry_fee || table.entryFee || 25);
 
-        // Calcular pozo actual
-        const sessionPrize = Number(session?.winner_prize_amount || session?.gross_pool || 0);
-        const totalPrize = sessionPrize > 0
+        // Pozo Neto (90%) sin contar el 10% de comisión
+        const purchasesPool = tablePurchases.reduce((acc, p) => acc + (Number(p.winner_pool) || 0), 0);
+        const sessionPrize = Number(session?.winner_prize_amount || 0);
+        const netPrize = sessionPrize > 0
           ? sessionPrize
-          : (Number(table.config?.current_prize) || (cardsCount * entryFee * 0.90) || 0);
+          : (purchasesPool > 0 ? purchasesPool : Math.round(realCardsSold * entryFee * 0.90 * 100) / 100);
 
         const variant = String(table.game_variant || table.config?.gameVariant || table.config?.variant || '90');
         const status = session?.status || table.status || 'OPEN';
@@ -283,11 +318,12 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           status: status,
           game_variant: variant,
           entry_fee: entryFee,
-          players_count: players.length || table.current_players_count || 0,
+          players_count: realPlayersCount,
           max_players: table.max_players === 99 ? 99 : (table.max_players || 99),
-          cards_sold: cardsCount,
-          current_prize: Math.round(totalPrize * 100) / 100,
+          cards_sold: realCardsSold,
+          current_prize: Math.round(netPrize * 100) / 100,
           canJoin: status !== 'DRAWING' && status !== 'drawing' && status !== 'FINISHED' && status !== 'finished',
+          game_sessions: session ? [session] : [],
         };
       });
 
@@ -355,21 +391,24 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
     }
   };
 
+  const handleQuickCreateTable = async (variant: '90' | '75') => {
+    await handleCreateTable({
+      gameType: 'bingo',
+      gameVariant: variant,
+      entryFee: 25,
+      maxPlayers: 99,
+      isPrivate: false,
+    });
+  };
+
   return (
     <div id="section-bingo-virtual" className="mb-10">
-      {/* 1. BANNER COUNTDOWN BINGO ROYALE (Captura 2) */}
+      {/* 1. SALAS EN VIVO DE BINGO (90 BOLAS Y 75 BOLAS - 25 BS C/U CON LUZ NEÓN Y CONTADOR AGRANDADO) */}
       <BingoCountdownBanner
-        session={countdownSessions[0]}
-        activeTable={availableBingoTables[0]}
-        onJoin={(tableId) => {
-          if (tableId) {
-            handleJoinTable(tableId);
-          } else if (availableBingoTables.length > 0) {
-            handleJoinTable(availableBingoTables[0].id);
-          } else {
-            setShowCreateModal(true);
-          }
-        }}
+        tables={availableBingoTables}
+        sessions={countdownSessions}
+        onJoinTable={handleJoinTable}
+        onCreateTable={handleQuickCreateTable}
       />
 
       {/* 2. SECCIÓN 2 COLUMNAS (Captura 1): EN VIVO (Mesas) & HISTORIAL DE GANADORES */}

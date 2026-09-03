@@ -89,7 +89,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
-  const bingoIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { enterGameMode, exitGameMode } = useGameMode();
 
   // Activar modo juego y pantalla completa al montar
@@ -646,78 +645,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       supabase.removeChannel(channel);
     };
   }, [session?.id, currentUserId, engine, currentPlayers, table]);
-
-  // ==============================================================================
-  // INTERVALO DE SORTEO AUTOMÁTICO DE BINGO (RPC server_bingo_operation)
-  // ==============================================================================
-  useEffect(() => {
-    const sessionId = session?.id;
-    const gameType = table.gameType;
-
-    // 1. Para el Bingo, solo necesitamos que exista la sesión y que el juego sea bingo.
-    // No importa si está en "SALES", "playing" o "IN_PROGRESS".
-    if (gameType !== 'bingo' || !sessionId) {
-      if (bingoIntervalRef.current) {
-        clearInterval(bingoIntervalRef.current);
-        bingoIntervalRef.current = null;
-      }
-      return;
-    }
-
-    console.log('🎱 [BINGO] Iniciando intervalo de sorteo automático cada 4 segundos...');
-
-    const supabase = getSupabaseClient();
-
-    // 2. Configurar el intervalo
-    bingoIntervalRef.current = setInterval(async () => {
-      try {
-        if (!supabase) return;
-        const { data, error } = await supabase.rpc('server_bingo_operation', {
-          p_operation: 'draw_ball',
-          p_session_id: sessionId,
-          p_user_id: currentUserId || null,
-        });
-
-        if (error) {
-          // ✅ IGNORAR SILENCIOSAMENTE "TOO_FAST" (es comportamiento normal)
-          if (error.message?.includes('TOO_FAST')) {
-            return;
-          }
-
-          // ✅ DETENER EL INTERVALO SI EL JUEGO YA TERMINÓ
-          if (
-            error.message?.includes('BINGO_COMPLETE') ||
-            error.message?.includes('SESSION_NOT_ACTIVE') ||
-            error.message?.includes('GAME_ALREADY_FINISHED')
-          ) {
-            console.log('🏁 [BINGO] Sorteo finalizado o sesión inactiva.');
-            if (bingoIntervalRef.current) {
-              clearInterval(bingoIntervalRef.current);
-              bingoIntervalRef.current = null;
-            }
-            return;
-          }
-
-          // Loguear solo errores reales (ej. sin permisos, columna no existe)
-          console.error('[BINGO_DRAW_ERROR]', error);
-        } else if (data?.success) {
-          console.log(`🎱 Servidor cantó la bola: ${data.ball_number || data.ball} (Restantes: ${data.remaining_balls})`);
-          // Nota: El Realtime se encargará de actualizar la UI, no necesitas hacerlo manualmente aquí.
-        }
-      } catch (err) {
-        console.error('[BINGO_INTERVAL_CRASH]', err);
-      }
-    }, 4000); // Intenta cada 4000ms (4 segundos)
-
-    // 3. Limpieza al desmontar el componente
-    return () => {
-      if (bingoIntervalRef.current) {
-        console.log('🛑 [BINGO] Deteniendo intervalo de sorteo.');
-        clearInterval(bingoIntervalRef.current);
-        bingoIntervalRef.current = null;
-      }
-    };
-  }, [session?.id, table.gameType, currentUserId]);
 
   // Suscripción Realtime para detectar cuando el anfitrión crea/inicia la sesión en la mesa
   useEffect(() => {

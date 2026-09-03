@@ -19,6 +19,8 @@ export class TableRepository {
    */
   public static mapDbTableToGameTable(t: any): GameTable {
     const gameType = GameRepository.mapDbEnumToGameType(t.game_type);
+    const config = t.config || {};
+    const gameVariant = t.game_variant || config.gameVariant || config.variant || (gameType === 'bingo' ? '90' : undefined);
     return {
       id: t.id,
       gameType,
@@ -37,7 +39,8 @@ export class TableRepository {
       createdAt: t.created_at,
       startedAt: t.started_at,
       finishedAt: t.closed_at || t.finished_at,
-      config: t.config || {},
+      config,
+      gameVariant,
     };
   }
 
@@ -868,6 +871,7 @@ export class TableRepository {
     const tableName = payload.name?.trim() || `Mesa de ${getGameDisplayName(payload.gameType)}`;
 
     const isBingo = dbGameType === 'BINGO' || payload.gameType === 'bingo';
+    const variant = payload.gameVariant || (payload.config as any)?.gameVariant || (payload.config as any)?.variant || '90';
     const rpcPayload = {
       p_game_type: dbGameType,
       p_name: tableName,
@@ -877,7 +881,7 @@ export class TableRepository {
       p_config: { 
         ...(payload.config || {}), 
         name: tableName,
-        ...(isBingo ? { automated: true, callIntervalMs: 4000 } : {})
+        ...(isBingo ? { automated: true, callIntervalMs: 4000, gameVariant: variant, variant: variant } : {})
       },
     };
 

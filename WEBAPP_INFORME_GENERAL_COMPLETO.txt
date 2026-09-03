@@ -2,27 +2,54 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 15:46:00 -07:00 (UTC 2026-09-02 22:46:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 17:15:00 -07:00 (UTC 2026-09-03 00:15:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / npm audit green / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 102_expire_game_turn_secure_with_cron.sql (Sistema autoritativo de expiración de turnos, bot move, detección de jugadores desconectados y bucle con pg_cron)
+ÚLTIMA MIGRACIÓN INTEGRADA: 109_centralized_bingo_draw.sql (Arquitectura 100% Server-Authoritative para Sorteo Centralizado de Bingo en Supabase)
 ÚLTIMAS MEJORAS TÉCNICAS Y SISTEMAS INTEGRADOS:
-1) SISTEMA AUTORITATIVO DE EXPIRACIÓN DE TURNOS Y ROTACIÓN AUTOMÁTICA (MIGRACIÓN 102):
+1) CORRECCIÓN DE ENUM EN MOTOR DE SORTEO (`server.ts`):
+   - Solucionado error `invalid input value for enum table_status_enum: "READY"` en `runAutomatedBingoDraws()`.
+   - `table_status_enum` soporta exclusivamente: `OPEN, FULL, STARTING, ACTIVE, CLOSED, EXPIRED, CANCELLED, TERMINATED` (el valor `READY` pertenece a `session_status_enum` y `player_table_status_enum`).
+   - Se ajustó la consulta para filtrar `gt.status IN ('OPEN'::public.table_status_enum, 'STARTING'::public.table_status_enum)` y `gs.status IN ('WAITING'::public.session_status_enum, 'READY'::public.session_status_enum, 'STARTING'::public.session_status_enum)`.
+   - Al invocar `prepare_bingo_draw`, la mesa transiciona explícitamente a `gt.status = 'ACTIVE'::public.table_status_enum`.
+2) ARQUITECTURA SERVER-AUTHORITATIVE Y CENTRALIZADA DE BINGO (MIGRACIÓN 109):
+   - Migración de base de datos idempotente `supabase/migrations/109_centralized_bingo_draw.sql` aplicada y verificada en PostgreSQL:
+     * Enum `session_status_enum` extendido con el valor canónico `'DRAWING'`.
+     * Columnas añadidas a `game_sessions`: `draw_sequence` (INT[]), `current_ball_index` (INT DEFAULT 0), `last_revealed_ball` (INT).
+     * RPC `prepare_bingo_draw(p_session_id UUID)`: Genera atómicamente la permutación aleatoria completa de balotas (1..N), bloquea ventas, firma criptográficamente la secuencia con hash MD5 y transiciona la sesión a estado `DRAWING`.
+     * RPC `reveal_next_bingo_ball(p_session_id UUID)`: Incrementa el índice de extracción, actualiza `last_revealed_ball`, anexa la bola a `current_state->drawnBalls` e invoca en tiempo real a los clientes mediante `game_sessions` Realtime.
+     * Permisos de ejecución otorgados a `anon`, `authenticated` y `service_role`, y esquema recargado mediante `NOTIFY pgrst, 'reload schema'`.
+2) EDGE FUNCTION DE SORTEO AUTOMÁTICO (`supabase/functions/reveal-bingo-ball/index.ts`):
+   - Creado endpoint en Deno/Edge Function con validación de cabecera `Authorization: Bearer <CRON_JOB_SECRET>`.
+   - Itera por todas las sesiones activas en estado `DRAWING` invocando `reveal_next_bingo_ball`.
+   - Transiciona automáticamente a `FINISHED` al recibir `DRAW_COMPLETE`.
+3) MOTOR DE FONDO REDUNDANTE (DAEMON) EN EXPRESS (`server.ts`):
+   - Integrado `runAutomatedBingoDraws()` con detección de mesas en cuenta regresiva para ejecutar `prepare_bingo_draw`.
+   - Bucle activo cada 3 segundos para revelar la siguiente bola llamando a `reveal_next_bingo_ball` de forma 100% autoritativa.
+   - Transición automática a `FINISHED` al completar la secuencia (`DRAW_COMPLETE`).
+4) REFACTORIZACIÓN COMPLETA DE FRONTEND (`BingoGame.tsx` y `GameContainer.tsx`):
+   - El frontend es un observador pasivo que escucha los eventos `UPDATE` de `game_sessions` vía Supabase Realtime y anima la balota extraída.
+   - Eliminados todos los temporizadores o llamadas de cliente que intentaban insertar o solicitar bolas.
+   - Botón de host conectado directamente a `prepare_bingo_draw` mediante la función `startDraw()`.
+   - Eliminada la inserción errónea en `game_actions` que causaba violaciones de restricciones NOT NULL (`sequence_number`, `payload`, `server_state_hash`).
+5) RESOLUCIÓN DE AMBIGÜEDAD POSTGREST (MIGRACIÓN 103):
+   - Eliminada la firma redundante sobrecargada, resolviendo el error `PGRST203`.
+6) SISTEMA AUTORITATIVO DE EXPIRACIÓN DE TURNOS Y ROTACIÓN AUTOMÁTICA (MIGRACIÓN 102):
    - `public.expire_game_turn_secure(p_session_id UUID)`: Gestiona de forma idempotente y atómica con bloqueo `FOR UPDATE SKIP LOCKED` la deducción de vidas por timeout, rotación del turno al siguiente jugador activo o liquidación automática (90/10) si se agotan las vidas.
    - `public.expire_game_turn_secure()`: Función sobrecargada sin parámetros para procesamiento en lote por segundo plano de todas las sesiones de juego activas cuyo `turn_deadline_at < NOW()`.
    - `public.execute_bot_move_on_timeout(p_session_id UUID, p_user_id UUID, p_action_type TEXT)`: Ejecuta pases de turno o jugadas automáticas para evitar partidas congeladas.
    - `public.detect_disconnected_players()`: Analiza `user_activity_sessions` marcando jugadores con inactividad superior a 45 segundos como `DISCONNECTED` en `game_table_players`.
    - `public.cron_expire_turns_loop()` y Cron Job `expire-game-turns-job`: Programado en `pg_cron` de Supabase para ejecución periódica de alta fidelidad.
-2) DOBLE REDUNDANCIA EN BACKEND EXPRESS (`server.ts`):
-   - Implementado el worker en segundo plano `runAutomatedTurnExpirations()` ejecutándose cada 3 segundos junto al motor autónomo de Bingo.
+4) DOBLE REDUNDANCIA EN BACKEND EXPRESS (`server.ts`):
+   - Worker en segundo plano `runAutomatedTurnExpirations()` ejecutándose cada 3 segundos junto al motor de Bingo.
    - Si la base de datos o el cron pausaran su ejecución, el servidor Express asume la expiración autónoma de forma inmediata y resiliente.
-3) EDGE FUNCTION SERVERLESS (`supabase/functions/expire-game-turns/index.ts`):
+5) EDGE FUNCTION SERVERLESS (`supabase/functions/expire-game-turns/index.ts`):
    - Creado endpoint Deno Edge Function con validación de credenciales (CRON_JOB_SECRET y SERVICE_ROLE_KEY) para invocaciones HTTP externas o webhooks de monitoreo.
-4) MEJORAS DE CLIENTE, RESINCRONIZACIÓN Y EXPERIENCIA DE USUARIO:
+6) MEJORAS DE CLIENTE, RESINCRONIZACIÓN Y EXPERIENCIA DE USUARIO:
    - `src/hooks/useGameReconnection.ts`: Hook reactivo para sincronizar estado de partida cuando el usuario regresa a la pestaña (`visibilitychange`), restablece conectividad (`online`) o ante reconexiones del socket.
    - `src/components/game/ConnectionStatus.tsx`: Componente visual con badges y banners de estado (conectado, sin conexión, reconectando y alertas de desconexión de oponentes).
    - `src/features/games/useGameEngine.ts`: Integrado refresco automático al enfocar pestaña o recuperar red, además de reacción inmediata a eventos `TURN_EXPIRED` y `BOT_MOVE`.
    - `src/services/realtime/RealtimeManager.ts`: Agregado `getConnectionStatus()` y export de compatibilidad `realtimeManager`.
-5) INFRAESTRUCTURA Y COMPATIBILIDAD ANTERIOR:
+7) INFRAESTRUCTURA Y COMPATIBILIDAD ANTERIOR:
    - Preservadas íntegramente las migraciones 001 a 100, la lógica de liquidación financiera y la integridad de todas las rutas y contratos existentes.
 ================================================================================
 

@@ -4,13 +4,14 @@
 // ==============================================================================
 
 import React from 'react';
-import { Users, Zap, Trophy, Play } from 'lucide-react';
+import { Users, Zap, Trophy, Play, HelpCircle } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
 interface GameCardProps {
   game: GameMetadata;
   onlinePlayersCount?: number;
   onSelectGame: (game: GameMetadata) => void;
+  onOpenRules?: (gameId: string) => void;
 }
 
 // Componente para renderizar el ícono visual idéntico a la Captura 1
@@ -65,6 +66,18 @@ const GameVisualGraphic: React.FC<{ gameId: string }> = ({ gameId }) => {
           <span>B</span>
         </div>
       );
+    case 'atrapaito':
+      return (
+        <div className="flex items-center justify-center gap-2 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-700 to-sky-400 border-2 border-white/60 shadow-lg flex items-center justify-center text-xs font-black text-white">
+            1
+          </div>
+          <span className="text-amber-400 font-black text-base animate-pulse">⚔️</span>
+          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-700 to-red-400 border-2 border-white/60 shadow-lg flex items-center justify-center text-xs font-black text-white">
+            2
+          </div>
+        </div>
+      );
     default:
       return <span className="text-4xl select-none">🎮</span>;
   }
@@ -74,6 +87,7 @@ export const GameCard: React.FC<GameCardProps> = ({
   game,
   onlinePlayersCount = 12,
   onSelectGame,
+  onOpenRules,
 }) => {
   const handleClick = () => {
     onSelectGame(game);
@@ -85,6 +99,21 @@ export const GameCard: React.FC<GameCardProps> = ({
       onClick={handleClick}
       className="group bg-[#131926] hover:bg-[#1A2235] border border-slate-800 hover:border-amber-500/50 rounded-2xl p-4 sm:p-5 flex flex-col justify-between relative transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(0,0,0,0.5)] cursor-pointer select-none"
     >
+      {/* Botón de Ayuda / Reglas */}
+      {onOpenRules && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenRules(game.id);
+          }}
+          className="absolute top-3 left-3 p-1 rounded-lg bg-slate-900/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 border border-slate-800 hover:border-amber-500/40 transition-colors z-10 cursor-pointer"
+          title={`Ver manual y reglas oficiales de ${game.name}`}
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+        </button>
+      )}
+
       {/* Badge HOT */}
       <span className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-md z-10 flex items-center gap-0.5">
         <Zap className="w-3 h-3 fill-slate-950" />

@@ -44,6 +44,7 @@ import { TrucoBoard } from './TrucoBoard';
 import { BingoBoard } from './BingoBoard';
 import { PollaBoard } from './PollaBoard';
 import { AtrapaitoBoard } from './AtrapaitoBoard';
+import { AtrapaitoGame } from './AtrapaitoGame';
 import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
@@ -1141,6 +1142,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
       case 'atrapaito':
+        if (table.maxPlayers === 2 || table.mode === '1v1') {
+          return (
+            <AtrapaitoGame
+              table={table}
+              players={currentPlayers}
+              currentUserId={currentUserId}
+              onLeave={onExit}
+              onExit={onExit}
+            />
+          );
+        }
         return (
           <AtrapaitoBoard
             state={gameState}

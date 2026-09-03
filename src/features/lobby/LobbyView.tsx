@@ -25,6 +25,7 @@ import {
   Play,
   ShieldCheck,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
@@ -33,6 +34,7 @@ interface LobbyViewProps {
   onJoinTrancaito?: () => void;
   onNavigateTab?: (tab: string) => void;
   onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
+  onOpenRules?: (gameId?: string) => void;
 }
 
 type GameCategory = 'all' | 'traditional' | 'cards' | 'board' | 'casual';
@@ -42,6 +44,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onJoinTrancaito,
   onNavigateTab,
   onSelectBingoVariant,
+  onOpenRules,
 }) => {
   const { user } = useAuth();
   const { balance } = useWallet();
@@ -119,17 +122,30 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </p>
           </div>
 
-          {/* Buscador de Juegos */}
-          <div className="relative w-full md:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              id="lobby-search-games-input"
-              type="text"
-              placeholder="Buscar juego..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-[#131926] border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
-            />
+          {/* Buscador de Juegos y Botón de Manual */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+            {onOpenRules && (
+              <button
+                onClick={() => onOpenRules('atrapaito')}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Consultar reglamento oficial y cómo jugar"
+              >
+                <BookOpen className="w-4 h-4 text-amber-400" />
+                <span>Manual & Reglas</span>
+              </button>
+            )}
+
+            <div className="relative w-full sm:w-64 md:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                id="lobby-search-games-input"
+                type="text"
+                placeholder="Buscar juego..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-[#131926] border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+              />
+            </div>
           </div>
         </div>
 
@@ -191,6 +207,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 game={game}
                 onlinePlayersCount={game.id === 'domino_venezolano' ? 28 : game.id === 'bingo' ? 45 : 12}
                 onSelectGame={onSelectGame}
+                onOpenRules={onOpenRules}
               />
             ))}
           </div>

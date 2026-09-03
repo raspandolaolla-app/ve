@@ -2,11 +2,63 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 14:12:00 -07:00 (UTC 2026-09-03 21:12:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 14:44:00 -07:00 (UTC 2026-09-03 21:44:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 112_bingo_strict_countdown_and_draw.sql (Sistema de Cuenta Regresiva con Validaciones Estrictas: Mínimo 2 cartones comprados, 2 jugadores únicos y cuenta regresiva obligatoria de 2 minutos antes del sorteo)
+ÚLTIMA MIGRACIÓN INTEGRADA: 113_bingo_definitive_countdown_and_draw.sql (Sistema Definitivo de Sorteo Server-Authoritative: Cuenta Regresiva de 3 Minutos, Bloqueo de Ventas a 10s y Eliminación de Intervalos en Frontend)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
-1) REDISEÑO ULTRA-COMPACTO Y ELIMINACIÓN DE SIMULACIONES EN "SORTEOS INICIANDO PRONTO":
+1) AMPLIACIÓN DE LA BANDERA DE VENEZUELA (3X EL TAMAÑO ANTERIOR):
+   - 🇻🇪 Header Principal (Barra de Navegación):
+     * Se incrementó el tamaño de la bandera de Venezuela junto al nombre comercial "Raspando La Olla" de `text-xs` (12px) a un imponente tamaño `text-3xl sm:text-[34px]` (3x más grande).
+     * Se dotó de `drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]` y microinteracción de zoom con suavizado (`transform hover:scale-110 transition-transform`).
+     * En la vista móvil compacta (`xs:hidden`), también se agrandó la bandera a `text-3xl` con relieve y sombra.
+   - 🇻🇪 Footer y Secciones Complementarias:
+     * En el Footer (`src/components/layout/Footer.tsx`), la bandera en la cabecera de marca pasó de `text-xs` a `text-2xl sm:text-3xl` y en la leyenda de juego responsable a `text-2xl`.
+     * En el menú lateral de exploración (`src/components/layout/ExploreDrawer.tsx`), la bandera pasó de `text-base` a `text-3xl` destacando la procedencia nacional.
+     * En el modal de perfil (`src/components/layout/ProfileMenuModal.tsx`), el badge nacional ahora incorpora la bandera en `text-2xl`.
+2) SALAS EN VIVO GEMELAS CON LUZ NEÓN BRILLANTE, CONTADOR AGRANDADO Y POZO NETO (90%) PARA BINGO 90 Y 75 BOLAS:
+   - ⚡ Dos Elementos Gemelos en Paralelo (90 Bolas Tradicional & 75 Bolas Patrones):
+     * Se integraron dos módulos destacados en vivo independientes en `BingoCountdownBanner.tsx` y `BingoLobbySection.tsx`:
+       1. Sala de Bingo 90 Bolas: Enlazada a mesas activas de 90 bolas con valor de 25 Bs por cartón.
+       2. Sala de Bingo 75 Bolas: Enlazada a mesas activas de 75 bolas con el mismo valor de 25 Bs por cartón.
+   - 💡 Títulos con Resplandor Neón Brillante:
+     * 90 Bolas: `⚡ BINGO EN VIVO 90 BOLAS` (Sala Tradicional • Cartón Lleno) con luz neón ámbar/oro (`drop-shadow-[0_0_12px_rgba(245,158,11,0.85)]`, borde con resplandor `border-amber-400/60` y halo ambiental).
+     * 75 Bolas: `🔥 BINGO EN VIVO 75 BOLAS` (Sala Patrones & Líneas • 2 Premios) con luz neón cian/esmeralda (`drop-shadow-[0_0_12px_rgba(6,182,212,0.85)]`, borde con resplandor `border-cyan-400/60` y halo ambiental).
+   - ⏱️ Contador Digital LED Agrandado de Alta Visibilidad:
+     * Display LED digital ampliado en fuente tipográfica monospace (`text-3xl sm:text-4xl lg:text-5xl font-mono font-black tracking-widest`).
+     * Caja LED con marco iluminado neón (`border-2 border-amber-400/50 shadow-[inset_0_0_15px_rgba(0,0,0,0.85),0_0_15px_rgba(245,158,11,0.3)]`).
+     * Indicadores de precisión `MINUTOS : SEGUNDOS` y mensaje informativo cuando la sala está abierta en espera del segundo jugador.
+   - 🏆 Cálculo del Pozo Neto sin contar el 10% (90% Directo al Ganador):
+     * Se implementó el cálculo real del pozo neto deduciendo estrictamente el 10% de comisión del sistema: `Pozo Neto = Total Cartones * 25 Bs * 0.90` (o suma acumulada de `winner_pool` de `bingo_card_purchases`).
+     * Badge explícito `Sin el 10%` y monto exacto en Bolívares (`+XX.XX Bs`).
+   - 👥 Conteo 100% Verídico de Jugadores y Cartones:
+     * Conexión con `bingo_card_purchases` para consultar compras reales por mesa en tiempo real.
+     * Jugadores únicos participantes (`new Set(purchases.map(p => p.user_id)).size`) y total de cartones reales comprados. CERO datos simulados.
+   - 🔀 Separación de Vistas por Detección de Mesa Pública Activa:
+     * VISTA A (Mesa Pública Activa Detectada):
+       - Badge dinámico neón: `● EN CONTEO (3 MIN)` con pulso rojo neón o `● SALA ABIERTA` en verde esmeralda.
+       - Display LED grande con el tiempo restante exacto o estado listo.
+       - Desglose de Jugadores, Cartones y Entrada (25 Bs).
+       - Botón directo de acción rápida: `¡Ingresar a la Sala ({variant} Bolas)!` con enlace directo a la mesa.
+     * VISTA B (Sin Mesa Activa en Curso):
+       - Badge de estado `SIN MESA ACTIVA`.
+       - Temporizador en reposo `03:00` (LISTO PARA INICIAR).
+       - Explicación de apertura: "Cartón: 25 Bs • Pozo Neto: 90% • Cuenta de 3 min inicia al haber 2 jugadores".
+       - Botón de apertura con 1 clic: `+ Abrir Sala {variant} Bolas (25 Bs)`, creando la mesa al instante e ingresando al jugador.
+2) CORRECCIÓN DEFINITIVA DE SORTEO Y CUENTA REGRESIVA DE BINGO (ELIMINACIÓN DE INTERVALO EN FRONTEND):
+   - 🔪 PASO 1 — Erradicación del Intervalo en el Cliente (Frontend):
+     * Se identificó que el sorteo iniciaba a los 4 segundos debido a un `setInterval` residual en el frontend que llamaba a `server_bingo_operation`.
+     * Se eliminó por completo el `useEffect` con `setInterval` y la referencia `intervalRef` en `src/features/games/components/BingoGame.tsx`.
+     * Se eliminó por completo el `useEffect` con `setInterval` y la referencia `bingoIntervalRef` en `src/features/games/components/GameContainer.tsx`.
+     * Se neutralizó el hook `useBingoAutoDraw.ts` para que opere en modo server-authoritative pasivo (sin ejecutar ningún intervalo).
+     * El frontend ahora es 100% oyente pasivo por Supabase Realtime, garantizando que NUNCA solicite bolas antes de tiempo.
+   - 🔒 PASO 2 — Migración 113 (`113_bingo_definitive_countdown_and_draw.sql`):
+     * `check_and_start_bingo_countdown`: Exige estrictamente un mínimo de 2 jugadores distintos con al menos 1 cartón cada uno (`v_unique_players >= 2 AND v_total_cards >= 2`) para activar la cuenta regresiva oficial de 3 minutos (`INTERVAL '3 minutes'`).
+     * `reveal_next_bingo_ball`: Valida que `countdown_ends_at <= NOW()`. Si aún está en cuenta regresiva, bloquea el sorteo y retorna `{ success: false, reason: 'COUNTDOWN_ACTIVE', seconds_remaining: ... }`. Solo al culminar los 3 minutos conmuta la sesión a `DRAWING` y la mesa a `ACTIVE`.
+     * `buy_bingo_cards_secure` (Candado de 10 Segundos): Si la cuenta regresiva está activa y faltan 10 segundos o menos para el sorteo (`v_seconds_left <= 10`), lanza la excepción `VENTAS_CERRADAS: Las ventas de cartones se bloquean 10 segundos antes del sorteo.`, impidiendo compras de última hora y garantizando imparcialidad absoluta.
+     * `server_bingo_operation`: Blindado para redirigir directamente a `reveal_next_bingo_ball`, impidiendo cualquier bypass de extracción de bolas.
+   - ⚙️ PASO 3 — Daemon Centralizado en Backend (`server.ts`):
+     * El servidor ejecuta `runAutomatedBingoDraws` cada 2 segundos, gestionando de forma autoritativa la cuenta regresiva y la extracción periódica de balotas una vez culminado el conteo.
+2) REDISEÑO ULTRA-COMPACTO Y ELIMINACIÓN DE SIMULACIONES EN "SORTEOS INICIANDO PRONTO":
    - 🚫 CERO Simulaciones de Jugadores y Cartones: Se eliminaron completamente las simulaciones fijas (ej. 48 jugadores, 140 cartones y bucles de prueba). Ahora el componente se nutre exclusivamente de datos verídicos de Supabase (`new Set(purchases.map(p => p.user_id)).size` o `activeTable.players_count` y `purchases.length` o `activeTable.cards_sold`). Si la sala tiene 0 jugadores o 0 cartones, muestra fielmente 0.
    - ⚡ Formato Ultra-Compacto de Bajo Perfil: Se optimizó el banner para que no consuma espacio vertical excesivo, reduciendo su altura de ~350px a una franja estilizada de ~58px en desktop y ~85px en móvil.
    - ⏱️ Estado y Temporizador Real: Si existe un sorteo programado en cuenta regresiva (`session.countdown_ends_at`), calcula el tiempo restante exacto. Si no hay sorteo en conteo, muestra `--:--` con la etiqueta "SALA ABIERTA" e informa que la cuenta de 2 minutos inicia al haber mínimo 2 jugadores, cumpliendo fielmente con las reglas de negocio.

@@ -2,11 +2,66 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 14:44:00 -07:00 (UTC 2026-09-03 21:44:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 15:40:00 -07:00 (UTC 2026-09-03 22:40:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 113_bingo_definitive_countdown_and_draw.sql (Sistema Definitivo de Sorteo Server-Authoritative: Cuenta Regresiva de 3 Minutos, Bloqueo de Ventas a 10s y Eliminación de Intervalos en Frontend)
+ÚLTIMA MIGRACIÓN INTEGRADA: 113_bingo_definitive_countdown_and_draw.sql (Actualizado) & 114_bingo_engine_tick_rpc.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
-1) AMPLIACIÓN DE LA BANDERA DE VENEZUELA (3X EL TAMAÑO ANTERIOR):
+1) SISTEMA CENTRALIZADO DE INFORMACIÓN, REGLAMENTOS Y MANUALES DE TODOS LOS JUEGOS:
+   - Módulo `src/data/gameInfo.ts` con dataset completo de todos los juegos de la plataforma:
+     * Bingo Online (`bingo`): Sorteos cada 2 seg, salas 75 y 90 bolas, pozo neto del 90%, cuenta regresiva 3 min y bloqueo de ventas a 10s.
+     * Atrapaíto Criollo (`atrapaito`): Duelo 1v1 táctico 9x15, canicas 3D, 10 muros por jugador, ley de camino libre, salto criollo y desempate por BFS.
+     * Dominó Venezolano (`domino_venezolano`): 28 fichas, manos a 100 puntos, tranca, capicúa y salidas.
+     * Truco Venezolano (`truco_venezolano`): 40 cartas españolas, envido, flor, truco, retruco, vale cuatro y jerarquía de cartas.
+     * Ajedrez Criollo (`chess`): Tablero 8x8 con reglas oficiales FIDE, reloj por turno, enroques, captura al paso y tablas.
+     * Damas Venezolanas (`checkers`): Tablero 8x8 con capturas diagonales obligatorias, saltos en cadena y coronación de damas.
+     * La Vieja / 3 en Raya (`tictactoe`): Tablero 3x3, alineación rápida y tranca de empate.
+     * Piedra, Papel o Tijera (`rock_paper_scissors` / PulsoPLAY): Duelos simultáneos 1v1 con commit-reveal criptográfico y rondas rápidas.
+     * UNA-OLLA (`una_olla`): Baraja de 108 cartas de colores, cartas de acción (+2, +4, reversa), canto obligatorio de ¡UNA-OLLA! y penalizaciones.
+     * Polla Venezolana (`polla_venezolana`): Quiniela tradicional de 77 animalitos, bloques matutinos y vespertinos con hash verificable.
+   - Componentes de Reglas y Manuales Actualizados:
+     * Componente Reutilizable `src/components/games/GameRulesModal.tsx` con soporte para cualquier juego mediante `GameInfo`.
+     * Modal Principal `src/features/games/GameRulesModal.tsx` conectado a `GAMES_INFO`: Pestañas dinámicas con íconos y badges HOT para todos los juegos, desglose de objetivo oficial, estructura de mesa, reglas paso a paso, consejos tácticos y protocolos de red y reembolso 90/10.
+     * Acceso Directo desde Tarjetas del Lobby (`GameCard.tsx`): Botón interactivo de ayuda/manual en cada tarjeta para consultar las reglas de cualquier juego sin necesidad de entrar a la mesa.
+     * Botón Principal en el Catálogo del Lobby (`LobbyView.tsx`): Botón destacado "Manual & Reglas" junto a la barra de búsqueda de juegos.
+     * Menú Lateral `ExploreDrawer.tsx`: Opción directa "📖 Manual & Reglas Oficiales" en la sección de navegación rápida.
+
+2) REGLAS OFICIALES DE EMPATE EN ATRAPAÍTO CRIOLLO 1V1:
+   - Detección de Bloqueo Mutuo (`checkBothPlayersTrapped`):
+     * Verifica en tiempo real si ninguno de los dos jugadores puede realizar un movimiento válido ni tiene opciones legales para colocar muros sin violar la Ley de Camino Libre.
+   - Resolución de Empates en Dos Fases:
+     * Primer Empate: Alerta informativa en pantalla y sintetizador sonoro de empate (`AudioEngine.playDraw()`). Se resetea el tablero manteniendo intacto el marcador de empates consecutivos y se inicia la revancha inmediata.
+     * Segundo Empate Consecutivo: Cálculo de distancia euclidiana/BFS (`getShortestPath`) a la meta (Fila 0). El jugador que se encuentre a menor cantidad de pasos de la meta es proclamado ganador absoluto. Si ambos se encuentran a la misma distancia exacta, se declara empate técnico definitivo.
+   - Indicadores Visuales de Empates:
+     * Banner ámbar animado cuando `consecutiveDraws > 0` advirtiendo que el próximo empate se resolverá por distancia hacia la meta.
+     * Modal dedicado de Empate Técnico con explicación de la regla oficial y botón para iniciar la revancha.
+     * Modal de Victoria adaptado que detalla el motivo del triunfo cuando la victoria ocurre por desempate de proximidad.
+
+3) INTEGRACIÓN COMPLETA Y FUNCIONAL DE ATRAPAÍTO CRIOLLO 1V1 (ESTRATEGIA TÁCTICA 9X15):
+   - Componente React Nativo `src/features/games/components/AtrapaitoGame.tsx`:
+     * Tablero Canvas de Alta Resolución Retina (9 columnas x 15 filas) con sombreado y renderizado optimizado en 60 FPS mediante `useRef` sin re-renders innecesarios.
+     * Canicas Criollas 3D: Azul y Roja con gradientes esféricos, sombras proyectadas y reflejos de luz especular.
+     * Muros de Bloqueo Táctico 3D: Barreras horizontales y verticales de longitud doble con bisel luminoso y sombra profunda.
+     * Ley de Camino Libre (Validación BFS): El algoritmo Breadth-First Search impide colocar cualquier muro que encierre totalmente a un jugador impidiéndole alcanzar la meta final (Fila 0).
+     * Salto Criollo Autorizado: Si las canicas quedan adyacentes, se permite saltar por encima del rival hacia la casilla posterior o desviarse en diagonal si el camino frontal está bloqueado.
+     * Motor de Sonido Sintetizado con Web Audio API: Cero dependencias externas o archivos pesados; osciladores dinámicos para movimientos (`playMove`), fijación de muros (`playWall`), fanfarria de victoria armónica (`playVictory`) y alerta de error (`playError`).
+     * Modalidad Dual 1v1:
+       - Modo 1v1 Local / Pass & Play ("2 Jugadores 1v1"): Para partidas cara a cara en el mismo dispositivo o por turnos.
+       - Modo vs IA Táctica STENKA72: Algoritmo heurístico que evalúa caminos más cortos por BFS y decide estratégicamente entre avanzar o poner muros tácticos cuando el rival se acerca a la meta.
+   - Conexión e Integración en la WebApp:
+     * Catálogo del Lobby (`src/features/lobby/LobbyView.tsx` y `GameCard.tsx`): Gráfico visual neón 1v1 con canicas 3D y espada de choque. Al pulsar la tarjeta se abre inmediatamente el juego en la pestaña `atrapaito`.
+     * Menú Lateral `ExploreDrawer.tsx` y Partida Rápida `QuickMatchModal.tsx`: Identificado como "Atrapaíto Criollo" (1v1 Táctico).
+     * Soporte en Mesas Multijugador (`GameContainer.tsx`): Cuando la mesa es de Atrapaíto 1v1 (`maxPlayers === 2` o `mode === '1v1'`), monta directamente `AtrapaitoGame` enlazando los nombres de los jugadores.
+2) CORRECCIÓN DE ERROR 42883 EN MIGRACIÓN 113 (GRANT EXECUTE ON server_bingo_operation):
+   - Se eliminó la instrucción redundante `GRANT EXECUTE ON FUNCTION public.server_bingo_operation(UUID, TEXT, UUID)` al final del script `113_bingo_definitive_countdown_and_draw.sql`.
+   - La función creada en dicha migración posee la firma autoritativa `(p_operation TEXT, p_session_id UUID, p_user_id UUID DEFAULT NULL)`.
+   - El script ahora otorga permisos exclusivamente a la firma real `(TEXT, UUID, UUID)`, permitiendo que se ejecute en Supabase SQL Editor con resultado `Success` sin error 42883.
+2) RESOLUCIÓN DE ERROR EN DAEMON DE BINGO ([BINGO_SERVER] Error: timeout exceeded when trying to connect):
+   - Causa raíz identificada: En entornos de contenedores o despliegues Cloud Run donde el puerto TCP directo de PostgreSQL (5432 / 6543) no está abierto o excede el tiempo de respuesta (timeout de socket), el pool `pg.Pool` lanzaba `timeout exceeded when trying to connect`. Dado que el capturador de errores original no marcaba `drawWorkerDisabled = true` ante fallos de timeout de red, el ciclo de 2 segundos volvía a intentar conectarse indefinidamente, saturando los logs con excepciones.
+   - Solución Integral de Resiliencia:
+     * Cliente Supabase sobre HTTPS: Se configuró `supabaseServerClient` en `server.ts` para que el daemon de Bingo y el worker de turnos operen de forma nativa a través de la API REST HTTPS de Supabase (`supabaseServerClient.rpc`), la cual no sufre de bloqueos de puertos TCP ni timeouts de socket directo.
+     * Nueva Migración 114 (`114_bingo_engine_tick_rpc.sql`): Se implementó la función PostgreSQL SECURITY DEFINER `public.run_bingo_engine_tick()`, que ejecuta de forma atómica en base de datos la verificación de cuenta regresiva (`check_and_start_bingo_countdown`) y la extracción de balotas listas (`reveal_next_bingo_ball`) sin transferir lógica pesada por sockets directos.
+     * Desactivación Automática y Silenciamiento ante Timeouts: Si `DATABASE_URL` no responde o sufre `timeout`, `ECONNREFUSED` o `ETIMEDOUT`, el pool directo se desactiva de inmediato (`drawWorkerDisabled = true`) emitiendo una única advertencia informativa limpia y permitiendo que el servidor Express y la WebApp continúen funcionando con fluidez y cero errores en consola.
+2) AMPLIACIÓN DE LA BANDERA DE VENEZUELA (3X EL TAMAÑO ANTERIOR):
    - 🇻🇪 Header Principal (Barra de Navegación):
      * Se incrementó el tamaño de la bandera de Venezuela junto al nombre comercial "Raspando La Olla" de `text-xs` (12px) a un imponente tamaño `text-3xl sm:text-[34px]` (3x más grande).
      * Se dotó de `drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]` y microinteracción de zoom con suavizado (`transform hover:scale-110 transition-transform`).

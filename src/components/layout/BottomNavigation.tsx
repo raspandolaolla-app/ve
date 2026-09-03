@@ -49,86 +49,81 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         </div>
       )}
 
-      {/* Barra de Navegación Fija */}
+      {/* Barra de Navegación Flotante Dock (Idéntica a Captura 1) */}
       <nav
         id="app-bottom-navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-[#111722]/95 backdrop-blur-xl border-t border-[#1E2938] pb-safe select-none shadow-2xl shadow-black/50"
+        className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md bg-[#0E1420]/95 backdrop-blur-xl border border-slate-700/60 rounded-full px-4 sm:px-6 py-1.5 select-none shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
         role="navigation"
         aria-label="Navegación principal inferior"
       >
-        <div className="max-w-md mx-auto px-2 h-16 flex items-center justify-around">
+        <div className="flex items-center justify-between relative h-12">
 
           {/* 1. Inicio */}
           <button
             id="bottom-nav-home"
             onClick={() => onNavigate('home')}
-            className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 transition-all relative active:scale-95 ${
-              currentTab === 'home' ? 'text-[#FF8A00] font-bold' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+            className={`flex flex-col items-center justify-center min-w-[52px] transition-all active:scale-90 cursor-pointer ${
+              currentTab === 'home' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            {currentTab === 'home' && (
-              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#FF8A00] to-[#F5B942]" />
-            )}
-            <Home className="w-5 h-5" />
-            <span className="text-[11px] mt-1 tracking-tight font-semibold">Inicio</span>
+            <Home className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Inicio</span>
           </button>
 
           {/* 2. Soporte */}
           <button
             id="bottom-nav-support"
             onClick={onOpenSupport}
-            className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 text-[#94A3B8] hover:text-[#F8FAFC] transition-all active:scale-95"
+            className="flex flex-col items-center justify-center min-w-[52px] text-slate-400 hover:text-slate-200 transition-all active:scale-90 cursor-pointer"
           >
-            <Headphones className="w-5 h-5" />
-            <span className="text-[11px] mt-1 tracking-tight font-semibold">Soporte</span>
+            <Headphones className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Soporte</span>
           </button>
 
-          {/* 3. JUGAR YA — Botón central que abre QuickMatch / Matchmaking */}
-          <button
-            id="bottom-nav-quick-match"
-            onClick={() => {
-              if (onOpenQuickMatch) {
-                onOpenQuickMatch();
-              } else {
-                onNavigate('tables');
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('open-quick-match'));
-                }, 100);
-              }
-            }}
-            className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 group active:scale-95 cursor-pointer"
-          >
-            <div className="w-14 h-14 -mt-5 rounded-full bg-gradient-to-tr from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-[#080B12] shadow-xl shadow-[#FF8A00]/40 group-hover:scale-110 transition-transform animate-pulse-glow">
-              <Zap className="w-7 h-7" strokeWidth={3} />
-            </div>
-            <span className="text-[11px] font-black text-[#FF8A00] mt-1 tracking-tight uppercase">
-              Jugar Ya
+          {/* 3. JUGAR YA — Botón central elevado con resplandor dorado */}
+          <div className="relative -top-5 flex flex-col items-center">
+            <button
+              id="bottom-nav-quick-match"
+              onClick={() => {
+                if (onOpenQuickMatch) {
+                  onOpenQuickMatch();
+                } else {
+                  onNavigate('tables');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('open-quick-match'));
+                  }, 100);
+                }
+              }}
+              className="bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 border-[#0E1420] shadow-[0_0_20px_rgba(245,158,11,0.7)] text-slate-950 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer flex items-center justify-center"
+              aria-label="Jugar Ya"
+            >
+              <Zap className="w-6 h-6 sm:w-7 sm:h-7" fill="currentColor" strokeWidth={2.5} />
+            </button>
+            <span className="text-[8px] sm:text-[9px] font-black text-amber-400 uppercase tracking-widest mt-0.5 whitespace-nowrap">
+              JUGAR YA
             </span>
-          </button>
+          </div>
 
           {/* 4. Billetera */}
           <button
             id="bottom-nav-wallet"
             onClick={() => onNavigate('wallet')}
-            className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 transition-all relative active:scale-95 ${
-              currentTab === 'wallet' ? 'text-[#2496FF] font-bold' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+            className={`flex flex-col items-center justify-center min-w-[52px] transition-all active:scale-90 cursor-pointer ${
+              currentTab === 'wallet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            {currentTab === 'wallet' && (
-              <span className="absolute top-0 w-10 h-1 rounded-full bg-gradient-to-r from-[#2496FF] to-[#60A5FA]" />
-            )}
-            <Wallet className="w-5 h-5" />
-            <span className="text-[11px] mt-1 tracking-tight font-semibold">Billetera</span>
+            <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Billetera</span>
           </button>
 
           {/* 5. Explorar */}
           <button
             id="bottom-nav-explore"
             onClick={onOpenExplore}
-            className="flex-1 flex flex-col items-center justify-center h-full min-h-[44px] py-1 text-[#94A3B8] hover:text-[#FF8A00] transition-all active:scale-95"
+            className="flex flex-col items-center justify-center min-w-[52px] text-slate-400 hover:text-slate-200 transition-all active:scale-90 cursor-pointer"
           >
-            <Menu className="w-5 h-5" />
-            <span className="text-[11px] mt-1 tracking-tight font-semibold">Explorar</span>
+            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Explorar</span>
           </button>
 
         </div>

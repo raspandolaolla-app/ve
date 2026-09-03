@@ -11,16 +11,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const env: Record<string, any> = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
 
-// Configuración canónica por defecto para Raspando La Olla
-const DEFAULT_SUPABASE_URL = 'https://tncxgwycinbnkjbfwojt.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_vlxeHnnl_FxJ1ziNqUsytQ_S95ZGawj';
+// Obtención estricta de credenciales públicas desde variables de entorno (sin secretos ni fallbacks hardcodeados)
+const rawUrl = ((env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) || '') as string | undefined;
+const rawAnonKey = ((env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || '') as string | undefined;
 
-const rawUrl = ((env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL) || '') as string | undefined;
-const rawAnonKey = ((env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY) || '') as string | undefined;
-
-// Validación explícita
-if (!rawUrl && typeof window !== 'undefined') {
-  console.warn('[Supabase] VITE_SUPABASE_URL no está configurada.');
+// Validación explícita de seguridad
+if ((!rawUrl || !rawAnonKey) && typeof window !== 'undefined') {
+  console.error('[CRÍTICO] Variables de entorno de Supabase no configuradas (VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY). La aplicación no puede iniciar la conexión segura.');
 }
 
 const supabaseUrl = rawUrl?.trim();

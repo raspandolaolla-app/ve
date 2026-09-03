@@ -137,73 +137,77 @@ export const TournamentsCarousel: React.FC<TournamentsCarouselProps> = ({
       {/* Contenedor con Scroll Horizontal Snap */}
       <div
         ref={scrollContainerRef}
-        className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory py-1 px-0.5"
+        className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory py-1 px-0.5"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {tournaments.map((t) => (
           <div
             key={t.id}
-            className="snap-start shrink-0 w-[280px] sm:w-[320px] rounded-2xl bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 p-4 transition-all duration-200 flex flex-col justify-between shadow-lg group relative overflow-hidden"
+            className="snap-start shrink-0 w-[290px] sm:w-[320px] rounded-2xl bg-[#131926] hover:bg-[#1A2235] border border-slate-800 hover:border-amber-500/50 p-4 sm:p-5 transition-all duration-300 flex flex-col justify-between shadow-lg group relative overflow-hidden"
           >
-            {/* Fondo sutil degradado */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#FF8A00]/10 to-transparent rounded-bl-full pointer-events-none" />
-
-            <div className="space-y-3">
-              {/* Badge de Estado y Icono */}
-              <div className="flex items-center justify-between">
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                    t.badgeStatus === 'LIVE'
-                      ? 'bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30'
-                      : 'bg-[#F5B942]/10 text-[#F5B942] border border-[#F5B942]/30'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      t.badgeStatus === 'LIVE'
-                        ? 'bg-[#22C55E] animate-ping'
-                        : 'bg-[#F5B942]'
-                    }`}
-                  />
-                  <span>{t.badgeStatus === 'LIVE' ? 'POTE EN VIVO' : 'PRÓXIMO'}</span>
-                </span>
-
-                <span className="text-2xl">{t.icon}</span>
-              </div>
-
-              {/* Título y Premio */}
-              <div>
-                <h3 className="text-sm font-black text-[#F8FAFC] group-hover:text-[#FF8A00] transition-colors line-clamp-1">
-                  {t.gameTitle}
-                </h3>
-                <div className="text-xs text-[#F5B942] font-black font-mono mt-0.5">
-                  Premio: {t.prizePoolText}
-                </div>
-              </div>
-
-              {/* Datos de Participantes y Tiempo */}
-              <div className="pt-2 border-t border-[#1E2938] grid grid-cols-2 gap-2 text-[11px] text-[#94A3B8]">
-                <div className="flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-[#2496FF] shrink-0" />
-                  <span className="truncate">{t.participantsText}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#F5B942] shrink-0" />
-                  <span className="truncate">{t.timeRemainingText}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* CTA */}
-            <div className="pt-3 mt-2">
-              <button
-                onClick={() => onJoinTournament(t)}
-                className="w-full py-2 px-3 rounded-xl bg-[#111722] hover:bg-[#FF8A00] text-[#F8FAFC] hover:text-[#080B12] border border-[#1E2938] hover:border-[#FF8A00] font-black text-xs transition-all flex items-center justify-center gap-1.5 group-hover:shadow-md cursor-pointer"
+            {/* Header: Badge y Gráfico Visual */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  t.badgeStatus === 'LIVE'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                }`}
               >
-                <span>Entrar al Torneo</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    t.badgeStatus === 'LIVE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                  }`}
+                />
+                <span>{t.badgeStatus === 'LIVE' ? 'POTE EN VIVO' : 'PRÓXIMO'}</span>
+              </span>
+
+              {/* Gráfico temático */}
+              <div className="w-12 h-10 rounded-lg bg-[#0B0F17] border border-slate-800 flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">
+                {t.gameId === 'polla_venezolana' ? (
+                  <span className="text-amber-400 text-xs font-black tracking-tighter bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/30">
+                    TICKET
+                  </span>
+                ) : t.gameId === 'domino_venezolano' ? (
+                  <span>🎲</span>
+                ) : t.gameId === 'truco_venezolano' ? (
+                  <span>🃏</span>
+                ) : (
+                  <span>🎱</span>
+                )}
+              </div>
             </div>
+
+            {/* Contenido Central: Título y Premio */}
+            <div className="space-y-1 mb-4">
+              <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors line-clamp-1">
+                {t.gameTitle}
+              </h3>
+              <p className="text-xs text-amber-400 font-bold font-mono">
+                Premio: {t.prizePoolText}
+              </p>
+            </div>
+
+            {/* Metadatos (Participantes y Tiempo) */}
+            <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mb-4">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-slate-400" />
+                <span className="truncate">{t.participantsText}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="truncate">{t.timeRemainingText}</span>
+              </div>
+            </div>
+
+            {/* Botón de Acción Dorado */}
+            <button
+              onClick={() => onJoinTournament(t)}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.25)] active:scale-95 cursor-pointer uppercase tracking-wider"
+            >
+              <span>Entrar al Torneo</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
           </div>
         ))}
       </div>

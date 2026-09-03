@@ -128,7 +128,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               placeholder="Buscar juego..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#FF8A00]/50 transition-colors"
+              className="w-full pl-9 pr-4 py-2 bg-[#131926] border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
             />
           </div>
         </div>
@@ -151,8 +151,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 onClick={() => setSelectedCategory(cat.id as GameCategory)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-slate-950 shadow-md shadow-[#FF8A00]/20'
-                    : 'bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                    : 'bg-[#131926] border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-slate-950' : 'text-slate-400'}`} />

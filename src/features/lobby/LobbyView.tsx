@@ -80,7 +80,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   }, [selectedCategory, searchQuery]);
 
   return (
-    <div id="lobby-main-view" className="space-y-8 pb-12">
+    <div id="lobby-view" data-testid="lobby-main-view" className="space-y-8 pb-12">
       {/* 1. ZONA PUBLICITARIA AUTOMÁTICA Y BANNERS MULTIMEDIA */}
       <section id="lobby-media-banner-section" aria-label="Anuncios y Destacados">
         <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
@@ -118,7 +118,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Selecciona una modalidad para ver las mesas activas o abrir tu propia sala
+              Selecciona tu juego o participa en mesas públicas o crea tu propia sala
             </p>
           </div>
 

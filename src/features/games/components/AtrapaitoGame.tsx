@@ -13,9 +13,15 @@ import {
   Swords,
   Scale,
   AlertTriangle,
+  Clock,
+  WifiOff,
+  Globe,
+  LogOut,
 } from 'lucide-react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import { getGameInfo } from '../../../data/gameInfo';
+import { useAtrapaitoOnline } from '../../../hooks/useAtrapaitoOnline';
+import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 
 // ==============================================================================
 // MOTOR DE AUDIO SINTETIZADO (Web Audio API)
@@ -190,6 +196,10 @@ export interface AtrapaitoGameProps {
   currentUserId?: string;
   onLeave?: () => void;
   onExit?: () => void;
+  sessionId?: string;
+  userId?: string;
+  isOnline?: boolean;
+  playerColor?: 'BLUE' | 'RED';
 }
 
 // ==============================================================================
@@ -201,11 +211,36 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   currentUserId,
   onLeave,
   onExit,
+  sessionId,
+  userId,
+  isOnline,
+  playerColor,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   const gameInfo = getGameInfo('atrapaito');
+
+  // Detección de conectividad de red local (Fase 4)
+  const networkStatus = useNetworkStatus();
+  const isNetworkOffline = networkStatus === 'offline';
+
+  // Identificación de sesión y usuario para el modo Online
+  const effectiveUserId = userId || currentUserId || players[0]?.userId || null;
+  const effectiveSessionId = sessionId || table?.id || null;
+  const effectiveIsOnline = Boolean(
+    isOnline ||
+      (table &&
+        !table.config?.isPractice &&
+        !table.id.startsWith('practice_') &&
+        (table.entryFee ?? 0) > 0 &&
+        table.status !== 'waiting' &&
+        table.status !== 'CANCELLED')
+  );
+
+  const effectivePlayerColor: 'BLUE' | 'RED' =
+    playerColor ||
+    (players.length > 1 && players[1]?.userId === effectiveUserId ? 'RED' : 'BLUE');
 
   const bluePlayerName = players[0]?.displayName || (currentUserId ? 'Tú (Azul)' : 'Jugador Azul');
   const redPlayerName = players[1]?.displayName || 'Jugador Rojo';
@@ -221,7 +256,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     wallOrientation: 'HORIZONTAL',
     pendingWall: null,
     winner: null,
-    mode: 'PASS_PLAY',
+    mode: effectiveIsOnline ? 'PASS_PLAY' : 'PASS_PLAY',
     isAiThinking: false,
     consecutiveDraws: 0,
   });
@@ -235,7 +270,9 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     winner: null as 'BLUE' | 'RED' | 'DRAW' | null,
     mode: 'PASS_PLAY' as 'VS_AI' | 'PASS_PLAY',
     isAiThinking: false,
-    statusMsg: 'Toca una casilla resaltada para avanzar tu canica.',
+    statusMsg: effectiveIsOnline
+      ? (effectivePlayerColor === 'BLUE' ? '¡Tu turno! Toca una casilla resaltada.' : 'Turno del rival. Esperando...')
+      : 'Toca una casilla resaltada para avanzar tu canica.',
     showRules: false,
     showWin: false,
     showDraw: false,
@@ -877,16 +914,82 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     syncUi,
   ]);
 
+  // --- HOOK DE SINCRONIZACIÓN ONLINE (Fases 1, 2, 3 y 4) ---
+  const { submitMove, abandonGame, secondsLeft, isMyTurn } = useAtrapaitoOnline({
+    sessionId: effectiveIsOnline ? effectiveSessionId : null,
+    userId: effectiveIsOnline ? effectiveUserId : null,
+    playerColor: effectivePlayerColor,
+    onStateUpdate: (newState) => {
+      if (!newState) return;
+      const s = stateRef.current;
+      if (newState.bluePos) s.bluePos = newState.bluePos;
+      if (newState.redPos) s.redPos = newState.redPos;
+      if (Array.isArray(newState.walls)) s.walls = newState.walls;
+      if (typeof newState.blueWalls === 'number') s.blueWalls = newState.blueWalls;
+      if (typeof newState.redWalls === 'number') s.redWalls = newState.redWalls;
+      if (newState.turn) s.turn = newState.turn;
+      if (newState.winner !== undefined) s.winner = newState.winner;
+      if (newState.consecutiveDraws !== undefined) s.consecutiveDraws = newState.consecutiveDraws;
+
+      syncUi();
+      render();
+    },
+    onTurnTimeout: () => {
+      AudioEngine.playError();
+      setUi((prev) => ({ ...prev, statusMsg: '¡Se acabó el tiempo! Turno agotado (15 seg).' }));
+    },
+    onGameEnd: (winnerIdOrColor) => {
+      const s = stateRef.current;
+      const isWinner =
+        winnerIdOrColor === effectiveUserId ||
+        winnerIdOrColor === effectivePlayerColor ||
+        s.winner === effectivePlayerColor;
+
+      s.winner = isWinner ? effectivePlayerColor : (effectivePlayerColor === 'BLUE' ? 'RED' : 'BLUE');
+      syncUi();
+      setUi((prev) => ({
+        ...prev,
+        showWin: true,
+        winner: s.winner,
+        statusMsg: isWinner
+          ? '¡Ganaste la partida! Pozo neto 90% acreditado.'
+          : 'Partida finalizada. Tu rival ha ganado la partida.',
+        winReason: isWinner ? '¡Victoria autoritativa en línea!' : 'El rival logró la meta o ganancia.',
+      }));
+      if (isWinner) {
+        AudioEngine.playVictory();
+      } else {
+        AudioEngine.playError();
+      }
+      render();
+    },
+  });
+
   // --- CONFIRMAR MURO ---
   const confirmWall = useCallback(() => {
     const s = stateRef.current;
     if (!s.pendingWall) return;
+
+    if (effectiveIsOnline && s.turn !== effectivePlayerColor) {
+      AudioEngine.playError();
+      setUi((prev) => ({ ...prev, statusMsg: 'No es tu turno para colocar muros.' }));
+      return;
+    }
 
     const valid = isValidWall(s.pendingWall, s.walls, s.bluePos, s.redPos);
     if (!valid) {
       AudioEngine.playError();
       setUi((prev) => ({ ...prev, statusMsg: '¡Posición inválida! Ambos deben tener acceso a la meta.' }));
       return;
+    }
+
+    if (effectiveIsOnline) {
+      submitMove('PLACE_WALL', {
+        col: s.pendingWall.col,
+        row: s.pendingWall.row,
+        isHorizontal: s.pendingWall.isHorizontal,
+        placedBy: effectivePlayerColor,
+      });
     }
 
     s.walls.push(s.pendingWall);
@@ -913,10 +1016,15 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     } else {
       setUi((prev) => ({
         ...prev,
-        statusMsg: `Turno de ${s.turn === 'BLUE' ? bluePlayerName : redPlayerName}.`,
+        statusMsg: effectiveIsOnline
+          ? (s.turn === effectivePlayerColor ? '¡Tu turno! Mueve o pon un muro.' : 'Turno del rival. Esperando...')
+          : `Turno de ${s.turn === 'BLUE' ? bluePlayerName : redPlayerName}.`,
       }));
     }
   }, [
+    effectiveIsOnline,
+    effectivePlayerColor,
+    submitMove,
     bluePlayerName,
     checkBothPlayersTrapped,
     handleDraw,
@@ -931,6 +1039,17 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   const handleCanvasInteraction = useCallback((clientX: number, clientY: number) => {
     const s = stateRef.current;
     if (s.winner || s.isAiThinking) return;
+
+    // En modo online, validar que sea el turno de este jugador
+    if (effectiveIsOnline && s.turn !== effectivePlayerColor) {
+      AudioEngine.playError();
+      setUi((prev) => ({
+        ...prev,
+        statusMsg: `Es el turno de tu rival (${s.turn === 'BLUE' ? bluePlayerName : redPlayerName}). Espera tu turno.`,
+      }));
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -949,6 +1068,10 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
       const isValid = moves.some((m) => m.col === col && m.row === row);
 
       if (!isValid) return;
+
+      if (effectiveIsOnline) {
+        submitMove('MOVE_MARBLE', { col, row });
+      }
 
       if (s.turn === 'BLUE') s.bluePos = { col, row };
       else s.redPos = { col, row };
@@ -988,7 +1111,9 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
       } else {
         setUi((prev) => ({
           ...prev,
-          statusMsg: `Turno de ${s.turn === 'BLUE' ? bluePlayerName : redPlayerName}. Mueve o pon un muro.`,
+          statusMsg: effectiveIsOnline
+            ? (s.turn === effectivePlayerColor ? '¡Tu turno! Mueve o pon un muro.' : 'Turno del rival. Esperando...')
+            : `Turno de ${s.turn === 'BLUE' ? bluePlayerName : redPlayerName}. Mueve o pon un muro.`,
         }));
       }
     } else {
@@ -1025,14 +1150,17 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
       }
     }
   }, [
+    effectiveIsOnline,
+    effectivePlayerColor,
+    submitMove,
     bluePlayerName,
+    redPlayerName,
     checkBothPlayersTrapped,
     confirmWall,
     getValidMoves,
     handleDraw,
     isValidWall,
     performAiTurn,
-    redPlayerName,
     render,
     syncUi,
   ]);
@@ -1069,6 +1197,14 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-[#080B12] text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-black">
+      {/* Fase 4: Banner de Desconexión de Red */}
+      {isNetworkOffline && (
+        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2.5 font-bold z-50 animate-pulse text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2">
+          <WifiOff className="w-4 h-4" />
+          <span>⚠️ Conexión perdida. Reconectando al servidor...</span>
+        </div>
+      )}
+
       <div className="w-full max-w-md bg-[#0B0F17]/95 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-3.5 sm:p-5 shadow-2xl relative">
         
         {/* Header de Navegación y Modos */}
@@ -1089,6 +1225,11 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
                 <h1 className="text-lg sm:text-xl font-black tracking-wide bg-gradient-to-r from-sky-400 via-amber-400 to-rose-400 bg-clip-text text-transparent uppercase">
                   Atrapaíto Criollo
                 </h1>
+                {effectiveIsOnline && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-black text-emerald-400 uppercase tracking-wider">
+                    Online
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-slate-400 font-semibold tracking-wider">
                 {table ? `Mesa #${table.id.substring(0, 6)} • Modo 1v1` : 'Estrategia Táctica 1v1 • Ley de Camino Libre'}
@@ -1105,14 +1246,16 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
             >
               {ui.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
-            <button
-              onClick={toggleMode}
-              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors text-amber-400 border border-amber-500/30 cursor-pointer"
-              title="Cambiar entre 1v1 y Modo vs IA"
-            >
-              {ui.mode === 'VS_AI' ? <Bot size={14} /> : <Users size={14} />}
-              <span className="text-[11px] hidden xs:inline">{ui.mode === 'VS_AI' ? 'vs IA' : '1v1'}</span>
-            </button>
+            {!effectiveIsOnline && (
+              <button
+                onClick={toggleMode}
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors text-amber-400 border border-amber-500/30 cursor-pointer"
+                title="Cambiar entre 1v1 y Modo vs IA"
+              >
+                {ui.mode === 'VS_AI' ? <Bot size={14} /> : <Users size={14} />}
+                <span className="text-[11px] hidden xs:inline">{ui.mode === 'VS_AI' ? 'vs IA' : '1v1'}</span>
+              </button>
+            )}
             <button
               onClick={() => setUi((p) => ({ ...p, showRules: true }))}
               className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors text-slate-300 cursor-pointer"
@@ -1129,6 +1272,38 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Fases 1, 2 y 3: Banner de Estado Online y Temporizador Server-Authoritative */}
+        {effectiveIsOnline && (
+          <div className="mb-2.5 flex items-center justify-between p-2 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold text-slate-300">
+                Tu color:{' '}
+                <span className={effectivePlayerColor === 'BLUE' ? 'text-blue-400' : 'text-rose-400'}>
+                  {effectivePlayerColor === 'BLUE' ? '🔵 Azul' : '🔴 Rojo'}
+                </span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {isMyTurn ? (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-mono font-black text-xs animate-pulse">
+                  <Clock size={12} />
+                  <span>Tu Turno: {secondsLeft}s</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-semibold text-xs">
+                  <Clock size={12} />
+                  <span>Turno Rival</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Alerta de Empates Consecutivos */}
         {ui.consecutiveDraws > 0 && (
@@ -1301,6 +1476,24 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
           <div className="mt-2.5 py-1.5 px-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-center">
             <p className="text-[11px] font-semibold text-slate-300 min-h-[1.2rem]">{ui.statusMsg}</p>
           </div>
+
+          {/* Botón de Abandono Voluntario de Partida Online */}
+          {effectiveIsOnline && (
+            <button
+              id="btn-atrapaito-abandon"
+              type="button"
+              onClick={() => {
+                if (window.confirm('¿Seguro que quieres abandonar? Perderás la partida y tu entrada será asignada al rival.')) {
+                  abandonGame();
+                  if (onExit) onExit();
+                }
+              }}
+              className="bg-red-600/80 hover:bg-red-500 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold mt-2.5 w-full text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-red-950/40 border border-red-500/30"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Abandonar Partida</span>
+            </button>
+          )}
         </div>
       </div>
 

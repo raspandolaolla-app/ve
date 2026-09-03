@@ -1143,11 +1143,23 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       case 'atrapaito':
         if (table.maxPlayers === 2 || table.mode === '1v1') {
+          const isPlayerBlue = currentPlayers[0]?.userId === currentUserId;
+          const assignedColor: 'BLUE' | 'RED' = isPlayerBlue ? 'BLUE' : 'RED';
+          const isOnlineSession = Boolean(
+            session?.id &&
+            !table.config?.isPractice &&
+            !table.id.startsWith('practice_') &&
+            (table.entryFee ?? 0) > 0
+          );
           return (
             <AtrapaitoGame
               table={table}
               players={currentPlayers}
               currentUserId={currentUserId}
+              sessionId={session?.id}
+              userId={currentUserId}
+              isOnline={isOnlineSession}
+              playerColor={assignedColor}
               onLeave={onExit}
               onExit={onExit}
             />

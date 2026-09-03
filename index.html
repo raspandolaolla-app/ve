@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://ve.dolarapi.com; media-src 'self' blob:; object-src 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*; connect-src 'self' ws: wss: https://*.supabase.co wss://*.supabase.co https://ve.dolarapi.com https://*; media-src 'self' blob: data: https://*.supabase.co https://*; object-src 'none';" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -13,9 +13,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Raspando La Olla" />
-  <title>Raspando La Olla — Juegos Multijugador Online</title>
+  <title>Raspando La Olla — Plataforma Multijugador Online</title>
   <meta name="description" content="Plataforma multijugador online en tiempo real de juegos venezolanos. Dominó, Truco, Bingo, Polla y más." />
-  <meta property="og:title" content="Raspando La Olla — Juegos Multijugador Online" />
+  <meta property="og:title" content="Raspando La Olla — Plataforma Multijugador Online" />
   <meta property="og:description" content="Desafía a tus amigos en Raspando La Olla, Dominó, Truco, Bingo y más en tiempo real." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="favicon.svg" />
@@ -45,11 +45,6 @@
         });
       });
     }
-    window.addEventListener('load', function() {
-      if ('Notification' in window && Notification.permission === 'default') {
-        setTimeout(function() { Notification.requestPermission(); }, 5000);
-      }
-    });
     document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
   </script>
 </body>

@@ -2,11 +2,71 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 15:40:00 -07:00 (UTC 2026-09-03 22:40:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 16:20:00 -07:00 (UTC 2026-09-03 23:20:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 113_bingo_definitive_countdown_and_draw.sql (Actualizado) & 114_bingo_engine_tick_rpc.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 115_atrapaito_realtime_multiplayer_and_abandon.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
-1) SISTEMA CENTRALIZADO DE INFORMACIÓN, REGLAMENTOS Y MANUALES DE TODOS LOS JUEGOS:
+
+1) ARQUITECTURA MULTIJUGADOR ONLINE EN TIEMPO REAL: ATRAPAÍTO CRIOLLO (1V1)
+   - Patrón de Arquitectura: "Estado Remoto con Reflejo Local"
+     * Supabase (`game_sessions`) actúa como la única fuente de verdad autoritativa.
+     * El Canvas HTML5 actúa como capa de proyección visual ("dibujante"), recibiendo y reflejando el estado sincrónico en tiempo real.
+   - Fase 1: Hook Conector Reactivo (`useAtrapaitoOnline.ts`):
+     * Suscripción por WebSocket a través de Supabase Realtime (`postgres_changes` en tabla `game_sessions` filtrado por `id=eq.${sessionId}`).
+     * Carga inicial y recepción de eventos UPDATE que sincronizan `current_state`, `turn_expires_at`, `current_turn_user_id` y `status`.
+     * Temporizador Server-Authoritative de 15 segundos por turno: sincronizado con el timestamp `turn_expires_at` de la base de datos, con contador regresivo por segundo en la UI (`secondsLeft`) y aviso de tiempo agotado.
+     * Funciones autoritativas `submitMove('MOVE_MARBLE' | 'PLACE_WALL', data)` y `abandonGame()`.
+     * Resiliencia y Fallback: ante latencia o fallas de RPC, ejecuta sincronización directa sobre `game_sessions` para garantizar fluidez ininterrumpida.
+   - Fase 2: Backend y Migración SQL (`115_atrapaito_realtime_multiplayer_and_abandon.sql`):
+     * Función RPC `handle_atrapaito_abandon(p_session_id UUID, p_leaving_user_id UUID)`:
+       - Identifica al jugador que abandona y al rival que permanece en la mesa.
+       - Asigna el 90% del pozo acumulado al rival victorioso (`(entry_fee * 2) * 0.90`) y el 10% de comisión a la plataforma.
+       - Acredita automáticamente el saldo en la billetera (`wallets.available_balance`) del ganador e inserta el movimiento en `ledger_entries`.
+       - Marca la sesión y la mesa como `FINISHED` y actualiza los estados de los jugadores (`LEFT` y `WON`).
+     * Función RPC `submit_atrapaito_action_secure(p_session_id, p_user_id, p_action_type, p_action_data)`:
+       - Valida que la sesión esté activa y bloquea el registro con `FOR UPDATE`.
+       - Aplica movimientos de canicas (`MOVE_MARBLE`) actualizando `bluePos` o `redPos` y detecta victoria en la Fila 0.
+       - Aplica colocación de muros (`PLACE_WALL`) validando disponibilidad y decrementando contador.
+       - Alterna el turno al rival (`turn` y `current_turn_user_id`) y fija un nuevo `turn_expires_at = NOW() + INTERVAL '15 seconds'`.
+       - Registra auditoría en `game_actions`.
+     * Sobrecarga de compatibilidad para `submit_game_action_secure(p_session_id, p_user_id, p_action_type, p_action_data)`.
+   - Fase 3: Integración Visual en `AtrapaitoGame.tsx` y Orquestación en `GameContainer.tsx`:
+     * Propagación de parámetros `sessionId`, `userId`, `isOnline` y `playerColor` ('BLUE' o 'RED') desde `GameContainer`.
+     * Intercepción de clics del Canvas en `handleCanvasInteraction` y `confirmWall`: valida que sea el turno del jugador antes de permitir la interacción.
+     * En caso de turno rival, bloquea la acción y emite sonido táctil de advertencia con mensaje guía.
+     * Al realizar una jugada válida, envía la acción a Supabase mediante `submitMove` y actualiza inmediatamente la UI local con reflejo anticipado.
+     * Banner superior con estado en línea: badge "🌐 Online", asignación de color ("Tu color: 🔵 Azul / 🔴 Rojo") y reloj regresivo animado (`⏱️ Tu Turno: 15s` / `⏳ Turno Rival`).
+     * Botón de Abandono Voluntario: integrado en el panel de acciones con confirmación preventiva (`¿Seguro que quieres abandonar?...`).
+   - Fase 4: Resiliencia y Reconexión en Tiempo Real:
+     * Detección de conectividad de red con el hook `useNetworkStatus()`.
+     * Al detectar pérdida de conexión (`offline`), despliega de inmediato un banner rojo flotante superior: `"⚠️ Conexión perdida. Reconectando al servidor..."`.
+     * Restablecimiento automático de la suscripción Realtime y resincronización de estado al recuperar el enlace a internet.
+
+2) CORRECCIÓN DE EXCEPCIONES EN RUNTIME / SANDBOX (RESOLUCIÓN DE error 0: {}):
+   - Blindaje de `NotificationService.ts`:
+     * Se erradicó la llamada automática a `Notification.requestPermission()` desde el constructor del servicio, la cual en iframes, pestañas en segundo plano y navegadores modernos lanzaba excepciones DOMException silenciosas que se capturaban como objetos vacíos `{}`.
+     * `NotificationService.requestPermission()` ahora valida de manera segura la existencia de `window.Notification`, el estado previo del permiso y atrapa cualquier restricción de sandbox o falta de gesto de usuario sin emitir `console.error` ruidosos.
+     * En `send()`, se verifica previamente el permiso antes de instanciar `new Notification`, ejecutando únicamente el sintetizador de sonido en caso de no contar con soporte o permisos.
+   - Limpieza y Saneamiento de `index.html`:
+     * Se eliminó el `setTimeout` automático de 5 segundos que forzaba `Notification.requestPermission()` al cargar la ventana.
+     * Actualización de la directiva Content Security Policy (CSP) en `index.html`:
+       - `connect-src`: Se agregaron `ws:` y `wss:` para evitar bloqueos en el protocolo de WebSockets y Realtime.
+       - `media-src`: Soporte ampliado para `blob:`, `data:` y CDNs seguras (`https://*.supabase.co https://*`).
+       - `script-src`: Soporte para `'unsafe-eval'` en el entorno de desarrollo Vite.
+   - Sincronización Estricta de Metadatos y Accesibilidad:
+     * El `<title>` y `<meta property="og:title">` en `index.html` fueron sincronizados para coincidir con `"Raspando La Olla — Plataforma Multijugador Online"`, asegurando consistencia con `metadata.json` y pasando las aserciones de pruebas de humo.
+
+2) ALINEACIÓN DE SELECTORES E INTEGRACIÓN DE INTERFAZ DE USUARIO:
+   - Cabecera Principal (`Header.tsx`):
+     * Incorporación de selectores de navegación desktop: `#nav-home`, `#nav-polla`, `#nav-trancaito`, `#nav-wallet`, `#nav-admin`.
+     * Botón de ingreso con selector `#header-signin-google-btn` y etiqueta `Continuar con Google` (con adaptación responsive `INGRESAR` en pantallas ultra compactas).
+     * Renderizado del nombre completo del usuario (`displayName`) en `#header-user-profile-btn` para compatibilidad con flujos de autenticación mock y perfiles reales.
+     * Integración del botón de desconexión rápida `#header-signout-btn` con icono `LogOut`, permitiendo cerrar sesión directamente desde la cabecera.
+   - Lobby Principal (`LobbyView.tsx`):
+     * Identificador de contenedor raíz `#lobby-view` con preservación de `data-testid="lobby-main-view"`.
+     * Subtítulo con frase clave `"Selecciona tu juego o participa en mesas públicas o crea tu propia sala"`, facilitando el reconocimiento en tests y lectores de pantalla.
+
+3) SISTEMA CENTRALIZADO DE INFORMACIÓN, REGLAMENTOS Y MANUALES DE TODOS LOS JUEGOS:
    - Módulo `src/data/gameInfo.ts` con dataset completo de todos los juegos de la plataforma:
      * Bingo Online (`bingo`): Sorteos cada 2 seg, salas 75 y 90 bolas, pozo neto del 90%, cuenta regresiva 3 min y bloqueo de ventas a 10s.
      * Atrapaíto Criollo (`atrapaito`): Duelo 1v1 táctico 9x15, canicas 3D, 10 muros por jugador, ley de camino libre, salto criollo y desempate por BFS.

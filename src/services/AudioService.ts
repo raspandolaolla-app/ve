@@ -66,10 +66,16 @@ class AudioService {
 
   public playBingoNumber(number: number): void {
     if (number < 1 || number > 90) return;
+    if (this.muted) return;
     try {
-      const audio = new Audio(`/ve/bingo-audio/${number}.mp3`);
-      audio.volume = this.volume;
-      audio.play().catch(() => {});
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(String(number));
+        utterance.lang = 'es-ES';
+        utterance.volume = this.volume;
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+      }
     } catch (e) {}
   }
 

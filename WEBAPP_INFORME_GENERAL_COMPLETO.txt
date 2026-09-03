@@ -2,11 +2,17 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 18:50:00 -07:00 (UTC 2026-09-03 01:50:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-02 19:51:00 -07:00 (UTC 2026-09-03 02:51:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 103_fix_server_bingo_operation_overload.sql (RPC canónico server_bingo_operation con rate limiting y eliminación de sobrecargas PGRST203)
 ÚLTIMAS MEJORAS TÉCNICAS Y SISTEMAS INTEGRADOS:
-1) SISTEMA DE SONIDOS INTELIGENTES Y CONTROL DE AUDIO EN BINGO:
+1) MODERNIZACIÓN INTEGRAL DEL MOTOR DE AUDIO Y LIMPIEZA DE ASSETS ESTÁTICOS:
+   - Depuración y eliminación completa de más de 100 archivos binarios pesados `.mp3` redundantes de `public/bingo-audio/`.
+   - Implementación de motor de voz inteligente nativo vía Web Speech API (`SpeechSynthesis`) con configuración lingüística en español (`es-ES`/`es-LA`) para el cantado en tiempo real de balotas ("B... 12", "I... 24", "Balota 45") con pitch y velocidad óptimos.
+   - Detección reactiva no bloqueante mediante sondeo (`HEAD`) en `bingoAudio.ts` para evitar inundación de errores 404 en consola y conmutación instantánea a síntesis de voz y oscilador web.
+   - Generación de acordes y timbres armónicos sintéticos (`playChime`) con Web Audio API pura para acompañar el cantado de balotas sin requerir descargas ni latencia de red.
+   - Actualización de fallbacks en `bingoAudioPlayer.ts` y `AudioService.ts` (`playBingoNumber`) para total independencia de archivos de audio externos.
+2) SISTEMA DE SONIDOS INTELIGENTES Y CONTROL DE AUDIO EN BINGO:
    - Hook reactivo `useBingoSounds.ts`:
      - Generación sintética de tonos con Web Audio API pura (sin dependencia de archivos externos ni latencias de carga).
      - Sonido de bola cantada (`playBallDrawn` a 523.25 Hz Do medio con decay suave).
@@ -24,20 +30,20 @@ ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / co
      - Botón de audio `#bingo-audio-panel-btn` en la barra superior con indicador de volumen porcentual.
      - Panel animado expandible para ajustar volumen sin abandonar la pantalla de juego.
      - Sincronización de eventos de juego: sorteo de balotas, alertas de cercanía ("A 1 balota" / "A 2-3 balotas"), cuenta regresiva y fanfarria de fin de partida.
-2) SISTEMA PROFESIONAL DE PROXIMIDAD DE VICTORIA ("CASI GANA" / NEAR WIN SYSTEM) EN BINGO:
+3) SISTEMA PROFESIONAL DE PROXIMIDAD DE VICTORIA ("CASI GANA" / NEAR WIN SYSTEM) EN BINGO:
    - Hook reactivo `useBingoProgress.ts`: Cálculo en tiempo real de proximidad al bingo para cada cartón y jugador en mesa (números faltantes, porcentaje de completitud, detección de 'a 1 balota' y 'a 3 balotas o menos', soporte para patrones en 75/80/90 bolas).
    - Componente flotante `NearWinAlert.tsx`: Alertas visuales dinámicas con animaciones de entrada (`bounce-in`, `pulse-fast`, `spin-slow`) que aumentan la adrenalina y tensión comunitaria al anunciar cuando un contrincante está a punto de ganar.
    - Componente de clasificación en vivo `Leaderboard.tsx`: Podio y lista ordenada con los mejores jugadores de la sala, barras de progreso y estado en tiempo real.
    - Insignias visuales directas por cartón: `⚠️ A 1 BALOTA`, `⚠️ A X BALOTAS` y `🎉 ¡BINGO!`.
-3) CORRECCIÓN DE CAST DE ENUM EN MOTOR DE SORTEO DE BINGO (`server.ts`):
+4) CORRECCIÓN DE CAST DE ENUM EN MOTOR DE SORTEO DE BINGO (`server.ts`):
    - Solucionado error `invalid input value for enum session_status_enum: "PLAYING"`.
    - En PostgreSQL, el tipo `session_status_enum` soporta exclusivamente: `WAITING, READY, STARTING, ACTIVE, PAUSED, FINISHED, CANCELLED, ABANDONED, SETTLED`.
    - Se migró la condición a comparación segura por texto: `gs.status::text IN ('ACTIVE', 'DRAWING', 'PLAYING')` y `gt.game_type::text = 'BINGO'`, eliminando excepciones de tipado estricto de enums literales en consultas SQL.
-4) MOTOR DE FONDO (DAEMON) EN EXPRESS (`server.ts`):
+5) MOTOR DE FONDO (DAEMON) EN EXPRESS (`server.ts`):
    - Actualizada la función `runAutomatedBingoDraws()` para iniciar mesas programadas cuya cuenta regresiva haya finalizado (`scheduled_start_at <= NOW()`).
    - Sorteo autoritativo de balotas directamente vía `SELECT public.server_bingo_operation('draw_ball', $1)`.
    - Manejo silencioso de rate-limiting (`TOO_FAST`), logging controlado y detección de fin de partida (`BINGO_COMPLETE`, `GAME_ALREADY_FINISHED`).
-5) VERIFICACIÓN DE LINTER Y COMPILACIÓN COMPLETA:
+6) VERIFICACIÓN DE LINTER Y COMPILACIÓN COMPLETA:
    - `tsc --noEmit` completado con 0 errores de tipos en todo el proyecto.
    - `vite build` y compilación de backend con `esbuild` finalizadas exitosamente con resultado PASS.
 ================================================================================

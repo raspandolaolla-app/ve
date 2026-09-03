@@ -36,7 +36,7 @@ export interface GameSession {
   roundNumber: number;
   currentTurnUserId?: string;
   turnExpiresAt?: string;
-  status: 'initializing' | 'in_progress' | 'settling' | 'completed' | 'abandoned';
+  status: 'initializing' | 'in_progress' | 'settling' | 'completed' | 'abandoned' | 'DRAWING' | 'drawing' | 'WAITING' | 'ACTIVE' | 'FINISHED';
   grossPool: number;
   winnerPrizeAmount: number; // 90% del pozo bruto
   serviceFeeAmount: number;   // 10% del pozo bruto

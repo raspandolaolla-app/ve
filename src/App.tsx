@@ -132,6 +132,12 @@ function AppContent() {
             onSelectGame={handleSelectGame}
             onJoinTrancaito={handleJoinTrancaito}
             onNavigateTab={setCurrentTab}
+            onSelectBingoVariant={(_variant, tableId) => {
+              setCurrentTab('tables');
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
+              }, 60);
+            }}
           />
         )}
 

@@ -35,7 +35,9 @@ class NotificationService {
   private unreadCount: number = 0;
 
   private constructor() {
-    this.requestPermission();
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      this.permissionGranted = Notification.permission === 'granted';
+    }
   }
 
   public static getInstance(): NotificationService {
@@ -45,24 +47,31 @@ class NotificationService {
     return NotificationService.instance;
   }
 
-  private async requestPermission(): Promise<void> {
-    if (!('Notification' in window)) {
-      console.warn('[NotificationService] Notificaciones no soportadas en este navegador');
-      return;
+  public async requestPermission(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return false;
     }
 
     try {
+      if (Notification.permission === 'granted') {
+        this.permissionGranted = true;
+        this.processQueue();
+        return true;
+      }
+      if (Notification.permission === 'denied') {
+        this.permissionGranted = false;
+        return false;
+      }
       const permission = await Notification.requestPermission();
       this.permissionGranted = permission === 'granted';
       
       if (this.permissionGranted) {
-        console.log('[NotificationService] Permiso de notificaciones otorgado');
         this.processQueue();
-      } else {
-        console.warn('[NotificationService] Permiso de notificaciones denegado');
       }
-    } catch (error) {
-      console.error('[NotificationService] Error solicitando permisos:', error);
+      return this.permissionGranted;
+    } catch {
+      // Handle iframe sandbox restriction or lack of user gesture gracefully
+      return false;
     }
   }
 
@@ -83,8 +92,8 @@ class NotificationService {
       silent: options.silent || false
     };
 
-    if (!this.permissionGranted) {
-      this.notificationQueue.push({ ...options, icon: options.icon || defaultIcon });
+    if (!this.permissionGranted || typeof window === 'undefined' || !('Notification' in window)) {
+      this.playNotificationSound(type);
       return;
     }
 

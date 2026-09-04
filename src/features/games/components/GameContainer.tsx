@@ -98,9 +98,19 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const gameContainerRef = useGameFullscreen(true);
 
   // Prevenir que el teclado virtual se despliegue al tocar la pantalla de juego
-  const preventKeyboard = useCallback((_e?: React.TouchEvent | React.MouseEvent) => {
-    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
+  // sin cancelar eventos táctiles en botones o elementos interactivos
+  const preventKeyboard = useCallback((e?: React.TouchEvent | React.MouseEvent) => {
+    if (e && e.target instanceof HTMLElement) {
+      const isInteractive = Boolean(e.target.closest('button, input, select, textarea, [role="button"], a, .interactive-element'));
+      if (isInteractive) {
+        return;
+      }
+    }
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+      const activeTag = document.activeElement.tagName.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        document.activeElement.blur();
+      }
     }
   }, []);
 
@@ -142,8 +152,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   }, [table.hostUserId, currentUserId, currentPlayers, session]);
 
   // Daemon Client-Side de extracción de Bingo (Fallback para GitHub Pages)
-  const bingoStatus = table.gameType === 'bingo' ? (session?.status || gameState?.status || null) : null;
-  const { forceStartDraw: daemonForceStart } = useBingoClientDaemon({
+  const bingoStatus = table.gameType === 'bingo' ? (gameState?.status || session?.status || null) : null;
+  const { forceStartDraw: daemonForceStart, drawSingleBall: daemonDrawSingle } = useBingoClientDaemon({
     sessionId: table.gameType === 'bingo' ? (session?.id || null) : null,
     isHost: isHostUser,
     gameStatus: bingoStatus,
@@ -160,11 +170,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         ...prev,
         status: 'DRAWING',
       }));
+      setTimeout(() => {
+        daemonDrawSingle();
+      }, 500);
     } else {
       setErrorMsg(res.message || 'No se pudo iniciar el sorteo.');
       setTimeout(() => setErrorMsg(null), 4000);
     }
-  }, [session?.id, daemonForceStart]);
+  }, [session?.id, daemonForceStart, daemonDrawSingle]);
 
   // Función para alternar Fullscreen API del navegador
   const toggleNativeFullscreen = async () => {
@@ -1268,17 +1281,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onDrawBall={handleForceStartBingoDraw}
             onStartDraw={handleForceStartBingoDraw}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
-            isSalesClosed={
-              session?.status === 'DRAWING' ||
-              (session?.status as any) === 'drawing' ||
-              session?.status === 'FINISHED' ||
-              (session?.status as any) === 'finished' ||
-              gameState?.status === 'DRAWING' ||
-              gameState?.status === 'drawing' ||
-              gameState?.status === 'FINISHED' ||
-              gameState?.status === 'finished' ||
-              (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0)
-            }
+            isSalesClosed={(() => {
+              const sessionStatus = String(session?.status || '').toUpperCase();
+              const gameStatus = String(gameState?.status || '').toUpperCase();
+              const hasDrawn = Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0;
+              if (hasDrawn) return true;
+              if (['DRAWING', 'FINISHED', 'COMPLETED', 'ABANDONED', 'CANCELLED'].includes(sessionStatus)) return true;
+              if (['DRAWING', 'FINISHED', 'COMPLETED', 'ABANDONED', 'CANCELLED'].includes(gameStatus)) return true;
+              return false;
+            })()}
           />
         );
 
@@ -1383,14 +1394,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2 sm:px-4 py-1.5 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0 max-w-full overflow-hidden">
         <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 flex-1">
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               if (gameState && !isSettledRef.current) {
-                setShowAbandonModal(true);
+                if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
+                  setShowAbandonModal(true);
+                }
               } else {
                 onExit();
               }
             }}
-            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation"
+            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation cursor-pointer"
             title="Volver"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1460,10 +1475,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
           <button
             id="abandon-table-btn"
-            onClick={() => setShowAbandonModal(true)}
-            className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-[10px] sm:text-xs font-bold transition-all touch-manipulation shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // Fallback de seguridad: si el modal falla por alguna razón, el navegador pregunta
+              if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
+                setShowAbandonModal(true);
+              }
+            }}
+            className="flex items-center space-x-1 px-2 py-1.5 sm:px-3 sm:py-2 bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/50 text-red-300 border border-red-500/40 rounded-xl text-[10px] sm:text-xs font-black transition-all touch-manipulation pointer-events-auto shrink-0 z-50 cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">ABANDONAR MESA</span>
             <span className="sm:hidden">SALIR</span>
           </button>
@@ -1548,57 +1570,61 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         </div>
       )}
 
-      {/* Modal de Confirmación de Abandono de Mesa */}
-      <AnimatePresence>
-        {showAbandonModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
-            >
-              <div className="flex items-center space-x-3 text-red-400">
-                <AlertTriangle className="w-6 h-6 shrink-0" />
-                <h3 className="text-base sm:text-lg font-bold text-white">¿Está seguro que desea abandonar?</h3>
+      {/* ================================================================== */}
+      {/* MODAL DE CONFIRMACIÓN DE ABANDONO (Blindado para Móvil y PC)       */}
+      {/* ================================================================== */}
+      {showAbandonModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 touch-manipulation"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div className="bg-[#131926] border-2 border-red-500/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200 relative">
+            
+            {/* Icono de Advertencia */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center ring-4 ring-red-500/10">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
+            </div>
 
-              <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
-                Si abandonas voluntariamente una partida activa, perderás tu participación y el premio será asignado automáticamente al jugador que permanezca en la mesa, según las reglas de abandono.
-              </p>
+            {/* Texto de Advertencia */}
+            <h3 className="text-xl font-black text-white text-center mb-2">
+              ¿Abandonar la partida?
+            </h3>
+            <p className="text-slate-400 text-sm text-center mb-6 leading-relaxed">
+              Si sales ahora, <span className="text-red-400 font-bold">perderás tu entrada</span> y tu rival ganará la partida automáticamente por abandono. 
+              <br /><br />
+              <span className="text-amber-400 text-xs">Esta acción no se puede deshacer.</span>
+            </p>
 
-              <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
-                  id="cancel-abandon-btn"
-                  onClick={() => setShowAbandonModal(false)}
-                  disabled={isAbandoning}
-                  className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors"
-                >
-                  CANCELAR
-                </button>
-                <button
-                  id="confirm-abandon-btn"
-                  onClick={handleConfirmAbandon}
-                  disabled={isAbandoning}
-                  className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-900/30"
-                >
-                  {isAbandoning ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>PROCESANDO...</span>
-                    </>
-                  ) : (
-                    <>
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>CONFIRMAR ABANDONO</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
+            {/* Botones de Acción */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <button
+                id="cancel-abandon-btn"
+                onClick={() => setShowAbandonModal(false)}
+                disabled={isAbandoning}
+                className="flex-1 py-3.5 px-4 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white font-bold rounded-xl transition-all touch-manipulation cursor-pointer"
+              >
+                Cancelar y Seguir Jugando
+              </button>
+              <button
+                id="confirm-abandon-btn"
+                disabled={isAbandoning}
+                onClick={async () => {
+                  setShowAbandonModal(false);
+                  await handleConfirmAbandon(); 
+                }}
+                className="flex-1 py-3.5 px-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-900/50 touch-manipulation cursor-pointer disabled:opacity-50"
+              >
+                {isAbandoning ? 'Abandonando...' : 'Sí, Abandonar Ahora'}
+              </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

@@ -327,7 +327,7 @@ export const AtrapaitoBoard: React.FC<AtrapaitoBoardProps> = ({
                   whileTap={{ scale: 0.97 }}
                   onClick={handleRollDiceClick}
                   disabled={isDiceRolling}
-                  className="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 border border-white/20 flex items-center justify-center space-x-2 cursor-pointer"
+                  className="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 border border-white/20 flex items-center justify-center space-x-2 cursor-pointer touch-manipulation active:scale-95 transition-transform"
                 >
                   <Dices className="w-4 h-4 animate-spin" />
                   <span>LANZAR DADO</span>
@@ -365,7 +365,7 @@ export const AtrapaitoBoard: React.FC<AtrapaitoBoardProps> = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => onMovePiece(m.pieceId)}
-                        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black font-mono flex items-center space-x-1 cursor-pointer bg-neutral-900 text-${piece?.color}-400 hover:bg-neutral-850 ${colorTheme.border}`}
+                        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black font-mono flex items-center space-x-1 cursor-pointer bg-neutral-900 text-${piece?.color}-400 hover:bg-neutral-850 active:scale-95 transition-transform touch-manipulation ${colorTheme.border}`}
                       >
                         <span className={`w-2 h-2 rounded-full ${colorTheme.bg}`} />
                         <span>Ficha #{piece?.pieceNumber}</span>

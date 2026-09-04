@@ -646,7 +646,13 @@ export function normalizeBingoState(
     cardsPurchased: raw.cardsPurchased || fallbackInitialState?.cardsPurchased || {},
     playerNames: guaranteedNames,
     winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
-    status: raw.status || fallbackInitialState?.status || 'in_progress',
+    status: (() => {
+      const drawn = Array.isArray(raw.drawnBalls) ? raw.drawnBalls : (fallbackInitialState?.drawnBalls || []);
+      const s = String(raw.status || fallbackInitialState?.status || '').toUpperCase();
+      if (s === 'DRAWING' || drawn.length > 0) return 'DRAWING';
+      if (s === 'FINISHED' || s === 'COMPLETED' || s === 'CANCELLED' || s === 'ABANDONED') return s;
+      return 'SALES';
+    })(),
     callIntervalMs: typeof raw.callIntervalMs === 'number' ? raw.callIntervalMs : (fallbackInitialState?.callIntervalMs || 4000),
     totalBalls: typeof raw.totalBalls === 'number' ? raw.totalBalls : (fallbackInitialState?.totalBalls || 75),
     totalPoolBs: typeof raw.totalPoolBs === 'number' ? raw.totalPoolBs : (fallbackInitialState?.totalPoolBs || 0),

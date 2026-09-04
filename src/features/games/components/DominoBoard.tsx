@@ -557,8 +557,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
               id="domino-pass-btn"
               onClick={onPassTurn}
               disabled={!hasNoMove}
-              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase tracking-wider text-xs sm:text-sm border-2 transition-all ${
-                mustPass ? 'animate-pulse' : 'opacity-40 cursor-not-allowed'
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase tracking-wider text-xs sm:text-sm border-2 transition-all touch-manipulation active:scale-95 ${
+                mustPass ? 'animate-pulse cursor-pointer' : 'opacity-40 cursor-not-allowed'
               }`}
               style={{
                 background: mustPass ? `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)` : 'transparent',
@@ -621,7 +621,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                 whileTap={playable ? { scale: 0.92 } : {}}
                 onClick={() => handleHandClick(tile)}
                 disabled={!playable}
-                className="relative shrink-0 w-10 sm:w-12 aspect-[1/2] rounded-md overflow-hidden"
+                className="relative shrink-0 w-10 sm:w-12 aspect-[1/2] rounded-md overflow-hidden touch-manipulation"
                 style={{
                   background: T.tileFace,
                   border: `1.5px solid ${playable ? T.accent : T.tileEdge}`,

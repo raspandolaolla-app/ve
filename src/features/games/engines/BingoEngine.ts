@@ -149,7 +149,14 @@ export class BingoEngine implements IGameEngine<any> {
     const t = action.actionType;
 
     if (t === 'BUY_CARDS') {
-      if (state.status !== 'SALES') return { valid: false, reason: 'La venta de cartones está cerrada.' };
+      const sStatus = String(state.status || '').toUpperCase();
+      const hasDrawn = Array.isArray(state.drawnBalls) && state.drawnBalls.length > 0;
+      const isSalesAllowed = !hasDrawn && (
+        ['SALES', 'WAITING', 'READY', 'OPEN'].includes(sStatus) ||
+        sStatus === 'IN_PROGRESS' ||
+        sStatus === ''
+      );
+      if (!isSalesAllowed) return { valid: false, reason: 'La venta de cartones está cerrada.' };
       const owned = state.cardsPurchased?.[action.userId] || 0;
       const count = Number(action.actionData?.count) || 0;
       if (count < 1 || owned + count > (state.maxCardsPerPlayer || 20)) {
@@ -164,7 +171,8 @@ export class BingoEngine implements IGameEngine<any> {
     }
 
     if (t === 'DRAW_BALL' || t === 'AUTO_DRAW_BALL' || t === 'SERVER_AUTO_DRAW') {
-      if (state.status !== 'PLAYING' && state.status !== 'SALES') {
+      const sStatus = String(state.status || '').toUpperCase();
+      if (sStatus !== 'PLAYING' && sStatus !== 'SALES' && sStatus !== 'DRAWING' && sStatus !== 'IN_PROGRESS') {
         return { valid: false, reason: 'La partida no está activa.' };
       }
       const isSystemAction =

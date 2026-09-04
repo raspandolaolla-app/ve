@@ -313,8 +313,10 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   
   // Ventas abiertas si NO ha iniciado la extracción (0 bolas extraídas) y faltan más de 10s (o sin temporizador de bloqueo)
   const isCountdownUnder10 = countdownSeconds !== undefined && countdownSeconds <= 10 && countdownSeconds >= 0;
-  const isSalesExplicitlyClosed = isDrawing || isCountdownUnder10 || isSalesClosed === true;
-  const salesOpen = !isDrawing && !isCountdownUnder10 && isSalesClosed !== true;
+  const normStatus = String(status || '').toUpperCase();
+  const salesClosed = isDrawing || ['FINISHED', 'COMPLETED', 'CANCELLED', 'ABANDONED'].includes(normStatus) || isCountdownUnder10 || isSalesClosed === true;
+  const salesOpen = !salesClosed;
+  const isEffectiveSalesClosed = isSalesClosed !== undefined ? isSalesClosed : salesClosed;
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -534,18 +536,16 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       {/* Sub-barra de Estado Operativo */}
       <div className="w-full flex items-center justify-between gap-1.5 flex-wrap text-[10px]">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {isSalesClosed !== undefined && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border font-black uppercase text-[9px] sm:text-[10px]"
-              style={{
-                background: isSalesClosed ? 'rgba(229,57,53,0.15)' : 'rgba(52,211,153,0.15)',
-                borderColor: isSalesClosed ? '#E53935' : '#34D399',
-                color: isSalesClosed ? '#F87171' : '#34D399',
-              }}>
-              <Ticket className="w-3 h-3" />
-              {isSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
-            </div>
-          )}
-          {!isSalesClosed && (countdownSeconds ?? 0) > 0 && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border font-black uppercase text-[9px] sm:text-[10px]"
+            style={{
+              background: isEffectiveSalesClosed ? 'rgba(229,57,53,0.15)' : 'rgba(52,211,153,0.15)',
+              borderColor: isEffectiveSalesClosed ? '#E53935' : '#34D399',
+              color: isEffectiveSalesClosed ? '#F87171' : '#34D399',
+            }}>
+            <Ticket className="w-3 h-3" />
+            {isEffectiveSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
+          </div>
+          {!isEffectiveSalesClosed && (countdownSeconds ?? 0) > 0 && (
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border font-black font-mono animate-pulse text-[9px] sm:text-[10px]"
               style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
               <Clock className="w-3 h-3" /> {countdownSeconds}s
@@ -560,6 +560,28 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         )}
       </div>
 
+      {/* 👑 Botón Mágico para el Host de la Mesa */}
+      {isHost && salesOpen && (onStartDraw || onDrawBall) && (
+        <div className="w-full p-3 sm:p-4 rounded-2xl border text-center my-1.5 shadow-lg"
+          style={{ background: 'rgba(245, 158, 11, 0.1)', borderColor: 'rgba(245, 158, 11, 0.5)' }}>
+          <p className="text-amber-400 font-bold mb-2 text-xs sm:text-sm">👑 Eres el Host de la mesa</p>
+          <button
+            type="button"
+            onClick={async () => {
+              console.log("[HOST_ACTION] Iniciando sorteo...");
+              if (onStartDraw) {
+                await onStartDraw();
+              } else if (onDrawBall) {
+                await onDrawBall();
+              }
+            }}
+            className="bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black py-2.5 px-6 sm:py-3 sm:px-8 rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-amber-500/20 text-xs sm:text-sm cursor-pointer inline-flex items-center gap-2 touch-manipulation"
+          >
+            🎱 INICIAR SORTEO AHORA
+          </button>
+        </div>
+      )}
+
       <AnimatePresence>
         {salesOpen && onBuyCards && myCards.length < (s.maxCardsPerPlayer || 20) && !isFinished && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
@@ -571,18 +593,18 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                 <div className="text-[9px]" style={{ color: T.sub }}>Tienes {myCards.length} de {s.maxCardsPerPlayer || 20}</div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setBuyCount(Math.max(1, buyCount - 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
+                <button onClick={() => setBuyCount(Math.max(1, buyCount - 1))} className="p-2 rounded-lg border touch-manipulation active:scale-95 transition-transform" style={{ borderColor: T.border }}>
                   <Minus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
                 <span className="text-lg font-black font-mono w-8 text-center" style={{ color: T.accent }}>{buyCount}</span>
-                <button onClick={() => setBuyCount(Math.min((s.maxCardsPerPlayer || 20) - myCards.length, buyCount + 1))} className="p-2 rounded-lg border" style={{ borderColor: T.border }}>
+                <button onClick={() => setBuyCount(Math.min((s.maxCardsPerPlayer || 20) - myCards.length, buyCount + 1))} className="p-2 rounded-lg border touch-manipulation active:scale-95 transition-transform" style={{ borderColor: T.border }}>
                   <Plus className="w-3.5 h-3.5" style={{ color: T.accent }} />
                 </button>
                 <button onClick={async () => {
                   await onBuyCards(buyCount);
                   setRefreshKey((k) => k + 1);
                 }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase text-white"
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase text-white touch-manipulation active:scale-95 transition-transform cursor-pointer"
                   style={{ background: 'linear-gradient(145deg,#43A047,#1B5E20)', boxShadow: '0 5px 14px rgba(27,94,32,0.5)' }}>
                   <ShoppingCart className="w-3.5 h-3.5" /> Comprar
                 </button>
@@ -760,7 +782,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           whileTap={{ scale: 0.96 }}
           onClick={onClaimBingo}
           disabled={!isPlaying}
-          className="w-full py-3 sm:py-3.5 rounded-2xl font-black text-base sm:text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden shadow-lg transition-all"
+          className="w-full py-3 sm:py-3.5 rounded-2xl font-black text-base sm:text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden shadow-lg transition-all touch-manipulation active:scale-95 cursor-pointer"
           style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 8px 24px rgba(229,57,53,0.4)' }}>
           <Trophy className="relative z-10 w-5 h-5 text-amber-300" />
           <span className="relative z-10">¡BINGO!</span>
@@ -923,7 +945,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                       // Navegar al lobby (simula botón Volver)
                       window.history.back();
                     }}
-                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02]"
+                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95 touch-manipulation cursor-pointer"
                     style={{
                       background: 'rgba(255,255,255,0.1)',
                       color: T.text,
@@ -939,7 +961,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
                       // Recargar la página para jugar de nuevo (en el mismo lugar)
                       window.location.reload();
                     }}
-                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02]"
+                    className="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95 touch-manipulation cursor-pointer"
                     style={{
                       background: isWinner
                         ? 'linear-gradient(145deg, #FFC94B, #E6A817)'
@@ -957,7 +979,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
               {/* Botón cerrar */}
               <button
                 onClick={() => setShowResultsModal(false)}
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 active:scale-90 flex items-center justify-center transition-all touch-manipulation cursor-pointer"
               >
                 <X className="w-4 h-4 text-white" />
               </button>
@@ -972,7 +994,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           initial={{ scale: 0, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           onClick={() => setShowResultsModal(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs shadow-2xl transition-all animate-pulse"
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs shadow-2xl transition-all animate-pulse touch-manipulation active:scale-95 cursor-pointer"
           style={{
             background: isWinner ? 'linear-gradient(145deg, #FFC94B, #E6A817)' : `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`,
             color: '#1A120C',

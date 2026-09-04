@@ -1020,19 +1020,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       if (actionType === 'BUY_CARDS' && table.gameType === 'bingo') {
         const cardCount = Number(actionData.count) || 0;
 
-        // 🔒 CANDADO DE FAIRNESS: Bloquear compras solo si el sorteo ya comenzó o hay balotas extraídas
-        const isDrawingOrActive =
-          session?.status === 'DRAWING' ||
-          (session?.status as any) === 'drawing' ||
-          session?.status === 'FINISHED' ||
-          (session?.status as any) === 'finished' ||
-          gameState?.status === 'DRAWING' ||
-          gameState?.status === 'drawing' ||
-          gameState?.status === 'FINISHED' ||
-          gameState?.status === 'finished' ||
-          (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0);
+        // 🔒 CANDADO DE FAIRNESS: Regla de Oro: Las ventas solo se cierran si la partida terminó o si YA se extrajo al menos una balota.
+        const hasDrawnBalls = Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0;
+        const isTerminalState = ['FINISHED', 'CANCELLED'].includes((session?.status || '').toUpperCase()) ||
+                                ['FINISHED', 'CANCELLED'].includes((gameState?.status || '').toUpperCase());
 
-        if (isDrawingOrActive) {
+        if (isTerminalState || hasDrawnBalls) {
           setErrorMsg('Compras cerradas: El sorteo ya ha comenzado.');
           setTimeout(() => setErrorMsg(null), 3500);
           return;
@@ -1267,7 +1260,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <RockPaperScissorsBoard
             state={gameState}
             currentUserId={currentUserId}
-            onSubmitChoice={(choice) => handleGameAction('SUBMIT_CHOICE', { choice })}
+            onAction={(actionType, data) => handleGameAction(actionType, data)}
+            onSubmitChoice={(choice) => handleGameAction('CHOOSE', { choice })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
           />
         );
@@ -1305,7 +1299,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           />
         );
 
-      case 'bingo':
+      case 'bingo': {
+        const hasDrawnBalls = Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0;
+        const isTerminalState = ['FINISHED', 'CANCELLED'].includes((session?.status || '').toUpperCase());
+
+        // REGLA DE ORO: Las ventas solo se cierran si la partida terminó o si YA se extrajo al menos una balota.
+        // Ignoramos estados intermedios como 'in_progress' o 'ACTIVE' que el hook genérico pueda haber activado.
+        const isSalesClosed = isTerminalState || hasDrawnBalls;
+
         return (
           <BingoBoard
             state={gameState}
@@ -1316,17 +1317,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onDrawBall={handleForceStartBingoDraw}
             onStartDraw={handleForceStartBingoDraw}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
-            isSalesClosed={(() => {
-              const sessionStatus = String(session?.status || '').toUpperCase();
-              const gameStatus = String(gameState?.status || '').toUpperCase();
-              const hasDrawn = Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0;
-              if (hasDrawn) return true;
-              if (['DRAWING', 'FINISHED', 'COMPLETED', 'ABANDONED', 'CANCELLED'].includes(sessionStatus)) return true;
-              if (['DRAWING', 'FINISHED', 'COMPLETED', 'ABANDONED', 'CANCELLED'].includes(gameStatus)) return true;
-              return false;
-            })()}
+            isSalesClosed={isSalesClosed}
           />
         );
+      }
 
       case 'polla_venezolana':
         return (

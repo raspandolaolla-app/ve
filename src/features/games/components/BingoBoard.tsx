@@ -308,15 +308,19 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
     return has90 || drawn.some((n) => n > 75) ? 90 : 75;
   }, [myCards, drawn, s]);
 
-  const isDrawing = status === 'DRAWING' || status === 'drawing' || (s.current_state?.status === 'DRAWING') || drawn.length > 0;
-  const isPlaying = isDrawing || ['playing', 'PLAYING', 'DRAWING', 'drawing'].includes(status);
+  const hasDrawn = drawn.length > 0;
+  const isDrawing = hasDrawn || status === 'DRAWING' || status === 'drawing' || (s.current_state?.status === 'DRAWING');
+  const isPlaying = hasDrawn || ['playing', 'PLAYING', 'DRAWING', 'drawing'].includes(status);
   
   // Ventas abiertas si NO ha iniciado la extracción (0 bolas extraídas) y faltan más de 10s (o sin temporizador de bloqueo)
   const isCountdownUnder10 = countdownSeconds !== undefined && countdownSeconds <= 10 && countdownSeconds >= 0;
   const normStatus = String(status || '').toUpperCase();
-  const salesClosed = isDrawing || ['FINISHED', 'COMPLETED', 'CANCELLED', 'ABANDONED'].includes(normStatus) || isCountdownUnder10 || isSalesClosed === true;
-  const salesOpen = !salesClosed;
-  const isEffectiveSalesClosed = isSalesClosed !== undefined ? isSalesClosed : salesClosed;
+  const computedSalesClosed = hasDrawn || ['FINISHED', 'COMPLETED', 'CANCELLED', 'ABANDONED'].includes(normStatus) || isCountdownUnder10;
+  // REGLA DE ORO: Si isSalesClosed es provisto por el contenedor, es la autoridad definitiva
+  const effectiveSalesClosed = isSalesClosed !== undefined ? isSalesClosed : computedSalesClosed;
+  const salesClosed = effectiveSalesClosed;
+  const salesOpen = !effectiveSalesClosed;
+  const isEffectiveSalesClosed = effectiveSalesClosed;
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;

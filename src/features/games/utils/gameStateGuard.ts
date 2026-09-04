@@ -194,7 +194,22 @@ export function normalizeRPSState(
     });
   }
 
+  const playerIds = Object.keys(guaranteedPlayerNames);
+  const p1Id = raw.player1Id || fallbackInitialState?.player1Id || playerIds[0] || '';
+  const p2Id = raw.player2Id || fallbackInitialState?.player2Id || playerIds[1] || '';
+
   const normalizedState: RPSState = {
+    status: raw.status || fallbackInitialState?.status || 'ROUND_COMMIT',
+    player1Id: p1Id,
+    player2Id: p2Id,
+    player1Choice: raw.player1Choice ?? fallbackInitialState?.player1Choice ?? null,
+    player2Choice: raw.player2Choice ?? fallbackInitialState?.player2Choice ?? null,
+    player1Lives: typeof raw.player1Lives === 'number' ? raw.player1Lives : (guaranteedLives[p1Id] ?? 3),
+    player2Lives: typeof raw.player2Lives === 'number' ? raw.player2Lives : (guaranteedLives[p2Id] ?? 3),
+    roundWinner: raw.roundWinner ?? fallbackInitialState?.roundWinner ?? null,
+    matchWinner: raw.matchWinner ?? fallbackInitialState?.matchWinner ?? null,
+    roundNumber: typeof raw.roundNumber === 'number' ? raw.roundNumber : (raw.round || fallbackInitialState?.roundNumber || fallbackInitialState?.round || 1),
+
     round: typeof raw.round === 'number' ? raw.round : (fallbackInitialState?.round || 1),
     targetWins: typeof raw.targetWins === 'number' ? raw.targetWins : (fallbackInitialState?.targetWins || 3),
     scores: guaranteedScores,
@@ -202,7 +217,6 @@ export function normalizeRPSState(
     lives: guaranteedLives,
     playerChoices: guaranteedChoices,
     phase: raw.phase || fallbackInitialState?.phase || 'selecting',
-    status: raw.status || fallbackInitialState?.status || 'playing',
     winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
     roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
     history: Array.isArray(raw.history) ? raw.history : (fallbackInitialState?.history || []),

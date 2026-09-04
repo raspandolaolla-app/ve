@@ -407,8 +407,20 @@ export const useAtrapaitoOnline = ({
         return { success: true };
       }
 
-      // 3. Fallback: abandon_game_table_secure
-      await client.rpc('abandon_game_table_secure', { p_session_id: sessionId });
+      // 3. Fallback: abandon_game_table_secure con table_id
+      const { data: sessData } = await client
+        .from('game_sessions')
+        .select('table_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (sessData?.table_id) {
+        await client.rpc('abandon_game_table_secure', {
+          p_table_id: sessData.table_id,
+          p_session_id: sessionId,
+          p_idempotency_key: `abn_atrapaito_${sessionId}_${Date.now()}`,
+        });
+      }
       return { success: true };
     } catch (err: any) {
       console.error('[useAtrapaitoOnline] Error al procesar abandono:', err);

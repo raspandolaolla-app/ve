@@ -19,6 +19,7 @@ import type { WalletBalance, WalletTransaction } from '../../types/wallet';
 import type { PaymentAccount } from '../../types/payments';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
+import { ClaimTestBonusModal } from './components/ClaimTestBonusModal';
 import { formatBolivares, maskPhone, maskCedula } from '../../utils/formatters';
 import { FINANCIAL_RULES } from '../../utils/constants';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
@@ -362,6 +363,12 @@ export function WalletView() {
           <span>{rateInfo.errorMessage}</span>
         </div>
       )}
+
+      {/* Banner / Modal para Reclamar Bono de Prueba de 5000 Bs */}
+      <ClaimTestBonusModal
+        hasClaimed={profile?.hasClaimedTestBonus}
+        onSuccess={loadWalletData}
+      />
 
       {/* Tarjetas de Saldo Real con Conversión Informativa USD */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

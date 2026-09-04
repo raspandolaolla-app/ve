@@ -319,7 +319,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   const ch = 100 / ROWS;
 
   return (
-    <div id="domino-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-3xl mx-auto w-full game-immersive-container select-none">
+    <div id="domino-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-3xl mx-auto w-full">
 
       {/* Aviso de rotación */}
       <div className="hidden portrait:flex w-full mb-2 items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider"

@@ -258,7 +258,7 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
   const activeTurnPlayer = state.players.find((p) => p.userId === state.turnUserId);
 
   return (
-    <div id="checkers-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-xl mx-auto w-full game-immersive-container select-none">
+    <div id="checkers-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-xl mx-auto w-full">
 
       {/* ===== BARRA DE TEMAS (3 DISEÑOS) ===== */}
       <motion.div

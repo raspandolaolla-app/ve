@@ -283,7 +283,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     : null;
 
   return (
-    <div id="chess-board-container" className="flex flex-col items-center justify-center p-1.5 sm:p-3 max-w-2xl mx-auto w-full select-none game-immersive-container">
+    <div id="chess-board-container" className="flex flex-col items-center justify-center p-1.5 sm:p-3 max-w-2xl mx-auto w-full select-none">
       
       {/* ALERTA VISUAL DE JAQUE FLOTANTE */}
       <AnimatePresence>

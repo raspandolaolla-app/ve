@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Wrench, ShieldAlert, CheckCircle2, AlertTriangle, Play, RefreshCw, Trash2, Clock, FileCheck } from 'lucide-react';
 import { AdminRepository } from '../../../services/repositories/AdminRepository';
 import type { MaintenanceDryRunResult } from '../../../types/admin';
+import { AdminTestCleanupSection } from './AdminTestCleanupSection';
 
 export function AdminMaintenanceTab() {
   const [dryRunResult, setDryRunResult] = useState<MaintenanceDryRunResult | null>(null);
@@ -217,6 +218,9 @@ export function AdminMaintenanceTab() {
           </div>
         </div>
       )}
+
+      {/* Sección Quirúrgica de Purga de Datos de Prueba (5000 Bs) */}
+      <AdminTestCleanupSection onPurgeComplete={handleRunDryRun} />
     </div>
   );
 }

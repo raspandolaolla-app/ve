@@ -24,7 +24,6 @@ import { getGameInfo } from '../../../data/gameInfo';
 import { useAtrapaitoOnline } from '../../../hooks/useAtrapaitoOnline';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
-import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 
 // ==============================================================================
 // MOTOR DE AUDIO SINTETIZADO (Web Audio API)
@@ -928,7 +927,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   ]);
 
   // --- HOOK DE SINCRONIZACIÓN ONLINE (Fases 1, 2, 3 y 4) ---
-  const { submitMove, submitWall, abandonGame, isConnected, secondsLeft, isMyTurn, abandonNotice } = useAtrapaitoOnline({
+  const { submitMove, submitWall, abandonGame, isConnected, secondsLeft, isMyTurn } = useAtrapaitoOnline({
     sessionId: effectiveIsOnline ? effectiveSessionId : null,
     userId: effectiveIsOnline ? effectiveUserId : null,
     playerColor: effectivePlayerColor,
@@ -1190,15 +1189,10 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   ]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-    preventKeyboard(e);
     handleCanvasInteraction(e.clientX, e.clientY);
   };
 
   const handleCanvasTouch = (e: React.TouchEvent) => {
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-    preventKeyboard(e);
     if (e.touches.length > 0) {
       handleCanvasInteraction(e.touches[0].clientX, e.touches[0].clientY);
     }
@@ -1368,12 +1362,11 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
         </div>
 
         {/* Tablero Canvas (Proporción exacta 9 columnas x 15 filas) */}
-        <div className="w-full aspect-[9/15] bg-slate-200 border-4 border-slate-700 rounded-2xl p-1 shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] relative overflow-hidden game-immersive-container select-none">
+        <div className="w-full aspect-[9/15] bg-slate-200 border-4 border-slate-700 rounded-2xl p-1 shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-[12%] bg-gradient-to-b from-emerald-500/25 to-transparent pointer-events-none z-10 border-b border-emerald-500/40"></div>
 
           <canvas
             ref={canvasRef}
-            tabIndex={-1}
             onClick={(e) => {
               preventKeyboard(e);
               handleCanvasClick(e);
@@ -1382,7 +1375,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
               preventKeyboard(e);
               handleCanvasTouch(e);
             }}
-            className="w-full h-full block cursor-pointer relative z-20 touch-none select-none outline-none focus:outline-none"
+            className="w-full h-full block cursor-pointer relative z-20 touch-none"
           />
         </div>
 
@@ -1522,24 +1515,22 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
             <p className="text-[11px] font-semibold text-slate-300 min-h-[1.2rem]">{ui.statusMsg}</p>
           </div>
 
-          {/* Banner de Abandono del Rival */}
-          {abandonNotice && (
-            <div className="mt-2.5 p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
-              {abandonNotice}
-            </div>
-          )}
-
           {/* Botón de Abandono Voluntario de Partida Online */}
-          {effectiveIsOnline && effectiveSessionId && (
-            <div className="mt-2.5">
-              <GameAbandonButton
-                sessionId={effectiveSessionId}
-                tableId={effectiveSessionId}
-                onAbandonSuccess={() => {
+          {effectiveIsOnline && (
+            <button
+              id="btn-atrapaito-abandon"
+              type="button"
+              onClick={() => {
+                if (window.confirm('¿Seguro que quieres abandonar? Perderás la partida y tu entrada será asignada al rival.')) {
+                  abandonGame();
                   if (onExit) onExit();
-                }}
-              />
-            </div>
+                }
+              }}
+              className="bg-red-600/80 hover:bg-red-500 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold mt-2.5 w-full text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-red-950/40 border border-red-500/30"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Abandonar Partida</span>
+            </button>
           )}
         </div>
       </div>

@@ -9,7 +9,6 @@ import { useState } from 'react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import { useGameEngine } from '../useGameEngine';
 import { Button } from '../../../components/common/Button';
-import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 import { Trophy, RefreshCw, Layers, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
@@ -93,7 +92,6 @@ export function DominoGame({
     isMyTurn,
     isSettling,
     dispatchAction,
-    abandonNotice,
   } = useGameEngine({
     table,
     players: uniquePlayers,
@@ -253,24 +251,8 @@ export function DominoGame({
               <Layers className="w-4 h-4 text-amber-400" />
               <span>Fichas rival: {opponentHandCount}</span>
             </div>
-
-            {!isGameOver && (
-              <GameAbandonButton
-                sessionId={table.id}
-                tableId={table.id}
-                onAbandonSuccess={onLeave}
-                compact
-              />
-            )}
           </div>
         </div>
-
-        {/* Banner de Abandono del Rival */}
-        {abandonNotice && (
-          <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
-            {abandonNotice}
-          </div>
-        )}
 
         {/* Turno e Indicadores de Extremos */}
         <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -414,14 +396,10 @@ export function DominoGame({
           ) : isWinner ? (
             <div>
               <div className="text-3xl font-black text-emerald-400 mb-1">
-                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
-                  ? '¡VICTORIA POR ABANDONO! 🏆'
-                  : state.isTranca ? '¡GANASTE POR TRANCA! 🏆' : '¡DOMINÓ! GANASTE 🏆'}
+                {state.isTranca ? '¡GANASTE POR TRANCA! 🏆' : '¡DOMINÓ! GANASTE 🏆'}
               </div>
               <p className="text-xs text-slate-300">
-                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
-                  ? '¡Tu rival ha abandonado la partida! Has ganado el 90% del pozo:'
-                  : 'Has ganado el 90% del pozo:'}{' '}
+                Has ganado el 90% del pozo:{' '}
                 <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
               </p>
             </div>

@@ -323,7 +323,7 @@ export const TrucoBoard: React.FC<TrucoBoardProps> = ({ state, currentUserId, on
   const getDisplayName = (p: any): string => p?.displayName || p?.name || 'JUGADOR';
 
   return (
-    <div className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-6xl mx-auto w-full game-immersive-container select-none">
+    <div className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-6xl mx-auto w-full">
 
       {/* ===== OVERLAY: PANTALLA COMPLETA OBLIGATORIA (MÓVIL) ===== */}
       <AnimatePresence>

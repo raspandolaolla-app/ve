@@ -117,7 +117,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   return (
     <div
       id="tictactoe-board-container"
-      className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full game-immersive-container select-none"
+      className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full"
     >
       {/* Indicador de Ronda y Modalidad */}
       <div

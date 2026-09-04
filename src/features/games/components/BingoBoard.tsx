@@ -461,7 +461,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative game-immersive-container select-none"
+    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative"
       style={{ background: T.bg, minHeight: '100%' }}>
 
       {/* ===== BARRA SUPERIOR ===== */}

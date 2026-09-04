@@ -102,8 +102,8 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080B12] text-[#F8FAFC] antialiased selection:bg-[#FF8A00] selection:text-[#080B12]">
-      {!isPlayingGame && <SafeDevelopmentBanner />}
-      {!isPlayingGame && <AnnouncementBanner />}
+      <SafeDevelopmentBanner />
+      <AnnouncementBanner />
 
       {/* Cabecera Fija */}
       {!isPlayingGame && (

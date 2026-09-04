@@ -57,6 +57,7 @@ export interface UserProfile {
   identityVerificationStatus: VerificationStatus;
   humanVerificationStatus: VerificationStatus;
   isMfaEnabled?: boolean;
+  hasClaimedTestBonus?: boolean;
   createdAt: string;
   updatedAt: string;
 }

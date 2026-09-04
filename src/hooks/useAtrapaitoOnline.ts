@@ -35,11 +35,6 @@ export const useAtrapaitoOnline = ({
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isMyTurn, setIsMyTurn] = useState<boolean>(false);
-  const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
-
-  const clearAbandonNotice = useCallback(() => {
-    setAbandonNotice(null);
-  }, []);
 
   // Obtener cliente Supabase disponible
   const getClient = useCallback(() => {
@@ -213,14 +208,6 @@ export const useAtrapaitoOnline = ({
           }
 
           // Manejar fin de juego por victoria o abandono
-          if (newRow.status === 'ABANDONED' || newState.status === 'ABANDONED') {
-            if (newRow.winner_user_id === userId || newState.winner_user_id === userId) {
-              setAbandonNotice('🏆 ¡Tu rival ha abandonado la partida! Has ganado el 90% del pozo.');
-            } else {
-              setAbandonNotice('Partida finalizada por abandono.');
-            }
-          }
-
           if (
             newState.status === 'FINISHED' ||
             newState.status === 'ABANDONED' ||
@@ -458,8 +445,6 @@ export const useAtrapaitoOnline = ({
     timeLeft,
     secondsLeft: timeLeft,
     isMyTurn,
-    abandonNotice,
-    clearAbandonNotice,
     currentState: stateRef.current,
   };
 };

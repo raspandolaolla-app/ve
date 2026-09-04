@@ -2,10 +2,47 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 15:13:00 -07:00 (UTC 2026-09-04 22:13:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 15:55:00 -07:00 (UTC 2026-09-04 22:55:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 131_cleanup_finished_bingo_tables.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 133_support_chat_system.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CENTRO DE AYUDA INTELIGENTE, COLA DE ATENCIÓN Y CHAT EN VIVO DE SOPORTE (MIGRACIÓN 133):
+   - Objetivos y Propósito Estratégico:
+     * Transformar el canal de atención al cliente de un formulario pasivo a una experiencia integral tipo casino/fintech moderna: 100% dentro de la WebApp, sin depender de redes externas obligatorias, con base de conocimiento interactiva (FAQ) para auto-resolución rápida y chat bidireccional en tiempo real con cola auditada de operadores.
+   - Migración de Base de Datos (`supabase/migrations/133_support_chat_system.sql`):
+     * `public.faq_items`: Base de conocimiento clasificada por categorías (Cuenta, Finanzas, Juegos, Seguridad) con respuestas oficiales pre-cargadas y control de visibilidad.
+     * `public.support_tickets`: Registro inmutable de solicitudes de soporte con número de ticket único formateado (`TKT-YYYYMMDD-XXXX`), asignación de operador, posición en cola (`queue_position`), control de estados (`WAITING`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`), marcas temporales de primera respuesta (`first_response_at`) y resolución final (`resolved_at`).
+     * `public.chat_messages`: Historial conversacional completo de cada ticket con roles diferenciados (`USER`, `OPERATOR`, `ADMIN`, `SYSTEM`), soporte para texto y URLs de archivos adjuntos/capturas.
+     * Políticas de Seguridad RLS: Aislamiento total de tickets y mensajes por usuario autenticado (`auth.uid() = user_id`), con acceso administrativo u operador para supervisión y atención (`public.is_admin()`, `public.is_operator_or_above()`).
+     * Funciones RPC Seguras (`SECURITY DEFINER`):
+       - `create_support_ticket(p_initial_message TEXT)`: Generación de ticket, cálculo en servidor de posición en cola, asignación dinámica a operador en turno, inserción de mensaje de bienvenida del sistema con tiempo estimado de espera y primer mensaje del jugador.
+       - `send_chat_message(p_ticket_id UUID, p_message TEXT, p_image_url TEXT)`: Validación de sesión, clasificación de remitente y actualización automática de estado a `IN_PROGRESS` en la primera respuesta del operador.
+     * Publicación Realtime: Incorporación de `support_tickets` y `chat_messages` a la publicación `supabase_realtime` para difusión inmediata por websockets sin refresco de página.
+   - Componente de Usuario (`src/features/support/SupportView.tsx`):
+     * Vista de Centro de Ayuda con selector por categorías y buscador en tiempo real de preguntas frecuentes con animación de acordeón.
+     * Banner destacado para abrir chat con operadores en vivo, con visualización de tiempo estimado de espera.
+     * Interfaz de chat moderna con avatar de operador, burbujas diferenciadas por rol (jugador en gradiente ámbar, operador en esmeralda, sistema en píldora central), selector de archivos para capturas de pantalla, auto-scroll interactivo y campana de audio (`playNotificationSound`).
+   - Panel de Operador / Administrador en Vivo (`src/features/admin/tabs/AdminSupportTab.tsx`):
+     * Sub-pestañas: "Cola en Vivo" y "Historial de Registros".
+     * Monitor de cola en tiempo real con contador reactivo, indicadores de espera por minutos y filtrado por estado (`EN COLA`, `ATENDIENDO`, `RESUELTO`).
+     * Ventana de chat bidireccional conectada a `chat_messages` con aviso sonoro al entrar un nuevo mensaje de usuario y botón de acción rápida "Resolver Ticket".
+   - Integración en Navegación General:
+     * Soporte para ruta/pestaña `'support'` en `src/App.tsx`.
+     * Botón de acceso directo en el drawer de exploración (`ExploreDrawer.tsx`), menú de perfil (`ProfileMenuModal.tsx`) y modal de soporte general (`SupportModal.tsx`).
+
+0) RESOLUCIÓN DE AMBIGÜEDAD POSTGREST (ERROR 42725) EN buy_bingo_cards_secure Y FAIRNESS LOCK (MIGRACIÓN 132):
+   - Diagnóstico del Problema:
+     * PostgREST arrojaba el error 42725 (Función Ambigua) debido a la existencia de dos sobrecargas previas de `buy_bingo_cards_secure` en el esquema de PostgreSQL (una con 5 parámetros y otra con 6 parámetros). Al invocar la función desde el frontend vía RPC, PostgREST no podía resolver cuál ejecutar, interrumpiendo la compra de cartones.
+   - Script Canónico de Migración (`supabase/migrations/132_fix_buy_bingo_cards_secure_ambiguity.sql`):
+     * `DROP FUNCTION IF EXISTS` explícito de ambas firmas antiguas con 5 y 6 parámetros para limpiar la caché de sobrecargas.
+     * Definición de una única función canónica con parámetros predeterminados (`DEFAULT '90'`, `DEFAULT 0`, `DEFAULT '[]'::jsonb`, `DEFAULT NULL`), permitiendo invocaciones flexibles con número variable de argumentos sin inducir ambigüedad.
+     * Bloqueo de equidad ("Fairness Lock"): Comprueba `IF v_session.status IN ('DRAWING', 'ACTIVE', 'FINISHED', 'CANCELLED') THEN RAISE EXCEPTION 'VENTAS_CERRADAS: El sorteo ya comenzó o la partida terminó.'; END IF;`.
+     * Idempotencia real con registro y consulta inmutable en `ledger_entries` para prevenir dobles cobros o desincronizaciones por clics repetidos.
+     * Retención financiera segura: Débito de `available_balance` y crédito a `held_balance` en `wallets`, inserción de cartones en `bingo_card_purchases` y notificación de recarga de esquema a PostgREST (`NOTIFY pgrst, 'reload schema'`).
+   - Sincronización en Frontend (`GameContainer.tsx` y `TableRepository.ts`):
+     * Generación de clave de idempotencia única cliente-servidor por transacción de compra.
+     * Formateo amigable y limpio de excepciones SQL en el cliente: Mensajes claros en español para `"VENTAS_CERRADAS"`, `"SALDO_INSUFICIENTE"` y desestimación limpia sin romper el estado del juego.
 
 0) SIMPLIFICACIÓN Y LIMPIEZA DE ELEMENTOS REDUNDANTES DE BINGO EN EL LOBBY:
    - Diagnóstico y Requerimiento de Usuario:

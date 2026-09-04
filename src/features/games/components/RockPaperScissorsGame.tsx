@@ -9,6 +9,7 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { RPSState, RPSChoice } from '../../../types/games';
 import { useGameEngine } from '../useGameEngine';
 import { Button } from '../../../components/common/Button';
+import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 import { Trophy, RefreshCw, ShieldAlert } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
@@ -51,6 +52,7 @@ export function RockPaperScissorsGame({
     isSettling,
     settlementResult,
     dispatchAction,
+    abandonNotice,
   } = useGameEngine({
     table,
     players: uniquePlayers,
@@ -219,12 +221,28 @@ export function RockPaperScissorsGame({
             </div>
           </div>
 
-          <div className="text-right">
+          <div className="flex items-center gap-3">
             <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
               Ronda {state.round}
             </span>
+
+            {!isGameOver && (
+              <GameAbandonButton
+                sessionId={table.id}
+                tableId={table.id}
+                onAbandonSuccess={onLeave}
+                compact
+              />
+            )}
           </div>
         </div>
+
+        {/* Banner de Abandono del Rival */}
+        {abandonNotice && (
+          <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
+            {abandonNotice}
+          </div>
+        )}
 
         {/* Marcador de Puntos */}
         <div className="mt-4 pt-3 border-t border-slate-800 grid grid-cols-2 gap-4 text-center">
@@ -331,9 +349,15 @@ export function RockPaperScissorsGame({
         <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
           {isWinner ? (
             <div>
-              <div className="text-3xl font-black text-emerald-400 mb-1">¡VICTORIA EN EL DUELO! 🏆</div>
+              <div className="text-3xl font-black text-emerald-400 mb-1">
+                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                  ? '¡VICTORIA POR ABANDONO! 🏆'
+                  : '¡VICTORIA EN EL DUELO! 🏆'}
+              </div>
               <p className="text-xs text-slate-300">
-                Has alcanzado los {state.targetWins} puntos y ganas:{' '}
+                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                  ? '¡Tu rival ha abandonado el duelo! Has ganado:'
+                  : `Has alcanzado los ${state.targetWins} puntos y ganas:`}{' '}
                 <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
               </p>
             </div>

@@ -297,7 +297,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   const isRoundResult = phase === 'round_result' || phase === 'match_ended';
 
   return (
-    <div id="rps-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-xl mx-auto w-full">
+    <div id="rps-board-container" className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-xl mx-auto w-full game-immersive-container select-none">
 
       {/* ===== BARRA DE TEMAS ===== */}
       <motion.div

@@ -213,7 +213,7 @@ export const AtrapaitoBoard: React.FC<AtrapaitoBoardProps> = ({
   return (
     <div
       id="atrapaito-board-viewport"
-      className="w-full min-h-[90vh] flex flex-col justify-between bg-gradient-to-br from-[#0c0316] via-[#140828] to-[#06010d] text-white p-2 sm:p-4 md:p-6"
+      className="w-full min-h-[90vh] flex flex-col justify-between bg-gradient-to-br from-[#0c0316] via-[#140828] to-[#06010d] text-white p-2 sm:p-4 md:p-6 game-immersive-container select-none"
     >
       {/* SECCIÓN 1: CONTENIDO PRINCIPAL */}
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

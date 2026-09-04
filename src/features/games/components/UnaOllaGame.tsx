@@ -18,6 +18,7 @@ import { useGameEngine } from '../useGameEngine';
 import { UnaOllaEngine } from '../engines/UnaOllaEngine';
 import { UnaOllaCardComponent } from './UnaOllaCardComponent';
 import { Button } from '../../../components/common/Button';
+import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 import { Play, AlertTriangle, Flame, Palette, RotateCw, Info } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 
@@ -212,7 +213,7 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
   const isHost = currentUserId === table.hostUserId;
 
   const initialState = UnaOllaEngine.initGameState(players, table.hostUserId);
-  const { gameState, currentTurnUserId, isMyTurn, dispatchAction } = useGameEngine({
+  const { gameState, currentTurnUserId, isMyTurn, dispatchAction, abandonNotice } = useGameEngine({
     table,
     players,
     currentUserId,
@@ -462,7 +463,7 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
     c === 'red' ? '#D32F2F' : c === 'blue' ? '#1E88E5' : c === 'green' ? '#43A047' : '#FBC02D';
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-3">
+    <div className="w-full max-w-6xl mx-auto space-y-3 game-immersive-container select-none">
 
       {/* Aviso horizontal */}
       <div
@@ -500,14 +501,31 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
             ))}
           </div>
         </div>
-        <button
-          onClick={() => setShowRulesModal(true)}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase"
-          style={{ color: T.sub }}
-        >
-          <Info className="w-3.5 h-3.5" style={{ color: T.accent }} /> Reglas
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRulesModal(true)}
+            className="flex items-center gap-1 text-[10px] font-bold uppercase"
+            style={{ color: T.sub }}
+          >
+            <Info className="w-3.5 h-3.5" style={{ color: T.accent }} /> Reglas
+          </button>
+
+          {!isFinished && (
+            <GameAbandonButton
+              sessionId={table.id}
+              tableId={table.id}
+              onAbandonSuccess={onLeave}
+              compact
+            />
+          )}
+        </div>
       </div>
+
+      {abandonNotice && (
+        <div className="w-full text-center text-xs font-bold px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 animate-bounce shadow-lg">
+          {abandonNotice}
+        </div>
+      )}
 
       {state.lastActionLog && (
         <div

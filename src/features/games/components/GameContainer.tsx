@@ -49,6 +49,7 @@ import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { useGameMode } from '../../../hooks/useGameMode';
+import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
 
 interface GameContainerProps {
   table: GameTable;
@@ -91,6 +92,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const isSettledRef = useRef(false);
   const { enterGameMode, exitGameMode } = useGameMode();
+
+  // Hook universal de pantalla completa inmersiva
+  const gameContainerRef = useGameFullscreen(true);
+
+  // Prevenir que el teclado virtual se despliegue al tocar la pantalla de juego
+  const preventKeyboard = useCallback((_e?: React.TouchEvent | React.MouseEvent) => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
 
   // Activar modo juego y pantalla completa al montar
   useEffect(() => {
@@ -569,10 +580,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             setGameState(sanitized);
           }
 
-          if (updated?.status === 'SETTLED' && !isSettledRef.current) {
+          const statusUpper = (updated?.status || '').toUpperCase();
+          const isTerminated =
+            (statusUpper === 'SETTLED' ||
+             statusUpper === 'FINISHED' ||
+             statusUpper === 'ABANDONED') &&
+            !isSettledRef.current;
+
+          if (isTerminated) {
             isSettledRef.current = true;
-            const winnerPlayer = currentPlayers.find((p) => p.userId === updated.winner_user_id);
-            const isWinner = updated.winner_user_id === currentUserId;
+            const winnerId = updated.winner_user_id || updated.winnerUserId || (updated.current_state as any)?.winnerUserId;
+            const winnerPlayer = currentPlayers.find((p) => p.userId === winnerId);
+            const isWinner = winnerId === currentUserId;
             const winnerDisplayName = isWinner ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
             const grossPool = table.entryFee * (currentPlayers.length || 2);
 
@@ -586,9 +605,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
 
             if (isWinner) {
-              setAbandonNotice(`🏆 ¡Victoria declarada! Premio 90/10 acreditado.`);
+              const isAbandonWin =
+                updated.current_state?.winner === 'OPPONENT_BY_ABANDON' ||
+                (updated.current_state as any)?.abandoned;
+              if (isAbandonWin) {
+                setAbandonNotice('🏆 ¡Tu rival ha abandonado la partida! Has ganado.');
+              } else {
+                setAbandonNotice(`🏆 ¡Victoria declarada! Premio 90/10 acreditado.`);
+              }
             }
-          } else if (updated?.status === 'CANCELLED' && !isSettledRef.current) {
+          } else if (statusUpper === 'CANCELLED' && !isSettledRef.current) {
             isSettledRef.current = true;
             const grossPool = table.entryFee * (currentPlayers.length || 2);
             setSettlementResult({
@@ -820,7 +846,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     setIsAbandoning(true);
 
     try {
-      const result = await TableRepository.abandonTable(table.id, session?.id);
+      if (session?.id) {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data: univData, error: univErr } = await client.rpc('abandon_game_secure', {
+            p_session_id: session.id,
+          });
+          if (!univErr && univData?.success) {
+            setShowAbandonModal(false);
+            onExit();
+            return;
+          }
+        }
+      }
+
+      await TableRepository.abandonTable(table.id, session?.id);
       setShowAbandonModal(false);
       onExit();
     } catch (err: any) {
@@ -1286,11 +1326,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   };
 
   const containerClasses = isImmersiveMode
-    ? 'fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-hidden select-none'
-    : 'min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl';
+    ? 'game-fullscreen-wrapper game-immersive-container fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-hidden select-none'
+    : 'game-immersive-container min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl';
 
   return (
-    <div id="game-arena-container" className={containerClasses}>
+    <div
+      id="game-arena-container"
+      ref={gameContainerRef}
+      className={containerClasses}
+      onTouchStart={preventKeyboard}
+      onClick={preventKeyboard}
+    >
       {/* Barra de Navegación de la Mesa */}
       <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">

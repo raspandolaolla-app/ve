@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { GameRepository } from '../../services/repositories/GameRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
+import { useGameAbandonment } from '../../hooks/useGameAbandonment';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameSession, GameType } from '../../types/games';
 
@@ -38,12 +39,23 @@ export function useGameEngine({
     refunded?: boolean;
     error?: string;
   } | null>(null);
+  const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
 
   const seqNumRef = useRef(1);
   const isSettlingRef = useRef(false);
 
   const isHost = currentUserId === table.hostUserId;
   const isMyTurn = currentTurnUserId === currentUserId;
+
+  // Integración universal de abandono voluntario
+  const { abandonGame, isAbandoning } = useGameAbandonment(session?.id || null, {
+    tableId: table.id,
+    onAbandonSuccess: () => {
+      if (onGameOver) {
+        onGameOver(null, false);
+      }
+    },
+  });
 
   // 1. Inicializar o recuperar sesión
   const initSession = useCallback(async () => {
@@ -132,8 +144,26 @@ export function useGameEngine({
           if (updated.current_turn_user_id !== undefined) {
             setCurrentTurnUserId(updated.current_turn_user_id);
           }
-          if (updated.status === 'SETTLED' || updated.status === 'CANCELLED') {
-            // Partida finalizada
+          if (updated.status === 'SETTLED' || updated.status === 'FINISHED' || updated.status === 'ABANDONED') {
+            // 1. Detectar si el juego terminó por abandono del rival (Paso 4)
+            const winnerId = updated.winner_user_id || updated.winnerUserId || (updated.current_state as any)?.winnerUserId;
+            if (winnerId === currentUserId) {
+              const isAbandonWin =
+                updated.current_state?.winner === 'OPPONENT_BY_ABANDON' ||
+                (updated.current_state as any)?.abandoned;
+              if (isAbandonWin) {
+                setAbandonNotice('¡Tu rival ha abandonado la partida! Has ganado.');
+              } else {
+                setAbandonNotice('¡Felicidades! Has ganado la partida.');
+              }
+            }
+            if (onGameOver) {
+              onGameOver(winnerId, false);
+            }
+          } else if (updated.status === 'CANCELLED') {
+            if (onGameOver) {
+              onGameOver(null, true);
+            }
           }
         }
       },
@@ -295,5 +325,9 @@ export function useGameEngine({
     settlementResult,
     dispatchAction,
     settleGame,
+    abandonGame,
+    isAbandoning,
+    abandonNotice,
+    clearAbandonNotice: () => setAbandonNotice(null),
   };
 }

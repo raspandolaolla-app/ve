@@ -23,6 +23,8 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 import { getGameInfo } from '../../../data/gameInfo';
 import { useAtrapaitoOnline } from '../../../hooks/useAtrapaitoOnline';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
+import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
+import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 
 // ==============================================================================
 // MOTOR DE AUDIO SINTETIZADO (Web Audio API)
@@ -219,6 +221,16 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+  // Hook universal de pantalla completa inmersiva
+  const gameContainerRef = useGameFullscreen(true);
+
+  // Prevenir que el teclado virtual se despliegue al tocar la pantalla de juego
+  const preventKeyboard = useCallback((_e?: React.TouchEvent | React.MouseEvent) => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
 
   const gameInfo = getGameInfo('atrapaito');
 
@@ -916,7 +928,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   ]);
 
   // --- HOOK DE SINCRONIZACIÓN ONLINE (Fases 1, 2, 3 y 4) ---
-  const { submitMove, submitWall, abandonGame, isConnected, secondsLeft, isMyTurn } = useAtrapaitoOnline({
+  const { submitMove, submitWall, abandonGame, isConnected, secondsLeft, isMyTurn, abandonNotice } = useAtrapaitoOnline({
     sessionId: effectiveIsOnline ? effectiveSessionId : null,
     userId: effectiveIsOnline ? effectiveUserId : null,
     playerColor: effectivePlayerColor,
@@ -941,7 +953,11 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
     },
     onGameEnd: (winnerIdOrColor) => {
       const s = stateRef.current;
+      const isAbandonWin =
+        winnerIdOrColor === 'OPPONENT_BY_ABANDON' ||
+        (s.winner as any) === 'OPPONENT_BY_ABANDON';
       const isWinner =
+        isAbandonWin ||
         winnerIdOrColor === effectiveUserId ||
         winnerIdOrColor === effectivePlayerColor ||
         s.winner === effectivePlayerColor;
@@ -952,10 +968,14 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
         ...prev,
         showWin: true,
         winner: s.winner,
-        statusMsg: isWinner
-          ? '¡Ganaste la partida! Pozo neto 90% acreditado.'
-          : 'Partida finalizada. Tu rival ha ganado la partida.',
-        winReason: isWinner ? '¡Victoria autoritativa en línea!' : 'El rival logró la meta o ganancia.',
+        statusMsg: isAbandonWin
+          ? '¡Tu rival ha abandonado la partida! Has ganado.'
+          : (isWinner
+            ? '¡Ganaste la partida! Pozo neto 90% acreditado.'
+            : 'Partida finalizada. Tu rival ha ganado la partida.'),
+        winReason: isAbandonWin
+          ? '¡Victoria por abandono del rival!'
+          : (isWinner ? '¡Victoria autoritativa en línea!' : 'El rival logró la meta o ganancia.'),
       }));
       if (isWinner) {
         AudioEngine.playVictory();
@@ -1170,10 +1190,15 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   ]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
+    preventKeyboard(e);
     handleCanvasInteraction(e.clientX, e.clientY);
   };
 
   const handleCanvasTouch = (e: React.TouchEvent) => {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    preventKeyboard(e);
     if (e.touches.length > 0) {
       handleCanvasInteraction(e.touches[0].clientX, e.touches[0].clientY);
     }
@@ -1200,7 +1225,12 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   const handleExitClick = onLeave || onExit;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-[#080B12] text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-black">
+    <div
+      ref={gameContainerRef}
+      className="game-fullscreen-wrapper game-immersive-container bg-[#080B12] text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-black overflow-y-auto"
+      onTouchStart={preventKeyboard}
+      onClick={preventKeyboard}
+    >
       {/* Fase 4: Banner de Desconexión de Red */}
       {isNetworkOffline && (
         <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2.5 font-bold z-50 animate-pulse text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2">
@@ -1338,14 +1368,21 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
         </div>
 
         {/* Tablero Canvas (Proporción exacta 9 columnas x 15 filas) */}
-        <div className="w-full aspect-[9/15] bg-slate-200 border-4 border-slate-700 rounded-2xl p-1 shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] relative overflow-hidden">
+        <div className="w-full aspect-[9/15] bg-slate-200 border-4 border-slate-700 rounded-2xl p-1 shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] relative overflow-hidden game-immersive-container select-none">
           <div className="absolute top-0 left-0 right-0 h-[12%] bg-gradient-to-b from-emerald-500/25 to-transparent pointer-events-none z-10 border-b border-emerald-500/40"></div>
 
           <canvas
             ref={canvasRef}
-            onClick={handleCanvasClick}
-            onTouchStart={handleCanvasTouch}
-            className="w-full h-full block cursor-pointer relative z-20 touch-none"
+            tabIndex={-1}
+            onClick={(e) => {
+              preventKeyboard(e);
+              handleCanvasClick(e);
+            }}
+            onTouchStart={(e) => {
+              preventKeyboard(e);
+              handleCanvasTouch(e);
+            }}
+            className="w-full h-full block cursor-pointer relative z-20 touch-none select-none outline-none focus:outline-none"
           />
         </div>
 
@@ -1485,22 +1522,24 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
             <p className="text-[11px] font-semibold text-slate-300 min-h-[1.2rem]">{ui.statusMsg}</p>
           </div>
 
+          {/* Banner de Abandono del Rival */}
+          {abandonNotice && (
+            <div className="mt-2.5 p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
+              {abandonNotice}
+            </div>
+          )}
+
           {/* Botón de Abandono Voluntario de Partida Online */}
-          {effectiveIsOnline && (
-            <button
-              id="btn-atrapaito-abandon"
-              type="button"
-              onClick={() => {
-                if (window.confirm('¿Seguro que quieres abandonar? Perderás la partida y tu entrada será asignada al rival.')) {
-                  abandonGame();
+          {effectiveIsOnline && effectiveSessionId && (
+            <div className="mt-2.5">
+              <GameAbandonButton
+                sessionId={effectiveSessionId}
+                tableId={effectiveSessionId}
+                onAbandonSuccess={() => {
                   if (onExit) onExit();
-                }
-              }}
-              className="bg-red-600/80 hover:bg-red-500 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold mt-2.5 w-full text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-red-950/40 border border-red-500/30"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Abandonar Partida</span>
-            </button>
+                }}
+              />
+            </div>
           )}
         </div>
       </div>

@@ -9,6 +9,7 @@ import { useState } from 'react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import { useGameEngine } from '../useGameEngine';
 import { Button } from '../../../components/common/Button';
+import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 import { Trophy, RefreshCw, X as XIcon, Circle as OIcon, AlertCircle } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
@@ -63,6 +64,7 @@ export function TicTacToeGame({
     isSettling,
     settlementResult,
     dispatchAction,
+    abandonNotice,
   } = useGameEngine({
     table,
     players: uniquePlayers,
@@ -152,14 +154,32 @@ export function TicTacToeGame({
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">Tu Símbolo</div>
-            <div className="text-lg font-black text-amber-400 font-mono flex items-center justify-end gap-1">
-              {mySymbol === 'X' ? <XIcon className="w-5 h-5 text-amber-400" /> : <OIcon className="w-5 h-5 text-blue-400" />}
-              <span>({mySymbol})</span>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">Tu Símbolo</div>
+              <div className="text-lg font-black text-amber-400 font-mono flex items-center justify-end gap-1">
+                {mySymbol === 'X' ? <XIcon className="w-5 h-5 text-amber-400" /> : <OIcon className="w-5 h-5 text-blue-400" />}
+                <span>({mySymbol})</span>
+              </div>
             </div>
+
+            {!isGameOver && (
+              <GameAbandonButton
+                sessionId={table.id}
+                tableId={table.id}
+                onAbandonSuccess={onLeave}
+                compact
+              />
+            )}
           </div>
         </div>
+
+        {/* Banner de Abandono del Rival */}
+        {abandonNotice && (
+          <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
+            {abandonNotice}
+          </div>
+        )}
 
         {/* Turno Actual */}
         <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
@@ -223,9 +243,15 @@ export function TicTacToeGame({
             </div>
           ) : isWinner ? (
             <div>
-              <div className="text-3xl font-black text-emerald-400 mb-1">¡VICTORIA! 🏆</div>
+              <div className="text-3xl font-black text-emerald-400 mb-1">
+                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                  ? '¡VICTORIA POR ABANDONO! 🏆'
+                  : '¡VICTORIA! 🏆'}
+              </div>
               <p className="text-xs text-slate-300">
-                Has ganado el 90% del pozo acumulado:{' '}
+                {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                  ? '¡Tu rival ha abandonado la partida! Has ganado:'
+                  : 'Has ganado el 90% del pozo acumulado:'}{' '}
                 <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
               </p>
             </div>

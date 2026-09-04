@@ -11,6 +11,7 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { ChessState } from '../../../types/games';
 import { useGameEngine } from '../useGameEngine';
 import { Button } from '../../../components/common/Button';
+import { GameAbandonButton } from '../../../components/common/GameAbandonButton';
 import { Trophy, RefreshCw, AlertCircle, Sparkles, HelpCircle, User, ArrowLeftRight } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
@@ -58,6 +59,7 @@ export function ChessGame({
     isMyTurn,
     isSettling,
     dispatchAction,
+    abandonNotice,
   } = useGameEngine({
     table,
     players: uniquePlayers,
@@ -281,15 +283,33 @@ export function ChessGame({
               </div>
             </div>
 
-            <button
-              onClick={() => setFlipBoard((prev) => !prev)}
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-colors border border-slate-700/50 flex items-center gap-1.5 text-xs font-mono"
-              title="Voltear Tablero"
-            >
-              <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-              <span>Girar Vista</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFlipBoard((prev) => !prev)}
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-colors border border-slate-700/50 flex items-center gap-1.5 text-xs font-mono"
+                title="Voltear Tablero"
+              >
+                <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                <span>Girar Vista</span>
+              </button>
+
+              {!isGameOver && (
+                <GameAbandonButton
+                  sessionId={table.id}
+                  tableId={table.id}
+                  onAbandonSuccess={onLeave}
+                  compact
+                />
+              )}
+            </div>
           </div>
+
+          {/* Banner de Abandono del Rival */}
+          {abandonNotice && (
+            <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold text-center animate-bounce shadow-lg">
+              {abandonNotice}
+            </div>
+          )}
 
           {/* Turno e Indicadores de Estado */}
           <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -498,9 +518,15 @@ export function ChessGame({
             {state.winnerUserId ? (
               isWinner ? (
                 <div>
-                  <div className="text-2xl font-black text-emerald-400 mb-1">¡VICTORIA EN AJEDREZ! 🏆</div>
+                  <div className="text-2xl font-black text-emerald-400 mb-1">
+                    {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                      ? '¡VICTORIA POR ABANDONO! 🏆'
+                      : '¡VICTORIA EN AJEDREZ! 🏆'}
+                  </div>
                   <p className="text-xs text-slate-300">
-                    Has logrado el jaque mate definitivo y ganas:{' '}
+                    {(state as any).winner === 'OPPONENT_BY_ABANDON' || (state as any).abandoned || abandonNotice
+                      ? '¡Tu rival ha abandonado la partida! Has ganado:'
+                      : 'Has logrado el jaque mate definitivo y ganas:'}{' '}
                     <strong className="text-emerald-400 font-mono text-base">{formatBolivares(estimatedPrize)}</strong>
                   </p>
                 </div>

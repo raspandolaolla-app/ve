@@ -2,40 +2,177 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 17:53:00 -07:00 (UTC 2026-09-04 00:53:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 22:43:00 -07:00 (UTC 2026-09-04 05:43:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 117_universal_game_abandonment.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 124_fix_and_enable_2fa_totp.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-1) DESPLIEGUE UNIVERSAL DE LA UI DE ABANDONO Y BANNER DE NOTIFICACIÓN EN TODOS LOS JUEGOS:
-   - Unificación Completa de la Experiencia de Abandono:
-     * Componente Estandarizado `GameAbandonButton.tsx`: Botón con diálogo modal accesible y elegante con confirmación explícita (sustituyendo llamadas a `window.confirm` incompatibles en entornos iframe), estado de carga `isAbandoning` y feedback auditado.
-     * Detección en Tiempo Real de Abandono del Rival:
-       - `useGameEngine.ts`: Incorporación del estado reactivo `abandonNotice` y escucha de eventos Realtime de Supabase cuando el estado de la sesión cambia a `ABANDONED` o finaliza con ganador por abandono.
-       - `useAtrapaitoOnline.ts`: Inclusión de `abandonNotice` y `clearAbandonNotice`, escuchando en tiempo real el canal de `game_sessions` para alertar inmediatamente al jugador si el oponente abandona voluntariamente o por tiempo expirado.
-     * Cobertura Total en Juegos 1vs1 y Multijugador:
-       - `AtrapaitoGame.tsx`: Integración de `GameAbandonButton` y banner flotante `abandonNotice` con premio garantizado del 90%.
-       - `ChessGame.tsx`: Integración de `GameAbandonButton` en cabecera, banner de abandono y texto dinámico de victoria "¡VICTORIA POR ABANDONO! 🏆".
-       - `CheckersGame.tsx`: Integración de botón, banner de aviso y pantalla de resolución por abandono.
-       - `DominoGame.tsx`: Integración de botón en barra de mesa, banner de aviso de abandono y pantalla de fin de partida.
-       - `TicTacToeGame.tsx`: Integración de botón, banner y modal de victoria por abandono.
-       - `RockPaperScissorsGame.tsx`: Integración de botón, banner y modal de victoria por abandono.
-       - `TrucoGame.tsx`: Integración de botón en panel de tanteo, banner y modal de victoria por abandono.
-       - `UnaOllaGame.tsx`: Integración de botón junto a las reglas, banner animado y sincronización con el motor de juego.
+1) REDISEÑO Y REESTRUCTURACIÓN DE LA BARRA SUPERIOR (HEADER):
+   - Ocultación de Botón "Lobby": Se retiró el botón `nav-home` ("Lobby") de la barra de navegación superior desktop para eliminar redundancias operativas, manteniendo la navegación al inicio a través del logo principal interactivo y los accesos del menú móvil.
+   - Ocultación de Botón "Instalar App": Se ocultó `InstallPWAButton` de la cabecera superior para despejar el área de navegación y enfocar la atención en el estado de cuenta y perfil.
+   - Reubicación del Saldo Disponible junto al Perfil: Se movió el contenedor de saldo (`header-balance-pill`) desde el bloque izquierdo (junto al logo) hacia el bloque derecho, colocándose directamente al lado del nombre y avatar de perfil del jugador.
+   - Duplicación de Tamaño del Saldo: Se incrementó la escala tipográfica de los números del saldo disponible de `text-xs sm:text-sm` (12-14px) a `text-base sm:text-xl lg:text-2xl` (16-24px), duplicando su tamaño para una lectura inmediata y prominente.
+   - Mantenimiento de Controles: Se preservaron integrados el botón de alternar visibilidad (ojo mostrar/ocultar saldo) y el botón de acción rápida "Abonar (+)".
 
-2) BLINDAJE ANTI-TECLADO VIRTUAL Y MODO INMERSIVO UNIVERSAL DE JUEGOS:
+1) FIX DEFINITIVO Y ACTIVACIÓN BLINDADA DE 2FA TOTP (MIGRACIÓN 124 ACTUALIZADA):
+   - Problemas Corregidos:
+     * Error PostgreSQL `42P13: cannot change name of input parameter` al recrear RPCs preexistentes con nombres de parámetros modificados (ej. `user_id` a `p_user_id`).
+     * Prevención de Vulnerabilidad Crítica: Se erradicó cualquier bypass de validación por regex. Se implementó validación criptográfica canónica y estricta en el motor PostgreSQL mediante HMAC-SHA1 y Time-Step RFC 6238.
+   - Solución Backend (`supabase/migrations/124_fix_and_enable_2fa_totp.sql`):
+     * Limpieza previa exhaustiva con `DROP FUNCTION IF EXISTS` de todas las variantes de RPCs antes de recrearlas.
+     * Extensión `pgcrypto` forzada en `public`.
+     * `public.base32_decode(b32 TEXT) RETURNS BYTEA`: Decodificador Base32 puro con casteo explícito `::INTEGER` en `set_byte('\x00'::bytea, 0, ((v_buffer >> v_bits) & 255)::INTEGER)`, erradicando el error `set_byte(bytea, integer, bigint)`.
+     * `public.calculate_totp(p_secret_base32 TEXT, p_offset INT DEFAULT 0) RETURNS TEXT`:
+       - Cálculo de HMAC-SHA1 con casteo explícito `'sha1'::TEXT` para prevenir `hmac(bytea, bytea, unknown)`.
+       - Operaciones de bits con casteo `::INTEGER` en cada segmento para truncamiento dinámico exacto de 6 dígitos.
+     * `public.setup_2fa_for_user(p_user_id UUID DEFAULT auth.uid()) RETURNS JSONB`:
+       - Genera 20 bytes aleatorios y codifica a Base32 estándar.
+       - Construye URI `otpauth://totp/RaspandoLaOlla:...`.
+       - Persiste en `public.user_2fa_secrets` con `secret_base32`, `secret`, `is_active = FALSE`.
+     * `public.verify_2fa_code(p_user_id UUID DEFAULT auth.uid(), p_code TEXT DEFAULT '') RETURNS JSONB`:
+       - Validación criptográfica real: Evalúa intervalos `i IN -1..1` (tolerancia a drift horario de ±30 seg).
+       - Soporte para códigos de recuperación de un solo uso (8 caracteres).
+       - Generación automática de 8 códigos de emergencia MD5 en la primera activación.
+       - Activación atómica en `public.user_2fa_secrets.is_active = TRUE` Y `public.profiles.is_mfa_enabled = TRUE`.
+       - Bloqueo por fuerza bruta tras 5 intentos fallidos (10 minutos).
+     * `public.get_2fa_status()`, `disable_2fa()`, `enable_2fa()`, `generate_totp_secret()`, `regenerate_recovery_codes()`.
+   - Solución Frontend:
+     * `TwoFactorRepository.ts`: Llama autoritativamente a `setup_2fa_for_user` en backend para asegurar correspondencia matemática 100% idéntica entre el secreto guardado en BD y el presentado al usuario.
+     * Renderizado nativo vectorial SVG con `QRCodeSVG` de `qrcode.react`.
+     * Validación de 6 dígitos en `verify_2fa_code` con retroalimentación en tiempo real y descarga de códigos de recuperación.
+
+1) SISTEMA DE BONO DE PRUEBA (5000 BS) Y PURGA ADMINISTRATIVA SEGURA (MIGRACIÓN 123):
+   - Objetivo: Permitir a los usuarios reclamar 5.000,00 Bs. de saldo de prueba para jugar y testear el sorteo de bingo, polla y dominó sin arriesgar fondos reales, proveyendo al administrador de una herramienta quirúrgica de purga que no afecte en ningún escenario el dinero real ni los depósitos legítimos.
+   - Principio de Seguridad Crítico:
+     * Cada transacción generada por el bono se marca con `source_type = 'TEST_BONUS'` en el libro mayor (`public.ledger_entries`).
+     * Se actualizó `public.enforce_ledger_immutability()` para permitir exclusivamente la depuración de registros con `source_type = 'TEST_BONUS'`, manteniendo inmutable y blindado cualquier registro contable real.
+   - Solución Backend (`supabase/migrations/123_test_bonus_and_admin_purge.sql`):
+     * Columna `public.profiles.has_claimed_test_bonus BOOLEAN DEFAULT FALSE`.
+     * Columnas `public.ledger_entries.source_type TEXT DEFAULT 'REAL'` y `transaction_type TEXT`.
+     * Constraint `chk_ledger_source_type` (`REAL`, `TEST_BONUS`, `REFUND`).
+     * RPC `public.claim_test_bonus() RETURNS JSONB`:
+       - Verifica autenticación (`auth.uid()`).
+       - Valida que el usuario no haya reclamado previamente (`has_claimed_test_bonus`).
+       - Asegura la existencia de la billetera con `ON CONFLICT (user_id) DO NOTHING`.
+       - Marca `has_claimed_test_bonus = TRUE` en `public.profiles`.
+       - Acredita 5000.00 Bs al saldo disponible en `public.wallets`.
+       - Registra la entrada en `public.ledger_entries` con `source_type = 'TEST_BONUS'`, `entry_type = 'ADMIN_ADJUSTMENT'`, `direction = 'CREDIT'` e `idempotency_key`.
+       - Retorna `{ success: true, message: '...', new_balance }`.
+     * RPC `public.admin_purge_test_data() RETURNS JSONB`:
+       - Verifica permisos de superadmin / admin con `public.is_admin(auth.uid())`.
+       - Regla de negocio para billeteras:
+         * Si `available_balance <= 5000.00`: se asume que solo posee saldo de prueba -> se ajusta a `0.00`.
+         * Si `available_balance > 5000.00`: si depositó dinero real posterior a las pruebas, se le descuentan estrictamente `5000.00` de prueba, preservando íntegro su saldo real.
+       - Elimina exclusivamente las filas de `public.ledger_entries` con `source_type = 'TEST_BONUS'`.
+       - Limpia de forma segura historiales y acciones de prueba vinculadas a mesas de prueba.
+       - Resetea `has_claimed_test_bonus = FALSE` en `public.profiles` para habilitar nuevos ciclos de validación.
+       - Emite `NOTIFY pgrst, 'reload schema'`.
+   - Solución Frontend:
+     * `src/types/profile.ts`: Se añadió el campo opcional `hasClaimedTestBonus?: boolean` a la interfaz `UserProfile`.
+     * `src/services/repositories/ProfileRepository.ts`: Mapeo de `has_claimed_test_bonus` en `ensureProfileExists` y `getCurrentProfile`.
+     * `src/services/repositories/WalletRepository.ts`: Función estática tipada `claimTestBonus()`.
+     * `src/services/repositories/AdminRepository.ts`: Función estática tipada `adminPurgeTestData()`.
+     * `src/features/wallet/components/ClaimTestBonusModal.tsx`: Componente visual tipo banner/card con diseño premium ámbar/oro, indicador de 5.000 Bs gratis, acreditación en tiempo real y auto-ocultación tras el reclamo.
+     * `src/features/wallet/WalletView.tsx`: Integración del banner de bono antes de las tarjetas de saldo con recarga automática (`loadWalletData()`).
+     * `src/features/admin/tabs/AdminTestCleanupSection.tsx`: Componente de mantenimiento con zona de peligro, explicación detallada de las reglas de seguridad financiera, frase de confirmación obligatoria `"ELIMINAR DATOS DE PRUEBA"` y contador de usuarios afectados.
+     * `src/features/admin/tabs/AdminMaintenanceTab.tsx`: Integrado en la pestaña de mantenimiento administrativo.
+
+1) FUNCIÓN 2FA DEFINITIVA Y BLINDADA: setup_2fa_for_user & verify_2fa_code (MIGRACIÓN 122):
+   - Problema Corregido: Errores de sintaxis y tipado (`hmac(bytea, bytea, unknown)` y comentarios de línea) al implementar la suite de 2FA en Supabase.
+   - Solución Backend (`122_fix_2fa_setup_and_verify_rpcs.sql`):
+     * Creación y adecuación de la tabla `public.user_2fa_secrets` con soporte simultáneo para columnas `secret` y `secret_encrypted`.
+     * `public.setup_2fa_for_user(user_id UUID) RETURNS JSONB`:
+       - Genera 20 bytes aleatorios seguros vía `gen_random_bytes(20)`.
+       - Codifica a Base32 con casteo entero estricto `get_byte(...) & 31`.
+       - Inserta o actualiza en `user_2fa_secrets` de forma idempotente con `ON CONFLICT (user_id)`.
+       - Retorna objeto JSONB con `success: true`, `secret` y `qr_url` listo para apps de autenticación (Google Authenticator, Authy).
+     * `public.verify_2fa_code(user_id UUID, code TEXT) RETURNS JSONB`:
+       - Decodifica Base32 con casteo explícito en `set_byte('\x00'::bytea, 0, (v_pos::INTEGER))`.
+       - Evalúa el contador de tiempo actual y drift temporal (-1, 0, +1 intervalos de 30s) utilizando `v_base_time + i`.
+       - Invoca `hmac(..., 'sha1'::text)` con soporte multiesquema (`public` y `extensions`).
+       - Al verificar satisfactoriamente, activa el flag `is_active = TRUE`, resetea `failed_attempts` y devuelve `{ success: true, verified: true }`.
+     * Aliases de compatibilidad para `generate_totp_secret()` y `enable_2fa(p_code)` para mantener operativos todos los flujos existentes.
+     * Permisos asignados a `authenticated` y `service_role` junto con `NOTIFY pgrst, 'reload schema'`.
+   - Solución Frontend (`src/services/repositories/TwoFactorRepository.ts`):
+     * `TwoFactorRepository.generateTOTPSecret()` invoca prioritariamente `setup_2fa_for_user({ user_id })` con fallback a `generate_totp_secret`.
+     * `TwoFactorRepository.enable2FA(code)` invoca prioritariamente `verify_2fa_code({ user_id, code })` con fallback a `enable_2fa`.
+     * `TwoFactorRepository.get2FAStatus()` implementa consulta de estado con fallback directo a `user_2fa_secrets`.
+
+1) HABILITACIÓN DE PGCRYPTO Y BLINDAJE HMAC PARA 2FA / TOTP (MIGRACIÓN 120):
+   - Problema Corregido: Error `function public.hmac(bytea, bytea, unknown) does not exist` durante la activación de 2FA y validación de códigos TOTP.
+   - Causa Raíz:
+     * La extensión `pgcrypto` requería estar presente en el esquema activo (`public` o `extensions`).
+     * El literal del algoritmo `'sha1'` se interpretaba por el analizador de tipos de PostgreSQL como tipo `unknown`, fallando al buscar la firma de la función `hmac`.
+   - Solución Backend (`120_enable_pgcrypto_and_fix_hmac_totp.sql`):
+     * Declaración `CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;`.
+     * Función canónica `generate_2fa_secret` con sobrecarga para `(user_email TEXT, secret_length INT)` y `(secret_length INT)`.
+     * Actualización de `calculate_totp`: casteo forzado y explícito `'sha1'::TEXT` y bloque resiliente `BEGIN ... EXCEPTION` que busca `hmac` en `public`, en `extensions` o en el `search_path`, garantizando compatibilidad absoluta con cualquier configuración de Supabase.
+     * Permisos de ejecución mínimos (`authenticated`, `service_role`) y recarga inmediata de caché vía `NOTIFY pgrst, 'reload schema'`.
+
+2) ADICIÓN DE 'WAITING' Y ESTADOS COMPATIBLES AL ENUM table_status_enum (MIGRACIÓN 121):
+   - Problema Corregido: Excepciones en logs `invalid input value for enum table_status_enum: "WAITING"` y `"READY"` al consultar o filtrar mesas desde el frontend y lobby (`TableRepository.ts`, `BingoLobbySection.tsx`, `QuickMatchModal.tsx`).
+   - Causa Raíz: El frontend y componentes de mesas consultaban con estados simplificados como `'WAITING'`, `'READY'`, `'SALES'`, mientras que el enum original de la base de datos solo contenía estados legacy como `'WAITING_PLAYERS'`.
+   - Solución Backend (`121_add_waiting_to_table_status_enum.sql`):
+     * Inserción idempotente de `'WAITING'`, `'READY'`, `'SALES'` y `'DRAWING'` en el enum `public.table_status_enum`.
+     * Notificación `NOTIFY pgrst, 'reload schema'` para actualizar la introspección de esquemas de PostgREST en tiempo real.
+
+1) CORRECCIÓN DEFINITIVA DE CASTING EN 2FA / TOTP (MIGRACIÓN 118):
+   - Problema Corregido: Error `function set_byte(bytea, integer, bigint) does not exist` al generar o validar secretos y códigos TOTP 2FA.
+   - Causa Raíz: PostgreSQL exige estrictamente que el tercer argumento de la función nativa `set_byte(bytea, integer, integer)` sea de tipo `INTEGER`. En `base32_decode` y funciones afines, la variable acumuladora `v_buffer` es de tipo `BIGINT`, por lo que la expresión `(v_buffer >> v_bits) & 255` conservaba el tipo `BIGINT` en tiempo de ejecución, provocando la falla por no existir sobrecarga con `bigint`.
+   - Solución Backend (`118_fix_2fa_totp_bytea_cast.sql`):
+     * Función canónica `public.generate_2fa_secret(secret_length INT DEFAULT 20)`: genera bytes con `gen_random_bytes` y utiliza `get_byte(v_bytes, i) & 31` (tipo entero estricto sin conversiones implícitas a `bigint` o `numeric`).
+     * Corrección de `public.base32_decode(TEXT)`: casteo explícito `(((v_buffer >> v_bits) & 255)::INTEGER)` en la llamada a `set_byte`.
+     * Corrección de `public.calculate_totp(TEXT, TIMESTAMPTZ)`: casteo explícito `::INTEGER` en cada uno de los 8 desplazamientos de bytes de tiempo del contador RFC 6238 (`((v_counter >> ...) & 255)::INTEGER`).
+     * Permisos de ejecución mínimos (`authenticated`, `service_role`) y recarga inmediata de esquema mediante `NOTIFY pgrst, 'reload schema'`.
+
+2) ADICIÓN DE 'bingo' AL ENUM game_type_enum (MIGRACIÓN 119):
+   - Problema Corregido: Excepción en logs `invalid input value for enum game_type_enum: "bingo"` al consultar o filtrar mesas desde el frontend y lobby.
+   - Solución Backend (`119_add_bingo_to_game_type_enum.sql`):
+     * Verificación idempotente e inserción del valor `'bingo'` (y variantes `'bingo_75'`, `'bingo_90'`) en el tipo enum `public.game_type_enum`.
+     * Notificación `NOTIFY pgrst, 'reload schema'` para recargar la caché de PostgREST y permitir consultas directas sin recurrir a fallbacks lentos.
+
+1) RESOLUCIÓN DE ERROR EN BUCLE DE MOTOR DE SORTEO DE BINGO (ENUM table_status_enum):
+   - Problema Corregido: Error `[BINGO_SERVER] [BINGO_ERROR] Error en el bucle del motor de sorteo: invalid input value for enum table_status_enum: "READY"`.
+   - Causa: En el bucle del motor de sorteo y en los filtros de estado de sala, se enviaba el valor literal `"READY"`, el cual no está contemplado en el enum PostgreSQL `table_status_enum` (`WAITING_PLAYERS`, `IN_PROGRESS`, `FINISHED`, `CANCELLED`).
+   - Solución: Normalización completa de los filtros de estado a nivel de frontend y backend, utilizando exclusivamente valores canónicos permitidos (`WAITING_PLAYERS` e `IN_PROGRESS`), previniendo excepciones de tipos en Postgres y asegurando la continuidad del bucle de sorteo.
+
+2) CORRECCIÓN DE RESTRICCIÓN NOT NULL EN idempotency_key EN game_actions (MIGRACIÓN 110):
+   - Problema Corregido: Excepción de base de datos `null value in column "idempotency_key" of relation "game_actions" violates not-null constraint` al registrar extracciones del sorteo de Bingo.
+   - Solución Backend (`110_fix_server_bingo_operation_idempotency_key.sql`):
+     * Actualización de la función `public.server_bingo_operation`: Generación determinista y única de `idempotency_key` (`'bingo_draw_' || p_session_id || '_' || v_next_sequence || '_' || EXTRACT(EPOCH FROM NOW())::TEXT`) en cada inserción a `public.game_actions`.
+     * Manejo transaccional seguro con bloqueo pesimista `FOR UPDATE` sobre `game_sessions`.
+   - Solución Frontend:
+     * Eliminación de intervalos duplicados en el cliente que llamaban concurrentemente a `server_bingo_operation`.
+     * Delegación autoritativa de la extracción de balotas al motor central del backend (`run_bingo_engine_tick`).
+
+3) SISTEMA DEFINITIVO DE CUENTA REGRESIVA DE 3 MINUTOS Y BLOQUEO DE VENTAS A 10s (MIGRACIONES 111-114):
+   - Bloqueo de Ventas Anti-Ventaja (Fairness Lock):
+     * En los últimos 10 segundos antes de comenzar la partida y durante el sorteo activo, se cierran y bloquean estrictamente las compras de nuevos cartones, impidiendo compras tardías con balotas en curso.
+   - Sincronización Estricta de Sorteo:
+     * Temporizador sincronizado de 3 minutos con el servidor entre rondas (`113_bingo_definitive_countdown_and_draw.sql`).
+     * Motor de sorteo por ticks (`114_bingo_engine_tick_rpc.sql`) para extracción programada cada 2-4 segundos con detección atómica de líneas y cartón lleno.
+
+4) MOTOR DE AUDIO INTELIGENTE CON FALLBACK TTS PARA BINGO (`src/utils/bingoAudio.ts`):
+   - Problema Resuelto: Ausencia de audio o latencia al reproducir archivos estáticos MP3 en dispositivos móviles o conexiones lentas.
+   - Solución:
+     * Detección y reproducción de archivos estáticos pregrabados cuando estén disponibles.
+     * Fallback automático al sintetizador de voz nativo `window.speechSynthesis` en español con locución clara de la balota (ej. "B 12", "I 24", "¡Línea!", "¡Bingo!").
+     * Síntesis armónica con Web Audio API (`AudioContext`) para acordes de campana y efectos sonoros de alta fidelidad sin requerir descargas adicionales.
+
+5) CORRECCIÓN DEL ERROR VISUAL DE DUPLICACIÓN DE CARTONES (3 vs 6 CARTONES):
+   - Problema Corregido: La interfaz mostraba el doble de cartones adquiridos debido a concatenación redundante de arrays al recibir eventos de Supabase Realtime (`prev => [...prev, newCards]`).
+   - Solución: Normalización del estado reactivo para reemplazar la lista con los cartones deduplicados por `card_id`, garantizando correspondencia 1:1 con la base de datos.
+
+1) BLINDAJE ANTI-TECLADO VIRTUAL Y MODO INMERSIVO UNIVERSAL DE JUEGOS:
    - Problema Resuelto: Aparición indebida del teclado virtual en dispositivos móviles en Atrapaíto y juegos con Canvas o interacción táctil (desplazando la vista, ocultando el temporizador y arruinando la visibilidad) y presencia de la barra inferior de navegación estorbando en la vista de juego.
    - Clases CSS Especializadas (`src/index.css`):
      * `.game-immersive-container`: Reglas `touch-action: none`, `user-select: none`, `-webkit-user-select: none`, `-webkit-touch-callout: none`, `outline: none` y `-webkit-tap-highlight-color: transparent` que impiden al navegador móvil interpretar toques de juego como foco de formulario o selección de texto.
      * `.game-fullscreen-wrapper`: Reglas `height: 100dvh` (Dynamic Viewport Height para Safari/Chrome móvil), `width: 100vw`, `overflow: hidden`, `position: fixed`, `top: 0`, `left: 0`, `z-index: 40`, `background-color: #0B0F17` para garantizar altura dinámica y visualización inmersiva sin empujar elementos.
-   - Blindaje Exhaustivo en Todos los Componentes de Tableros:
-     * `AtrapaitoGame.tsx`: Blindaje de `handleCanvasTouch` con `if (e.cancelable) e.preventDefault();`, `preventKeyboard(e)` (`document.activeElement.blur()`), canvas con `tabIndex={-1}`, `touch-none select-none outline-none focus:outline-none` y contenedor `.game-immersive-container`.
-     * `AtrapaitoBoard.tsx`, `ChessBoard.tsx`, `CheckersBoard.tsx`, `DominoBoard.tsx`, `BingoBoard.tsx`, `TicTacToeBoard.tsx`, `RockPaperScissorsBoard.tsx`, `TrucoBoard.tsx`, `UnaOllaGame.tsx`: Integrados con `.game-immersive-container` y `select-none`.
-   - Ocultamiento Automático de Barra de Navegación, Cabeceras y Banners (`src/App.tsx`):
+   - Ocultamiento Automático de Barra de Navegación y Cabeceras (`src/App.tsx`):
      * Constante `GAME_TABS = ['atrapaito', 'chess', 'checkers', 'domino', 'truco', 'tictactoe', 'rps', 'unaolla', 'bingo_game', 'polla']`.
      * Estado `isPlayingGame = isGameActive || GAME_TABS.includes(currentTab)`.
-     * `SafeDevelopmentBanner`, `AnnouncementBanner`, `Header`, `Footer` y `BottomNavigation` se ocultan condicionalmente cuando `isPlayingGame` es verdadero.
-     * El elemento `<main>` adopta la clase `game-fullscreen-wrapper game-immersive-container`, eliminando márgenes y paddings residuales para una inmersión completa del 100% de la pantalla (100dvh).
+     * `Header`, `Footer` y `BottomNavigation` se ocultan condicionalmente cuando `isPlayingGame` es verdadero.
+     * El elemento `<main>` adopta la clase `game-fullscreen-wrapper game-immersive-container`, eliminando márgenes y paddings residuales.
    - Hook Universal de Pantalla Completa Real (`src/hooks/useGameFullscreen.ts`):
      * Detecta la primera interacción táctil o clic del usuario (`touchstart` / `click` con fase de captura) para solicitar pantalla completa nativa (`requestFullscreen` / `webkitRequestFullscreen`).
      * Limpieza automática al desmontar para restaurar el estado previo de la pantalla sin fugas de listeners.

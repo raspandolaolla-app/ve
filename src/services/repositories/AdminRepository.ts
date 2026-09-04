@@ -2801,4 +2801,33 @@ export class AdminRepository {
       console.warn(`[AdminRepository] No se pudo emitir broadcast Realtime (${event}):`, err);
     }
   }
+
+  /**
+   * Ejecuta la purga administrativa segura de datos y saldos de prueba (5000 Bs).
+   * Respeta íntegramente cualquier fondo real depositado.
+   */
+  public static async adminPurgeTestData(): Promise<{
+    success: boolean;
+    message: string;
+    affectedUsers?: number;
+    error?: string;
+  }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, message: '', error: 'El servicio de base de datos no está disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('admin_purge_test_data');
+      if (error) {
+        return { success: false, message: '', error: error.message || 'Error al ejecutar purga de datos de prueba' };
+      }
+      return {
+        success: Boolean(data?.success),
+        message: data?.message || 'Limpieza completada exitosamente.',
+        affectedUsers: Number(data?.affected_users || 0),
+      };
+    } catch (err: any) {
+      return { success: false, message: '', error: err?.message || 'Error inesperado en la purga' };
+    }
+  }
 }
+

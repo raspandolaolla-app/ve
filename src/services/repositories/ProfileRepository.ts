@@ -144,6 +144,7 @@ export class ProfileRepository {
           accountStatus: (profileData.account_status?.toLowerCase() === 'active' ? 'active' : 'pending_verification') as any,
           identityVerificationStatus: (profileData.kyc_status?.toLowerCase() === 'verified' ? 'approved' : 'pending') as any,
           humanVerificationStatus: 'approved',
+          hasClaimedTestBonus: Boolean(profileData.has_claimed_test_bonus),
           createdAt: profileData.created_at || now,
           updatedAt: profileData.updated_at || now,
         };
@@ -241,6 +242,7 @@ export class ProfileRepository {
       accountStatus: mappedAccountStatus,
       identityVerificationStatus: mappedKycStatus,
       humanVerificationStatus: 'approved',
+      hasClaimedTestBonus: Boolean(data.has_claimed_test_bonus),
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };

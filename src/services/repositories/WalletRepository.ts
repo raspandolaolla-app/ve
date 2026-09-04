@@ -112,4 +112,29 @@ export class WalletRepository {
       message: 'Solicitud de retiro registrada y procesada en retención',
     };
   }
+
+  /**
+   * Reclama el bono de prueba inicial de 5000 Bs (idempotente y aislado contablemente)
+   */
+  public static async claimTestBonus(): Promise<{ success: boolean; message?: string; newBalance?: number; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return { success: false, error: 'El servicio de base de datos no está disponible' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('claim_test_bonus');
+      if (error) {
+        return { success: false, error: error.message || 'Error al reclamar bono de prueba' };
+      }
+      return {
+        success: Boolean(data?.success),
+        message: data?.message || 'Bono de prueba acreditado exitosamente.',
+        newBalance: Number(data?.new_balance || 0),
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Error inesperado al reclamar bono' };
+    }
+  }
 }
+

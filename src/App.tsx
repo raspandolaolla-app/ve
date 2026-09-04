@@ -33,9 +33,13 @@ import { AtrapaitoGame } from './features/games/components/AtrapaitoGame';
 import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
+// Lista de pestañas o identificadores que son juegos y deben ocultar la barra inferior y headers
+const GAME_TABS = ['atrapaito', 'chess', 'checkers', 'domino', 'truco', 'tictactoe', 'rps', 'unaolla', 'bingo_game', 'polla'];
+
 function AppContent() {
   const { isGameActive } = useGameMode();
   const [currentTab, setCurrentTab] = useState<string>('home');
+  const isPlayingGame = isGameActive || GAME_TABS.includes(currentTab);
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalDoc, setLegalModalDoc] = useState<LegalDocId>('terms');
   const [rulesModalOpen, setRulesModalOpen] = useState<boolean>(false);
@@ -98,11 +102,11 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080B12] text-[#F8FAFC] antialiased selection:bg-[#FF8A00] selection:text-[#080B12]">
-      <SafeDevelopmentBanner />
-      <AnnouncementBanner />
+      {!isPlayingGame && <SafeDevelopmentBanner />}
+      {!isPlayingGame && <AnnouncementBanner />}
 
       {/* Cabecera Fija */}
-      {!isGameActive && (
+      {!isPlayingGame && (
         <Header
           currentTab={currentTab}
           onNavigate={setCurrentTab}
@@ -112,7 +116,7 @@ function AppContent() {
       )}
 
       {/* Banner Global de Notificaciones / Errores de Autenticación */}
-      {error && (
+      {error && !isPlayingGame && (
         <div id="auth-error-banner" className="bg-[#FF8A00]/10 border-b border-[#FF8A00]/30 px-4 py-3 text-[#F5B942]">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
             <div className="flex items-center gap-2.5">
@@ -130,8 +134,8 @@ function AppContent() {
         </div>
       )}
 
-      {/* Contenido Principal con Espaciado Inferior Seguro para Bottom Navigation */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-8 pb-28 sm:pb-12">
+      {/* Contenido Principal con Espaciado Inferior Seguro o Modo Inmersivo */}
+      <main className={isPlayingGame ? 'game-fullscreen-wrapper game-immersive-container' : 'flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-8 pb-28 sm:pb-12'}>
         {currentTab === 'home' && (
           <LobbyView
             onSelectGame={handleSelectGame}
@@ -165,10 +169,10 @@ function AppContent() {
       </main>
 
       {/* Pie de Página */}
-      <Footer onOpenLegalDoc={handleOpenLegalDoc} />
+      {!isPlayingGame && <Footer onOpenLegalDoc={handleOpenLegalDoc} />}
 
       {/* Barra de Navegación Inferior Fija (Mobile-First) */}
-      {!isGameActive && (
+      {!isPlayingGame && (
         <BottomNavigation
           currentTab={currentTab}
           onNavigate={setCurrentTab}

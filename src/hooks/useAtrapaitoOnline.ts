@@ -35,6 +35,11 @@ export const useAtrapaitoOnline = ({
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isMyTurn, setIsMyTurn] = useState<boolean>(false);
+  const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
+
+  const clearAbandonNotice = useCallback(() => {
+    setAbandonNotice(null);
+  }, []);
 
   // Obtener cliente Supabase disponible
   const getClient = useCallback(() => {
@@ -208,6 +213,14 @@ export const useAtrapaitoOnline = ({
           }
 
           // Manejar fin de juego por victoria o abandono
+          if (newRow.status === 'ABANDONED' || newState.status === 'ABANDONED') {
+            if (newRow.winner_user_id === userId || newState.winner_user_id === userId) {
+              setAbandonNotice('🏆 ¡Tu rival ha abandonado la partida! Has ganado el 90% del pozo.');
+            } else {
+              setAbandonNotice('Partida finalizada por abandono.');
+            }
+          }
+
           if (
             newState.status === 'FINISHED' ||
             newState.status === 'ABANDONED' ||
@@ -387,7 +400,16 @@ export const useAtrapaitoOnline = ({
     if (!client) return { success: false, error: 'NO_CLIENT' };
 
     try {
-      // 1. Ejecutar RPC específica abandon_atrapaito_game
+      // 1. Ejecutar RPC universal abandon_game_secure
+      const { data: univRes, error: univErr } = await client.rpc('abandon_game_secure', {
+        p_session_id: sessionId,
+      });
+
+      if (!univErr && univRes?.success) {
+        return univRes;
+      }
+
+      // 2. Ejecutar RPC específica abandon_atrapaito_game
       const { data: abRes, error: abErr } = await client.rpc('abandon_atrapaito_game', {
         p_session_id: sessionId,
         p_leaving_user_id: userId,
@@ -397,7 +419,7 @@ export const useAtrapaitoOnline = ({
         return abRes;
       }
 
-      // 2. Fallback: handle_atrapaito_abandon
+      // 3. Fallback: handle_atrapaito_abandon
       const { error: rpcErr } = await client.rpc('handle_atrapaito_abandon', {
         p_session_id: sessionId,
         p_leaving_user_id: userId,
@@ -407,7 +429,7 @@ export const useAtrapaitoOnline = ({
         return { success: true };
       }
 
-      // 3. Fallback: abandon_game_table_secure con table_id
+      // 4. Fallback: abandon_game_table_secure con table_id
       const { data: sessData } = await client
         .from('game_sessions')
         .select('table_id')
@@ -436,6 +458,8 @@ export const useAtrapaitoOnline = ({
     timeLeft,
     secondsLeft: timeLeft,
     isMyTurn,
+    abandonNotice,
+    clearAbandonNotice,
     currentState: stateRef.current,
   };
 };

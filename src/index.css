@@ -468,6 +468,17 @@ body.game-mode-active {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* CRUCIAL: Forzar que los botones e inputs DENTRO del contenedor SÍ sean clickeables */
+.game-immersive-container button,
+.game-immersive-container input,
+.game-immersive-container [role="button"],
+.game-immersive-container .interactive-element {
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
+  user-select: auto !important;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+}
+
 /* Forzar altura dinámica para evitar que la barra del navegador aplaste el juego */
 .game-fullscreen-wrapper {
   height: 100dvh; /* Dynamic Viewport Height (funciona en Safari/Chrome móvil) */
@@ -478,5 +489,18 @@ body.game-mode-active {
   left: 0;
   z-index: 40; /* Por encima de la barra inferior */
   background-color: #0B0F17; /* Color de fondo oscuro */
+}
+
+/* Forzar que los modales de confirmación sean siempre interactivos */
+.fixed.z-\[100\] {
+  touch-action: auto !important;
+  pointer-events: auto !important;
+  user-select: auto !important;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+}
+
+.fixed.z-\[100\] button {
+  touch-action: manipulation !important;
+  cursor: pointer;
 }
 

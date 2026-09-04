@@ -6,7 +6,6 @@ import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../context/WalletContext';
 import { ConnectionBadge } from '../common/ConnectionBadge';
-import { InstallPWAButton } from '../common/InstallPWAButton';
 import { getAssetUrl } from '../../utils/assetUtils';
 import { formatBolivares } from '../../utils/formatters';
 import {
@@ -14,7 +13,6 @@ import {
   LogOut,
   Shield,
   Wallet,
-  Grid,
   Lock,
   Loader2,
   Eye,
@@ -59,7 +57,7 @@ export function Header({
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
 
-          {/* SECCIÓN IZQUIERDA: LOGO + SALDO */}
+          {/* SECCIÓN IZQUIERDA: LOGO */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div
               id="brand-logo"
@@ -94,64 +92,10 @@ export function Header({
             <div className="xs:hidden flex items-center text-3xl select-none drop-shadow-md" title="Venezuela">
               🇻🇪
             </div>
-
-            {isAuthenticated && (
-              <div
-                id="header-balance-pill"
-                className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/40 transition-colors"
-              >
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-wider hidden sm:block">
-                    Saldo Disponible
-                  </span>
-                  <span className="text-xs sm:text-sm font-black font-mono text-[#22C55E] tracking-tight">
-                    {formattedBalance}
-                  </span>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleBalanceVisibility();
-                  }}
-                  className="p-1 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors ml-0.5"
-                  title={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
-                >
-                  {isBalanceVisible ? (
-                    <Eye className="w-3.5 h-3.5" />
-                  ) : (
-                    <EyeOff className="w-3.5 h-3.5 text-[#FF8A00]" />
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNavigate('wallet');
-                    openDepositModal();
-                  }}
-                  className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] text-[11px] font-black transition-colors ml-1"
-                  title="Abonar fondos"
-                >
-                  <Plus className="w-3 h-3 stroke-[3]" />
-                  <span>Abonar</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* SECCIÓN CENTRAL: NAVEGACIÓN DESKTOP */}
           <nav className="hidden lg:flex items-center gap-1">
-            <button
-              id="nav-home"
-              onClick={() => onNavigate('home')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                currentTab === 'home'
-                  ? 'bg-[#FF8A00]/10 text-[#FF8A00] border border-[#FF8A00]/30'
-                  : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#111722]'
-              }`}
-            >
-              <Grid className="w-3.5 h-3.5" />
-              <span>Lobby</span>
-            </button>
             <button
               id="nav-polla"
               onClick={() => onNavigate('polla')}
@@ -204,11 +148,8 @@ export function Header({
             ) : null}
           </nav>
 
-          {/* SECCIÓN DERECHA: NOTIFICACIONES + INGRESAR/PERFIL */}
+          {/* SECCIÓN DERECHA: SALDO + PERFIL / INGRESAR */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden sm:block">
-              <InstallPWAButton variant="header" />
-            </div>
             <div className="hidden md:block">
               <ConnectionBadge />
             </div>
@@ -227,7 +168,52 @@ export function Header({
             {state === 'loading' ? (
               <div className="w-10 h-10 rounded-full bg-[#111722] animate-pulse" />
             ) : isAuthenticated ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                {/* SALDO DISPONIBLE MOVIDO AL LADO DEL PERFIL CON TAMAÑO DE NÚMEROS DUPLICADO */}
+                <div
+                  id="header-balance-pill"
+                  className="flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl bg-[#111722] border border-[#1E2938] hover:border-[#FF8A00]/40 transition-colors shadow-inner"
+                >
+                  <div className="flex flex-col justify-center">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-[#94A3B8] uppercase tracking-wider hidden xs:block">
+                      Saldo Disponible
+                    </span>
+                    <span className="text-base sm:text-xl lg:text-2xl font-black font-mono text-[#22C55E] tracking-tight leading-none">
+                      {formattedBalance}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleBalanceVisibility();
+                      }}
+                      className="p-1 sm:p-1.5 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors"
+                      title={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
+                      aria-label={isBalanceVisible ? 'Ocultar saldo' : 'Mostrar saldo'}
+                    >
+                      {isBalanceVisible ? (
+                        <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF8A00]" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate('wallet');
+                        openDepositModal();
+                      }}
+                      className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] text-xs font-black transition-all shadow hover:scale-105 active:scale-95 ml-0.5"
+                      title="Abonar fondos"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Abonar</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* BOTÓN PERFIL / NOMBRE DEL JUGADOR */}
                 <button
                   id="header-user-profile-btn"
                   onClick={onOpenProfile}
@@ -246,10 +232,11 @@ export function Header({
                       {displayName.charAt(0)}
                     </div>
                   )}
-                  <span className="hidden md:block font-bold max-w-[120px] truncate text-[11px]">
+                  <span className="hidden md:block font-bold max-w-[120px] truncate text-xs sm:text-sm">
                     {displayName}
                   </span>
                 </button>
+
                 <button
                   id="header-signout-btn"
                   onClick={() => signOut()}

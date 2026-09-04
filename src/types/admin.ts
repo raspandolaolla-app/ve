@@ -17,6 +17,7 @@ export type AdminTabId =
   | 'tables'
   | 'matches'
   | 'games'
+  | 'tournaments'
   | 'manuals'
   | 'activity'
   | 'announcements'

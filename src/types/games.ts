@@ -86,7 +86,7 @@ export interface TicTacToeState {
 // ------------------------------------------------------------------------------
 // 2. PIEDRA, PAPEL O TIJERA (ROCK PAPER SCISSORS)
 // ------------------------------------------------------------------------------
-export type RPSChoice = 'rock' | 'paper' | 'scissors';
+export type RPSChoice = 'ROCK' | 'PAPER' | 'SCISSORS' | 'rock' | 'paper' | 'scissors' | null;
 
 export interface RPSRoundRecord {
   roundNumber: number;
@@ -96,17 +96,27 @@ export interface RPSRoundRecord {
 }
 
 export interface RPSState {
-  round: number;
-  targetWins: number;
-  scores: Record<string, number>;
-  playerNames: Record<string, string>;
+  status: 'WAITING' | 'ROUND_COMMIT' | 'ROUND_REVEAL' | 'MATCH_ENDED' | 'playing' | 'round_won' | 'game_won' | 'draw';
+  player1Id: string;
+  player2Id: string;
+  player1Choice: RPSChoice;
+  player2Choice: RPSChoice;
+  player1Lives: number;
+  player2Lives: number;
+  roundWinner: 'PLAYER1' | 'PLAYER2' | 'DRAW' | null;
+  matchWinner: 'PLAYER1' | 'PLAYER2' | null;
+  roundNumber: number;
+
+  round?: number;
+  targetWins?: number;
+  scores?: Record<string, number>;
+  playerNames?: Record<string, string>;
   lives?: Record<string, number>;
-  playerChoices: Record<string, { choice?: RPSChoice; committed: boolean; hash?: string }>;
-  phase: 'selecting' | 'round_result' | 'match_ended';
-  status: 'playing' | 'round_won' | 'game_won' | 'draw';
-  winnerUserId: string | null;
-  roundWinnerUserId: string | null;
-  history: RPSRoundRecord[];
+  playerChoices?: Record<string, { choice?: RPSChoice; committed: boolean; hash?: string }>;
+  phase?: 'selecting' | 'round_result' | 'match_ended';
+  winnerUserId?: string | null;
+  roundWinnerUserId?: string | null;
+  history?: RPSRoundRecord[];
 }
 
 // ------------------------------------------------------------------------------

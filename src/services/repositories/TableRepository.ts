@@ -645,10 +645,26 @@ export class TableRepository {
         };
       }
       if (error) {
-        return { success: false, error: error.message || 'No fue posible completar la compra de cartones.' };
+        const raw = error.message || '';
+        let clean = raw;
+        if (raw.includes('VENTAS_CERRADAS')) {
+          clean = 'Ventas cerradas: El sorteo ya comenzó o la partida terminó.';
+        } else if (raw.includes('SALDO_INSUFICIENTE')) {
+          clean = 'Saldo insuficiente en su billetera.';
+        } else if (raw.includes('MESA_NO_ENCONTRADA') || raw.includes('SESION_NO_ENCONTRADA')) {
+          clean = 'La sala o sesión de bingo no se encuentra activa.';
+        }
+        return { success: false, error: clean || 'No fue posible completar la compra de cartones.' };
       }
       if (data?.success === false) {
-        return { success: false, error: data?.error || 'No fue posible completar la compra de cartones.' };
+        const raw = data?.message || data?.error || '';
+        let clean = raw;
+        if (raw.includes('VENTAS_CERRADAS')) {
+          clean = 'Ventas cerradas: El sorteo ya comenzó o la partida terminó.';
+        } else if (raw.includes('SALDO_INSUFICIENTE')) {
+          clean = 'Saldo insuficiente en su billetera.';
+        }
+        return { success: false, error: clean || 'No fue posible completar la compra de cartones.' };
       }
     } catch (rpcErr) {
       console.warn('[TableRepository] RPC buy_bingo_cards_secure no disponible, generando cartones fallback:', rpcErr);

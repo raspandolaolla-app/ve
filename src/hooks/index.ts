@@ -8,4 +8,5 @@ export * from './useSupabaseStatus';
 export * from './useInactivityTimeout';
 export * from './useHeartbeat';
 export * from './useAtrapaitoOnline';
+export * from './useBingoClientDaemon';
 

@@ -20,12 +20,14 @@ interface SupportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigateFAQ?: () => void;
+  onNavigateSupportCenter?: () => void;
 }
 
 export const SupportModal: React.FC<SupportModalProps> = ({
   isOpen,
   onClose,
   onNavigateFAQ,
+  onNavigateSupportCenter,
 }) => {
   const { user } = useAuth();
   const [feedbackText, setFeedbackText] = useState('');
@@ -78,14 +80,41 @@ export const SupportModal: React.FC<SupportModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors border border-[#1E2938]"
+            className="p-2 rounded-xl bg-[#171E2A] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E2938] transition-colors border border-[#1E2938] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Contenido */}
-        <div className="p-5 overflow-y-auto space-y-6 flex-1">
+        <div className="p-5 overflow-y-auto space-y-5 flex-1">
+          {/* ACCIÓN PRINCIPAL: CHAT EN VIVO Y CENTRO DE AYUDA */}
+          {onNavigateSupportCenter && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#132A22] to-[#0D1C17] border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg shadow-emerald-500/5">
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[10px] font-black uppercase text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Operadores en Vivo</span>
+                </div>
+                <h3 className="text-sm font-black text-white">Chat en Tiempo Real & FAQ</h3>
+                <p className="text-[11px] text-slate-300">
+                  Resuelve tus dudas al instante con un operador asignado.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigateSupportCenter();
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wide transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                Abrir Chat en Vivo
+              </button>
+            </div>
+          )}
+
           {/* Canales Oficiales Directos */}
           <div className="space-y-2.5">
             <div className="text-[11px] font-bold uppercase tracking-wider text-[#94A3B8]">

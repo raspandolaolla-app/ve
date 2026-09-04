@@ -25,6 +25,7 @@ import { TablesView } from './features/tables/TablesView';
 import { WalletView } from './features/wallet/WalletView';
 import { ProfileView } from './features/profile/ProfileView';
 import { AdminView } from './features/admin/AdminView';
+import { SupportView } from './features/support/SupportView';
 import { LegalModal } from './components/legal/LegalModal';
 import { TermsAcceptanceModal } from './components/legal/TermsAcceptanceModal';
 import { AlertCircle, X } from 'lucide-react';
@@ -165,6 +166,10 @@ function AppContent() {
           <ProfileView onOpenLegalDoc={handleOpenLegalDoc} />
         )}
 
+        {currentTab === 'support' && (
+          <SupportView onBack={() => setCurrentTab('home')} />
+        )}
+
         {currentTab === 'admin' && <AdminView />}
       </main>
 
@@ -204,12 +209,13 @@ function AppContent() {
       <SupportModal
         isOpen={supportModalOpen}
         onClose={() => setSupportModalOpen(false)}
+        onNavigateSupportCenter={() => {
+          setSupportModalOpen(false);
+          setCurrentTab('support');
+        }}
         onNavigateFAQ={() => {
-          setCurrentTab('home');
-          setTimeout(() => {
-            const el = document.getElementById('faq-accordion-section');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }, 100);
+          setSupportModalOpen(false);
+          setCurrentTab('support');
         }}
       />
 

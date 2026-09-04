@@ -10,6 +10,7 @@ import {
   Award,
   MessageSquare,
   HelpCircle,
+  Headphones,
   Shield,
   Sparkles,
   ChevronRight,
@@ -253,6 +254,20 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
                   <span>🏅 Salón de la Fama</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] group-hover:text-[#F8FAFC]" />
+              </button>
+
+              <button
+                onClick={() => {
+                  onClose();
+                  onNavigateTab('support');
+                }}
+                className="w-full text-left p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/30 text-xs font-bold text-white transition-colors flex items-center justify-between group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Headphones className="w-4 h-4 text-emerald-400" />
+                  <span>🎧 Soporte & Chat en Vivo</span>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full font-black">24/7</span>
               </button>
 
               <button

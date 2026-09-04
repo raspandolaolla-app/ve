@@ -277,17 +277,20 @@ export const ProfileMenuModal: React.FC<ProfileMenuModalProps> = ({
           <button
             onClick={() => {
               onClose();
-              onOpenSupport();
+              onNavigateTab('support');
             }}
-            className="w-full text-left p-2.5 rounded-xl hover:bg-[#171E2A] text-xs font-medium text-[#F8FAFC] transition-colors flex items-center justify-between group"
+            className="w-full text-left p-2.5 rounded-xl hover:bg-[#171E2A] text-xs font-medium text-[#F8FAFC] transition-colors flex items-center justify-between group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#171E2A] group-hover:bg-[#1E2938] flex items-center justify-center text-[#2496FF] border border-[#1E2938]">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 group-hover:bg-emerald-500/25 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
                 <Headphones className="w-4 h-4" />
               </div>
-              <span>Soporte Técnico en Vivo</span>
+              <div className="flex flex-col">
+                <span className="font-bold text-white">Centro de Soporte & Chat en Vivo</span>
+                <span className="text-[10px] text-slate-400">Atención personalizada 24/7 y FAQ</span>
+              </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#F8FAFC]" />
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">EN LÍNEA</span>
           </button>
 
           <button

@@ -250,6 +250,21 @@ export class TableRepository {
     const effectiveKey =
       idempotencyKey || `abandon_${tableId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // 1. Intentar RPC universal por session_id si hay sesión activa
+    if (sessionId) {
+      try {
+        const { data: univData, error: univErr } = await supabase.rpc('abandon_game_secure', {
+          p_session_id: sessionId,
+          p_idempotency_key: effectiveKey,
+        });
+        if (!univErr && univData?.success) {
+          return { success: true, data: univData };
+        }
+      } catch {
+        // Fallback a abandon_game_table_secure
+      }
+    }
+
     const { data, error } = await supabase.rpc('abandon_game_table_secure', {
       p_table_id: tableId,
       p_session_id: sessionId || null,

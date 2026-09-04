@@ -2829,5 +2829,32 @@ export class AdminRepository {
       return { success: false, message: '', error: err?.message || 'Error inesperado en la purga' };
     }
   }
+
+  /**
+   * Limpia mesas de Bingo finalizadas o canceladas con más de 1 hora de antigüedad.
+   */
+  public static async cleanupFinishedBingoTables(): Promise<{
+    success: boolean;
+    message: string;
+    cleanedCount: number;
+    error?: string;
+  }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, message: '', cleanedCount: 0, error: 'Servicio no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('cleanup_finished_bingo_tables');
+      if (error) {
+        return { success: false, message: '', cleanedCount: 0, error: error.message };
+      }
+      return {
+        success: Boolean(data?.success),
+        message: data?.message || 'Limpieza de mesas de bingo completada.',
+        cleanedCount: Number(data?.cleaned_count || 0),
+      };
+    } catch (err: any) {
+      return { success: false, message: '', cleanedCount: 0, error: err?.message || 'Error en ejecución' };
+    }
+  }
 }
 

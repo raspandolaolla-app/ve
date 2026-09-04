@@ -390,15 +390,24 @@ export class GameRepository {
   }
 
   /**
-   * Ejecuta la liquidación de partida aplicando la regla estricta 90% ganador / 10% plataforma.
-   * Totalmente atómico e idempotente en Supabase RPC.
+   * Ejecuta la liquidación de partida aplicando el Sistema Financiero Centralizado y Autoritativo.
+   * Utiliza la RPC universal_settle_game_session con fallback automático a settle_game_session.
+   * Totalmente atómico e idempotente en Supabase.
    */
   public static async settleSession(
     sessionId: string,
     winnerUserIds: string[],
     winnerTeam: number | null,
     idempotencyKey: string
-  ): Promise<{ success: boolean; grossPool?: number; prizePool?: number; platformFee?: number; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    grossPool?: number;
+    prizePool?: number;
+    platformFee?: number;
+    winnerPercentage?: number;
+    platformPercentage?: number;
+    error?: string;
+  }> {
     const supabase = getSupabaseClient();
     if (!supabase) return { success: false, error: 'El servicio no está disponible temporalmente' };
 
@@ -408,18 +417,19 @@ export class GameRepository {
       .filter(Boolean);
     const sanitizedKey = sanitizeString(idempotencyKey, 128);
 
-    let { data, error } = await supabase.rpc('settle_game_session', {
+    // 1. Invocación canónica al Sistema Financiero Universal Centralizado
+    let { data, error } = await supabase.rpc('universal_settle_game_session', {
       p_session_id: sanitizedSessionId,
       p_winner_user_ids: sanitizedWinnerIds,
       p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
       p_idempotency_key: sanitizedKey || null,
     });
 
-    // En caso de discrepancia de nombre de parámetro o sobrecarga en PostgREST
-    if (error && (error.message.includes('p_winner_team_index') || error.message.includes('does not exist') || error.message.includes('p_winner_team'))) {
-      const fallback = await supabase.rpc('settle_game_session_secure', {
+    // 2. Fallback resiliente a settle_game_session si la RPC universal no ha recargado
+    if (error && (error.message.includes('universal_settle_game_session') || error.message.includes('does not exist'))) {
+      const fallback = await supabase.rpc('settle_game_session', {
         p_session_id: sanitizedSessionId,
-        p_winner_user_id: sanitizedWinnerIds.length > 0 ? sanitizedWinnerIds[0] : null,
+        p_winner_user_ids: sanitizedWinnerIds,
         p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
         p_idempotency_key: sanitizedKey || null,
       });
@@ -427,11 +437,23 @@ export class GameRepository {
       if (!fallback.error) {
         data = fallback.data;
         error = null;
+      } else {
+        const fallbackSecure = await supabase.rpc('settle_game_session_secure', {
+          p_session_id: sanitizedSessionId,
+          p_winner_user_id: sanitizedWinnerIds.length > 0 ? sanitizedWinnerIds[0] : null,
+          p_winner_team: typeof winnerTeam === 'number' ? Math.floor(winnerTeam) : null,
+          p_idempotency_key: sanitizedKey || null,
+        });
+
+        if (!fallbackSecure.error) {
+          data = fallbackSecure.data;
+          error = null;
+        }
       }
     }
 
     if (error) {
-      console.error('[GameRepository] Error liquidando partida:', error.message);
+      console.error('[GameRepository] Error liquidando partida con RPC universal:', error.message);
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al liquidar partida.') };
     }
 
@@ -440,6 +462,8 @@ export class GameRepository {
       grossPool: Number(data?.gross_pool || 0),
       prizePool: Number(data?.prize_pool || 0),
       platformFee: Number(data?.platform_fee || 0),
+      winnerPercentage: Number(data?.winner_percentage || 90),
+      platformPercentage: Number(data?.platform_percentage || 10),
     };
   }
 

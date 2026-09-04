@@ -146,10 +146,10 @@ export const ProfileMenuModal: React.FC<ProfileMenuModalProps> = ({
                   onClose();
                 }}
                 disabled={isSigningIn}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#FF8A00] hover:bg-[#FF8A00]/90 text-[#080B12] font-black text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-[#FF8A00]/20"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/30 ring-1 ring-yellow-400/50 uppercase tracking-wider"
               >
-                <LogIn className="w-4 h-4" />
-                <span>Ingresar con Google</span>
+                <LogIn className="w-4 h-4 text-slate-950" strokeWidth={3} />
+                <span>{isSigningIn ? 'Ingresando...' : 'INGRESAR'}</span>
               </button>
             </div>
           )}

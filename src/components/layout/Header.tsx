@@ -248,20 +248,21 @@ export function Header({
                 </button>
               </div>
             ) : (
-              // BOTÓN INGRESAR GRANDE Y DESTACADO
+              // BOTÓN INGRESAR GRANDE, AMARILLO Y DESTACADO
               <button
                 id="header-signin-google-btn"
                 onClick={signInWithGoogle}
                 disabled={isSigningIn}
-                className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-[#FF8A00] via-[#F5B942] to-[#FF8A00] hover:brightness-110 text-[#080B12] font-black text-xs sm:text-sm transition-all flex items-center gap-2 shadow-xl shadow-[#FF8A00]/40 hover:scale-105 active:scale-95 animate-pulse-glow"
+                className="px-5 sm:px-7 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:via-yellow-200 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base transition-all flex items-center gap-2.5 shadow-xl shadow-yellow-500/30 hover:shadow-yellow-400/50 hover:scale-105 active:scale-95 ring-2 ring-yellow-400/60 hover:ring-yellow-300"
               >
                 {isSigningIn ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
                 ) : (
-                  <LogIn className="w-4 h-4" strokeWidth={3} />
+                  <LogIn className="w-5 h-5 text-slate-950" strokeWidth={3} />
                 )}
-                <span className="tracking-wide hidden sm:inline">Continuar con Google</span>
-                <span className="tracking-wide sm:hidden">INGRESAR</span>
+                <span className="tracking-wider uppercase font-black">
+                  {isSigningIn ? 'INGRESANDO...' : 'INGRESAR'}
+                </span>
               </button>
             )}
           </div>

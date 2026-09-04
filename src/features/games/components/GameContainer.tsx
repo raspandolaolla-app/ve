@@ -1057,18 +1057,28 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         setIsSubmittingAction(true);
 
         try {
-          // 1. Llamar a la función SQL que retiene fondos reales de la billetera
+          // 1. Llamar a la función SQL canónica que retiene fondos reales de la billetera
+          const idempotencyKey = `buy_bingo_${table.id}_${currentUserId}_${Date.now()}`;
           const { data, error } = await supabase.rpc('buy_bingo_cards_secure', {
             p_game_table_id: table.id,
             p_card_count: cardCount,
             p_variant: variant,
             p_price_per_card: pricePerCard,
             p_cards_data: [] as any,
+            p_idempotency_key: idempotencyKey,
           });
 
           if (error || !data?.success) {
-            const errorMsg = data?.error || error?.message || 'Error al comprar cartones';
-            setErrorMsg(errorMsg);
+            const rawMsg = String(data?.message || data?.error || error?.message || 'Error al comprar cartones');
+            let friendlyMsg = rawMsg;
+            if (rawMsg.includes('VENTAS_CERRADAS')) {
+              friendlyMsg = 'Ventas cerradas: El sorteo ya comenzó o la partida terminó.';
+            } else if (rawMsg.includes('SALDO_INSUFICIENTE')) {
+              friendlyMsg = 'Saldo insuficiente para completar la compra de cartones.';
+            } else if (rawMsg.includes('MESA_NO_ENCONTRADA') || rawMsg.includes('SESION_NO_ENCONTRADA')) {
+              friendlyMsg = 'La sala o sesión de juego ya no está disponible.';
+            }
+            setErrorMsg(friendlyMsg);
             setTimeout(() => setErrorMsg(null), 4000);
             setIsSubmittingAction(false);
             return;

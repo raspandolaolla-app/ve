@@ -36,7 +36,7 @@ export interface GameSession {
   roundNumber: number;
   currentTurnUserId?: string;
   turnExpiresAt?: string;
-  status: 'initializing' | 'in_progress' | 'settling' | 'completed' | 'abandoned' | 'DRAWING' | 'drawing' | 'WAITING' | 'ACTIVE' | 'FINISHED';
+  status: 'initializing' | 'in_progress' | 'settling' | 'completed' | 'abandoned' | 'SALES' | 'sales' | 'READY' | 'ready' | 'DRAWING' | 'drawing' | 'WAITING' | 'ACTIVE' | 'FINISHED';
   grossPool: number;
   winnerPrizeAmount: number; // 90% del pozo bruto
   serviceFeeAmount: number;   // 10% del pozo bruto
@@ -242,7 +242,7 @@ export interface BingoState {
   cardsPurchased: Record<string, number>; // User ID -> card count
   playerNames: Record<string, string>;
   winnerUserId: string | null;
-  status: 'in_progress' | 'bingo_won' | 'finished';
+  status: 'in_progress' | 'bingo_won' | 'finished' | 'SALES' | 'sales' | 'DRAWING' | 'drawing' | 'PLAYING' | 'WAITING' | 'READY' | 'COMPLETED' | 'FINISHED' | 'CANCELLED' | 'ABANDONED';
   callIntervalMs: number;
   totalBalls: number; // 75, 80, or 90
   totalPoolBs: number;

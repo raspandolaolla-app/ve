@@ -2,10 +2,49 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 15:55:00 -07:00 (UTC 2026-09-04 22:55:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 16:35:00 -07:00 (UTC 2026-09-04 23:35:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 133_support_chat_system.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 134_bingo_sales_open_until_first_ball.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MOTOR REFACTORIZADO DE PIEDRA, PAPEL O TIJERA (SISTEMA OFICIAL DE 3 VIDAS Y EMPATES REALES):
+   - Diagnóstico del Problema:
+     * La lógica previa de evaluación de rondas no gestionaba empates correctamente, penalizaba a los jugadores en empates o contaba rondas por puntos sin penalizaciones de vidas en tiempo real.
+     * La interfaz no reflejaba el sistema de vidas con corazones animados ni otorgaba una experiencia de duelo limpia e interactiva.
+   - Motor Canónico de Juego (`src/features/games/engines/RockPaperScissorsEngine.ts`):
+     * Reglas oficiales implementadas:
+       1. Lógica infalible: Piedra > Tijera, Tijera > Papel, Papel > Piedra.
+       2. Empates reales: Si ambos jugadores seleccionan la misma opción (`choice1 === choice2`), la ronda se declara `DRAW` y NADIE pierde vida.
+       3. Sistema de 3 Vidas: Cada jugador arranca con 3 vidas (`player1Lives = 3`, `player2Lives = 3`). El perdedor de la ronda recibe -1 de daño (`Math.max(0, lives - 1)`).
+       4. Condición de Victoria Absoluta: En cuanto un jugador llega a 0 vidas, la partida finaliza inmediatamente (`status: 'MATCH_ENDED'`) y se declara ganador absoluto al rival.
+     * Funciones exportadas: `initializeRPSState`, `evaluateRound`, `processRPSAction`, `nextRound`, `translateChoice`.
+     * Clase `RockPaperScissorsEngine` implementando `IGameEngine<RPSState>` para integrarse nativamente con `GameContainer` y `getGameEngine`.
+   - Tablero Visual Renovado (`src/features/games/components/RockPaperScissorsBoard.tsx`):
+     * Indicador visual de 3 corazones (`Heart` de `lucide-react`) con efectos de brillo y transiciones fluidas de pérdida de vida.
+     * Arena de enfrentamiento con revelación sincronizada de jugadas, insignia de resultado (`🤝 ¡EMPATE! (Nadie pierde vida)`, `🎉 ¡GANASTE! (-1 Vida al rival)`, `💀 PERDISTE (-1 Vida)`).
+     * Temporizador automático de 2.5 segundos para transición suave a la siguiente ronda.
+     * Mensaje de espera interactivo con spinner cuando el jugador ya seleccionó y espera la jugada del oponente.
+   - Sincronización en Wrapper y Guardias de Estado:
+     * `src/features/games/components/RockPaperScissorsGame.tsx`: Conectado a `processRPSAction`, `nextRound` y visualización de corazones.
+     * `src/features/games/components/GameContainer.tsx`: Propagación de `onAction`, `onSubmitChoice` y `onNextRound`.
+     * `src/features/games/utils/gameStateGuard.ts`: `normalizeRPSState` blindado con soporte para `player1Lives`, `player2Lives`, `roundWinner` y `matchWinner`.
+   - Verificación de Calidad: `tsc --noEmit` y `npm run build` ejecutados con 0 errores (PASS).
+
+0) REGLA DE ORO INFALIBLE DE VENTAS DE BINGO (MIGRACIÓN 134):
+   - Diagnóstico del Problema:
+     * El hook genérico de inicio de juego (`GAME_START_RPC_CALL`) inicializaba las sesiones en estado `'in_progress'` / `'ACTIVE'` al montar el componente en el cliente.
+     * Como consecuencia, las validaciones previas de estado en el frontend y en la RPC de Supabase interpretaban `'ACTIVE'` o `'in_progress'` como "juego en ejecución" y bloqueaban anticipadamente la compra de cartones de Bingo, incluso cuando la partida estaba recién creada y ninguna balota había sido extraída aún.
+   - Regla de Oro Implementada ("Si no hay balotas extraídas, las ventas están abiertas"):
+     * Frontend (`src/features/games/components/GameContainer.tsx`):
+       - Se desacopló la condición de ventas cerradas de estados genéricos transitorios como `'in_progress'` o `'ACTIVE'`.
+       - Nueva lógica canónica: `const hasDrawnBalls = Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0; const isTerminalState = ['FINISHED', 'CANCELLED'].includes((session?.status || '').toUpperCase()); const isSalesClosed = isTerminalState || hasDrawnBalls;`.
+       - La variable `isSalesClosed` alimenta directamente al componente `<BingoBoard isSalesClosed={isSalesClosed} />` y a la interceptación de `BUY_CARDS`.
+     * Componente de Tablero (`src/features/games/components/BingoBoard.tsx`):
+       - Sincronización de `salesOpen = !effectiveSalesClosed`, garantizando que cuando `isSalesClosed` sea `false`, el panel de compra (`🎫 Compra tus cartones`) y los controles de incremento/decremento se muestren de forma visible y operativa inmediatamente.
+     * Migración Backend de Supabase (`supabase/migrations/134_bingo_sales_open_until_first_ball.sql`):
+       - Actualización de `buy_bingo_cards_secure`: Eliminada la comprobación rígida de `'ACTIVE'`. La función solo bloquea compras si el estado es terminal (`'FINISHED'`, `'CANCELLED'`), si el sorteo formal ya comenzó (`'DRAWING'`), o si el array `game_state->'drawnBalls'` contiene al menos 1 balota extraída.
+       - Restablecimiento puntual y reactivación de sesiones y mesas que quedaron en estados transitorios bloqueados.
+
 
 0) CENTRO DE AYUDA INTELIGENTE, COLA DE ATENCIÓN Y CHAT EN VIVO DE SOPORTE (MIGRACIÓN 133):
    - Objetivos y Propósito Estratégico:

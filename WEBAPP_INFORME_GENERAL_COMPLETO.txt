@@ -2,10 +2,134 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 16:20:00 -07:00 (UTC 2026-09-03 23:20:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 17:53:00 -07:00 (UTC 2026-09-04 00:53:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 115_atrapaito_realtime_multiplayer_and_abandon.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 117_universal_game_abandonment.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+1) DESPLIEGUE UNIVERSAL DE LA UI DE ABANDONO Y BANNER DE NOTIFICACIÓN EN TODOS LOS JUEGOS:
+   - Unificación Completa de la Experiencia de Abandono:
+     * Componente Estandarizado `GameAbandonButton.tsx`: Botón con diálogo modal accesible y elegante con confirmación explícita (sustituyendo llamadas a `window.confirm` incompatibles en entornos iframe), estado de carga `isAbandoning` y feedback auditado.
+     * Detección en Tiempo Real de Abandono del Rival:
+       - `useGameEngine.ts`: Incorporación del estado reactivo `abandonNotice` y escucha de eventos Realtime de Supabase cuando el estado de la sesión cambia a `ABANDONED` o finaliza con ganador por abandono.
+       - `useAtrapaitoOnline.ts`: Inclusión de `abandonNotice` y `clearAbandonNotice`, escuchando en tiempo real el canal de `game_sessions` para alertar inmediatamente al jugador si el oponente abandona voluntariamente o por tiempo expirado.
+     * Cobertura Total en Juegos 1vs1 y Multijugador:
+       - `AtrapaitoGame.tsx`: Integración de `GameAbandonButton` y banner flotante `abandonNotice` con premio garantizado del 90%.
+       - `ChessGame.tsx`: Integración de `GameAbandonButton` en cabecera, banner de abandono y texto dinámico de victoria "¡VICTORIA POR ABANDONO! 🏆".
+       - `CheckersGame.tsx`: Integración de botón, banner de aviso y pantalla de resolución por abandono.
+       - `DominoGame.tsx`: Integración de botón en barra de mesa, banner de aviso de abandono y pantalla de fin de partida.
+       - `TicTacToeGame.tsx`: Integración de botón, banner y modal de victoria por abandono.
+       - `RockPaperScissorsGame.tsx`: Integración de botón, banner y modal de victoria por abandono.
+       - `TrucoGame.tsx`: Integración de botón en panel de tanteo, banner y modal de victoria por abandono.
+       - `UnaOllaGame.tsx`: Integración de botón junto a las reglas, banner animado y sincronización con el motor de juego.
+
+2) BLINDAJE ANTI-TECLADO VIRTUAL Y MODO INMERSIVO UNIVERSAL DE JUEGOS:
+   - Problema Resuelto: Aparición indebida del teclado virtual en dispositivos móviles en Atrapaíto y juegos con Canvas o interacción táctil (desplazando la vista, ocultando el temporizador y arruinando la visibilidad) y presencia de la barra inferior de navegación estorbando en la vista de juego.
+   - Clases CSS Especializadas (`src/index.css`):
+     * `.game-immersive-container`: Reglas `touch-action: none`, `user-select: none`, `-webkit-user-select: none`, `-webkit-touch-callout: none`, `outline: none` y `-webkit-tap-highlight-color: transparent` que impiden al navegador móvil interpretar toques de juego como foco de formulario o selección de texto.
+     * `.game-fullscreen-wrapper`: Reglas `height: 100dvh` (Dynamic Viewport Height para Safari/Chrome móvil), `width: 100vw`, `overflow: hidden`, `position: fixed`, `top: 0`, `left: 0`, `z-index: 40`, `background-color: #0B0F17` para garantizar altura dinámica y visualización inmersiva sin empujar elementos.
+   - Blindaje Exhaustivo en Todos los Componentes de Tableros:
+     * `AtrapaitoGame.tsx`: Blindaje de `handleCanvasTouch` con `if (e.cancelable) e.preventDefault();`, `preventKeyboard(e)` (`document.activeElement.blur()`), canvas con `tabIndex={-1}`, `touch-none select-none outline-none focus:outline-none` y contenedor `.game-immersive-container`.
+     * `AtrapaitoBoard.tsx`, `ChessBoard.tsx`, `CheckersBoard.tsx`, `DominoBoard.tsx`, `BingoBoard.tsx`, `TicTacToeBoard.tsx`, `RockPaperScissorsBoard.tsx`, `TrucoBoard.tsx`, `UnaOllaGame.tsx`: Integrados con `.game-immersive-container` y `select-none`.
+   - Ocultamiento Automático de Barra de Navegación, Cabeceras y Banners (`src/App.tsx`):
+     * Constante `GAME_TABS = ['atrapaito', 'chess', 'checkers', 'domino', 'truco', 'tictactoe', 'rps', 'unaolla', 'bingo_game', 'polla']`.
+     * Estado `isPlayingGame = isGameActive || GAME_TABS.includes(currentTab)`.
+     * `SafeDevelopmentBanner`, `AnnouncementBanner`, `Header`, `Footer` y `BottomNavigation` se ocultan condicionalmente cuando `isPlayingGame` es verdadero.
+     * El elemento `<main>` adopta la clase `game-fullscreen-wrapper game-immersive-container`, eliminando márgenes y paddings residuales para una inmersión completa del 100% de la pantalla (100dvh).
+   - Hook Universal de Pantalla Completa Real (`src/hooks/useGameFullscreen.ts`):
+     * Detecta la primera interacción táctil o clic del usuario (`touchstart` / `click` con fase de captura) para solicitar pantalla completa nativa (`requestFullscreen` / `webkitRequestFullscreen`).
+     * Limpieza automática al desmontar para restaurar el estado previo de la pantalla sin fugas de listeners.
+   - Desactivación Proactiva de Teclado en Tableros (`AtrapaitoGame.tsx` & `GameContainer.tsx`):
+     * Invocación de `preventKeyboard` (`document.activeElement.blur()`) en eventos táctiles y de clic tanto en el contenedor principal como en el Canvas (`touch-none`).
+     * Integración de `useGameFullscreen` en `AtrapaitoGame` y en `GameContainer` (abarcando Ajedrez, Damas, Dominó, Truco, Triqui, etc.).
+
+2) SISTEMA UNIVERSAL DE ABANDONO DE PARTIDA (MIGRACIÓN 117):
+   - Problema Resuelto: Necesidad de un sistema unificado y universal para todos los juegos que gestione tanto el abandono VOLUNTARIO (pulsar "Salir"/"Abandonar") como el INVOLUNTARIO (tiempo de turno agotado o desconexión).
+   - Solución Backend (`117_universal_game_abandonment.sql`):
+     * Enum `player_table_status_enum` y `session_status_enum`: Adición segura del valor `ABANDONED`.
+     * Flexibilización de `game_actions`: Soporte para `action_data JSONB` y compatibilidad retroactiva para auditoría de acciones de abandono sin errores de clave foránea o de secuencia.
+     * RPC canónica `public.abandon_game_secure(p_session_id UUID, p_idempotency_key TEXT DEFAULT NULL) RETURNS JSONB`:
+       - Autenticación rigurosa vía `auth.uid()`.
+       - Bloqueo pesimista `FOR UPDATE` en `game_sessions` y `game_tables`.
+       - Actualización del estado del jugador a `ABANDONED` en `game_table_players`.
+       - Para juegos 1vs1 (`atrapaito`, `chess`, `checkers`, `tictactoe`, `rps`, `domino`, `truco`, `una_olla`):
+         Localiza al oponente restante, liquida la partida otorgando el 90% del pozo acumulado mediante `settle_game_session` (o fallback directo a wallet), finaliza la sesión con `status = 'FINISHED'`, marca `current_state->winner = 'OPPONENT_BY_ABANDON'` y cierra la mesa.
+       - Para `bingo`: Añade el usuario a `current_state->abandonedPlayers` sin interrumpir la sala comunitaria.
+       - Registro de auditoría en `game_actions` (`action_type = 'ABANDON'`).
+     * Función del Daemon `public.process_expired_turns() RETURNS VOID`:
+       - Escaneo con `SKIP LOCKED` de sesiones activas cuyo `turn_expires_at < NOW()`.
+       - Declaración de victoria para el oponente por abandono involuntario/tiempo agotado, liquidación 90/10 y registro en `game_actions` (`TIMEOUT_ABANDON`).
+   - Hook Reutilizable en Frontend (`src/hooks/useGameAbandonment.ts`):
+     * Proporciona la función `abandonGame` y estado `isAbandoning` para cualquier componente de juego.
+     * Confirmación modal de seguridad previa con advertencia de pérdida de entrada y asignación al rival.
+     * Integración con fallback automático a `abandon_game_table_secure` si se requiere.
+   - Orquestación en Tableros (`GameContainer.tsx` & `AtrapaitoGame.tsx`):
+     * En `GameContainer.tsx`, `handleConfirmAbandon` invoca `abandon_game_secure(session.id)`.
+     * Suscripción Realtime en `game_sessions` ahora detecta tanto `SETTLED` como `FINISHED` y muestra la alerta triunfal: `🏆 ¡Tu rival ha abandonado la partida! Has ganado.` cuando `winner === 'OPPONENT_BY_ABANDON'`.
+     * `AtrapaitoGame.tsx` actualiza la UI de victoria inmediatamente al detectar `winner === 'OPPONENT_BY_ABANDON'`.
+     * `TableRepository.abandonTable` ahora intenta primero la RPC universal por sesión antes del fallback por mesa.
+   - Automatización en Servidor Daemon (`server.ts`):
+     * Integración de `process_expired_turns` en el ciclo de ejecución periódico (cada 3 segundos) vía Supabase HTTPS y conexión directa a PostgreSQL.
+
+2) RESOLUCIÓN DE AMBIGÜEDAD EN RPC abandon_game_table_secure (MIGRACIÓN 116):
+   - Problema Corregido: Error de PostgREST `Could not choose the best candidate function between... character varying... text` al abandonar mesas.
+   - Causa: Coexistencia histórica de firmas con parámetros `VARCHAR` y `TEXT` para la clave de idempotencia.
+   - Solución Backend (`116_fix_abandon_game_table_secure_ambiguity.sql`):
+     * Eliminación de todas las variantes obsoletas (`VARCHAR`, `CHARACTER VARYING`, `UUID, VARCHAR`, etc.).
+     * Creación de la versión canónica definitiva: `public.abandon_game_table_secure(p_table_id UUID, p_session_id UUID DEFAULT NULL, p_idempotency_key TEXT DEFAULT NULL) RETURNS JSONB`.
+     * Manejo transaccional atómico: reembolso pre-partida con registro en `ledger_entries`, victoria por abandono (Forfeit) para partidas en curso y cierre seguro de mesas.
+     * Notificación `NOTIFY pgrst, 'reload schema'` para recargar la caché de esquemas de PostgREST inmediatamente.
+   - Ajuste en Frontend (`useAtrapaitoOnline.ts`):
+     * `abandonGame` consulta defensivamente el `table_id` de la sesión para invocar `abandon_game_table_secure` con todos sus argumentos requeridos si la RPC específica reporta contingencia.
+
+2) CORRECCIÓN DEL MOTOR DE JUEGO Y ESTADO INICIAL: ATRAPAÍTO CRIOLLO (CANICAS Y MUROS):
+   - Problema Corregido: En los logs de sesión se observaba `boardType: "4_COLORS"` y `turnPhase: "ROLL_DICE"`, lo que provocaba que se cargara la lógica y tablero de Parchís clásico en vez del juego de Canicas y Muros.
+   - Solución en Orquestación (`GameContainer.tsx`):
+     * Inicialización explícita del estado inicial de Atrapaíto Criollo:
+       `bluePos: { col: 4, row: 14 }`, `redPos: { col: 3, row: 14 }`, `walls: []`, `blueWalls: 10`, `redWalls: 10`, `turn: 'BLUE'`, `action: 'MOVE'`, `mode: isOnline ? 'ONLINE' : 'VS_AI'`, `turnDurationSeconds: 15`.
+     * Mapeo de `canonicalInitialTurnId` apuntando a `blueUserId` (Jugador Azul inicia).
+     * Suscripción en tiempo real de `game_sessions` actualizada para garantizar la misma estructura Criollo al recibir estados activos.
+     * Render switch actualizado para montar `<AtrapaitoGame ... />` directamente al seleccionar `atrapaito`.
+   - Solución en Guardián de Estado (`gameStateGuard.ts`):
+     * `normalizeAtrapaitoState` ahora detecta de forma autoritativa si el estado contiene atributos de Criollo (`bluePos`, `walls`, `blueWalls`, `turn === 'BLUE'|'RED'`).
+     * Preserva la integridad estructural del estado de Canicas y Muros sin sobrescribirlo con el esquema de Parchís.
+   - Solución en Lanzamiento de Mesas (`TablesView.tsx`):
+     * `startGameSession` inicializa el estado canónico de Canicas y Muros cuando `activeTable.gameType === 'atrapaito'`.
+   - Solución en Motor (`AtrapaitoEngine.ts`):
+     * `AtrapaitoEngine.initialize` devuelve de manera predeterminada el estado de Canicas y Muros para `table.gameType === 'atrapaito'`.
+
+3) ELIMINACIÓN DE COLUMNAS INEXISTENTES EN CONSULTAS DEL FRONTEND (`gross_pool`):
+   - Problema Corregido: Error SQL en logs `column game_sessions_1.gross_pool does not exist`.
+   - Causa: En `src/features/lobby/BingoLobbySection.tsx`, la subconsulta a `game_sessions` solicitaba explícitamente `gross_pool` y `winner_prize_amount`.
+   - Solución: Se eliminaron ambas referencias de la proyección `.select()`, calculando los pozos y premios de forma reactiva y dinámica en el cliente a partir del conteo de cartones y costo de entrada.
+
+1) CONEXIÓN COMPLETA Y UNIFICADA DE ATRAPAÍTO CRIOLLO ONLINE (SUPABASE REALTIME):
+   - Migración SQL Completa (`115_atrapaito_realtime_multiplayer_and_abandon.sql`):
+     * `public.start_atrapaito_session(p_session_id, p_blue_user_id, p_red_user_id)`:
+       - Inicializa el tablero con canicas (Azul en (4,14), Rojo en (3,14)), 10 muros por jugador, `turn = 'BLUE'`, `turn_expires_at = NOW() + INTERVAL '15 seconds'` y estado activo.
+     * `public.submit_atrapaito_action(p_session_id, p_user_id, p_action_type, p_action_data)`:
+       - Procesa movimientos de canica (`MOVE_MARBLE`) y colocación de muros (`PLACE_WALL`).
+       - Valida que sea el turno del jugador que envía la jugada, verifica cruce a la meta (Fila 0), decrementa muros y calcula de forma autoritativa el siguiente turno y el temporizador de 15s.
+     * `public.credit_atrapaito_winner(p_session_id, p_winner_user_id)`:
+       - Liquidación atómica: 90% del pozo acumulado para el ganador y 10% para la plataforma.
+       - Acreditación en saldo disponible (`wallets.available_balance`) y registro de transacción en `ledger_entries`.
+       - Cierre de mesa (`game_tables.status = 'FINISHED'`) y actualización de estado de jugadores a `WON`.
+     * `public.abandon_atrapaito_game(p_session_id, p_leaving_user_id)`:
+       - Resuelve abandono voluntario o por desconexión declarando ganador al rival presente y acreditando el pozo neto.
+     * `public.get_atrapaito_state(p_session_id, p_user_id)`:
+       - Consulta atómica para reconexión instantánea, devolviendo estado actual, color de jugador y tiempo restante.
+     * Configuración de publicación idempotente en `supabase_realtime` y permisos de ejecución para `authenticated`, `anon` y `service_role`.
+   - Hook de Conexión en Tiempo Real (`src/hooks/useAtrapaitoOnline.ts`):
+     * Manejo completo del ciclo de vida: `sessionId`, `userId`, `playerColor`, `onStateUpdate`, `onTurnTimeout`, `onGameEnd`, `onReconnect`.
+     * Exposición de métodos: `submitMove(col, row)` o `submitMove(action, data)`, `submitWall(wallData)`, `abandonGame()`.
+     * Estados reactivos: `isConnected`, `timeLeft` / `secondsLeft`, `isMyTurn`, `currentState`.
+     * Carga de estado autoritativo con `get_atrapaito_state` al conectarse o reconectarse y suscripción al canal `atrapaito_${sessionId}`.
+     * Temporizador sincronizado con el servidor (15 segundos) con expiración y aviso de turno agotado.
+   - Integración Visual en `AtrapaitoGame.tsx`:
+     * Insignia de conectividad en tiempo real: badge `Conectado` / `Reconectando...` con iconos `Wifi` / `WifiOff` y animación de pulso ante desconexión.
+     * Integración de `submitWall` en la confirmación de muros y `submitMove` en los clics del Canvas.
+     * Temporizador y color asignado integrados en la cabecera de la partida online.
+     * Botón de abandono voluntario con confirmación y liquidación en tiempo real.
 
 1) ARQUITECTURA MULTIJUGADOR ONLINE EN TIEMPO REAL: ATRAPAÍTO CRIOLLO (1V1)
    - Patrón de Arquitectura: "Estado Remoto con Reflejo Local"

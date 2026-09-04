@@ -224,11 +224,13 @@ async function runAutomatedTurnExpirations() {
 
   try {
     if (supabaseServerClient) {
-      await supabaseServerClient.rpc('expire_game_turn_secure');
+      await supabaseServerClient.rpc('process_expired_turns').catch(() => {});
+      await supabaseServerClient.rpc('expire_game_turn_secure').catch(() => {});
     } else if (pool && !drawWorkerDisabled) {
       let client: pg.PoolClient | null = null;
       try {
         client = await pool.connect();
+        await client.query('SELECT public.process_expired_turns();').catch(() => {});
         const res = await client.query('SELECT public.expire_game_turn_secure() as result;');
         const resultObj = res.rows[0]?.result;
         if (resultObj && resultObj.success && resultObj.expired_count > 0) {

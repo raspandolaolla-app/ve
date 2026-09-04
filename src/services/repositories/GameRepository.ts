@@ -74,8 +74,10 @@ export class GameRepository {
       roundNumber: data.session_number || data.current_round || 1,
       currentTurnUserId: data.current_turn_user_id || data.turn_user_id,
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at,
-      status: (data.status === 'ACTIVE' || data.status === 'STARTING' || data.status === 'READY' || data.status === 'WAITING'
-        ? 'in_progress'
+      status: (data.status === 'SALES' || data.status === 'DRAWING'
+        ? data.status
+        : data.status === 'ACTIVE' || data.status === 'STARTING' || data.status === 'READY' || data.status === 'WAITING'
+        ? (data.status === 'WAITING' || data.status === 'READY' ? data.status : 'in_progress')
         : data.status === 'FINISHED' || data.status === 'SETTLED'
         ? 'completed'
         : data.status === 'CANCELLED' || data.status === 'ABANDONED'

@@ -551,7 +551,7 @@ export class TableRepository {
         .from('game_tables')
         .select('*')
         .in('game_type', ['BINGO', 'bingo'])
-        .in('status', ['OPEN', 'STARTING', 'waiting', 'ACTIVE'])
+        .in('status', ['OPEN', 'STARTING', 'WAITING', 'ACTIVE'])
         .order('created_at', { ascending: false })
         .limit(10);
 

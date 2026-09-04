@@ -3,6 +3,7 @@
 // ==============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { TwoFactorRepository, type TwoFactorStatus, type TwoFactorSecret } from '../../services/repositories/TwoFactorRepository';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -325,12 +326,13 @@ export function TwoFactorSettings({ userRole, onStatusChange }: TwoFactorSetting
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               {/* Opción A: Código QR */}
               <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-700 shadow-inner">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(secretData.qrUri)}`}
-                  alt="Código QR 2FA TOTP"
-                  className="w-40 h-40 object-contain"
+                <QRCodeSVG
+                  value={secretData.qrUri}
+                  size={160}
+                  level="M"
+                  includeMargin={false}
                 />
-                <span className="text-[10px] text-slate-600 font-mono mt-1">Escanea con tu App Autenticadora</span>
+                <span className="text-[10px] text-slate-600 font-mono mt-2">Escanea con Google Authenticator o Authy</span>
               </div>
 
               {/* Opción B: Clave manual */}

@@ -19,6 +19,7 @@ import {
 interface BingoBoardProps {
   state: any;
   currentUserId: string;
+  isHost?: boolean;
   onMarkNumber: (row: number, col: number) => void;
   onClaimBingo: () => void;
   onDrawBall?: () => void;
@@ -83,11 +84,11 @@ const ballLetter = (n: number, max: number): string => {
 };
 
 const Ball: React.FC<{ n: number; max: number; size?: 'sm' | 'xl' }> = ({ n, max, size = 'sm' }) => {
-  const dims = size === 'xl' ? 'w-24 h-24 sm:w-28 sm:h-28' : 'w-9 h-9';
+  const dims = size === 'xl' ? 'w-16 h-16 sm:w-24 sm:h-24' : 'w-8 h-8 sm:w-9 sm:h-9';
   const letter = ballLetter(n, max);
   return (
     <motion.div
-      initial={size === 'xl' ? { y: -80, scale: 0.4, opacity: 0 } : { scale: 0 }}
+      initial={size === 'xl' ? { y: -40, scale: 0.5, opacity: 0 } : { scale: 0 }}
       animate={size === 'xl' ? { y: 0, scale: 1, opacity: 1 } : { scale: 1 }}
       transition={{ type: 'spring', stiffness: 300, damping: 16 }}
       className={`relative ${dims} rounded-full flex flex-col items-center justify-center shrink-0`}
@@ -96,8 +97,8 @@ const Ball: React.FC<{ n: number; max: number; size?: 'sm' | 'xl' }> = ({ n, max
       <div className="absolute top-[12%] left-[22%] right-[22%] h-[22%] rounded-full"
         style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.7), transparent)' }} />
       <div className="relative w-[62%] h-[62%] rounded-full bg-white flex flex-col items-center justify-center leading-none">
-        {letter && <span className="font-black" style={{ color: '#6B7280', fontSize: size === 'xl' ? 12 : 7 }}>{letter}</span>}
-        <span className="font-black text-slate-900" style={{ fontSize: size === 'xl' ? 26 : 12 }}>{n}</span>
+        {letter && <span className="font-black" style={{ color: '#6B7280', fontSize: size === 'xl' ? 9 : 7 }}>{letter}</span>}
+        <span className="font-black text-slate-900" style={{ fontSize: size === 'xl' ? 20 : 12 }}>{n}</span>
       </div>
     </motion.div>
   );
@@ -120,7 +121,7 @@ const formatBs = (n: number): string => {
 };
 
 export const BingoBoard: React.FC<BingoBoardProps> = ({
-  state, currentUserId, onMarkNumber, onClaimBingo, onDrawBall, onStartDraw, onBuyCards,
+  state, currentUserId, isHost: propIsHost, onMarkNumber, onClaimBingo, onDrawBall, onStartDraw, onBuyCards,
   isSalesClosed, countdownSeconds, bcvRate, isMuted, onToggleMute,
 }) => {
   const s: any = state || {};
@@ -145,7 +146,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   const playerNamesKeys = s.playerNames ? Object.keys(s.playerNames) : [];
   const firstPlayerId = playerNamesKeys.length > 0 ? playerNamesKeys[0] : null;
-  const isHost = (s.hostUserId || s.hostId || '') === currentUserId || (firstPlayerId === currentUserId);
+  const isHost = propIsHost !== undefined ? propIsHost : ((s.hostUserId || s.hostId || '') === currentUserId || (firstPlayerId === currentUserId));
 
   const [autoDraw, setAutoDraw] = useState(false);
   const [speed, setSpeed] = useState(2);
@@ -308,9 +309,12 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   }, [myCards, drawn, s]);
 
   const isDrawing = status === 'DRAWING' || status === 'drawing' || (s.current_state?.status === 'DRAWING') || drawn.length > 0;
-  const isPlaying = ['playing', 'PLAYING', 'ACTIVE', 'IN_PROGRESS', 'DRAWING', 'drawing'].includes(status) || isDrawing;
-  const isSalesExplicitlyClosed = isSalesClosed === true || isDrawing || status === 'ACTIVE' || status === 'active' || status === 'PLAYING' || status === 'playing';
-  const salesOpen = !isSalesExplicitlyClosed && (isSalesClosed === false || status === 'SALES' || status === 'sales' || status === 'WAITING' || status === 'waiting');
+  const isPlaying = isDrawing || ['playing', 'PLAYING', 'DRAWING', 'drawing'].includes(status);
+  
+  // Ventas abiertas si NO ha iniciado la extracción (0 bolas extraídas) y faltan más de 10s (o sin temporizador de bloqueo)
+  const isCountdownUnder10 = countdownSeconds !== undefined && countdownSeconds <= 10 && countdownSeconds >= 0;
+  const isSalesExplicitlyClosed = isDrawing || isCountdownUnder10 || isSalesClosed === true;
+  const salesOpen = !isDrawing && !isCountdownUnder10 && isSalesClosed !== true;
 
   const cardIsFull = (card: any): boolean => {
     let ok = true, any = false;
@@ -461,87 +465,95 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2.5 relative"
+    <div className="flex flex-col items-center p-2 sm:p-4 max-w-5xl mx-auto w-full space-y-2 sm:space-y-2.5 relative max-w-full overflow-x-hidden"
       style={{ background: T.bg, minHeight: '100%' }}>
 
-      {/* ===== BARRA SUPERIOR ===== */}
-      <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border"
+      {/* ===== BARRA SUPERIOR DE CONTROL RESPONSIVA ===== */}
+      <div className="w-full rounded-2xl border p-2 sm:p-2.5 flex flex-wrap items-center justify-between gap-2"
         style={{ background: T.panel, borderColor: T.border }}>
-        <div className="flex items-center gap-2">
-          <Palette className="w-4 h-4" style={{ color: T.accent }} />
-          <div className="flex items-center gap-1.5">
-            {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
-              <button key={k} onClick={() => changeTheme(k)} title={THEMES[k].label}
-                className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg border"
-                style={{ borderColor: themeKey === k ? THEMES[k].accent : T.border, background: themeKey === k ? 'rgba(255,255,255,0.1)' : 'transparent' }}>
-                {THEMES[k].swatch.map((c: string, i: number) => (
-                  <span key={i} className="w-2.5 h-2.5 rounded-full border border-black/30" style={{ background: c }} />
-                ))}
-              </button>
-            ))}
+        {/* Izquierda: Temas y Métricas de la sala */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-black/20 border border-white/5">
+            <Palette className="w-3.5 h-3.5 ml-0.5" style={{ color: T.accent }} />
+            <div className="flex items-center gap-1">
+              {(Object.keys(THEMES) as ThemeKey[]).map((k) => (
+                <button key={k} onClick={() => changeTheme(k)} title={THEMES[k].label}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border transition-all"
+                  style={{ borderColor: themeKey === k ? THEMES[k].accent : 'transparent', background: themeKey === k ? 'rgba(255,255,255,0.12)' : 'transparent' }}>
+                  {THEMES[k].swatch.map((c: string, i: number) => (
+                    <span key={i} className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border border-black/30" style={{ background: c }} />
+                  ))}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="px-2 py-1 rounded-full border text-[9px] font-black"
+          <span className="px-2 py-0.5 sm:py-1 rounded-full border text-[9px] font-black tracking-wider uppercase"
             style={{ borderColor: T.accent, color: T.accent, background: `${T.accent}15` }}>
             {maxBall} BOLAS
           </span>
-          <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black font-mono"
+          <span className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full border text-[9px] font-black font-mono"
             style={{ borderColor: T.border, color: T.text, background: 'rgba(255,255,255,0.05)' }}>
-            <Users className="w-3 h-3" /> {totalCardsInTable} cartones
+            <Users className="w-3 h-3" /> {totalCardsInTable}
           </span>
           {isHost && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black"
+            <span className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-full border text-[9px] font-black"
               style={{ borderColor: '#34D399', color: '#34D399', background: 'rgba(52,211,153,0.1)' }}>
               👑 Host
             </span>
           )}
+        </div>
+
+        {/* Derecha: Botones de Acción Agrupados */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
           {onToggleMute && (
             <button
               onClick={onToggleMute}
-              className="flex items-center gap-1 p-1.5 rounded-lg border text-[9px] font-black uppercase transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black uppercase transition-colors"
               style={{
                 borderColor: T.border,
                 color: isMuted ? T.sub : T.accent,
-                background: 'transparent',
+                background: 'rgba(255,255,255,0.04)',
               }}
               title={isMuted ? 'Activar Sonido' : 'Silenciar'}
             >
               {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{isMuted ? 'Mute' : 'Audio'}</span>
+              <span className="hidden xs:inline">{isMuted ? 'Mute' : 'Audio'}</span>
             </button>
           )}
-          <button onClick={() => setAutoGlow(!autoGlow)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase"
-            style={{ borderColor: autoGlow ? T.accent : T.border, color: autoGlow ? T.accent : T.sub, background: autoGlow ? `${T.accent}22` : 'transparent' }}>
-            <Eye className="w-3 h-3" /> Auto
+          <button onClick={() => setAutoGlow(!autoGlow)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black uppercase transition-colors"
+            style={{ borderColor: autoGlow ? T.accent : T.border, color: autoGlow ? T.accent : T.sub, background: autoGlow ? `${T.accent}22` : 'rgba(255,255,255,0.04)' }}>
+            <Eye className="w-3.5 h-3.5" /> <span>Auto</span>
           </button>
-          <button onClick={() => setShowBoard(!showBoard)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase"
-            style={{ borderColor: showBoard ? T.accent : T.border, color: showBoard ? T.accent : T.sub }}>
-            <Grid3X3 className="w-3 h-3" /> Tablero
+          <button onClick={() => setShowBoard(!showBoard)} className="flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black uppercase transition-colors"
+            style={{ borderColor: showBoard ? T.accent : T.border, color: showBoard ? T.accent : T.sub, background: showBoard ? `${T.accent}22` : 'rgba(255,255,255,0.04)' }}>
+            <Grid3X3 className="w-3.5 h-3.5" /> <span>Tablero</span>
           </button>
         </div>
       </div>
 
-      <div className="w-full flex items-center gap-2 flex-wrap">
-        {isSalesClosed !== undefined && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase"
-            style={{
-              background: isSalesClosed ? 'rgba(229,57,53,0.15)' : 'rgba(52,211,153,0.15)',
-              borderColor: isSalesClosed ? '#E53935' : '#34D399',
-              color: isSalesClosed ? '#F87171' : '#34D399',
-            }}>
-            <Ticket className="w-3 h-3" />
-            {isSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
-          </div>
-        )}
-        {!isSalesClosed && (countdownSeconds ?? 0) > 0 && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black font-mono animate-pulse"
-            style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
-            <Clock className="w-3 h-3" /> {countdownSeconds}s
-          </div>
-        )}
+      {/* Sub-barra de Estado Operativo */}
+      <div className="w-full flex items-center justify-between gap-1.5 flex-wrap text-[10px]">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {isSalesClosed !== undefined && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border font-black uppercase text-[9px] sm:text-[10px]"
+              style={{
+                background: isSalesClosed ? 'rgba(229,57,53,0.15)' : 'rgba(52,211,153,0.15)',
+                borderColor: isSalesClosed ? '#E53935' : '#34D399',
+                color: isSalesClosed ? '#F87171' : '#34D399',
+              }}>
+              <Ticket className="w-3 h-3" />
+              {isSalesClosed ? 'Venta cerrada' : 'Venta abierta'}
+            </div>
+          )}
+          {!isSalesClosed && (countdownSeconds ?? 0) > 0 && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border font-black font-mono animate-pulse text-[9px] sm:text-[10px]"
+              style={{ background: `${T.accent}22`, borderColor: T.accent, color: T.accent }}>
+              <Clock className="w-3 h-3" /> {countdownSeconds}s
+            </div>
+          )}
+        </div>
         {bcvRate !== undefined && bcvRate > 0 && (
-          <div className="px-2.5 py-1 rounded-full border text-[10px] font-mono"
+          <div className="px-2 py-0.5 rounded-full border font-mono text-[9px] sm:text-[10px] ml-auto"
             style={{ background: 'rgba(255,255,255,0.05)', borderColor: T.border, color: T.sub }}>
             BCV: {Number(bcvRate).toFixed(2)} Bs/$
           </div>
@@ -582,25 +594,25 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         {!salesOpen && !isFinished && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
             className="w-full overflow-hidden">
-            <div className="p-3 rounded-2xl border flex items-center justify-between gap-3 flex-wrap"
+            <div className="p-2.5 sm:p-3 rounded-2xl border flex items-center justify-between gap-2 sm:gap-3 flex-wrap"
               style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.35)' }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm bg-amber-500/20 text-amber-300">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm bg-amber-500/20 text-amber-300 shrink-0">
                   🔒
                 </div>
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                <div className="min-w-0">
+                  <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-300 truncate">
                     Compras cerradas
                   </div>
-                  <div className="text-[9px] text-amber-200/80">
+                  <div className="text-[8px] sm:text-[9px] text-amber-200/80 truncate sm:whitespace-normal">
                     {isDrawing || drawn.length > 0
                       ? 'El sorteo ya comenzó. ¡Buena suerte con tus cartones!'
                       : 'Las ventas de cartones han concluido para esta ronda.'}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-[10px] font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-[9px] sm:text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 whitespace-nowrap">
                   {myCards.length} {myCards.length === 1 ? 'cartón activo' : 'cartones activos'}
                 </div>
               </div>
@@ -610,50 +622,50 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       </AnimatePresence>
 
       {!isFinished && (
-        <div className="w-full relative overflow-hidden rounded-3xl border-2 p-4"
-          style={{ background: T.panel, borderColor: T.border, boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
+        <div className="w-full relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 p-3 sm:p-4"
+          style={{ background: T.panel, borderColor: T.border, boxShadow: '0 10px 30px rgba(0,0,0,0.45)' }}>
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
-            className="absolute -right-10 -top-10 w-40 h-40 rounded-full border-4 border-dashed opacity-15 pointer-events-none" style={{ borderColor: T.accent }} />
-          <div className="relative z-10 flex items-center justify-between gap-3">
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: T.sub }}>Balota actual</span>
+            className="absolute -right-10 -top-10 w-32 h-32 sm:w-40 sm:h-40 rounded-full border-4 border-dashed opacity-15 pointer-events-none" style={{ borderColor: T.accent }} />
+          <div className="relative z-10 flex items-center justify-between gap-2.5 sm:gap-4">
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-center" style={{ color: T.sub }}>Balota actual</span>
               <AnimatePresence mode="wait">
                 <motion.div key={lastBall || 'none'}>
                   {lastBall ? <Ball n={lastBall} max={maxBall} size="xl" /> : (
-                    <div className="w-24 h-24 rounded-full border-4 border-dashed flex items-center justify-center" style={{ borderColor: T.border }}>
-                      <Dices className="w-8 h-8" style={{ color: T.sub }} />
+                    <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full border-2 sm:border-4 border-dashed flex items-center justify-center" style={{ borderColor: T.border }}>
+                      <Dices className="w-6 h-6 sm:w-8 sm:h-8" style={{ color: T.sub }} />
                     </div>
                   )}
                 </motion.div>
               </AnimatePresence>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: T.sub }}>
+              <div className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mb-1 truncate" style={{ color: T.sub }}>
                 Últimas balotas ({drawn.length})
               </div>
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <div className="flex gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar pb-1">
                 {drawn.length === 0 ? (
                   <span className="text-[10px] font-mono" style={{ color: T.sub }}>Esperando sorteo...</span>
                 ) : (
                   [...drawn].reverse().slice(0, 14).map((n, i) => <Ball key={`${n}-${i}`} n={n} max={maxBall} />)
                 )}
               </div>
-              <div className="flex gap-1.5 mt-2">
+              <div className="flex gap-1.5 mt-1.5 sm:mt-2">
                 {salesOpen && isHost && (onStartDraw || onDrawBall) && (
                   <button type="button" onClick={onStartDraw || onDrawBall}
-                    className="flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-1.5"
-                    style={{ background: `linear-gradient(145deg, ${T.accent}, ${T.accent}CC)`, color: '#1A120C', boxShadow: `0 5px 14px ${T.accent}55` }}>
-                    <Dices className="w-3.5 h-3.5" /> 🚀 Iniciar Sorteo
+                    className="flex-1 py-2 sm:py-2.5 rounded-xl font-black text-[10px] sm:text-[11px] uppercase flex items-center justify-center gap-1.5 transition-transform active:scale-95 text-slate-950 shadow-lg"
+                    style={{ background: 'linear-gradient(145deg, #F59E0B, #D97706)' }}>
+                    <Dices className="w-3.5 h-3.5 text-slate-950" /> 🎱 Iniciar Sorteo Ahora
                   </button>
                 )}
                 {isPlaying && !salesOpen && (
-                  <div className="flex-1 py-2.5 px-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 border"
+                  <div className="flex-1 py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl font-black text-[9px] sm:text-[10px] uppercase flex items-center justify-center gap-1.5 sm:gap-2 border truncate"
                     style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', borderColor: 'rgba(16, 185, 129, 0.35)' }}>
-                    <span className="relative flex h-2 w-2">
+                    <span className="relative flex h-2 w-2 shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-                    <span>📡 Sorteo Oficial en Vivo (Servidor)</span>
+                    <span className="truncate">📡 Sorteo Oficial en Vivo</span>
                   </div>
                 )}
               </div>
@@ -679,25 +691,31 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
       </AnimatePresence>
 
       <div className="w-full">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setViewMode('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase"
-              style={{ borderColor: viewMode === 'all' ? T.accent : T.border, color: viewMode === 'all' ? T.accent : T.sub, background: viewMode === 'all' ? `${T.accent}22` : 'transparent' }}>
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center p-0.5 rounded-xl border bg-black/20" style={{ borderColor: T.border }}>
+            <button onClick={() => setViewMode('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all"
+              style={{
+                color: viewMode === 'all' ? T.accent : T.sub,
+                background: viewMode === 'all' ? `${T.accent}22` : 'transparent',
+              }}>
               <LayoutGrid className="w-3.5 h-3.5" /> Mis cartones ({myCards.length})
             </button>
-            <button onClick={() => setViewMode('single')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase"
-              style={{ borderColor: viewMode === 'single' ? T.accent : T.border, color: viewMode === 'single' ? T.accent : T.sub, background: viewMode === 'single' ? `${T.accent}22` : 'transparent' }}>
+            <button onClick={() => setViewMode('single')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all"
+              style={{
+                color: viewMode === 'single' ? T.accent : T.sub,
+                background: viewMode === 'single' ? `${T.accent}22` : 'transparent',
+              }}>
               <Square className="w-3.5 h-3.5" /> Uno
             </button>
           </div>
           {viewMode === 'single' && myCards.length > 0 && !isFinished && (
             <div className="flex items-center gap-1">
-              <button onClick={() => setActiveIndex(Math.max(0, safeActive - 1))} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
-                <ChevronLeft className="w-4 h-4" style={{ color: T.accent }} />
+              <button onClick={() => setActiveIndex(Math.max(0, safeActive - 1))} className="p-1 rounded-lg border" style={{ borderColor: T.border }}>
+                <ChevronLeft className="w-3.5 h-3.5" style={{ color: T.accent }} />
               </button>
-              <span className="text-[10px] font-black font-mono" style={{ color: T.text }}>{safeActive + 1}/{myCards.length}</span>
-              <button onClick={() => setActiveIndex(Math.min(myCards.length - 1, safeActive + 1))} className="p-1.5 rounded-lg border" style={{ borderColor: T.border }}>
-                <ChevronRight className="w-4 h-4" style={{ color: T.accent }} />
+              <span className="text-[10px] font-black font-mono px-1" style={{ color: T.text }}>{safeActive + 1}/{myCards.length}</span>
+              <button onClick={() => setActiveIndex(Math.min(myCards.length - 1, safeActive + 1))} className="p-1 rounded-lg border" style={{ borderColor: T.border }}>
+                <ChevronRight className="w-3.5 h-3.5" style={{ color: T.accent }} />
               </button>
             </div>
           )}
@@ -706,7 +724,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
           <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1.5 mb-2">
             {myCards.map((_, i) => (
               <button key={i} onClick={() => { setActiveIndex(i); setViewMode('single'); }}
-                className="shrink-0 w-7 h-7 rounded-lg border text-[9px] font-black"
+                className="shrink-0 w-7 h-7 rounded-lg border text-[9px] font-black transition-all"
                 style={{
                   borderColor: i === safeActive && viewMode === 'single' ? T.accent : T.border,
                   background: i === safeActive && viewMode === 'single' ? T.accent : 'rgba(255,255,255,0.05)',
@@ -720,7 +738,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         {viewMode === 'all' ? (
           <div className="grid grid-cols-1 min-[430px]:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto no-scrollbar pr-0.5">
             {myCards.length > 0 ? myCards.map((card, i) => renderCard(card, i, true)) : (
-              <div className="col-span-full text-center text-[10px] font-mono py-6" style={{ color: T.sub }}>
+              <div className="col-span-full text-center text-[10px] font-mono py-4" style={{ color: T.sub }}>
                 {salesOpen ? '🎫 Compra tus cartones arriba' : 'No tienes cartones en esta ronda.'}
               </div>
             )}
@@ -728,7 +746,7 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         ) : (
           <div className="max-w-md mx-auto w-full">
             {myCards[safeActive] ? renderCard(myCards[safeActive], safeActive, false) : (
-              <div className="text-center text-[10px] font-mono py-6" style={{ color: T.sub }}>Sin cartones.</div>
+              <div className="text-center text-[10px] font-mono py-4" style={{ color: T.sub }}>Sin cartones.</div>
             )}
           </div>
         )}
@@ -738,22 +756,22 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
         <motion.button
           id="claim-bingo-btn"
           type="button"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.96 }}
           onClick={onClaimBingo}
           disabled={!isPlaying}
-          className="w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
-          style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 10px 30px rgba(229,57,53,0.5)' }}>
-          <Trophy className="relative z-10 w-6 h-6 text-amber-300" />
+          className="w-full py-3 sm:py-3.5 rounded-2xl font-black text-base sm:text-lg uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden shadow-lg transition-all"
+          style={{ background: 'linear-gradient(145deg,#E53935,#B71C1C 60%,#8B1E2D)', color: '#FFF', border: '2px solid #FFC94B', boxShadow: '0 8px 24px rgba(229,57,53,0.4)' }}>
+          <Trophy className="relative z-10 w-5 h-5 text-amber-300" />
           <span className="relative z-10">¡BINGO!</span>
-          <Sparkles className="relative z-10 w-5 h-5 text-amber-300" />
+          <Sparkles className="relative z-10 w-4 h-4 text-amber-300" />
         </motion.button>
       )}
 
-      <div className="flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: T.sub }}>
-        <div className="w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
+      <div className="flex items-center justify-center gap-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest py-1" style={{ color: T.sub }}>
+        <div className="w-8 sm:w-10 h-px" style={{ background: `linear-gradient(to right, transparent, ${T.accent})` }} />
         <span>🇻🇪 Bingo Criollo 🇻🇪</span>
-        <div className="w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
+        <div className="w-8 sm:w-10 h-px" style={{ background: `linear-gradient(to left, transparent, ${T.accent})` }} />
       </div>
 
       {/* ===== MODAL DE RESULTADOS (visible para TODOS los jugadores) ===== */}

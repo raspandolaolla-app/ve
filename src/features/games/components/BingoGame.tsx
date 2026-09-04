@@ -12,6 +12,7 @@ import { getSupabaseClient } from '../../../lib/supabase/client';
 import { getBingoAudio, destroyBingoAudio } from '../../../utils/bingoAudio';
 import { BingoBoard } from './BingoBoard';
 import { Button } from '../../../components/common/Button';
+import { useBingoClientDaemon } from '../../../hooks/useBingoClientDaemon';
 import { Trophy, RefreshCw, Sparkles, CheckCircle2, ShoppingBag, ShieldCheck, ArrowLeft, Radio, Lock, Volume2, VolumeX } from 'lucide-react';
 
 interface BingoGameProps {
@@ -59,6 +60,9 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     prizeBs: number;
     winnerPhotoUrl?: string;
   } | null>(null);
+
+  const isGameOver = Boolean(bingoState?.winnerUserId || winnerInfo);
+  const isWinner = (winnerInfo?.winnerUserId || bingoState?.winnerUserId) === currentUserId;
 
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [isSalesClosed, setIsSalesClosed] = useState<boolean>(false);
@@ -159,6 +163,18 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     };
     fetchSessionId();
   }, [table.id]);
+
+  // Daemon Client-Side de extracción de Bingo (Fallback para GitHub Pages)
+  const bingoSessionStatus = isGameOver ? 'FINISHED' : isAutoDrawing ? 'DRAWING' : (bingoState?.status || null);
+  const { isDrawing: daemonIsDrawing, forceStartDraw, drawSingleBall } = useBingoClientDaemon({
+    sessionId,
+    isHost,
+    gameStatus: bingoSessionStatus,
+    drawIntervalMs,
+    onBallDrawn: (ball) => {
+      console.log('[BingoGame] Daemon extrajo balota:', ball);
+    },
+  });
 
   // Sincronizar temporizador server-authoritative
   useEffect(() => {
@@ -537,9 +553,6 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
     }
   };
 
-  const isGameOver = Boolean(bingoState.winnerUserId || winnerInfo);
-  const isWinner = (winnerInfo?.winnerUserId || bingoState.winnerUserId) === currentUserId;
-
   // Iniciar cuenta regresiva de 7 segundos si el usuario es el ganador
   useEffect(() => {
     if (isGameOver && isWinner && photoCountdown === null && !photoUploaded) {
@@ -735,22 +748,26 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
 
               <div className="flex items-center space-x-2">
                 <Button
-                  variant={isAutoDrawing ? 'danger' : 'primary'}
+                  variant={isAutoDrawing || daemonIsDrawing ? 'danger' : 'primary'}
                   className="font-black text-[11px] py-2 px-4 rounded-xl shadow-md"
-                  onClick={() => setIsAutoDrawing(!isAutoDrawing)}
+                  onClick={async () => {
+                    if (isAutoDrawing || daemonIsDrawing) {
+                      setIsAutoDrawing(false);
+                    } else {
+                      setIsAutoDrawing(true);
+                      await forceStartDraw();
+                    }
+                  }}
                 >
-                  {isAutoDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
+                  {isAutoDrawing || daemonIsDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
                 </Button>
 
                 <Button
                   variant="secondary"
-                  disabled={isAutoDrawing}
+                  disabled={isAutoDrawing || daemonIsDrawing}
                   className="font-black text-[11px] py-2 px-4 rounded-xl border border-slate-700 hover:bg-slate-800"
                   onClick={async () => {
-                    const { RngService } = await import('../../../services/rng/RngService');
-                    if (sessionId) {
-                      await RngService.drawBingoBallSecure(sessionId);
-                    }
+                    await drawSingleBall();
                   }}
                 >
                   🔮 Extraer 1 Bola
@@ -958,8 +975,17 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
       <BingoBoard
         state={bingoState}
         currentUserId={currentUserId}
+        isHost={isHost}
         onMarkNumber={handleMarkNumber}
         onClaimBingo={handleClaimBingo}
+        onDrawBall={async () => {
+          setIsAutoDrawing(true);
+          await forceStartDraw();
+        }}
+        onStartDraw={async () => {
+          setIsAutoDrawing(true);
+          await forceStartDraw();
+        }}
         isSalesClosed={isSalesClosed}
         countdownSeconds={countdownSeconds}
         bcvRate={bcvRate}

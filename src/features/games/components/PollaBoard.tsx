@@ -202,7 +202,7 @@ export const PollaBoard: React.FC = () => {
   };
 
   return (
-    <div id="polla-board-container" className="flex flex-col items-center p-3 sm:p-5 max-w-4xl mx-auto w-full">
+    <div id="polla-board-container" className="flex flex-col items-center p-2 sm:p-5 max-w-4xl mx-auto w-full max-w-full overflow-x-hidden">
       {/* Encabezado Principal */}
       <div id="polla-header" className="w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 mb-5 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />

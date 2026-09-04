@@ -50,6 +50,7 @@ import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { useGameMode } from '../../../hooks/useGameMode';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
+import { useBingoClientDaemon } from '../../../hooks/useBingoClientDaemon';
 
 interface GameContainerProps {
   table: GameTable;
@@ -130,6 +131,40 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       document.removeEventListener('fullscreenchange', handleResizeOrOrientation);
     };
   }, []);
+
+  // Detección de anfitrión de la mesa
+  const isHostUser = useMemo(() => {
+    return (
+      table.hostUserId === currentUserId ||
+      currentPlayers.some((p) => p.userId === currentUserId && p.seatNumber === 1) ||
+      (session as any)?.hostUserId === currentUserId
+    );
+  }, [table.hostUserId, currentUserId, currentPlayers, session]);
+
+  // Daemon Client-Side de extracción de Bingo (Fallback para GitHub Pages)
+  const bingoStatus = table.gameType === 'bingo' ? (session?.status || gameState?.status || null) : null;
+  const { forceStartDraw: daemonForceStart } = useBingoClientDaemon({
+    sessionId: table.gameType === 'bingo' ? (session?.id || null) : null,
+    isHost: isHostUser,
+    gameStatus: bingoStatus,
+    onBallDrawn: (ball) => {
+      console.log('[GameContainer] Daemon extrajo balota:', ball);
+    },
+  });
+
+  const handleForceStartBingoDraw = useCallback(async () => {
+    if (!session?.id) return;
+    const res = await daemonForceStart();
+    if (res.success) {
+      setGameState((prev: any) => ({
+        ...prev,
+        status: 'DRAWING',
+      }));
+    } else {
+      setErrorMsg(res.message || 'No se pudo iniciar el sorteo.');
+      setTimeout(() => setErrorMsg(null), 4000);
+    }
+  }, [session?.id, daemonForceStart]);
 
   // Función para alternar Fullscreen API del navegador
   const toggleNativeFullscreen = async () => {
@@ -887,13 +922,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           finalActionData.commitmentHash = rngRes.commitmentHash;
         }
       } else if (actionType === 'DRAW_BALL' && !finalActionData.ball) {
-        // En Bingo Server-Authoritative: si la partida ya está en juego, el cliente es solo observador
+        // En Bingo: si es el anfitrión en GitHub Pages, iniciar sorteo mediante daemon autoritativo
         if (table.gameType === 'bingo') {
-          const currentStatus = (gameState as any)?.status;
-          if (currentStatus === 'PLAYING' || currentStatus === 'finished') {
-            console.log('[BINGO] Sorteo server-authoritative activo: la extracción la gestiona el servidor en segundo plano.');
-            return;
+          if (isHostUser) {
+            await handleForceStartBingoDraw();
           }
+          return;
         }
         const rngRes = await RngService.drawBingoBallSecure(session.id);
         if (rngRes.success && rngRes.ball) {
@@ -907,13 +941,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       if (actionType === 'BUY_CARDS' && table.gameType === 'bingo') {
         const cardCount = Number(actionData.count) || 0;
 
-        // 🔒 CANDADO DE FAIRNESS: Bloquear compras si el sorteo ya comenzó
+        // 🔒 CANDADO DE FAIRNESS: Bloquear compras solo si el sorteo ya comenzó o hay balotas extraídas
         const isDrawingOrActive =
           session?.status === 'DRAWING' ||
           (session?.status as any) === 'drawing' ||
-          table.status === 'ACTIVE' ||
+          session?.status === 'FINISHED' ||
+          (session?.status as any) === 'finished' ||
           gameState?.status === 'DRAWING' ||
           gameState?.status === 'drawing' ||
+          gameState?.status === 'FINISHED' ||
+          gameState?.status === 'finished' ||
           (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0);
 
         if (isDrawingOrActive) {
@@ -1225,16 +1262,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <BingoBoard
             state={gameState}
             currentUserId={currentUserId}
+            isHost={isHostUser}
             onMarkNumber={(row, col) => handleGameAction('MARK_NUMBER', { row, col })}
             onClaimBingo={() => handleGameAction('CLAIM_BINGO', {})}
-            onDrawBall={() => handleGameAction('DRAW_BALL', {})}
+            onDrawBall={handleForceStartBingoDraw}
+            onStartDraw={handleForceStartBingoDraw}
             onBuyCards={(count) => handleGameAction('BUY_CARDS', { count })}
             isSalesClosed={
               session?.status === 'DRAWING' ||
               (session?.status as any) === 'drawing' ||
-              table.status === 'ACTIVE' ||
+              session?.status === 'FINISHED' ||
+              (session?.status as any) === 'finished' ||
               gameState?.status === 'DRAWING' ||
               gameState?.status === 'drawing' ||
+              gameState?.status === 'FINISHED' ||
+              gameState?.status === 'finished' ||
               (Array.isArray(gameState?.drawnBalls) && gameState.drawnBalls.length > 0)
             }
           />
@@ -1326,8 +1368,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   };
 
   const containerClasses = isImmersiveMode
-    ? 'game-fullscreen-wrapper game-immersive-container fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-hidden select-none'
-    : 'game-immersive-container min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl';
+    ? 'game-fullscreen-wrapper game-immersive-container fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-x-hidden overflow-y-auto select-none'
+    : 'game-immersive-container min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-2xl sm:rounded-3xl overflow-x-hidden border border-neutral-800 shadow-2xl max-w-full';
 
   return (
     <div
@@ -1338,8 +1380,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       onClick={preventKeyboard}
     >
       {/* Barra de Navegación de la Mesa */}
-      <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2.5 sm:px-4 py-2 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+      <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2 sm:px-4 py-1.5 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0 max-w-full overflow-hidden">
+        <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 flex-1">
           <button
             onClick={() => {
               if (gameState && !isSettledRef.current) {
@@ -1353,38 +1395,40 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-          <div className="min-w-0">
-            <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-1.5 truncate">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-1 sm:space-x-1.5 truncate">
               <span className="truncate">{getGameDisplayName(table.gameType)}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono border border-amber-500/30 shrink-0">
-                #{table.id.substring(0, 6)}
+              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono border border-amber-500/30 shrink-0">
+                #{table.id.substring(0, 4).toUpperCase()}
               </span>
             </h1>
-            <div className="flex items-center space-x-2 text-[10px] sm:text-xs text-neutral-400 font-mono mt-0.5">
-              <span>Entrada: {formatBolivares(table.entryFee)}</span>
-              <span>•</span>
-              <span className="text-emerald-400 font-bold">Pozo: {formatBolivares(table.entryFee * currentPlayers.length)}</span>
+            <div className="flex items-center space-x-1 sm:space-x-1.5 text-[9px] sm:text-xs text-neutral-400 font-mono mt-0.5 whitespace-nowrap overflow-hidden">
+              <span className="truncate">Entrada: {formatBolivares(table.entryFee)}</span>
+              <span className="text-neutral-600">•</span>
+              <span className="text-emerald-400 font-bold truncate">Pozo: {formatBolivares(table.entryFee * currentPlayers.length)}</span>
             </div>
           </div>
         </div>
 
         {/* Indicadores de Conexión, Fullscreen y Abandono */}
-        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+        <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
           {realtimeStatus === 'CONNECTED' ? (
-            <div className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] sm:text-xs font-mono">
+            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] sm:text-xs font-mono">
               <Radio className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-pulse shrink-0" />
-              <span className="hidden xs:inline sm:inline">EN VIVO ({onlineUsers.length || 1}/{currentPlayers.length})</span>
-              <span className="xs:hidden sm:hidden">VIVO</span>
+              <span className="hidden sm:inline">EN VIVO ({onlineUsers.length || 1}/{currentPlayers.length})</span>
+              <span className="sm:hidden font-bold">VIVO</span>
             </div>
           ) : realtimeStatus === 'CONNECTING' ? (
-            <div className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] sm:text-xs font-mono">
+            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] sm:text-xs font-mono">
               <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin shrink-0" />
-              <span>CONECTANDO</span>
+              <span className="hidden sm:inline">CONECTANDO</span>
+              <span className="sm:hidden font-bold">...</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] sm:text-xs font-mono">
+            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[9px] sm:text-xs font-mono">
               <WifiOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span>RECONECTANDO</span>
+              <span className="hidden sm:inline">RECONECTANDO</span>
+              <span className="sm:hidden font-bold">OFF</span>
             </div>
           )}
 
@@ -1404,7 +1448,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <button
             id="immersive-toggle-btn"
             onClick={() => setIsImmersiveMode(!isImmersiveMode)}
-            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation hidden xs:flex items-center"
+            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation hidden md:flex items-center"
             title={isImmersiveMode ? 'Minimizar a vista regular' : 'Modo Inmersivo'}
           >
             {isImmersiveMode ? (
@@ -1417,7 +1461,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <button
             id="abandon-table-btn"
             onClick={() => setShowAbandonModal(true)}
-            className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-[10px] sm:text-xs font-bold transition-all touch-manipulation"
+            className="flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl text-[10px] sm:text-xs font-bold transition-all touch-manipulation shrink-0"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">ABANDONAR MESA</span>
@@ -1452,11 +1496,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       {/* Tablero Principal */}
       <main
-        className={`flex-1 flex items-center justify-center overflow-y-auto ${
-          isLandscape ? 'p-1 sm:p-2 max-h-[calc(100vh-48px)]' : 'p-2 sm:p-4'
+        className={`flex-1 flex items-center justify-center overflow-y-auto overflow-x-hidden w-full max-w-full ${
+          isLandscape ? 'p-1 sm:p-2 max-h-[calc(100vh-48px)]' : 'p-1.5 sm:p-4'
         }`}
       >
-        <div className="w-full h-full flex items-center justify-center max-w-5xl mx-auto">
+        <div className="w-full h-full flex items-center justify-center max-w-5xl mx-auto overflow-x-hidden">
           {renderBoard()}
         </div>
       </main>

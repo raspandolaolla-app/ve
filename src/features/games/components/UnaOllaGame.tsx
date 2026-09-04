@@ -462,7 +462,7 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
     c === 'red' ? '#D32F2F' : c === 'blue' ? '#1E88E5' : c === 'green' ? '#43A047' : '#FBC02D';
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-3">
+    <div className="w-full max-w-6xl mx-auto space-y-3 max-w-full overflow-x-hidden">
 
       {/* Aviso horizontal */}
       <div

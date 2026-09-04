@@ -56,38 +56,38 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({ session, onJoinTable })
   return (
     <div
       id={`bingo-countdown-card-${session.id}`}
-      className="bg-gradient-to-br from-[#1c1829] via-[#171c2b] to-[#121520] border-2 border-amber-500/50 rounded-2xl p-5 shadow-xl shadow-amber-500/10 flex flex-col justify-between transition-all hover:border-amber-400"
+      className="bg-gradient-to-br from-[#1c1829] via-[#171c2b] to-[#121520] border-2 border-amber-500/50 rounded-xl p-3.5 sm:p-4 shadow-lg shadow-amber-500/10 flex flex-col justify-between transition-all hover:border-amber-400"
     >
       <div>
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl select-none">{variant === '75' ? '🎯' : '🎱'}</span>
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl select-none">{variant === '75' ? '🎯' : '🎱'}</span>
             <div>
-              <p className="font-black text-white text-base">
+              <p className="font-black text-white text-sm sm:text-base">
                 Bingo {variant} Bolas
               </p>
-              <p className="text-xs text-amber-400 font-medium">
+              <p className="text-[11px] text-amber-400 font-medium">
                 Entrada: <span className="font-bold font-mono">{entryFee} BS</span>
               </p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-wider animate-pulse">
+            <p className="text-xl sm:text-2xl font-black text-amber-400 font-mono tracking-wider animate-pulse">
               {timeLeft}
             </p>
-            <p className="text-[10px] font-black text-amber-300/80 uppercase tracking-widest flex items-center justify-end gap-1">
-              <Clock className="w-3 h-3 text-amber-400" /> INICIA EN
+            <p className="text-[9px] font-black text-amber-300/80 uppercase tracking-widest flex items-center justify-end gap-1">
+              <Clock className="w-2.5 h-2.5 text-amber-400" /> INICIA EN
             </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 px-3 py-2 rounded-xl text-xs text-slate-300 my-2">
+        <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 my-1.5">
           <div className="flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-purple-400" />
+            <Users className="w-3.5 h-3.5 text-purple-400" />
             <span className="font-semibold text-white">{uniquePlayers || 2} jugadores</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Ticket className="w-4 h-4 text-emerald-400" />
+            <Ticket className="w-3.5 h-3.5 text-emerald-400" />
             <span className="font-semibold text-emerald-300 font-mono">{purchases.length || 2} cartones</span>
           </div>
         </div>
@@ -96,9 +96,9 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({ session, onJoinTable })
       <button
         id={`btn-join-countdown-${session.id}`}
         onClick={() => tableId && onJoinTable(tableId)}
-        className="w-full mt-3 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black rounded-xl text-sm transition-all transform active:scale-95 shadow-md shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wide"
+        className="w-full mt-2.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-lg text-xs transition-all transform active:scale-95 shadow-md shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wide"
       >
-        <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
+        <Zap className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
         ¡Unirse Ahora!
       </button>
     </div>
@@ -200,7 +200,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         `)
         .ilike('game_type', 'bingo')
         .not('countdown_ends_at', 'is', null)
-        .in('status', ['WAITING', 'READY', 'SALES', 'waiting', 'ready', 'sales']);
+        .in('status', ['WAITING', 'READY', 'SALES']);
 
       if (!error && data) {
         setCountdownSessions(data);
@@ -247,7 +247,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           )
         `)
         .or('game_type.eq.bingo,game_type.eq.BINGO')
-        .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING', 'waiting', 'active', 'drawing'])
+        .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING'])
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -256,7 +256,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           .from('game_tables')
           .select('*')
           .or('game_type.eq.bingo,game_type.eq.BINGO')
-          .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING', 'waiting', 'active', 'drawing'])
+          .in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING'])
           .order('created_at', { ascending: false });
         tables = fallback.data;
       }
@@ -400,8 +400,8 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
   };
 
   return (
-    <div id="section-bingo-virtual" className="mb-10">
-      {/* 1. SALAS EN VIVO DE BINGO (90 BOLAS Y 75 BOLAS - 25 BS C/U CON LUZ NEÓN Y CONTADOR AGRANDADO) */}
+    <div id="section-bingo-virtual" className="mb-6">
+      {/* 1. SALAS EN VIVO DE BINGO (90 BOLAS Y 75 BOLAS - 25 BS C/U CON LUZ NEÓN Y CONTADOR COMPACTADO) */}
       <BingoCountdownBanner
         tables={availableBingoTables}
         sessions={countdownSessions}
@@ -409,38 +409,38 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         onCreateTable={handleQuickCreateTable}
       />
 
-      {/* 2. SECCIÓN 2 COLUMNAS (Captura 1): EN VIVO (Mesas) & HISTORIAL DE GANADORES */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      {/* 2. SECCIÓN 2 COLUMNAS: EN VIVO (Mesas) & HISTORIAL DE GANADORES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4 mb-4 sm:mb-5">
         
         {/* COLUMNA IZQUIERDA: EN VIVO */}
         <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
-              <h2 className="text-base sm:text-lg font-black text-white tracking-wide">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <h2 className="text-sm sm:text-base font-black text-white tracking-wide">
                 En Vivo
               </h2>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black rounded-full uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[9px] font-black rounded-full uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               EN VIVO
             </span>
           </div>
 
-          {/* Tarjeta Mesas de Bingo con Esfera 3D y Botón Crear */}
-          <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-[#171A29] via-[#121624] to-[#0D101A] p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 shadow-xl relative overflow-hidden group min-h-[175px] justify-between">
+          {/* Tarjeta Mesas de Bingo con Esfera 3D y Botón Crear Compacto */}
+          <div className="rounded-xl border border-slate-800 bg-gradient-to-br from-[#171A29] via-[#121624] to-[#0D101A] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 shadow-lg relative overflow-hidden group min-h-[140px] justify-between">
             {/* Esfera 3D Bingo con letra B resplandeciente */}
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-700 p-1 shadow-[0_0_25px_rgba(6,182,212,0.4)] shrink-0 flex items-center justify-center">
-                <div className="w-full h-full rounded-full bg-[#0B0F17] flex items-center justify-center border border-cyan-400/40 text-cyan-300 font-black text-2xl sm:text-3xl font-mono shadow-inner">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-700 p-0.5 shadow-[0_0_18px_rgba(6,182,212,0.35)] shrink-0 flex items-center justify-center">
+                <div className="w-full h-full rounded-full bg-[#0B0F17] flex items-center justify-center border border-cyan-400/40 text-cyan-300 font-black text-xl sm:text-2xl font-mono shadow-inner">
                   B
                 </div>
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-black text-white group-hover:text-amber-400 transition-colors">
+                <h3 className="text-sm sm:text-base font-black text-white group-hover:text-amber-400 transition-colors">
                   Mesas de Bingo
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 max-w-xs leading-relaxed">
                   {availableBingoTables.length > 0
                     ? `${availableBingoTables.length} ${availableBingoTables.length === 1 ? 'mesa activa disponible' : 'mesas activas disponibles'} con sorteos en tiempo real.`
                     : '¡Sé el primero en crear una mesa y empezar el juego!'}
@@ -453,9 +453,9 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
                 setCreateError(null);
                 setShowCreateModal(true);
               }}
-              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white font-bold text-xs sm:text-sm transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)] active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white font-bold text-xs transition-all shadow-[0_0_12px_rgba(168,85,247,0.3)] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>{availableBingoTables.length === 0 ? 'Crear Primera Mesa' : 'Crear Mesa'}</span>
             </button>
           </div>
@@ -463,39 +463,39 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
 
         {/* COLUMNA DERECHA: HISTORIAL DE GANADORES */}
         <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <h2 className="text-base sm:text-lg font-black text-white tracking-wide">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <h2 className="text-sm sm:text-base font-black text-white tracking-wide">
                 Historial de Ganadores
               </h2>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setWinnerPageIndex((prev) => Math.max(0, prev - 1))}
                 disabled={winnerPageIndex === 0}
-                className="w-7 h-7 rounded-lg bg-[#111722] hover:bg-[#1E2938] border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-300 transition-colors cursor-pointer"
+                className="w-6 h-6 rounded-md bg-[#111722] hover:bg-[#1E2938] border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-300 transition-colors cursor-pointer"
                 title="Anterior"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setWinnerPageIndex((prev) => prev + 1)}
                 disabled={bingoWinnersHistory.length <= (winnerPageIndex + 1)}
-                className="w-7 h-7 rounded-lg bg-[#111722] hover:bg-[#1E2938] border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-300 transition-colors cursor-pointer"
+                className="w-6 h-6 rounded-md bg-[#111722] hover:bg-[#1E2938] border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-slate-300 transition-colors cursor-pointer"
                 title="Siguiente"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Tarjeta de Historial de Ganadores */}
-          <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-[#171A29] via-[#121624] to-[#0D101A] p-5 sm:p-6 flex flex-col items-center justify-center text-center shadow-xl min-h-[175px]">
+          {/* Tarjeta de Historial de Ganadores Compacta */}
+          <div className="rounded-xl border border-slate-800 bg-gradient-to-br from-[#171A29] via-[#121624] to-[#0D101A] p-3.5 sm:p-4 flex flex-col items-center justify-center text-center shadow-lg min-h-[140px]">
             {bingoWinnersHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-2">
-                <Trophy className="w-8 h-8 text-slate-600 mb-2" />
-                <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+              <div className="flex flex-col items-center justify-center py-1.5">
+                <Trophy className="w-7 h-7 text-slate-600 mb-1.5" />
+                <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed max-w-sm">
                   No hay ganadores registrados en los últimos 7 días. ¡Sé el primero en reclamar Bingo y tomar el trofeo de victoria!
                 </p>
               </div>
@@ -503,9 +503,9 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
               (() => {
                 const winner = bingoWinnersHistory[winnerPageIndex] || bingoWinnersHistory[0];
                 return (
-                  <div className="w-full flex items-center justify-between gap-4 text-left">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-full flex items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
                         {winner?.photoUrl ? (
                           <img
                             src={winner.photoUrl}
@@ -514,22 +514,22 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <Trophy className="w-7 h-7 text-amber-400" />
+                          <Trophy className="w-6 h-6 text-amber-400" />
                         )}
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                        <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
                           Ganador de Bingo
                         </span>
-                        <h4 className="text-white font-black text-sm uppercase truncate max-w-[160px]">
+                        <h4 className="text-white font-bold text-xs sm:text-sm uppercase truncate max-w-[140px] sm:max-w-[170px]">
                           {winner?.winnerName || 'Jugador Ganador'}
                         </h4>
-                        <span className="text-xs text-emerald-400 font-mono font-bold">
+                        <span className="text-[11px] sm:text-xs text-emerald-400 font-mono font-bold">
                           +{Number(winner?.prizeBs || 0).toFixed(2)} Bs
                         </span>
                       </div>
                     </div>
-                    <div className="text-right text-[11px] text-slate-500 font-mono">
+                    <div className="text-right text-[10px] text-slate-500 font-mono">
                       {winner?.createdAt ? new Date(winner.createdAt).toLocaleDateString('es-VE', {
                         day: '2-digit',
                         month: '2-digit',

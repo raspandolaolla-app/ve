@@ -219,9 +219,9 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
           onClick={signInWithGoogle}
           disabled={isSigningIn}
           leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
-          className="w-full font-semibold shadow-md shadow-amber-950/40"
+          className="w-full font-black text-sm uppercase tracking-wider bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 shadow-lg shadow-yellow-500/30"
         >
-          {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google'}
+          {isSigningIn ? 'Conectando...' : 'INGRESAR'}
         </Button>
       </div>
     );

@@ -763,12 +763,12 @@ export function TablesView() {
                 id="btn-login-to-join"
                 type="button"
                 variant="primary"
-                className="w-full text-xs font-semibold shadow-md shadow-amber-950/40"
+                className="w-full text-xs font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 shadow-md shadow-yellow-500/30"
                 onClick={signInWithGoogle}
                 disabled={isSigningIn}
                 leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
               >
-                {isSigningIn ? 'Conectando con Google...' : 'Continuar con Google para unirte'}
+                {isSigningIn ? 'Conectando...' : 'INGRESAR PARA UNIRTE'}
               </Button>
             )}
           </form>

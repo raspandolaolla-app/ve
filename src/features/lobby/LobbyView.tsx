@@ -86,18 +86,17 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
       </section>
 
-      {/* 2. CARRUSEL DE TORNEOS Y POTES EN VIVO */}
-      <section id="lobby-tournaments-section" aria-label="Torneos y Potes">
-        <TournamentsCarousel
-          onJoinTournament={(tournament) => {
-            if (tournament.gameId === 'polla_venezolana' && onNavigateTab) {
-              onNavigateTab('polla');
-            } else if (onNavigateTab) {
-              onNavigateTab('tables');
-            }
-          }}
-        />
-      </section>
+      {/* 2. CARRUSEL DE TORNEOS Y POTES EN VIVO (Se oculta automáticamente si no hay torneos) */}
+      <TournamentsCarousel
+        onJoinTournament={(tournament) => {
+          const gType = tournament?.game_type || tournament?.gameId;
+          if ((gType === 'polla' || gType === 'polla_venezolana') && onNavigateTab) {
+            onNavigateTab('polla');
+          } else if (onNavigateTab) {
+            onNavigateTab('tables');
+          }
+        }}
+      />
 
       {/* 3. SECCIÓN DESTACADA DE BINGO: MESAS EN VIVO Y GANADORES */}
       <section id="lobby-bingo-showcase-section" aria-label="Mesas de Bingo Disponibles">
@@ -108,49 +107,49 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
       </section>
 
       {/* 4. CATÁLOGO COMPLETO DE JUEGOS DISPONIBLES */}
-      <section id="lobby-games-catalog" className="pt-2">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <section id="lobby-games-catalog" className="pt-1">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <Gamepad2 className="w-6 h-6 text-[#FF8A00]" />
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
+              <Gamepad2 className="w-5 h-5 text-[#FF8A00]" />
+              <h2 className="text-lg sm:text-xl font-black text-white tracking-wide uppercase">
                 Juegos Disponibles
               </h2>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
               Selecciona tu juego o participa en mesas públicas o crea tu propia sala
             </p>
           </div>
 
           {/* Buscador de Juegos y Botón de Manual */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
             {onOpenRules && (
               <button
                 onClick={() => onOpenRules('atrapaito')}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
                 title="Consultar reglamento oficial y cómo jugar"
               >
-                <BookOpen className="w-4 h-4 text-amber-400" />
+                <BookOpen className="w-3.5 h-3.5 text-amber-400" />
                 <span>Manual & Reglas</span>
               </button>
             )}
 
-            <div className="relative w-full sm:w-64 md:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div className="relative w-full sm:w-60 md:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 id="lobby-search-games-input"
                 type="text"
                 placeholder="Buscar juego..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-[#131926] border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+                className="w-full pl-8 pr-3 py-1.5 bg-[#131926] border border-slate-800 rounded-lg text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
               />
             </div>
           </div>
         </div>
 
-        {/* Pestañas / Filtros de Categorías */}
-        <div id="lobby-categories-filters" className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {/* Pestañas / Filtros de Categorías Compactas */}
+        <div id="lobby-categories-filters" className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
           {[
             { id: 'all', label: 'Todos los Juegos', icon: Sparkles },
             { id: 'traditional', label: 'Tradicionales', icon: Flame },
@@ -165,9 +164,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 key={cat.id}
                 id={`filter-cat-${cat.id}`}
                 onClick={() => setSelectedCategory(cat.id as GameCategory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black shadow-sm shadow-amber-500/20'
                     : 'bg-[#131926] border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
                 }`}
               >
@@ -178,20 +177,20 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           })}
         </div>
 
-        {/* Cuadrícula de Juegos */}
+        {/* Cuadrícula de Juegos Compactada */}
         {filteredGames.length === 0 ? (
           <div
             id="lobby-no-games-found"
-            className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center mt-6"
+            className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-6 text-center mt-4"
           >
-            <Filter className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-sm font-bold text-slate-400">No se encontraron juegos para esta búsqueda.</p>
+            <Filter className="w-7 h-7 text-slate-600 mx-auto mb-2" />
+            <p className="text-xs sm:text-sm font-bold text-slate-400">No se encontraron juegos para esta búsqueda.</p>
             <button
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('all');
               }}
-              className="mt-3 text-xs font-bold text-[#FF8A00] hover:underline"
+              className="mt-2.5 text-xs font-bold text-[#FF8A00] hover:underline"
             >
               Restablecer filtros
             </button>
@@ -199,7 +198,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         ) : (
           <div
             id="lobby-games-grid"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4 mt-4"
           >
             {filteredGames.map((game) => (
               <GameCard

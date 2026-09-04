@@ -57,6 +57,7 @@ import { AdminSecurityTab } from './tabs/AdminSecurityTab';
 import { AdminMaintenanceTab } from './tabs/AdminMaintenanceTab';
 import { AdminReportsTab } from './tabs/AdminReportsTab';
 import { AdminLobbyContentTab } from './tabs/AdminLobbyContentTab';
+import { AdminTournamentsTab } from './tabs/AdminTournamentsTab';
 
 import {
   Shield,
@@ -99,6 +100,7 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
+  Trophy,
 } from 'lucide-react';
 
 type ToolCategory = 'all' | 'general' | 'users' | 'finances' | 'games' | 'system';
@@ -519,6 +521,15 @@ export function AdminView() {
         shortLabel: 'Juegos',
         description: 'Activación y parámetros por juego',
         icon: Dices,
+        category: 'games',
+        categoryLabel: 'Mesas, Juegos & Lobby',
+      },
+      {
+        id: 'tournaments',
+        label: 'Torneos Oficiales',
+        shortLabel: 'Torneos',
+        description: 'Creación, pozos e inscripciones de torneos',
+        icon: Trophy,
         category: 'games',
         categoryLabel: 'Mesas, Juegos & Lobby',
       },
@@ -1101,6 +1112,8 @@ export function AdminView() {
             {activeTab === 'games' && (
               <AdminGamesTab games={gamesList} onRefresh={loadAllAdminData} />
             )}
+
+            {activeTab === 'tournaments' && <AdminTournamentsTab />}
 
             {activeTab === 'manuals' && <AdminGameManualsTab />}
 

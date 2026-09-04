@@ -113,3 +113,25 @@ cp .env.example .env.local
 
 # 4. Iniciar servidor de desarrollo
 npm run dev
+```
+
+---
+
+## 🤝 Contribución y Comunidad
+
+¡Este proyecto es de código abierto y crece con la comunidad!  
+Si deseas contribuir, por favor lee nuestra [Guía de Contribución](./CONTRIBUTING.md) (Próximamente) y respeta nuestro [Código de Conducta](./CODE_OF_CONDUCT.md).
+
+---
+
+## 📜 Licencia y Legal
+
+Este proyecto está protegido bajo la Licencia MIT.  
+*Raspando La Olla* opera bajo estrictos protocolos de juego responsable. Al utilizar la plataforma, aceptas nuestros [Términos de Servicio](#) y [Políticas de Privacidad](#).
+
+<div align="center">
+  <br>
+  <sub>Hecho con ❤️ y mucho ☕ en Venezuela 🇻🇪</sub>
+  <br><br>
+  <img src="https://img.shields.io/badge/Hecho_en-Venezuela-FFCC00?style=flat-square&logo=venezuela" alt="Hecho en Venezuela">
+</div>

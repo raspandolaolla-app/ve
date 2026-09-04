@@ -2,10 +2,218 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-03 22:43:00 -07:00 (UTC 2026-09-04 05:43:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 14:35:00 -07:00 (UTC 2026-09-04 21:35:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 124_fix_and_enable_2fa_totp.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 129_fix_held_balance_settlement_and_rescue.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CONFIRMACIÓN DE ABANDONO DE MESA BLINDADA (MÓVIL Y ESCRITORIO):
+   - Doble Capa de Protección contra Salidas Accidentales:
+     * El botón "SALIR / ABANDONAR MESA" en la cabecera y el botón de flecha de retorno integran un fallback de seguridad nativo (`window.confirm`) que advierte de forma inmediata e insoslayable antes de abrir el modal o ejecutar la salida.
+     * En dispositivos móviles, esto garantiza que jamás se abandone una mesa por un toque involuntario o erróneo en la pantalla.
+   - Modal de Alto Contraste con Elevación Máxima (`z-[100]`):
+     * Fondo oscuro con efecto translúcido `backdrop-blur-sm`, borde de advertencia `border-red-500/50`, icono de alerta y texto explícito advirtiendo la pérdida de la entrada y la victoria del oponente.
+     * Botones táctiles amplios: "Cancelar y Seguir Jugando" (fondo slate) y "Sí, Abandonar Ahora" (fondo rojo carmesí con indicador de carga durante la ejecución de la RPC).
+   - Reglas de Interacción CSS Específicas en `src/index.css`:
+     * Incorporadas reglas con prioridad para la clase `.fixed.z-[100]` y sus botones internos (`touch-action: auto !important; pointer-events: auto !important; -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1); cursor: pointer;`), garantizando que ningún estilo de "modo inmersivo" o contenedor bloquee los clics o toques del modal.
+   - Persistencia y Liquidación por Abandono:
+     * Integración fluida con `abandon_game_secure` vía RPC de Supabase y `TableRepository.abandonTable` con posterior redirección segura al lobby (`onExit()`).
+
+1) RESOLUCIÓN DEFINITIVA DE LIQUIDACIÓN FINANCIERA (SALDOS RETENIDOS Y ACREDITACIÓN DE PREMIOS):
+   - Diagnóstico y Causa Raíz de Saldo Atrapado:
+     * Al entrar a una mesa o crearla (`join_table_transaction` y `create_game_table_secure`), el monto de entrada (`entry_fee`) se descontaba de `available_balance` y se sumaba a `held_balance` como garantía de partida.
+     * En la función previa de cierre (`settle_game_session`), el ganador recibía su premio en `available_balance`, pero `held_balance` nunca se reducía, quedando el saldo de entrada de todos los jugadores (ganador y perdedores) atrapado indefinidamente.
+     * En caso de empate (DRAW) o cancelación, los fondos no se transferían de vuelta de `held_balance` a `available_balance`.
+   - Solución Integral Implementada en Migración 129 (`129_fix_held_balance_settlement_and_rescue.sql`):
+     * Script de Rescate Inmediato: Devuelve todos los montos retenidos huérfanos actuales (`held_balance > 0`) a `available_balance` con `held_balance = 0.00`.
+     * Función Atómica `settle_game_session`:
+       - Consulta y bloquea todos los participantes de la mesa (`game_table_players`).
+       - En partidas con ganador: reduce a cero el `held_balance` de cada participante correspondiente a la entrada jugada.
+       - Acredita de forma garantizada el pozo ganador neto (90%) en el `available_balance` del ganador, registrando la entrada contable inmutable en `ledger_entries` (con `balance_after_available` y `balance_after_held`).
+       - En partidas con empate (DRAW): restituye automáticamente el `held_balance` a `available_balance` para todos los jugadores con registro `GAME_REFUND`.
+     * Función `abandon_game_table_secure`: Saneada para que cualquier abandono o cancelación pre-partida reintegre la entrada de `held_balance` a `available_balance`.
+     * Wrapper `settle_game_session_secure` y recarga de esquema PostgREST (`NOTIFY pgrst, 'reload schema'`).
+
+2) RESOLUCIÓN INTEGRAL DE INTERACCIÓN TÁCTIL Y CONGELAMIENTO EN PWA MÓVIL:
+   - Diagnóstico y Causa Raíz en Dispositivos Móviles:
+     * La clase `.game-immersive-container` en `src/index.css` tenía asignado `touch-action: none` globalmente para prevenir zoom y scroll accidental del navegador. Sin embargo, esto también bloqueaba eventos táctiles en navegadores móviles (iOS Safari y Chrome Android) sobre botones e inputs interactivos.
+     * Adicionalmente, el manejador `preventKeyboard` en `GameContainer.tsx` ejecutaba `document.activeElement.blur()` indiscriminadamente en cada evento `onTouchStart`, lo que en motores WebKit móviles cancelaba el evento sintético `click` posterior sobre botones y fichas.
+   - Solución Integral Implementada:
+     * En `src/index.css`: Agregadas reglas prioritarias para todos los elementos clickeables dentro del contenedor:
+       ```css
+       .game-immersive-container button,
+       .game-immersive-container input,
+       .game-immersive-container [role="button"],
+       .game-immersive-container .interactive-element {
+         touch-action: manipulation !important;
+         pointer-events: auto !important;
+         user-select: auto !important;
+         -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+       }
+       ```
+     * En `src/features/games/components/GameContainer.tsx`: Refactorizado `preventKeyboard` para verificar si el objetivo o sus ancestros son interactivos (`button, input, select, textarea, [role="button"], a, .interactive-element`). Si es así, se aborta inmediatamente el `blur()`, garantizando que el evento táctil y el clic se disparen sin latencia ni interferencia.
+     * En los componentes de juego (`BingoBoard.tsx`, `AtrapaitoBoard.tsx`, `DominoBoard.tsx`):
+       - Aplicada la clase `touch-manipulation` y retroalimentación táctil `active:scale-95 transition-transform` a todos los botones críticos: compra de cartones (+, -, Comprar), inicio de sorteo del host, cantar Bingo, modal de resultados, lanzamiento de dados, selección de fichas y pase de turno.
+
+3) RESOLUCIÓN DEFINITIVA DE CONFLICTO DE ESTADOS BINGO ("VENTA CERRADA" Y "NO SE GENERAN BOLAS"):
+   - Diagnóstico Exacto y Causa Raíz de Estado:
+     * El frontend y el motor del juego (`BingoEngine`) requerían el estado 'SALES' para permitir `BUY_CARDS`, mientras que `GameRepository.getActiveSession` mapeaba indiscriminadamente todos los estados activos (`ACTIVE`, `STARTING`, `READY`, `WAITING`) a 'in_progress'.
+     * Adicionalmente, sesiones de bingo en base de datos quedaron registradas en 'in_progress', provocando que el frontend interpretara erróneamente que la fase de ventas había finalizado antes de iniciar el sorteo.
+     * Al quedar bloqueada la venta, ningún jugador compraba cartones, impidiendo que el anfitrión pudiera iniciar el sorteo (`v_cards_count < 1`), o bloqueando la extracción de balotas.
+   - Solución Integral en 3 Pasos Implementada:
+     * PASO 1: Migración de Base de Datos `128_fix_bingo_session_sales_and_status.sql`:
+       - Asegura valores 'SALES' y 'DRAWING' en `session_status_enum` y `table_status_enum`.
+       - Corrige la sesión específica (`148981d9-e84b-431a-962d-343dc96b5cf8`) a status = 'SALES' y la mesa (`1ef9b2e9-73ac-4baa-9c0e-2d622f45182f`) a status = 'WAITING'.
+       - Sanea de forma retrocompatible cualquier sesión de bingo activa sin balotas extraídas a 'SALES' y sus mesas asociadas a 'WAITING'.
+       - Notifica y recarga el esquema en PostgREST (`NOTIFY pgrst, 'reload schema'`).
+     * PASO 2: Lógica Robusta y Permisiva de Venta Abierta en Frontend y Motor:
+       - `src/types/games.ts`: Expandidos los tipos de `GameSession.status` y `BingoState.status` para admitir formalmente 'SALES', 'DRAWING', 'WAITING', 'READY' y sus variantes en mayúsculas/minúsculas sin advertencias de tipos.
+       - `src/services/repositories/GameRepository.ts`: Actualizado `getActiveSession` para preservar explícitamente los estados 'SALES', 'DRAWING', 'WAITING' y 'READY' en lugar de colapsarlos a 'in_progress'.
+       - `src/features/games/engines/BingoEngine.ts`: Refactorizado `validateAction` para `BUY_CARDS` permitiendo compras de forma permisiva si el estado es 'SALES', 'WAITING', 'READY', 'OPEN', o 'IN_PROGRESS' cuando aún no se han extraído balotas (`drawnBalls.length === 0`).
+       - `src/features/games/utils/gameStateGuard.ts`: En `normalizeBingoState`, el estado se normaliza automáticamente a 'SALES' si la partida no tiene balotas extraídas y no ha finalizado.
+       - `src/features/games/components/BingoBoard.tsx`: Condición de `salesOpen` refactorizada como `!salesClosed`, donde `salesClosed` solo se activa si ya inició la extracción (`isDrawing`), si el juego terminó, si el temporizador está en los últimos 10 segundos o si viene explícitamente cerrado.
+       - `src/features/games/components/GameContainer.tsx`: `isSalesClosed` simplificado a una evaluación estricta de sorteo iniciado o balotas en mesa.
+     * PASO 3: Panel y Botón Mágico del Host para Inicio Instantáneo del Sorteo:
+       - `src/features/games/components/BingoBoard.tsx`: Agregado panel prominente dorado para el anfitrión con la leyenda "👑 Eres el Host de la mesa" y botón destacado "🎱 INICIAR SORTEO AHORA" (`from-amber-500 to-orange-500`).
+       - Al presionar el botón, se ejecuta `force_start_bingo_draw` de Supabase a través del hook `useBingoClientDaemon`, actualizando el estado inmediatamente a 'DRAWING' y disparando la extracción de la primera balota con feedback visual instantáneo.
+       - El bucle del daemon client-side continúa extrayendo balotas automáticamente cada 2.5-3 segundos en GitHub Pages.
+
+1) RESOLUCIÓN ARQUITECTÓNICA DE BINGO EN HOSTING ESTÁTICO (GITHUB PAGES) Y APERTURA DE VENTAS:
+   - Diagnóstico de Causa Raíz:
+     * Causa 1 ("Venta cerrada al ingresar"): El frontend y contenedor maestro bloqueaban las compras si `table.status === 'ACTIVE'`, impidiendo la compra de cartones a jugadores que ingresaban a mesas recién creadas o en fase de espera antes de comenzar el sorteo.
+     * Causa 2 ("No se generan las balotas"): GitHub Pages es un hosting estático sin soporte para procesos daemon de fondo persistentes de Node.js (`run_bingo_engine_tick`). Cuando el host hacía clic en iniciar sorteo o el tiempo expiraba, el backend daemon no estaba en ejecución para extraer balotas cada 2 segundos.
+   - Solución Arquitectónica Híbrida: Client-Side Daemon Fallback + RPCs Seguras en Supabase:
+     * Migración `supabase/migrations/127_bingo_client_daemon_and_sales_fix.sql`:
+       - Nueva función RPC `force_start_bingo_draw(p_session_id UUID)`: Valida la identidad del anfitrión (`host_user_id`), transiciona el estado de la sesión a `DRAWING`, activa la mesa a `ACTIVE`, sincroniza el estado canónico y extrae de forma inmediata la primera balota determinista.
+       - Nueva función RPC `draw_next_bingo_ball_client(p_session_id UUID)`: Permite que el cliente anfitrión invoque la extracción segura de la siguiente balota con cadencia controlada por temporizador, actualizando `drawn_balls`, `called_numbers` y evaluando ganadores de forma autoritativa.
+     * Hook Especializado `src/hooks/useBingoClientDaemon.ts`:
+       - Orquesta el bucle de extracción automática en el cliente del Host cuando la partida está en `DRAWING`.
+       - Evita ejecuciones concurrentes o desbordamientos de intervalos mediante candado de ejecución `isExtractingRef`.
+       - Provee métodos auxiliares `forceStartDraw()` y `drawSingleBall()` expuestos a la interfaz de usuario.
+     * Corrección del Candado de Ventas en `GameContainer.tsx` y `BingoBoard.tsx`:
+       - Eliminada la restricción prematura `table.status === 'ACTIVE'`.
+       - Las compras permanecen abiertas hasta que el sorteo efectivamente comienza (`session.status === 'DRAWING'` o hay balotas en `drawnBalls`), garantizando que todos los jugadores puedan comprar sus cartones antes de iniciar.
+     * Integración Completa en Componentes de Presentación:
+       - `src/features/games/components/BingoBoard.tsx`: Agregada propiedad explícita `isHost` para activación garantizada de controles del anfitrión, botón destacado "INICIAR SORTEO AHORA" y sincronización reactiva de estado.
+       - `src/features/games/components/GameContainer.tsx`: Vinculado `useBingoClientDaemon` cuando el anfitrión está presente en una mesa de Bingo; acciones `DRAW_BALL` y botones de extracción redirigidos al daemon client-side.
+       - `src/features/games/components/BingoGame.tsx`: Integrado `useBingoClientDaemon` en los controles del anfitrión (botón Iniciar/Detener Sorteo y Extraer 1 Bola) y en las propiedades del tablero `BingoBoard`.
+
+1) OPTIMIZACIÓN INTEGRAL DE RESPONSIVIDAD Y AGRUPAMIENTO EN DISPOSITIVOS MÓVILES:
+   - Se realizó un diagnóstico visual minucioso de las capturas de pantalla en dispositivos móviles y de la jerarquía de componentes:
+     * Causa raíz: Desbordamiento horizontal forzado (`overflow-x-auto`) en barras de control, falta de envoltura elástica (`flex-wrap`) en cabeceras de juego, botones de gran altura o no agrupados que rompían el viewport de dispositivos de 360px a 430px de ancho.
+     * Restricción estricta respetada: Cero alteraciones a esquemas de base de datos o lógica RPC de Supabase; cambios puramente visuales y de distribución en la capa de presentación React/Tailwind.
+   - `src/features/games/components/GameContainer.tsx` (Contenedor Maestro de Todos los Juegos):
+     * Refactorización de la cabecera superior de la mesa: Eliminado el `overflow-x-auto` horizontal forzado en favor de un sistema elástico `flex-wrap` con distribución equilibrada (`justify-between gap-2`).
+     * Agrupación visual en dos bloques simétricos:
+       - Lado izquierdo: Botón Salir/Atrás compacto con badge de identidad de mesa, tipo de juego y pozo en Bs en un formato ordenado con badges redondos y tipografía clara.
+       - Lado derecho: Grupo de controles funcionales (Mute/Audio, Modalidad y botón "Abandonar Mesa") unificados como grupo de botones táctiles proporcionales sin saturar la pantalla.
+     * Protección anti-desbordamiento con `w-full max-w-full overflow-x-hidden` aplicado tanto al contenedor del juego como al elemento `<main>` del viewport.
+   - `src/features/games/components/BingoBoard.tsx` (Bingo Criollo 75/90 Bolas):
+     * Barra de Control Rediseñada: Agrupación visual en bloque izquierdo (selector de paletas temáticas compacto + insignias de "BOLAS" y "Cartones en mesa") y bloque derecho agrupado (Audio/Mute, Auto marcación con Eye icon, y Tablero numérico).
+     * Adaptación de Balotas en Móvil: El componente `Ball` y su display de balota actual pasaron de un tamaño rígido (`w-24 h-24`) a un tamaño adaptativo (`w-16 h-16 sm:w-24 sm:h-24`) con tipografía proporcional, permitiendo que la balota actual y el historial de últimas balotas encajen perfectamente lado a lado sin colapsar el ancho de pantalla.
+     * Rediseño de la tarjeta de "Compras cerradas / sorteo en curso": Altura compactada, iconos optimizados, texto truncable con seguridad en dispositivos estrechos.
+     * Selector de vista de cartones: Segmented control estilizado (`Mis cartones (X)` vs `Uno`) con paginador de botones compactos.
+     * Botón ¡BINGO! de alta ergonomía táctil: Altura balanceada (`py-3 sm:py-3.5`), borde luminoso amarillo y texto centrado con icono de trofeo y destellos.
+   - Blindaje de Contenedores y Tableros en los demás Juegos Clásicos y Criollos:
+     * `src/features/games/components/AtrapaitoBoard.tsx`: Contenedor raíz blindado con `w-full max-w-full overflow-x-hidden`, asegurando que el tablero SVG y el panel de jugadores no desborden en móviles.
+     * `src/features/games/components/DominoBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden` para proteger la serpiente de fichas y la barra de pasar/robar.
+     * `src/features/games/components/TrucoBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden` para mesa horizontal 16:9 y diálogo de cantos.
+     * `src/features/games/components/ChessBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden` y tablero adaptativo en móviles.
+     * `src/features/games/components/PollaBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden` y pestañas con navegación responsive.
+     * `src/features/games/components/TicTacToeBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden`.
+     * `src/features/games/components/RockPaperScissorsBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden`.
+     * `src/features/games/components/CheckersBoard.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden`.
+     * `src/features/games/components/UnaOllaGame.tsx`: Contenedor blindado con `max-w-full overflow-x-hidden`.
+
+1) MEJORA DE UI/UX - BOTÓN DE ACCESO DESTACADO "INGRESAR":
+   - Se reemplazó el texto y apariencia del botón de inicio de sesión ("Continuar con Google"):
+     * `src/components/layout/Header.tsx`: Transformado a botón principal de alto impacto visual con texto **INGRESAR** en mayúsculas, tamaño grande (`text-sm sm:text-base px-5 sm:px-7 py-2.5 sm:py-3`), tipografía extra-negrita (`font-black`), gradiente amarillo vibrante (`from-yellow-400 via-amber-300 to-yellow-400`), contraste en negro pizarra (`text-slate-950`), anillo perimetral luminoso (`ring-2 ring-yellow-400/60`) y sombra reactiva con escala (`hover:scale-105 active:scale-95`).
+     * `src/features/profile/ProfileView.tsx`: Actualizado el botón de autenticación a formato amarillo destacado con texto "INGRESAR".
+     * `src/features/wallet/WalletView.tsx`: Actualizado el botón de autenticación en la billetera digital a formato amarillo destacado con texto "INGRESAR".
+     * `src/features/tables/TablesView.tsx`: Actualizado a texto "INGRESAR PARA UNIRTE" con gradiente amarillo.
+     * `src/components/layout/ProfileMenuModal.tsx`: Actualizado el botón del menú de perfil a "INGRESAR" con gradiente amarillo destacado.
+
+2) RESOLUCIÓN DE ERROR CRÍTICO 2FA Y ROBUSTEZ DE ENUM TABLE_STATUS_ENUM:
+   - Migración de Base de Datos `supabase/migrations/126_fix_2fa_role_and_table_status_enum.sql`:
+     * Corrección del error `column "role" does not exist` en `setup_2fa_for_user`: La función verificaba erróneamente `public.profiles.role` (columna inexistente). Se sustituyó por la función canonical `public.is_admin(auth.uid())` para validar privilegios de administrador de forma segura e interoperable.
+     * Actualizada también la migración 124 (`supabase/migrations/124_fix_and_enable_2fa_totp.sql`) para mantener consistencia histórica limpia en nuevas instalaciones.
+     * Garantizada la presencia idempotente de todos los valores del enum `table_status_enum` en mayúsculas (`'ACTIVE'`, `'WAITING'`, `'READY'`, `'SALES'`, `'DRAWING'`), evitando el error de PostgreSQL `invalid input value for enum table_status_enum`.
+     * Emisión de notificación `NOTIFY pgrst, 'reload schema'` para refresco automático de la caché de PostgREST.
+   - Saneamiento Estricto de Consultas en el Frontend:
+     * `src/features/lobby/BingoLobbySection.tsx`: Eliminados valores residuales en minúsculas (`'waiting'`, `'active'`, `'drawing'`, `'sales'`, `'ready'`) en las consultas `.in('status', ['OPEN', 'WAITING', 'ACTIVE', 'DRAWING'])` y `.in('status', ['WAITING', 'READY', 'SALES'])` sobre `game_tables` y `game_sessions`. Al eliminar los strings en minúsculas, PostgreSQL no intenta castear valores inválidos contra el tipo enumerado.
+     * `src/services/repositories/TableRepository.ts`: Corregida la consulta de fallback directo para mesas de Bingo, sustituyendo `'waiting'` por `'WAITING'` en mayúsculas dentro de `.in('status', ['OPEN', 'STARTING', 'WAITING', 'ACTIVE'])`.
+
+2) SISTEMA COMPLETO Y OFICIAL DE TORNEOS CON AUTO-OCULTAMIENTO EN LOBBY:
+   - Migración de Base de Datos `supabase/migrations/125_tournaments_system.sql`:
+     * Corrección y cumplimiento de regla de oro PostgreSQL 42P13: reordenamiento estricto de parámetros en `create_tournament` para que todos los parámetros obligatorios precedan a los parámetros con valor por defecto (`p_game_variant`, `p_rules`, `p_prize_distribution` ubicados al final de la firma).
+     * Actualización correspondiente de la sentencia `GRANT EXECUTE` con los tipos reordenados.
+     * Creación de tabla `public.tournaments` con soporte para juegos criollos y clásicos (ajedrez, dominó, truco, bingo, atrapaíto, checkers, polla, etc.), cuotas de entrada, pozos acumulados, fechas de inicio/fin y estados (`DRAFT`, `REGISTRATION`, `ACTIVE`, `FINISHED`, `CANCELLED`).
+     * Creación de tabla `public.tournament_registrations` con vinculación de usuarios y estados de inscripción/eliminación/ganador.
+     * Políticas RLS estrictas: lectura pública para torneos activos, inserción/actualización/eliminación exclusiva para administradores mediante `is_admin(auth.uid())`, y registro propio de jugadores.
+     * Funciones RPC atómicas y seguras (`SECURITY DEFINER` y `SET search_path = public, extensions`):
+       - `create_tournament`: Creación protegida para administradores con validaciones de fechas y cupos.
+       - `update_tournament_status`: Transición entre estados de torneo (abrir inscripciones, activar, finalizar, cancelar).
+       - `register_for_tournament`: Inscripción atómica de jugadores con verificación pesimista `SELECT ... FOR UPDATE`, cobro de entrada con deducción de saldo disponible (`available_balance`), registro de trazabilidad contable en `ledger_entries` y actualización en vivo del contador de participantes.
+       - `get_active_tournaments`: Consulta pública y veloz para obtener torneos en estados `REGISTRATION` y `ACTIVE` con agregación JSON.
+   - Componente Administrativo de Torneos `src/features/admin/tabs/AdminTournamentsTab.tsx`:
+     * Módulo 25 del Panel de Administración para gestión integral de campeonatos.
+     * Actualizada la llamada `create_tournament` para reflejar el nuevo orden de parámetros.
+     * Listado reactivo con sincronización en tiempo real vía canal Supabase Postgres Changes.
+     * Formulario completo para crear nuevos torneos con cálculo de pozos, fechas y parámetros.
+     * Botones de acción contextual para cambiar estados (Abrir Inscripciones, Iniciar Torneo, Finalizar Torneo, Cancelar Torneo).
+     * Integrado en `AdminView.tsx` bajo la categoría "Mesas, Juegos & Lobby" y tipado en `AdminTabId`.
+   - Componente en Lobby `src/features/lobby/TournamentsCarousel.tsx`:
+     * Cumplimiento estricto del requerimiento de auto-ocultamiento: si no hay torneos activos (`tournaments.length === 0`), el componente retorna `null` ocupando exactamente 0 espacio en la interfaz.
+     * Conectado en tiempo real a Supabase para actualizar inscripciones y nuevos torneos al instante.
+     * Tarjetas compactas de torneo con visualización del juego, pozo en Bolívares (Bs), cupos disponibles, fecha de inicio y botón de inscripción directa.
+     * Integrado limpiamente en `LobbyView.tsx` sin dejar contenedores vacíos ni espacios residuales.
+
+2) REDIMENSIONAMIENTO Y COMPACTACIÓN VISUAL (~25%) EN MÓDULOS DE LOBBY Y JUEGOS ("PREMIUM DARK CASINO"):
+   - `src/features/lobby/BingoCountdownBanner.tsx`:
+     * Tarjetas de Salas de Bingo en Vivo compactadas de `p-5 sm:p-6 min-h-[175px]` a `p-4 sm:p-5 min-h-[145px]`.
+     * Contenedor LED del temporizador optimizado de `p-3.5 sm:p-4` a `p-2.5 sm:p-3`, manteniendo legibilidad monoespaciada fluida y badge neón vibrante con pulsación.
+     * Tarjetas de estadísticas de sala (jugadores, cartones, pozo acumulado) compactadas de `p-2.5 sm:p-3` a `p-2 sm:p-2.5` con tipografía de `text-sm sm:text-base` a `text-xs sm:text-sm`.
+     * Botones de acción "Entrar a Sala" y "Crear Sala" ajustados con espaciado equilibrado `py-2 text-xs font-black`.
+   - `src/features/lobby/BingoLobbySection.tsx`:
+     * Contenedor principal reducido con margen inferior equilibrado `mb-6`.
+     * Tarjeta de cuenta regresiva individual (`CountdownTimer`) optimizada a `p-3.5 sm:p-4 rounded-xl`, ajustando temporizador a `text-xl sm:text-2xl`.
+     * Sección de 2 columnas (En Vivo / Historial de Ganadores) compactada de `p-5 sm:p-6 min-h-[175px]` a `p-3.5 sm:p-4 min-h-[140px] rounded-xl`.
+     * Esfera 3D de Bingo optimizada a `w-12 h-12 sm:w-14 sm:h-14` con resplandor cian pulido.
+     * Tarjeta de historial de ganadores optimizada con avatar de `w-11 h-11 sm:w-12 sm:h-12 rounded-lg` y botones de paginación compactos.
+   - `src/features/lobby/GameCard.tsx`:
+     * Reducción armónica de tarjetas de catálogo a `rounded-xl p-3 sm:p-3.5 shadow-md`.
+     * Gráficos centrales adaptativos compactados de `h-16 sm:h-20` a `h-12 sm:h-14` para todos los juegos (Tic-Tac-Toe, Piedra Papel Tijera, Damas, Dominó Venezolano, Truco Venezolano, Bingo, Atrapaíto).
+     * Fila de estadísticas (jugadores activos y modalidad 1v1/2v2) condensada con `py-1 text-[10px]`.
+     * Botón de acción "Jugar Ahora" ajustado a `py-1.5 sm:py-2 text-xs rounded-lg`.
+   - `src/features/lobby/LobbyView.tsx`:
+     * Encabezado de catálogo de juegos ajustado con tipografía `text-lg sm:text-xl font-black` y espaciados de `mb-4`.
+     * Buscador de juegos y botón de manual oficial refinados a `rounded-lg text-xs`.
+     * Pestañas de categorías filtrables ajustadas con `px-3 py-1.5 rounded-lg text-xs`.
+     * Cuadrícula de juegos (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`) con gap compacto `gap-3.5 sm:gap-4 mt-4`.
+
+1) CONFIGURACIÓN OFICIAL DEL REPOSITORIO GITHUB Y PIPELINE DE DESPLIEGUE GITHUB PAGES:
+   - Repositorio Oficial: `https://github.com/raspandolaolla-app/ve.git`
+   - URL de Producción / Beta GitHub Pages: `https://raspandolaolla-app.github.io/ve/`
+   - Enlace Git Inicializado: Repositorio local sincronizado con rama principal `main` y origen remoto configurado hacia `https://github.com/raspandolaolla-app/ve.git`.
+   - Código de Conducta (`CODE_OF_CONDUCT.md`): Creado con estándares de la comunidad (Contributor Covenant v2.1), canales oficiales de reporte confidencial y compromiso de juego limpio e integridad técnica.
+   - Plantilla Automatizada de PR (`.github/pull_request_template.md`): Creada para estandarizar la apertura de Pull Requests con verificación de linter, pruebas móviles/desktop, validación de inmutabilidad financiera 90/10 y registro de migraciones SQL.
+   - Pipeline de Despliegue CI/CD (`.github/workflows/main.yml`): Optimizado con Node 22, verificación segura de variables de entorno de Supabase, compilación con `VITE_APP_BASE_PATH: '/ve/'` y copia de respaldo `dist/index.html -> dist/404.html` para enrutamiento SPA sin recargas. Removido workflow redundante `deploy.yml`.
+
+1) INCORPORACIÓN DE LA GUÍA OFICIAL DE CONTRIBUCIÓN (CONTRIBUTING.MD):
+   - Flujo de Trabajo para Colaboradores: Estándares de bifurcación (fork), creación de ramas con convenciones semánticas (`feature/`, `fix/`, `chore/`), commits estructurados y apertura de Pull Requests hacia la rama `main`.
+   - Estándares Obligatorios de Código: TypeScript estricto (prohibición de `any`), React funcional con hooks, componentes de interfaz con Tailwind CSS v4 y paleta "Premium Dark Casino" (#0B0F17).
+   - Estándares Críticos de Base de Datos (Supabase / PostgreSQL): Inmutabilidad de migraciones históricas, uso estricto de `SECURITY DEFINER` y `SET search_path = public, extensions`, concurrencia con bloqueo pesimista `SELECT ... FOR UPDATE`, recarga de esquema con `NOTIFY pgrst, 'reload schema'`.
+   - Reglas de Oro de Integridad Financiera y Seguridad: Filosofía "el cliente miente, el servidor no", prohibición de dinero fantasma (trazabilidad obligatoria e inmediata en `ledger_entries`) e idempotencia en compras de cartones o unión a partidas.
+   - Checklist Pre-Commit y Plantilla Uniforme de PR.
+
+1) ACTUALIZACIÓN PROFESIONAL Y MODERNA DEL README.MD:
+   - Rediseño integral de la presentación del repositorio: Badges oficiales de tecnologías (React 19, TypeScript 5.8, Supabase PostgreSQL, Tailwind CSS v4, estado Beta).
+   - Sección destacada de Modo Prueba (Bono de 5.000 Bs) sin riesgo financiero.
+   - Catálogo exhaustivo de juegos en tabla sinóptica con descripciones y modalidades (1v1, 2v2, Multijugador).
+   - Galería de plataforma con marcadores para capturas de pantalla de alta fidelidad.
+   - Especificaciones de justicia y arquitectura técnica (WebSockets Realtime, 2FA TOTP, Regla 90/10 transparente, anti-abandono y ledger inmutable de doble entrada).
+   - Sección de Preguntas Frecuentes (FAQ) en componentes colapsables nativos.
+   - Guía de inicio rápido para desarrolladores y licencias.
 
 1) REDISEÑO Y REESTRUCTURACIÓN DE LA BARRA SUPERIOR (HEADER):
    - Ocultación de Botón "Lobby": Se retiró el botón `nav-home` ("Lobby") de la barra de navegación superior desktop para eliminar redundancias operativas, manteniendo la navegación al inicio a través del logo principal interactivo y los accesos del menú móvil.

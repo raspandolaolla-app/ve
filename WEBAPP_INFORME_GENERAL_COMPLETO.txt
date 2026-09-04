@@ -2,12 +2,95 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 14:35:00 -07:00 (UTC 2026-09-04 21:35:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 15:13:00 -07:00 (UTC 2026-09-04 22:13:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 129_fix_held_balance_settlement_and_rescue.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 131_cleanup_finished_bingo_tables.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-0) CONFIRMACIÓN DE ABANDONO DE MESA BLINDADA (MÓVIL Y ESCRITORIO):
+0) SIMPLIFICACIÓN Y LIMPIEZA DE ELEMENTOS REDUNDANTES DE BINGO EN EL LOBBY:
+   - Diagnóstico y Requerimiento de Usuario:
+     * Tras el despliegue de la "Pantalla Gigante de Bingo en Vivo" (`BingoLiveViewer`), la sección inferior mostraba elementos repetitivos que saturaban la experiencia visual del lobby principal:
+       a) "Salas de Bingo en Vivo (2)" (grid de tarjetas de mesas).
+       b) Tarjeta "En Vivo" ("Mesas de Bingo").
+       c) Banner "🔥 BINGO EN VIVO 75 BOLAS".
+       d) Banner "⚡ BINGO EN VIVO 90 BOLAS".
+   - Modificaciones Realizadas (`src/features/lobby/BingoLobbySection.tsx`):
+     * Ocultadas y removidas las tarjetas redundantes de salas en vivo y banners dobles de 75 y 90 bolas.
+     * Preservada y jerarquizada la sección de "Historial de Ganadores de Bingo" en formato ancho completo y diseño prémium con paginación fluida, datos de premios en Bs y avatar verificado.
+     * Integrado acceso directo y limpio al modal de creación de sala personalizada ("+ Crear Mesa") sin generar duplicidad visual con la pantalla de transmisión en vivo.
+     * Depuración de imports, estados y componentes no utilizados (`CountdownTimer`, `BingoCountdownBanner`) garantizando cero advertencias y cero errores de TypeScript.
+
+0) PANTALLA GIGANTE DE BINGO EN VIVO - MODO ESPECTADOR EN TIEMPO REAL (`BingoLiveViewer.tsx`):
+   - Objetivo y Experiencia de Usuario:
+     * Generar alto engagement en el lobby mediante una transmisión de sorteos en vivo tipo casino real, permitiendo a cualquier usuario visualizar las balotas extraídas, la balota actual gigante animada, la cuenta regresiva, los pozos acumulados y los ganadores sin necesidad obligatoria de poseer cartones comprados.
+   - Componente de Espectador (`src/features/lobby/BingoLiveViewer.tsx`):
+     * Visualizador interactivo con tema oscuro prémium (`#161F33`, `#0A0D14`) y acentos en ámbar y esmeralda.
+     * Balota gigante central con animaciones físicas de rebote y rotación (`motion/react`, `AnimatePresence`), destellos de luz especular y asignación de color por serie tradicional (B: Azul, I: Púrpura, N: Ámbar, G: Esmeralda, O: Rosa/Rojo).
+     * Historial horizontal reactivo de balotas extraídas en tiempo real con indicador resaltado en la última balota cantada.
+     * Banner dinámico con animación festiva al proclamarse un ganador ("¡BINGO CANTADO! ¡HAY GANADOR!"), con nombre del usuario y monto exacto del premio adjudicado.
+     * Barra superior con indicador de transmisión en vivo ("🔴 SORTEO EN TRANSMISIÓN" o "⏱️ INICIA EN MM:SS"), variante de juego (75, 80 o 90 bolas) y botón de conversión rápida "Entrar a Esta Mesa" para adquirir cartones al instante.
+     * Estadísticas en directo: Conteo de balotas extraídas, jugadores presentes y Pozo Neto calculado con la Fuente Única de Verdad (`FinancialRepository.calculatePoolBreakdown`).
+     * Selector multi-sala interactivo si existen 2 o más sorteos simultáneos en curso.
+     * Estado vacío amigable cuando no hay salas transmitiendo, con botón directo a creación de mesa.
+   - Sincronización Realtime y Resiliencia:
+     * Conexión a `game_sessions` en canal `bingo-live-spectator-feed` con detección automática de `INSERT`, `UPDATE` y `DELETE`.
+     * Descarte reactivo de salas en estados `FINISHED`, `CANCELLED` o `CLOSED` con retención temporal de 6 segundos del ganador para celebración visual antes de conmutar automáticamente al siguiente sorteo activo.
+     * Polling ligero de seguridad cada 4 segundos y limpieza estricta de intervalos e listeners al desmontar el componente.
+   - Integración en Lobby (`src/features/lobby/LobbyView.tsx` y `index.ts`):
+     * Emplazado en una ubicación de máxima visibilidad en el Lobby principal, inmediatamente después de la zona multimedia/publicitaria (`MediaBanner`), elevando de forma notoria la vitalidad y concurrencia percibida de la plataforma.
+
+1) FILTRADO ESTRICTO, REALTIME REACTIVO Y LIMPIEZA AUTOMÁTICA DE MESAS DE BINGO FINALIZADAS (MIGRACIÓN 131):
+   - Diagnóstico y Causa Raíz:
+     * En el lobby de Bingo (`BingoLobbySection.tsx`), las salas cuyas partidas ya habían culminado (`status = 'FINISHED'` o `CANCELLED`) continuaban mostrándose debido a que la consulta de carga no filtraba el estado de la sesión asociada y la suscripción de Realtime no eliminaba proactivamente los elementos del estado local al recibir el evento de finalización.
+   - Nivel 1: Filtro Estricto en Frontend y Post-Procesamiento (`src/features/lobby/BingoLobbySection.tsx`):
+     * Consulta Supabase configurada con filtro estricto `.in('status', ['WAITING', 'READY', 'SALES', 'ACTIVE', 'OPEN', 'DRAWING'])`.
+     * Doble capa de saneamiento: El mapeo en memoria evalúa tanto `table.status` como `session.status`. Se descarta inmediatamente cualquier mesa en `FINISHED`, `CANCELLED` o `CLOSED`.
+     * Conexión blindada en `loadCountdowns()` para evitar que sesiones ya concluidas figuren en los banners o tarjetas de cuenta regresiva.
+     * En `BingoCountdownBanner.tsx`, la bandera `isTableActive` valida exhaustivamente que ni la mesa ni la sesión se encuentren en estados terminales (`FINISHED`, `CANCELLED`, `CLOSED`).
+   - Nivel 2: Suscripción en Tiempo Real con Remoción Reactiva Inmediata:
+     * Evento `UPDATE` en `game_tables`: Si el estado de la mesa cambia a `FINISHED`, `CANCELLED` o `CLOSED`, se filtra y remueve de `availableBingoTables` en milisegundos sin requerir recarga de página.
+     * Evento `UPDATE` en `game_sessions`: Si una sesión de juego pasa a `FINISHED` o `CANCELLED`, se expulsa inmediatamente la mesa asociada (`updatedSession.table_id`) de la lista visible, se remueve de `countdownSessions` y se recarga automáticamente el historial de ganadores de Bingo (`loadBingoWinnersHistory()`) para reflejar al ganador al instante.
+     * Evento `DELETE` en `game_tables`: Remoción atómica por ID.
+   - Nivel 3: Función de Depuración de Base de Datos (Migración 131 `131_cleanup_finished_bingo_tables.sql`):
+     * Creada la función RPC `public.cleanup_finished_bingo_tables()` con `SECURITY DEFINER`.
+     * Control de acceso riguroso: Solo administradores (`public.is_admin(auth.uid())`) o el proceso interno `service_role` pueden ejecutarla.
+     * Depuración segura en cascada: Recorre las mesas de Bingo finalizadas o canceladas con más de 1 hora de antigüedad, eliminando compras de cartones secundarias (`bingo_card_purchases`), jugadores de mesa (`game_table_players`), secretos de sesión (`game_session_secrets`), acciones (`game_actions`), liquidaciones (`game_settlements`), sesiones (`game_sessions`) y finalmente la mesa en `game_tables`.
+     * Manejo de excepciones defensivo: Si alguna restricción de auditoría o clave foránea impide la eliminación física, conmuta el estado a `CLOSED` de forma segura.
+     * Retorna JSONB con `{ success: true, message: ..., cleaned_count: ... }`.
+   - Nivel 4: Botón de Limpieza Manual en Panel de Administración (`AdminMaintenanceTab.tsx`):
+     * Añadida tarjeta de mantenimiento y botón "🧹 Limpiar Mesas de Bingo Finalizadas".
+     * Integrado el método `AdminRepository.cleanupFinishedBingoTables()`.
+     * Proporciona feedback visual inmediato con spinner de ejecución y mensaje con el total de salas depuradas.
+   - Nivel 5: Daemon Server-Side de Limpieza Automática (`server.ts`):
+     * Implementado `runAutomatedBingoCleanup` que se ejecuta de manera desatendida cada 1 hora (con ejecución inicial tras 30s de arranque).
+     * Soporta tanto `supabaseAdmin` / `supabaseServerClient` (HTTPS) como conexión directa mediante el pool PostgreSQL.
+
+1) SISTEMA FINANCIERO CENTRALIZADO Y AUTORITATIVO UNIVERSAL (MIGRACIÓN 130 Y REFACTORIZACIÓN TOTAL FRONTEND):
+   - Diagnóstico y Causa Raíz de Descentralización Financiera:
+     * La lógica de porcentajes de premiación y comisiones estaba fragmentada con multiplicadores rígidos (`* 0.9`, `* 0.1`) en diversos componentes del cliente y funciones de base de datos legadas.
+     * Cualquier modificación en el porcentaje (ej. 90/10 a 85/15) requería alterar decenas de archivos de código en frontend y backend en lugar de obedecer a una Fuente Única de Verdad (Single Source of Truth).
+   - Solución de Base de Datos Implementada (Migración 130):
+     * Creación de la tabla `public.financial_rules` con control estricto de porcentajes (`winner_percentage`, `platform_fee_percentage`), validación `CHECK (winner_percentage + platform_fee_percentage = 100.00)`, activación booleana `is_active` e índice único parcial.
+     * RPC Autoritativa `universal_settle_game_session`:
+       - Consulta dinámica de la regla activa desde `financial_rules` (por defecto 90% ganador / 10% plataforma o el valor vigente).
+       - Desbloqueo y liquidación atómica de saldos retenidos (`held_balance` a `available_balance`) para todos los participantes de la mesa.
+       - Registro contable inmutable en `ledger_entries` con trazabilidad completa de fondos y balances auditados.
+       - Retorno unificado con `winner_percentage` y `platform_percentage` aplicados.
+     * Funciones wrapper y retrocompatibilidad (`settle_game_session`, `settle_game_session_secure`, `get_financial_rules`) para garantizar interoperabilidad sin interrupciones.
+   - Capa de Repositorio Centralizado (`src/services/repositories/FinancialRepository.ts`):
+     * Creado `FinancialRepository` con método `getActiveRules` (con caché TTL de 60s y fallback resiliente a RPC / tabla) y `calculatePoolBreakdown(grossPool)` para proyecciones visuales precisas y unificadas.
+   - Refactorización de `GameRepository.ts`:
+     * `GameRepository.settleSession` actualizado para invocar de forma canónica y primaria `universal_settle_game_session`, con fallback defensivo a `settle_game_session` y retorno de porcentajes reales.
+   - Refactorización Integral de `GameContainer.tsx`:
+     * Implementada la función maestra `handleSettleGame(winnerUserId, isDraw, winnerTeamIndex)` que centraliza la liquidación de todas las partidas.
+     * Eliminados todos los cálculos manuales `* 0.9` y `* 0.1`. El pozo ganador y la comisión se obtienen directamente de los datos devueltos por la RPC autoritativa o de `FinancialRepository`.
+     * Listener en tiempo real actualizado para leer los campos reales de la sesión (`gross_pool`, `prize_pool`, `platform_fee`) y mensajes de victoria dinámicos (`Premio acreditado (90% del pozo)`).
+   - Sincronización en Toda la WebApp:
+     * `UnaOllaGame.tsx`: Desglose de pozo final gobernado por `FinancialRepository.calculatePoolBreakdown`.
+     * `BingoCountdownBanner.tsx` y `BingoLobbySection.tsx`: Estimación de premios de salas en vivo conectada a `FinancialRepository`.
+     * `TablesView.tsx`: Cálculo de premio proyectado en el modal de creación de mesas gobernado por `FinancialRepository`.
+
+1) CONFIRMACIÓN DE ABANDONO DE MESA BLINDADA (MÓVIL Y ESCRITORIO):
    - Doble Capa de Protección contra Salidas Accidentales:
      * El botón "SALIR / ABANDONAR MESA" en la cabecera y el botón de flecha de retorno integran un fallback de seguridad nativo (`window.confirm`) que advierte de forma inmediata e insoslayable antes de abrir el modal o ejecutar la salida.
      * En dispositivos móviles, esto garantiza que jamás se abandone una mesa por un toque involuntario o erróneo en la pantalla.

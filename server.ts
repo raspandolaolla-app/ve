@@ -259,6 +259,50 @@ setInterval(() => {
   runAutomatedTurnExpirations().catch(() => {});
 }, 3000);
 
+// Daemon de Limpieza Automática de Mesas de Bingo Finalizadas (>1 hora de antigüedad)
+const runAutomatedBingoCleanup = async () => {
+  try {
+    const client = supabaseAdmin || supabaseServerClient;
+    if (client) {
+      const { data, error } = await client.rpc('cleanup_finished_bingo_tables');
+      if (error) {
+        if (!error.message.includes('does not exist')) {
+          console.warn('[CLEANUP] Aviso al limpiar mesas de bingo:', error.message);
+        }
+      } else if (data?.cleaned_count > 0) {
+        console.log(`[CLEANUP] Se limpiaron automáticamente ${data.cleaned_count} mesas de Bingo finalizadas.`);
+      }
+    } else if (pool && !drawWorkerDisabled) {
+      let pgClient: pg.PoolClient | null = null;
+      try {
+        pgClient = await pool.connect();
+        const res = await pgClient.query('SELECT public.cleanup_finished_bingo_tables() as result;');
+        const resultObj = res.rows[0]?.result;
+        if (resultObj && resultObj.cleaned_count > 0) {
+          console.log(`[CLEANUP] Se limpiaron automáticamente ${resultObj.cleaned_count} mesas de Bingo finalizadas vía PostgreSQL directo.`);
+        }
+      } catch {
+        // Silencioso
+      } finally {
+        if (pgClient) {
+          try { pgClient.release(); } catch {}
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[CLEANUP] Excepción en daemon de limpieza de bingo:', err?.message || err);
+  }
+};
+
+// Ejecutar una limpieza inicial a los 30s de arranque y luego cada 1 hora
+setTimeout(() => {
+  runAutomatedBingoCleanup().catch(() => {});
+}, 30000);
+
+setInterval(() => {
+  runAutomatedBingoCleanup().catch(() => {});
+}, 60 * 60 * 1000);
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

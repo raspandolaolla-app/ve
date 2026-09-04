@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Users, Ticket, Zap, Clock, Trophy, Plus, Sparkles } from 'lucide-react';
+import { FinancialRepository } from '../../services/repositories/FinancialRepository';
 
 export interface BingoLiveRoomCardProps {
   variant: '90' | '75';
@@ -69,10 +70,12 @@ export const BingoLiveRoomCard: React.FC<BingoLiveRoomCardProps> = ({
   // Verificar si existe una mesa pública activa real para ingresar
   const isTableActive = Boolean(
     table?.id &&
-    table.status !== 'FINISHED' &&
-    table.status !== 'finished' &&
-    table.status !== 'CLOSED' &&
-    table.status !== 'closed'
+    String(table.status || '').toUpperCase() !== 'FINISHED' &&
+    String(table.status || '').toUpperCase() !== 'CANCELLED' &&
+    String(table.status || '').toUpperCase() !== 'CLOSED' &&
+    String(session?.status || '').toUpperCase() !== 'FINISHED' &&
+    String(session?.status || '').toUpperCase() !== 'CANCELLED' &&
+    String(session?.status || '').toUpperCase() !== 'CLOSED'
   );
 
   // Estadísticas reales de jugadores y cartones
@@ -89,9 +92,10 @@ export const BingoLiveRoomCard: React.FC<BingoLiveRoomCardProps> = ({
   const actualEntryFee = Number(table?.entry_fee || entryFee);
   const grossCollected = cardsCount * actualEntryFee;
   const recordedPrize = Number(session?.winner_prize_amount || 0);
+  const calculatedPrize = FinancialRepository.calculatePoolBreakdown(grossCollected).prizePool;
   const netPrize = recordedPrize > 0
     ? recordedPrize
-    : (grossCollected > 0 ? Math.round(grossCollected * 0.90 * 100) / 100 : 0);
+    : (grossCollected > 0 ? calculatedPrize : 0);
 
   // Temas Neón según la variante
   const is90 = variant === '90';

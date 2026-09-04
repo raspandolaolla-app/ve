@@ -15,6 +15,7 @@ import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { GameRepository } from '../../services/repositories/GameRepository';
+import { FinancialRepository } from '../../services/repositories/FinancialRepository';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
@@ -1592,9 +1593,9 @@ export function TablesView() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-400 mb-2 font-semibold">Premio Estimado (90%)</label>
+                        <label className="block text-sm text-slate-400 mb-2 font-semibold">Premio Estimado</label>
                         <div className="w-full px-5 py-4 bg-gradient-to-br from-emerald-950/30 to-emerald-900/20 border-2 border-emerald-500/30 rounded-xl text-emerald-400 font-mono font-bold text-lg">
-                          {formatBolivares(createEntryFee * createMaxPlayers * 0.9)}
+                          {formatBolivares(FinancialRepository.calculatePoolBreakdown(createEntryFee * createMaxPlayers).prizePool)}
                         </div>
                       </div>
                     </div>

@@ -29,6 +29,7 @@ import type { GameTable, TablePlayer } from '../../../types/tables';
 import type { GameSession, GameActionPayload } from '../../../types/games';
 import { getGameEngine } from '../engines';
 import { GameRepository } from '../../../services/repositories/GameRepository';
+import { FinancialRepository } from '../../../services/repositories/FinancialRepository';
 import { RngService } from '../../../services/rng/RngService';
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
@@ -641,12 +642,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             const winnerPlayer = currentPlayers.find((p) => p.userId === winnerId);
             const isWinner = winnerId === currentUserId;
             const winnerDisplayName = isWinner ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
-            const grossPool = table.entryFee * (currentPlayers.length || 2);
+            const grossPool = Number(updated.gross_pool) || (table.entryFee * (currentPlayers.length || 2));
+            const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
 
             setSettlementResult({
               grossPool,
-              prizePool: grossPool * 0.9,
-              platformFee: grossPool * 0.1,
+              prizePool: Number(updated.prize_pool) || poolBreakdown.prizePool,
+              platformFee: Number(updated.platform_fee) || poolBreakdown.platformFee,
               winnerName: winnerDisplayName,
               isWinner,
               isDraw: false,
@@ -659,7 +661,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               if (isAbandonWin) {
                 setAbandonNotice('🏆 ¡Tu rival ha abandonado la partida! Has ganado.');
               } else {
-                setAbandonNotice(`🏆 ¡Victoria declarada! Premio 90/10 acreditado.`);
+                setAbandonNotice(`🏆 ¡Victoria declarada! Premio acreditado.`);
               }
             }
           } else if (statusUpper === 'CANCELLED' && !isSettledRef.current) {
@@ -919,6 +921,70 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   };
 
+  // Función centralizada de liquidación autoritativa con el Sistema Financiero Universal (universal_settle_game_session)
+  const handleSettleGame = useCallback(
+    async (winnerUserId: string | null, isDraw: boolean, winnerTeamIndex?: number | null) => {
+      if (!session?.id || isSettledRef.current) return;
+      isSettledRef.current = true;
+      setIsSettling(true);
+
+      const grossPool = table.entryFee * (currentPlayers.length || 2);
+
+      try {
+        if (isDraw || !winnerUserId) {
+          // Empate oficial -> Reembolso íntegro
+          const idempotencyKey = `refund_${session.id}`;
+          await GameRepository.refundSession(
+            session.id,
+            'Empate oficial en partida',
+            idempotencyKey
+          );
+
+          setSettlementResult({
+            grossPool,
+            prizePool: 0,
+            platformFee: 0,
+            winnerName: 'Empate Técnico',
+            isWinner: false,
+            isDraw: true,
+          });
+        } else {
+          // Victoria oficial -> Liquidación con RPC Universal
+          const idempotencyKey = `settle_${session.id}_${winnerUserId}`;
+          const settlement = await GameRepository.settleSession(
+            session.id,
+            [winnerUserId],
+            typeof winnerTeamIndex === 'number' ? winnerTeamIndex : null,
+            idempotencyKey
+          );
+
+          const winnerPlayer = currentPlayers.find((p) => p.userId === winnerUserId);
+          const winnerName = winnerUserId === currentUserId ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
+          const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
+
+          setSettlementResult({
+            grossPool: settlement.grossPool || grossPool,
+            prizePool: settlement.prizePool ?? poolBreakdown.prizePool,
+            platformFee: settlement.platformFee ?? poolBreakdown.platformFee,
+            winnerName,
+            isWinner: winnerUserId === currentUserId,
+            isDraw: false,
+          });
+
+          if (winnerUserId === currentUserId) {
+            const winPct = settlement.winnerPercentage || 90;
+            setAbandonNotice(`🏆 ¡Victoria declarada! Premio acreditado (${winPct}% del pozo).`);
+          }
+        }
+      } catch (err: any) {
+        console.error('[GameContainer] Error en liquidación autoritativa universal:', err);
+      } finally {
+        setIsSettling(false);
+      }
+    },
+    [session?.id, table.entryFee, currentPlayers, currentUserId]
+  );
+
   // Manejador central de acciones de juego con anti-double click y Server-Authoritative RNG
   const handleGameAction = useCallback(
     async (actionType: string, actionData: Record<string, unknown>) => {
@@ -1143,54 +1209,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           turnDuration
         );
 
-        // 5. Liquidación oficial 90/10 en victoria o Reembolso 100% en Empate
+        // 5. Liquidación oficial autoritativa centralizada en victoria o Reembolso 100% en Empate
         if (result.isGameOver && !isSettledRef.current) {
-          isSettledRef.current = true;
-          setIsSettling(true);
-
-          if (result.isDraw) {
-            // Empate oficial -> Refund RPC
-            const idempotencyKey = `refund_${session.id}`;
-            await GameRepository.refundSession(
-              session.id,
-              'Empate oficial en partida',
-              idempotencyKey
-            );
-            setIsSettling(false);
-
-            const grossPool = table.entryFee * currentPlayers.length;
-            setSettlementResult({
-              grossPool,
-              prizePool: 0,
-              platformFee: 0,
-              winnerName: 'Empate Técnico',
-              isWinner: false,
-              isDraw: true,
-            });
-          } else if (result.winnerUserId) {
-            // Victoria oficial -> Settle RPC
-            const idempotencyKey = `settle_${session.id}_${result.winnerUserId}`;
-            const settlement = await GameRepository.settleSession(
-              session.id,
-              [result.winnerUserId],
-              result.winnerTeamIndex,
-              idempotencyKey
-            );
-
-            setIsSettling(false);
-
-            const winnerPlayer = currentPlayers.find((p) => p.userId === result.winnerUserId);
-            const winnerName = winnerPlayer?.displayName || 'Ganador';
-
-            setSettlementResult({
-              grossPool: settlement.grossPool || table.entryFee * currentPlayers.length,
-              prizePool: settlement.prizePool || table.entryFee * currentPlayers.length * 0.9,
-              platformFee: settlement.platformFee || table.entryFee * currentPlayers.length * 0.1,
-              winnerName,
-              isWinner: result.winnerUserId === currentUserId,
-              isDraw: false,
-            });
-          }
+          await handleSettleGame(
+            result.winnerUserId || null,
+            Boolean(result.isDraw),
+            result.winnerTeamIndex
+          );
         }
       } catch (err: any) {
         console.error('[GameContainer] Error ejecutando acción:', err);
@@ -1200,7 +1225,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         setIsSubmittingAction(false);
       }
     },
-    [gameState, session, currentUserId, engine, currentPlayers, table, isSubmittingAction]
+    [gameState, session, currentUserId, engine, currentPlayers, table, isSubmittingAction, handleSettleGame]
   );
 
   // Renderizar el tablero específico según el juego

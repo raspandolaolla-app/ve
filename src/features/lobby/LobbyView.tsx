@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { GameCard } from './GameCard';
 import { TournamentsCarousel } from './TournamentsCarousel';
+import { BingoLiveViewer } from './BingoLiveViewer';
 import { BingoLobbySection } from './BingoLobbySection';
 import { PublicMatchHistorySection } from './PublicMatchHistorySection';
 import { FAQAccordion } from './FAQAccordion';
@@ -86,7 +87,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
       </section>
 
-      {/* 2. CARRUSEL DE TORNEOS Y POTES EN VIVO (Se oculta automáticamente si no hay torneos) */}
+      {/* 2. PANTALLA GIGANTE DE BINGO EN VIVO (VISTA DE ESPECTADOR EN TIEMPO REAL) */}
+      <section id="lobby-bingo-live-viewer-section" aria-label="Pantalla Gigante de Bingo en Vivo">
+        <BingoLiveViewer
+          onSelectBingoVariant={onSelectBingoVariant}
+          onNavigateTab={onNavigateTab}
+        />
+      </section>
+
+      {/* 3. CARRUSEL DE TORNEOS Y POTES EN VIVO (Se oculta automáticamente si no hay torneos) */}
       <TournamentsCarousel
         onJoinTournament={(tournament) => {
           const gType = tournament?.game_type || tournament?.gameId;

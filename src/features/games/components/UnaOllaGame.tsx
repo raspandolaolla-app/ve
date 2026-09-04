@@ -20,6 +20,7 @@ import { UnaOllaCardComponent } from './UnaOllaCardComponent';
 import { Button } from '../../../components/common/Button';
 import { Play, AlertTriangle, Flame, Palette, RotateCw, Info } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
+import { FinancialRepository } from '../../../services/repositories/FinancialRepository';
 
 interface UnaOllaGameProps {
   table: GameTable;
@@ -825,20 +826,26 @@ export function UnaOllaGame({ table, players, currentUserId, onLeave }: UnaOllaG
             <p className="text-sm font-black uppercase tracking-wider" style={{ color: T.accent }}>
               Ganador: {state.players?.[state.winnerUserId || '']?.name || getDisplayName(players.find((p) => p.userId === state.winnerUserId))}
             </p>
-            <div className="p-4 rounded-2xl border space-y-2 text-xs" style={{ background: 'rgba(0,0,0,0.35)', borderColor: T.border }}>
-              <div className="flex justify-between" style={{ color: T.sub }}>
-                <span>Pozo bruto:</span>
-                <span className="font-mono" style={{ color: T.text }}>{formatBolivares(table.entryFee * players.length)}</span>
-              </div>
-              <div className="flex justify-between font-bold" style={{ color: '#34D399' }}>
-                <span>Premio ganador (90%):</span>
-                <span className="font-mono">{formatBolivares(table.entryFee * players.length * 0.9)}</span>
-              </div>
-              <div className="flex justify-between" style={{ color: T.sub }}>
-                <span>Comisión (10%):</span>
-                <span className="font-mono">{formatBolivares(table.entryFee * players.length * 0.1)}</span>
-              </div>
-            </div>
+            {(() => {
+              const gross = table.entryFee * players.length;
+              const breakdown = FinancialRepository.calculatePoolBreakdown(gross);
+              return (
+                <div className="p-4 rounded-2xl border space-y-2 text-xs" style={{ background: 'rgba(0,0,0,0.35)', borderColor: T.border }}>
+                  <div className="flex justify-between" style={{ color: T.sub }}>
+                    <span>Pozo bruto:</span>
+                    <span className="font-mono" style={{ color: T.text }}>{formatBolivares(gross)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold" style={{ color: '#34D399' }}>
+                    <span>Premio ganador:</span>
+                    <span className="font-mono">{formatBolivares(breakdown.prizePool)}</span>
+                  </div>
+                  <div className="flex justify-between" style={{ color: T.sub }}>
+                    <span>Comisión de servicio:</span>
+                    <span className="font-mono">{formatBolivares(breakdown.platformFee)}</span>
+                  </div>
+                </div>
+              );
+            })()}
             <Button variant="primary" onClick={onLeave} className="w-full font-bold bg-amber-500 hover:bg-amber-400 text-slate-950">
               Volver al Lobby
             </Button>

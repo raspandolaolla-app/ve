@@ -10,6 +10,21 @@ export function AdminMaintenanceTab() {
   const [executing, setExecuting] = useState(false);
   const [confirmationPhrase, setConfirmationPhrase] = useState('');
   const [executionResult, setExecutionResult] = useState<{ success: boolean; totalCleaned?: number; error?: string } | null>(null);
+  const [cleaningBingo, setCleaningBingo] = useState(false);
+  const [bingoCleanResult, setBingoCleanResult] = useState<{ success: boolean; message: string; cleanedCount?: number; error?: string } | null>(null);
+
+  const handleCleanupBingoTables = async () => {
+    setCleaningBingo(true);
+    setBingoCleanResult(null);
+    try {
+      const res = await AdminRepository.cleanupFinishedBingoTables();
+      setBingoCleanResult(res);
+    } catch (err: any) {
+      setBingoCleanResult({ success: false, message: err?.message || 'Error al ejecutar limpieza' });
+    } finally {
+      setCleaningBingo(false);
+    }
+  };
 
   const handleRunDryRun = async () => {
     setEvaluating(true);
@@ -218,6 +233,53 @@ export function AdminMaintenanceTab() {
           </div>
         </div>
       )}
+
+      {/* Sección: Limpieza de Mesas de Bingo Finalizadas */}
+      <div id="admin-bingo-cleanup-card" className="p-5 rounded-2xl bg-slate-900/80 border border-amber-500/30 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-amber-400" />
+              Depuración de Mesas de Bingo Finalizadas
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Elimina de forma segura las salas de Bingo en estado <code className="text-amber-300 font-mono">FINISHED</code> o <code className="text-amber-300 font-mono">CANCELLED</code> con más de 1 hora de antigüedad y sus dependencias temporales, manteniendo la integridad contable del ledger.
+            </p>
+          </div>
+
+          <button
+            id="btn-cleanup-finished-bingo"
+            onClick={handleCleanupBingoTables}
+            disabled={cleaningBingo}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${cleaningBingo ? 'animate-spin' : ''}`} />
+            {cleaningBingo ? 'Limpiando...' : '🧹 Limpiar Mesas de Bingo Finalizadas'}
+          </button>
+        </div>
+
+        {bingoCleanResult && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs ${
+              bingoCleanResult.success
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}
+          >
+            {bingoCleanResult.success ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+            )}
+            <div>
+              <p className="font-semibold">{bingoCleanResult.message}</p>
+              {bingoCleanResult.error && (
+                <p className="text-red-400 mt-0.5 text-[11px] font-mono">{bingoCleanResult.error}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Sección Quirúrgica de Purga de Datos de Prueba (5000 Bs) */}
       <AdminTestCleanupSection onPurgeComplete={handleRunDryRun} />

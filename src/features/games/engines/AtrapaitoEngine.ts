@@ -80,6 +80,35 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
     }
 
     const cfg = (table.config || {}) as Record<string, any>;
+    const isClassicParchis = cfg.variant === 'parchis' || cfg.atrapaitoMode === 'PARCHIS' || (table as any).gameType === 'parchis' || (table as any).gameType === 'atrapaito_clasico';
+
+    if ((table as any).gameType === 'atrapaito' && !isClassicParchis) {
+      const isOnline = !cfg.isPractice && !table.id.startsWith('practice_') && (table.entryFee ?? 0) > 0;
+      const bluePlayer = uniquePlayers[0];
+      const redPlayer = uniquePlayers[1];
+      return {
+        bluePos: { col: 4, row: 14 },
+        redPos: { col: 3, row: 14 },
+        walls: [],
+        blueWalls: 10,
+        redWalls: 10,
+        turn: 'BLUE',
+        action: 'MOVE',
+        wallOrientation: 'HORIZONTAL',
+        pendingWall: null,
+        winner: null,
+        mode: isOnline ? 'ONLINE' : 'VS_AI',
+        isAiThinking: false,
+        consecutiveDraws: 0,
+        blueUserId: bluePlayer?.userId || null,
+        redUserId: redPlayer?.userId || null,
+        currentTurnUserId: bluePlayer?.userId || null,
+        turnUserId: bluePlayer?.userId || null,
+        turnDurationSeconds: 15,
+        boardType: 'CRIOLLO_WALLS',
+      } as any;
+    }
+
     const rawMode = (cfg.atrapaitoMode || cfg.mode || table.mode || 'INDIVIDUAL_4') as string;
     let mode: AtrapaitoMode = 'INDIVIDUAL_4';
 

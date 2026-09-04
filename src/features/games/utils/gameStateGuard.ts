@@ -792,12 +792,57 @@ export function normalizeAtrapaitoState(
   rawState: any,
   fallbackInitialState?: AtrapaitoState,
   players?: TablePlayer[]
-): StateValidationResult<AtrapaitoState> {
+): StateValidationResult<any> {
   const missingProps: string[] = [];
   const raw = rawState && typeof rawState === 'object' ? rawState : {};
 
   if (!rawState || typeof rawState !== 'object') {
     missingProps.push('state_is_null_or_not_object');
+  }
+
+  // DETECCIÓN Y NORMALIZACIÓN DE ATRAPAÍTO CRIOLLO (Canicas y Muros)
+  const isCriollo = Boolean(
+    raw.bluePos !== undefined ||
+    raw.walls !== undefined ||
+    raw.blueWalls !== undefined ||
+    raw.turn === 'BLUE' ||
+    raw.turn === 'RED' ||
+    (fallbackInitialState as any)?.bluePos !== undefined
+  );
+
+  if (isCriollo) {
+    const blueUser = raw.blueUserId || (fallbackInitialState as any)?.blueUserId || players?.[0]?.userId || null;
+    const redUser = raw.redUserId || (fallbackInitialState as any)?.redUserId || players?.[1]?.userId || null;
+    const turn = raw.turn || (fallbackInitialState as any)?.turn || 'BLUE';
+    const currentTurnUser = raw.currentTurnUserId || raw.turnUserId || (turn === 'RED' ? redUser : blueUser);
+
+    const criolloState = {
+      bluePos: raw.bluePos || (fallbackInitialState as any)?.bluePos || { col: 4, row: 14 },
+      redPos: raw.redPos || (fallbackInitialState as any)?.redPos || { col: 3, row: 14 },
+      walls: Array.isArray(raw.walls) ? raw.walls : ((fallbackInitialState as any)?.walls || []),
+      blueWalls: typeof raw.blueWalls === 'number' ? raw.blueWalls : ((fallbackInitialState as any)?.blueWalls ?? 10),
+      redWalls: typeof raw.redWalls === 'number' ? raw.redWalls : ((fallbackInitialState as any)?.redWalls ?? 10),
+      turn,
+      action: raw.action || (fallbackInitialState as any)?.action || 'MOVE',
+      wallOrientation: raw.wallOrientation || (fallbackInitialState as any)?.wallOrientation || 'HORIZONTAL',
+      pendingWall: raw.pendingWall ?? (fallbackInitialState as any)?.pendingWall ?? null,
+      winner: raw.winner ?? (fallbackInitialState as any)?.winner ?? null,
+      mode: raw.mode || (fallbackInitialState as any)?.mode || 'ONLINE',
+      isAiThinking: Boolean(raw.isAiThinking),
+      consecutiveDraws: raw.consecutiveDraws || 0,
+      blueUserId: blueUser,
+      redUserId: redUser,
+      currentTurnUserId: currentTurnUser,
+      turnUserId: currentTurnUser,
+      turnDurationSeconds: raw.turnDurationSeconds || 15,
+      boardType: 'CRIOLLO_WALLS',
+    };
+
+    return {
+      state: criolloState,
+      isValid: Boolean(criolloState.bluePos && criolloState.redPos),
+      missingProps: [],
+    };
   }
 
   if (!raw.pieces || typeof raw.pieces !== 'object') missingProps.push('pieces');

@@ -193,15 +193,53 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           setCurrentPlayers(uniquePlayers);
         }
 
-        // 1. Obtener o crear sesión en base de datos con jugadores deduplicados
-        const initialEngineState = engine.initialize(table, uniquePlayers);
+        const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
+        const isOnline = !isPractice && table.entryFee > 0;
+
+        // 1. Obtener o crear sesión en base de datos con jugadores deduplicados y estado correcto
+        let initialEngineState: any = {};
+        const rawGameType = table.gameType as string;
+        if (table.gameType === 'atrapaito') {
+          // ✅ ESTADO CORRECTO PARA ATRAPAITO CRIOLLO (Canicas y Muros)
+          const bluePlayer = uniquePlayers[0];
+          const redPlayer = uniquePlayers[1];
+          initialEngineState = {
+            bluePos: { col: 4, row: 14 },
+            redPos: { col: 3, row: 14 },
+            walls: [],
+            blueWalls: 10,
+            redWalls: 10,
+            turn: 'BLUE',
+            action: 'MOVE',
+            wallOrientation: 'HORIZONTAL',
+            pendingWall: null,
+            winner: null,
+            mode: isOnline ? 'ONLINE' : 'VS_AI',
+            isAiThinking: false,
+            consecutiveDraws: 0,
+            blueUserId: bluePlayer?.userId || null,
+            redUserId: redPlayer?.userId || null,
+            currentTurnUserId: bluePlayer?.userId || null,
+            turnUserId: bluePlayer?.userId || null,
+            turnDurationSeconds: 15,
+            boardType: 'CRIOLLO_WALLS',
+          };
+        } else if (rawGameType === 'parchis' || rawGameType === 'atrapaito_clasico') {
+          // ✅ ESTADO PARA EL JUEGO DE FICHAS Y DADOS
+          initialEngineState = engine ? engine.initialize(table, uniquePlayers) : {
+            mode: 'ONE_VS_ONE',
+            boardType: '4_COLORS',
+            turnPhase: 'ROLL_DICE',
+          };
+        } else if (engine) {
+          initialEngineState = engine.initialize(table, uniquePlayers);
+        }
+
         const canonicalInitialTurnId =
           (initialEngineState as any)?.turnUserId ||
           (initialEngineState as any)?.currentTurnUserId ||
           (initialEngineState as any)?.playerWhiteUserId ||
           uniquePlayers[0]?.userId;
-
-        const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
 
         let activeSession: GameSession | null = null;
         if (isPractice) {
@@ -674,7 +712,33 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             const activeSess = await GameRepository.getActiveSession(table.id);
             if (activeSess) {
               setSession(activeSess);
-              const initialEngineState = engine.initialize(table, currentPlayers);
+              let initialEngineState: any = {};
+              if (table.gameType === 'atrapaito') {
+                const isOnline = !table.config?.isPractice && !table.id.startsWith('practice_') && table.entryFee > 0;
+                initialEngineState = {
+                  bluePos: { col: 4, row: 14 },
+                  redPos: { col: 3, row: 14 },
+                  walls: [],
+                  blueWalls: 10,
+                  redWalls: 10,
+                  turn: 'BLUE',
+                  action: 'MOVE',
+                  wallOrientation: 'HORIZONTAL',
+                  pendingWall: null,
+                  winner: null,
+                  mode: isOnline ? 'ONLINE' : 'VS_AI',
+                  isAiThinking: false,
+                  consecutiveDraws: 0,
+                  blueUserId: currentPlayers[0]?.userId || null,
+                  redUserId: currentPlayers[1]?.userId || null,
+                  currentTurnUserId: currentPlayers[0]?.userId || null,
+                  turnUserId: currentPlayers[0]?.userId || null,
+                  turnDurationSeconds: 15,
+                  boardType: 'CRIOLLO_WALLS',
+                };
+              } else if (engine) {
+                initialEngineState = engine.initialize(table, currentPlayers);
+              }
               const rawState =
                 activeSess.currentState && Object.keys(activeSess.currentState).length > 0
                   ? activeSess.currentState
@@ -1141,41 +1205,48 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <PollaBoard />
         );
 
-      case 'atrapaito':
-        if (table.maxPlayers === 2 || table.mode === '1v1') {
-          const isPlayerBlue = currentPlayers[0]?.userId === currentUserId;
-          const assignedColor: 'BLUE' | 'RED' = isPlayerBlue ? 'BLUE' : 'RED';
-          const isOnlineSession = Boolean(
-            session?.id &&
-            !table.config?.isPractice &&
-            !table.id.startsWith('practice_') &&
-            (table.entryFee ?? 0) > 0
-          );
+      case 'atrapaito': {
+        const isClassicVariant =
+          table.config?.variant === 'clasico' ||
+          table.config?.atrapaitoMode === 'PARCHIS' ||
+          table.config?.variant === 'parchis';
+
+        if (isClassicVariant) {
           return (
-            <AtrapaitoGame
-              table={table}
-              players={currentPlayers}
+            <AtrapaitoBoard
+              state={gameState}
               currentUserId={currentUserId}
+              turnExpiresAt={session?.turnExpiresAt}
               sessionId={session?.id}
-              userId={currentUserId}
-              isOnline={isOnlineSession}
-              playerColor={assignedColor}
-              onLeave={onExit}
-              onExit={onExit}
+              onRollDice={() => handleGameAction('ROLL_DICE', {})}
+              onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
+              players={currentPlayers}
             />
           );
         }
+
+        const isPlayerBlue = currentPlayers[0]?.userId === currentUserId;
+        const assignedColor: 'BLUE' | 'RED' = isPlayerBlue ? 'BLUE' : 'RED';
+        const isOnlineSession = Boolean(
+          session?.id &&
+          !table.config?.isPractice &&
+          !table.id.startsWith('practice_') &&
+          (table.entryFee ?? 0) > 0
+        );
         return (
-          <AtrapaitoBoard
-            state={gameState}
-            currentUserId={currentUserId}
-            turnExpiresAt={session?.turnExpiresAt}
-            sessionId={session?.id}
-            onRollDice={() => handleGameAction('ROLL_DICE', {})}
-            onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
+          <AtrapaitoGame
+            table={table}
             players={currentPlayers}
+            currentUserId={currentUserId}
+            sessionId={session?.id}
+            userId={currentUserId}
+            isOnline={isOnlineSession}
+            playerColor={assignedColor}
+            onLeave={onExit}
+            onExit={onExit}
           />
         );
+      }
 
       case 'una_olla':
         return (

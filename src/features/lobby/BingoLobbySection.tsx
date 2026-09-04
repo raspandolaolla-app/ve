@@ -239,9 +239,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
             status,
             current_state,
             countdown_ends_at,
-            winner_user_id,
-            gross_pool,
-            winner_prize_amount
+            winner_user_id
           ),
           game_table_players (
             user_id,

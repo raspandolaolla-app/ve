@@ -1139,8 +1139,34 @@ export function TablesView() {
                               if (!user || !canStart || isStartingTable) return;
                               try {
                                 setIsStartingTable(true);
-                                const engine = getGameEngine(activeTable.gameType);
-                                const initialEngineState = engine.initialize(activeTable, uniquePlayers);
+                                let initialEngineState: any = {};
+                                if (activeTable.gameType === 'atrapaito') {
+                                  const isOnline = !activeTable.config?.isPractice && !activeTable.id.startsWith('practice_') && activeTable.entryFee > 0;
+                                  initialEngineState = {
+                                    bluePos: { col: 4, row: 14 },
+                                    redPos: { col: 3, row: 14 },
+                                    walls: [],
+                                    blueWalls: 10,
+                                    redWalls: 10,
+                                    turn: 'BLUE',
+                                    action: 'MOVE',
+                                    wallOrientation: 'HORIZONTAL',
+                                    pendingWall: null,
+                                    winner: null,
+                                    mode: isOnline ? 'ONLINE' : 'VS_AI',
+                                    isAiThinking: false,
+                                    consecutiveDraws: 0,
+                                    blueUserId: uniquePlayers[0]?.userId || null,
+                                    redUserId: uniquePlayers[1]?.userId || null,
+                                    currentTurnUserId: uniquePlayers[0]?.userId || null,
+                                    turnUserId: uniquePlayers[0]?.userId || null,
+                                    turnDurationSeconds: 15,
+                                    boardType: 'CRIOLLO_WALLS',
+                                  };
+                                } else {
+                                  const engine = getGameEngine(activeTable.gameType);
+                                  initialEngineState = engine.initialize(activeTable, uniquePlayers);
+                                }
                                 const turnDuration =
                                   activeTable.gameType === 'chess'
                                     ? 15

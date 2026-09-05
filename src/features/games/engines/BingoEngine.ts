@@ -10,7 +10,7 @@
 // ==============================================================================
 
 import type { IGameEngine, ActionResult } from './GameEngine';
-import type { GameActionPayload } from '../../../types/games';
+import type { GameActionPayload, BingoState } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
 const hashString = (str: string): number => {
@@ -111,10 +111,10 @@ const generateNextBall = (state: any): number => {
   return available[idx];
 };
 
-export class BingoEngine implements IGameEngine<any> {
+export class BingoEngine implements IGameEngine<BingoState> {
   public readonly gameType = 'bingo';
 
-  public initialize(table: GameTable, players: TablePlayer[]): any {
+  public initialize(table: GameTable, players: TablePlayer[]): BingoState {
     const unique = Array.from(new Map(players.map((p) => [(p as any).user_id || p.userId, p])).values());
     const mode = Number((table.config as any)?.bingoMode || (table as any).bingoMode || 90) === 75 ? 75 : 90;
 
@@ -145,7 +145,7 @@ export class BingoEngine implements IGameEngine<any> {
     };
   }
 
-  public validateAction(state: any, action: GameActionPayload): { valid: boolean; reason?: string } {
+  public validateAction(state: BingoState, action: GameActionPayload): { valid: boolean; reason?: string } {
     const t = action.actionType;
 
     if (t === 'BUY_CARDS') {
@@ -197,13 +197,13 @@ export class BingoEngine implements IGameEngine<any> {
     return { valid: false, reason: `Acción no soportada: ${t}` };
   }
 
-  public applyAction(state: any, action: GameActionPayload): ActionResult<any> {
+  public applyAction(state: BingoState, action: GameActionPayload): ActionResult<BingoState> {
     const v = this.validateAction(state, action);
     if (!v.valid) {
       return { newState: state, isValid: false, errorMessage: v.reason, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
     }
 
-    const next = JSON.parse(JSON.stringify(state));
+    const next: BingoState = JSON.parse(JSON.stringify(state));
     const t = action.actionType;
 
     if (t === 'BUY_CARDS') {
@@ -276,7 +276,7 @@ export class BingoEngine implements IGameEngine<any> {
     return { newState: next, isValid: true, isGameOver: false, winnerUserId: null, winnerTeamIndex: null, isDraw: false };
   }
 
-  public getSanitizedStateForPlayer(state: any, userId: string): any {
+  public getSanitizedStateForPlayer(state: BingoState, userId: string): BingoState {
     const sanitized = JSON.parse(JSON.stringify(state));
 
     sanitized.hostUserId = state.hostUserId;

@@ -36,6 +36,7 @@ import { getSupabaseClient } from '../../../lib/supabase/client';
 import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import { normalizeGameStateByType, inspectDominoDeck } from '../utils/gameStateGuard';
+import { logger } from '../../../utils/logger';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
 import { RockPaperScissorsBoard } from './RockPaperScissorsBoard';
@@ -49,9 +50,12 @@ import { AtrapaitoGame } from './AtrapaitoGame';
 import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
+import { GameHeader } from './GameHeader';
 import { useGameMode } from '../../../hooks/useGameMode';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
 import { useBingoClientDaemon } from '../../../hooks/useBingoClientDaemon';
+import { useGameSettlement } from '../hooks/useGameSettlement';
+import { useGameAbandonment } from '../hooks/useGameAbandonment';
 
 interface GameContainerProps {
   table: GameTable;
@@ -72,27 +76,45 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [gameState, setGameState] = useState<any>(null);
   const [showResults, setShowResults] = useState(true);
   const [currentPlayers, setCurrentPlayers] = useState<TablePlayer[]>(initialPlayers);
-  const [isSettling, setIsSettling] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
-  const [isAbandoning, setIsAbandoning] = useState(false);
-  const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [realtimeStatus, setRealtimeStatus] = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED'>('CONNECTING');
-  const [settlementResult, setSettlementResult] = useState<{
-    grossPool: number;
-    prizePool: number;
-    platformFee: number;
-    winnerName: string;
-    isWinner: boolean;
-    isDraw?: boolean;
-  } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [botNotice, setBotNotice] = useState<string | null>(null);
-  const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
   const [isImmersiveMode, setIsImmersiveMode] = useState<boolean>(true);
   const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
-  const isSettledRef = useRef(false);
+
+  // Hook de Abandono de Mesa y Salida Segura
+  const {
+    isAbandoning,
+    showAbandonModal,
+    setShowAbandonModal,
+    abandonNotice,
+    setAbandonNotice,
+    handleConfirmAbandon,
+  } = useGameAbandonment({
+    table,
+    session,
+    onExit,
+    onError: (msg) => setErrorMsg(msg),
+  });
+
+  // Hook de Liquidación Autoritativa (90/10 Universal y Reembolsos)
+  const {
+    isSettling,
+    settlementResult,
+    setSettlementResult,
+    isSettledRef,
+    handleSettleGame,
+  } = useGameSettlement({
+    table,
+    session,
+    currentPlayers,
+    currentUserId,
+    onWinNotice: (notice) => setAbandonNotice(notice),
+  });
+
   const { enterGameMode, exitGameMode } = useGameMode();
 
   // Hook universal de pantalla completa inmersiva
@@ -243,7 +265,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
         if (rawPlayersList.length !== uniquePlayers.length) {
-          console.error('[GameContainer] Error: Asientos duplicados detectados en la mesa.');
+          logger.error('[GameContainer] Error: Asientos duplicados detectados en la mesa.');
           setErrorMsg('Un jugador no puede ocupar dos puestos en la misma mesa');
           setRealtimeStatus('DISCONNECTED');
           return;
@@ -451,7 +473,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             });
 
             if (!dominoAudit.isValid) {
-              console.error('[DOMINO_INVALID_DECK]', {
+              logger.error('[DOMINO_INVALID_DECK]', {
                 sessionId: activeSession.id,
                 audit: dominoAudit,
               });
@@ -463,26 +485,26 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           setSession(updatedSession);
 
           // Logs de transición Server-Authoritative
-          console.log('[GAME_START]', {
+          logger.info('[GAME_START]', {
             sessionId: activeSession.id,
             tableId: table.id,
             gameType: table.gameType,
           });
-          console.log('[GAME_STATE_READY]', {
+          logger.info('[GAME_STATE_READY]', {
             sessionId: activeSession.id,
             gameType: table.gameType,
             stateValid: normalized.isValid,
             missingProps: normalized.missingProps,
           });
-          console.log('[TURN_ASSIGNED]', {
+          logger.info('[TURN_ASSIGNED]', {
             sessionId: activeSession.id,
             currentTurnUserId: canonicalTurnUserId,
           });
-          console.log('[TURN_DEADLINE]', {
+          logger.info('[TURN_DEADLINE]', {
             sessionId: activeSession.id,
             turnDeadlineAt: updatedSession.turnExpiresAt,
           });
-          console.log('[GAME_ACTIVE]', {
+          logger.info('[GAME_ACTIVE]', {
             sessionId: activeSession.id,
             gameType: table.gameType,
             stateValid: normalized.isValid,
@@ -494,19 +516,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             ? engine.getSanitizedStateForPlayer(loadedState, currentUserId)
             : loadedState;
 
-          console.log('[DEBUG_GAME] Sanitized Game State for Player:', sanitizedState);
+          logger.debug('[DEBUG_GAME] Sanitized Game State for Player:', sanitizedState);
           setGameState(sanitizedState);
         } else {
           // CASO C: La base de datos no tiene una sesión activa (esperando al anfitrión o error de RPC)
-          console.warn('[GameContainer] No hay sesión activa en el servidor para la mesa:', table.id);
+          logger.warn('[GameContainer] No hay sesión activa en el servidor para la mesa:', table.id);
           setSession(null);
           setGameState(null);
           setErrorMsg('Esperando que el anfitrión inicie la partida o sincronizando con el servidor...');
         }
-      } catch (err: any) {
-        console.error('[DEBUG_GAME] Error inside initGame:', err);
-        console.error('[GameContainer] Error inicializando partida:', err);
-        setErrorMsg(err?.message || 'Error al conectar con la sala de juego');
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        logger.error('[DEBUG_GAME] Error inside initGame:', error);
+        logger.error('[GameContainer] Error inicializando partida:', error);
+        setErrorMsg(error.message || 'Error al conectar con la sala de juego');
       }
     }
 
@@ -516,17 +539,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       isMounted = false;
     };
   }, [table, initialPlayers, engine, currentUserId]);
-
-  // ✅ Cleanup automático al desmontar (previene usuarios pegados)
-  useEffect(() => {
-    return () => {
-      if (session?.id && table.id) {
-        TableRepository.abandonTable(table.id, session.id).catch((err) => {
-          console.warn('[GameContainer] Limpieza automática al salir:', err);
-        });
-      }
-    };
-  }, [session?.id, table.id]);
 
   // Suscripción Realtime a cambios en game_table_players (Nombres, Entradas y Abandonos)
   useEffect(() => {
@@ -704,7 +716,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             ) {
               const newBall = Number(actionData.ball || actionData.ball_number);
               if (newBall && newBall > 0) {
-                console.log(`[BINGO_REALTIME] Servidor cantó la balota: ${newBall}`);
+                logger.info(`[BINGO_REALTIME] Servidor cantó la balota: ${newBall}`);
                 setGameState((prev: any) => {
                   if (!prev) return prev;
                   const currentDrawn = Array.isArray(prev.drawnBalls) ? prev.drawnBalls : [];
@@ -889,101 +901,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
     return () => clearTimeout(botTimer);
   }, [table, gameState, currentUserId, engine, currentPlayers]);
-
-  // Procesar abandono de mesa confirmado
-  const handleConfirmAbandon = async () => {
-    if (isAbandoning) return;
-    setIsAbandoning(true);
-
-    try {
-      if (session?.id) {
-        const client = getSupabaseClient();
-        if (client) {
-          const { data: univData, error: univErr } = await client.rpc('abandon_game_secure', {
-            p_session_id: session.id,
-          });
-          if (!univErr && univData?.success) {
-            setShowAbandonModal(false);
-            onExit();
-            return;
-          }
-        }
-      }
-
-      await TableRepository.abandonTable(table.id, session?.id);
-      setShowAbandonModal(false);
-      onExit();
-    } catch (err: any) {
-      console.error('[GameContainer] Error al abandonar mesa:', err);
-      setErrorMsg('No se pudo procesar el abandono de la mesa');
-    } finally {
-      setIsAbandoning(false);
-    }
-  };
-
-  // Función centralizada de liquidación autoritativa con el Sistema Financiero Universal (universal_settle_game_session)
-  const handleSettleGame = useCallback(
-    async (winnerUserId: string | null, isDraw: boolean, winnerTeamIndex?: number | null) => {
-      if (!session?.id || isSettledRef.current) return;
-      isSettledRef.current = true;
-      setIsSettling(true);
-
-      const grossPool = table.entryFee * (currentPlayers.length || 2);
-
-      try {
-        if (isDraw || !winnerUserId) {
-          // Empate oficial -> Reembolso íntegro
-          const idempotencyKey = `refund_${session.id}`;
-          await GameRepository.refundSession(
-            session.id,
-            'Empate oficial en partida',
-            idempotencyKey
-          );
-
-          setSettlementResult({
-            grossPool,
-            prizePool: 0,
-            platformFee: 0,
-            winnerName: 'Empate Técnico',
-            isWinner: false,
-            isDraw: true,
-          });
-        } else {
-          // Victoria oficial -> Liquidación con RPC Universal
-          const idempotencyKey = `settle_${session.id}_${winnerUserId}`;
-          const settlement = await GameRepository.settleSession(
-            session.id,
-            [winnerUserId],
-            typeof winnerTeamIndex === 'number' ? winnerTeamIndex : null,
-            idempotencyKey
-          );
-
-          const winnerPlayer = currentPlayers.find((p) => p.userId === winnerUserId);
-          const winnerName = winnerUserId === currentUserId ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
-          const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
-
-          setSettlementResult({
-            grossPool: settlement.grossPool || grossPool,
-            prizePool: settlement.prizePool ?? poolBreakdown.prizePool,
-            platformFee: settlement.platformFee ?? poolBreakdown.platformFee,
-            winnerName,
-            isWinner: winnerUserId === currentUserId,
-            isDraw: false,
-          });
-
-          if (winnerUserId === currentUserId) {
-            const winPct = settlement.winnerPercentage || 90;
-            setAbandonNotice(`🏆 ¡Victoria declarada! Premio acreditado (${winPct}% del pozo).`);
-          }
-        }
-      } catch (err: any) {
-        console.error('[GameContainer] Error en liquidación autoritativa universal:', err);
-      } finally {
-        setIsSettling(false);
-      }
-    },
-    [session?.id, table.entryFee, currentPlayers, currentUserId]
-  );
 
   // Manejador central de acciones de juego con anti-double click y Server-Authoritative RNG
   const handleGameAction = useCallback(
@@ -1220,8 +1137,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             result.winnerTeamIndex
           );
         }
-      } catch (err: any) {
-        console.error('[GameContainer] Error ejecutando acción:', err);
+      } catch (err: unknown) {
+        logger.error('[GameContainer] Error ejecutando acción:', err);
         setErrorMsg(sanitizeUserErrorMessage(err, 'No fue posible registrar la jugada. La partida permanece protegida.'));
         setTimeout(() => setErrorMsg(null), 3500);
       } finally {
@@ -1419,131 +1336,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       onTouchStart={preventKeyboard}
       onClick={preventKeyboard}
     >
-      {/* Barra de Navegación de la Mesa */}
-      <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md px-2 sm:px-4 py-1.5 sm:py-2.5 sticky top-0 z-30 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0 max-w-full overflow-hidden">
-        <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 flex-1">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (gameState && !isSettledRef.current) {
-                if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
-                  setShowAbandonModal(true);
-                }
-              } else {
-                onExit();
-              }
-            }}
-            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation cursor-pointer"
-            title="Volver"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-1 sm:space-x-1.5 truncate">
-              <span className="truncate">{getGameDisplayName(table.gameType)}</span>
-              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono border border-amber-500/30 shrink-0">
-                #{table.id.substring(0, 4).toUpperCase()}
-              </span>
-            </h1>
-            <div className="flex items-center space-x-1 sm:space-x-1.5 text-[9px] sm:text-xs text-neutral-400 font-mono mt-0.5 whitespace-nowrap overflow-hidden">
-              <span className="truncate">Entrada: {formatBolivares(table.entryFee)}</span>
-              <span className="text-neutral-600">•</span>
-              <span className="text-emerald-400 font-bold truncate">Pozo: {formatBolivares(table.entryFee * currentPlayers.length)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Indicadores de Conexión, Fullscreen y Abandono */}
-        <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
-          {realtimeStatus === 'CONNECTED' ? (
-            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] sm:text-xs font-mono">
-              <Radio className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-pulse shrink-0" />
-              <span className="hidden sm:inline">EN VIVO ({onlineUsers.length || 1}/{currentPlayers.length})</span>
-              <span className="sm:hidden font-bold">VIVO</span>
-            </div>
-          ) : realtimeStatus === 'CONNECTING' ? (
-            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] sm:text-xs font-mono">
-              <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin shrink-0" />
-              <span className="hidden sm:inline">CONECTANDO</span>
-              <span className="sm:hidden font-bold">...</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[9px] sm:text-xs font-mono">
-              <WifiOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span className="hidden sm:inline">RECONECTANDO</span>
-              <span className="sm:hidden font-bold">OFF</span>
-            </div>
-          )}
-
-          <button
-            id="fullscreen-toggle-btn"
-            onClick={toggleNativeFullscreen}
-            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation"
-            title={isFullscreenNative ? 'Salir de pantalla completa' : 'Pantalla completa'}
-          >
-            {isFullscreenNative ? (
-              <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            )}
-          </button>
-
-          <button
-            id="immersive-toggle-btn"
-            onClick={() => setIsImmersiveMode(!isImmersiveMode)}
-            className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors shrink-0 touch-manipulation hidden md:flex items-center"
-            title={isImmersiveMode ? 'Minimizar a vista regular' : 'Modo Inmersivo'}
-          >
-            {isImmersiveMode ? (
-              <Shrink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            ) : (
-              <Expand className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
-            )}
-          </button>
-
-          <button
-            id="abandon-table-btn"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // Fallback de seguridad: si el modal falla por alguna razón, el navegador pregunta
-              if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
-                setShowAbandonModal(true);
-              }
-            }}
-            className="flex items-center space-x-1 px-2 py-1.5 sm:px-3 sm:py-2 bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/50 text-red-300 border border-red-500/40 rounded-xl text-[10px] sm:text-xs font-black transition-all touch-manipulation pointer-events-auto shrink-0 z-50 cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">ABANDONAR MESA</span>
-            <span className="sm:hidden">SALIR</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Alerta de Abandono de Jugador */}
-      {abandonNotice && (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-200 px-4 py-2 text-xs font-bold flex items-center justify-center space-x-2 animate-in slide-in-from-top">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{abandonNotice}</span>
-        </div>
-      )}
-
-      {/* Alerta de Error Temporal */}
-      {errorMsg && (
-        <div className="bg-red-500/20 border-b border-red-500/40 text-red-300 px-4 py-2 text-xs font-semibold flex items-center justify-center space-x-2">
-          <AlertTriangle className="w-4 h-4 text-red-400" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* Alerta de Movimiento Bot por Inactividad */}
-      {botNotice && (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-300 px-4 py-2 text-xs font-bold flex items-center justify-center space-x-2 animate-pulse">
-          <Clock className="w-4 h-4 text-amber-400" />
-          <span>{botNotice}</span>
-        </div>
-      )}
+      {/* Barra de Navegación y Alertas de la Mesa */}
+      <GameHeader
+        table={table}
+        currentPlayers={currentPlayers}
+        realtimeStatus={realtimeStatus}
+        onlineUsersCount={onlineUsers.length}
+        isFullscreenNative={isFullscreenNative}
+        onToggleFullscreen={toggleNativeFullscreen}
+        isImmersiveMode={isImmersiveMode}
+        onToggleImmersive={() => setIsImmersiveMode(!isImmersiveMode)}
+        onBackClick={() => {
+          if (gameState && !isSettledRef.current) {
+            if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
+              setShowAbandonModal(true);
+            }
+          } else {
+            onExit();
+          }
+        }}
+        onAbandonClick={() => {
+          if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
+            setShowAbandonModal(true);
+          }
+        }}
+        abandonNotice={abandonNotice}
+        errorMsg={errorMsg}
+        botNotice={botNotice}
+      />
 
       {/* Tablero Principal */}
       <main

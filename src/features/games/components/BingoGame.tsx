@@ -696,6 +696,8 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
       {/* Botón de Salida y Encabezado de la Sala */}
       <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
         <button
+          id="btn-leave-bingo-game"
+          data-testid="btn-leave-bingo-game"
           onClick={onLeave}
           className="flex items-center space-x-1.5 text-xs font-bold text-slate-300 hover:text-white transition-colors"
         >

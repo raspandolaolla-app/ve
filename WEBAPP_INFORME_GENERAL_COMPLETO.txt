@@ -2,10 +2,44 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:35:00 -07:00 (UTC 2026-09-05 01:35:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 19:07:00 -07:00 (UTC 2026-09-05 02:07:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 138_profile_rls_and_auto_creation_trigger.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 139_fix_bingo_join_flow_and_states.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MIGRACIÓN 139: CORRECCIÓN INTEGRAL DEL FLUJO DE UNIÓN A BINGO Y ESTADOS (WAITING / OPEN / SALES):
+   - Corrección de Estados en Base de Datos (`supabase/migrations/139_fix_bingo_join_flow_and_states.sql`):
+     * Inclusión garantizada de los estados `'WAITING'`, `'OPEN'` y `'SALES'` dentro de `table_status_enum`.
+     * Función canónica `public.join_table_transaction(p_table_id UUID)`:
+       - Valida autenticación del usuario mediante `auth.uid()`.
+       - Bloquea la fila de la mesa con `FOR UPDATE` para evitar condiciones de carrera.
+       - Acepta mesas en estados `'WAITING'`, `'OPEN'`, `'SALES'` y `'READY'` sin rechazar uniones legítimas de anfitriones y jugadores.
+       - Asigna el asiento disponible y registra la fila en `game_table_players` con estado `'JOINED'`.
+       - Incrementa atómicamente `current_players_count` en `game_tables`.
+       - Si el usuario ya pertenece a la mesa, devuelve `{ success: true, already_joined: true }` de forma idempotente y amigable sin lanzar error.
+     * Sobrecarga de compatibilidad `public.join_table_transaction(p_table_id UUID, p_seat_number SMALLINT, p_idempotency_key VARCHAR)`:
+       - Para mesas de Bingo, redirige de inmediato a la versión canónica sin exigir retenciones de saldo previas (la compra de cartones se realiza internamente vía `buy_bingo_cards_secure`).
+       - Para otros juegos (como Dominó), permite la unión fluida respetando los nuevos estados permitidos.
+     * Versiones seguras de `create_game_table_secure`:
+       - Versión de 5 parámetros (`p_game_type`, `p_entry_fee`, `p_max_players`, `p_is_private`, `p_config`) con inicialización en estado `'WAITING'` y creación de sesión inicial en estado `'SALES'`.
+       - Versión de 6 parámetros (`p_game_type`, `p_name`, `p_visibility`, `p_entry_fee`, `p_max_players`, `p_config`) utilizada por el frontend `TableRepository.createTable`, asegurando compatibilidad total y persistencia de `game_variant`.
+     * Script de auto-reconciliación:
+       - Actualiza a `'WAITING'` cualquier mesa de Bingo que haya quedado trabada en `'ACTIVE'`, `'IN_PROGRESS'` o `'PLAYING'` sin números extraídos (`drawnBalls` vacío).
+   - Frontend `BingoLobbySection.tsx` y Repositorio:
+     * Filtro de consulta en `loadBingoTables` actualizado con `.in('status', ['WAITING', 'OPEN', 'SALES', 'READY'])` y relación de perfiles `profiles (display_name, avatar_url)`.
+     * Manejo del botón "Unirse" (`handleJoinTable`):
+       - Ejecuta de forma segura la RPC `join_table_transaction({ p_table_id: tableId })`.
+       - Captura errores descriptivos (`MESA_NO_DISPONIBLE`, `MESA_LLENA`, `NO_AUTENTICADO`).
+       - Tras unirse, redirige fluidamente a la pestaña de mesas (`tables`) y despacha el evento `'open-table'` para abrir la sala en vivo de Bingo de inmediato.
+     * Suscripción en Tiempo Real (`bingo_countdowns_and_tables`):
+       - Escucha eventos `INSERT`, `UPDATE` y `DELETE` en `game_tables` y `game_sessions`.
+       - Recarga y sincroniza reactivamente las salas en estados `'WAITING'`, `'OPEN'`, `'SALES'` y `'READY'`, removiendo de inmediato salas `'FINISHED'`, `'CANCELLED'` o `'CLOSED'`.
+     * `TableRepository.isTableAvailable`:
+       - Actualizado para considerar disponibles mesas en `'OPEN'`, `'WAITING'` y `'SALES'`.
+   - Verificación de Calidad:
+     * `lint_applet` ejecutado con éxito: 0 errores de TypeScript y Linter.
+     * `compile_applet` ejecutado con éxito: compilación de producción exitosa.
+
 
 0) MIGRACIÓN 138 Y BLINDAJE RLS / .UPDATE() ESTRICTO EN ONBOARDING:
    - Resolución del Error RLS en `profiles` ("new row violates row-level security policy for table profiles"):

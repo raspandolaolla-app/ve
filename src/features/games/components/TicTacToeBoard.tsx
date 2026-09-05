@@ -269,10 +269,15 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           const isCellEmpty = symbol === null;
           const canClick = isMyTurn && isCellEmpty;
 
+          const row = Math.floor(index / 3);
+          const col = index % 3;
+
           return (
             <motion.button
               key={index}
               id={`tictactoe-cell-${index}`}
+              data-testid={`cell-${row}-${col}`}
+              data-cell-index={index}
               whileHover={canClick ? { scale: 1.05 } : {}}
               whileTap={canClick ? { scale: 0.95 } : {}}
               onClick={() => canClick && onPlaceSymbol(index)}

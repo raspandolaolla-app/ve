@@ -206,6 +206,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             <button
               key={option.id}
               id={`rps-choice-btn-${option.id.toLowerCase()}`}
+              data-testid={`rps-${option.id.toLowerCase()}`}
               onClick={() => handleChoice(option.id as any)}
               className="flex flex-col items-center justify-center p-4 bg-[#131926] hover:bg-[#1A2235] border border-slate-700 hover:border-amber-500/50 rounded-2xl transition-all active:scale-95 group touch-manipulation cursor-pointer"
             >

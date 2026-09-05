@@ -94,6 +94,7 @@ export function ClaimTestBonusModal({ hasClaimed = false, onSuccess }: ClaimTest
         <div className="w-full sm:w-auto shrink-0 flex flex-col items-stretch sm:items-end gap-2">
           <button
             id="claim-test-bonus-btn"
+            data-testid="claim-test-bonus-btn"
             onClick={handleClaim}
             disabled={loading}
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-950/40 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"

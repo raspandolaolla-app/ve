@@ -765,7 +765,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
                     }
                   }}
                 >
-                  {isAutoDrawing || daemonIsDrawing ? '⏹️ Detener Sorteo' : '▶️ Iniciar Sorteo'}
+                  {isAutoDrawing || daemonIsDrawing ? '⏹️ Detener Sorteo' : '▶️ INICIAR SORTEO'}
                 </Button>
 
                 <Button
@@ -948,18 +948,22 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
 
           <div className="flex items-center space-x-2">
             <button
+              id="btn-buy-card-1"
+              data-testid="buy-card-btn-1"
               onClick={() => handleBuyCards(1)}
               disabled={buyingCards || cardsPurchasedCount >= 20}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50"
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
             >
-              +1 Cartón ({table.entryFee || 10} Bs)
+              <span>COMPRAR +1 Cartón</span> ({table.entryFee || 10} Bs)
             </button>
             <button
+              id="btn-buy-card-3"
+              data-testid="buy-card-btn-3"
               onClick={() => handleBuyCards(3)}
               disabled={buyingCards || cardsPurchasedCount >= 18}
-              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50"
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
             >
-              +3 Cartones
+              <span>COMPRAR +3 Cartones</span>
             </button>
           </div>
         </div>

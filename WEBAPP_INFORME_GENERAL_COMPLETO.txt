@@ -2,10 +2,40 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 00:26:00 -07:00 (UTC 2026-09-05 07:26:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso / Playwright E2E: smoke.spec.ts 100% PASS, auth.spec.ts 3/3 100% PASS)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 01:45:00 -07:00 (UTC 2026-09-05 08:45:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso / Suite E2E Multi-Usuario Integrada)
 ÚLTIMA MIGRACIÓN INTEGRADA: 138_profile_rls_and_auto_creation_trigger.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) SISTEMA INTEGRAL DE PRUEBAS E2E MULTIUSUARIO CON PLAYWRIGHT Y GENERADOR DE REPORTES PARA IA:
+   - Implementación de la Suite Principal Multiusuario (`tests/e2e/comprehensive-multiuser-flow.spec.ts`):
+     * Aislamiento total de sesiones mediante `browser.newContext()` para Usuario A y Usuario B.
+     * Flujo A: Login con Google mockeado -> Completar Onboarding estricto (cédula, teléfono, nombre, fecha nacimiento, estado) -> Reclamar bono de bienvenida de 5.000 Bs -> Crear mesa de Bingo 90 bolas (entrada 25 Bs).
+     * Flujo B: Login con Google mockeado en contexto independiente -> Completar Onboarding -> Reclamar bono -> Unirse a la mesa creada por Usuario A.
+     * Flujo C: Interacción en Bingo (Usuario A compra 2 cartones -> Iniciar sorteo -> Verificación reactiva de extracción de balotas).
+     * Flujo D: Piedra, Papel o Tijera (Creación de mesa -> Usuario B se une -> 2 rondas con victoria y empate -> Validación del sistema de 3 vidas con iconos visuales).
+     * Flujo E: La Vieja / TicTacToe (Creación de mesa -> Usuario B se une -> Partida completa hasta definición de ganador en línea).
+   - Generador Especializado de Reportes de Diagnóstico (`tests/e2e/error-reporter.ts`):
+     * Intercepción global de errores de consola (`console.error`), errores de excepción de página (`pageerror`) y fallos en peticiones de red (`requestfailed`).
+     * Monitoreo de aserciones y tiempos de respuesta por etapa.
+     * Generación automática del archivo `test-findings-report.md` en la raíz del proyecto al finalizar los tests, incluyendo métricas cuantitativas, desglose estructurado de incidentes y un Prompt autogenerado listo para copiar y pegar a una IA para resolución guiada.
+   - Arquitectura Page Object Model (POM) en `tests/e2e/pages/`:
+     * `auth.page.ts`: Métodos de login mockeado con inyección de JWT, reconciliación de perfiles y resolución completa del modal de Onboarding.
+     * `lobby.page.ts`: Navegación centralizada, apertura de lobbies, creación de mesas con variantes (75/90 bolas) y unión a salas.
+     * `wallet.page.ts`: Navegación a billetera, reclamo del bono de prueba de 5.000 Bs y validación de balances.
+     * `games/bingo.page.ts`: Compra de cartones (+1, +3), inicio de sorteo server/host, verificación de balotas y canto de Bingo.
+     * `games/rock-paper-scissors.page.ts`: Selección de jugadas (Piedra, Papel, Tijera), verificación de 3 vidas y resultado de duelos.
+     * `games/tictactoe.page.ts`: Selección de celdas por coordenadas (fila, columna) y verificación de conclusión de partida.
+   - Mejoras de Testabilidad en Componentes de la WebApp:
+     * `src/components/auth/ProfileOnboarding.tsx`: Inyección de atributos `data-testid` en inputs obligatorios (`onboarding-cedula`, `onboarding-telefono`, `onboarding-nombre`, `onboarding-fecha-nacimiento`, `onboarding-estado`, `onboarding-submit`) y soporte para sesiones mockeada en localStorage.
+     * `src/services/repositories/WalletRepository.ts`: Soporte nativo para simulación de bono de 5.000 Bs en `claimTestBonus` bajo modo mock.
+     * `src/features/wallet/components/ClaimTestBonusModal.tsx`: Inclusión de `data-testid="claim-test-bonus-btn"`.
+     * `src/features/games/components/BingoGame.tsx`: Inclusión de `data-testid="start-draw-btn"`, `data-testid="buy-card-btn-1"`, `data-testid="buy-card-btn-3"` y etiquetas `COMPRAR`.
+     * `src/features/games/components/RockPaperScissorsBoard.tsx`: Inclusión de `data-testid="rps-rock"`, `data-testid="rps-paper"`, `data-testid="rps-scissors"`.
+     * `src/features/games/components/TicTacToeBoard.tsx`: Inclusión de `data-testid="cell-row-col"`.
+   - Verificación de Compilación y Calidad:
+     * `lint_applet`: PASS (0 errores de TypeScript).
+     * `compile_applet`: PASS (Build de producción Vite + esbuild exitoso).
 
 0) CONSOLIDACIÓN TOTAL DE PLAYWRIGHT Y SCRIPTS E2E EN REPOSITORIO:
    - Verificación de Ruta `testDir` y Configuración en `playwright.config.ts`:

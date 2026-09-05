@@ -1204,16 +1204,36 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           />
         );
 
-      case 'rock_paper_scissors':
+      case 'rock_paper_scissors': {
+        const isP1 = currentUserId === (gameState?.player1Id || currentPlayers[0]?.userId);
+        const myChoice = isP1
+          ? (gameState?.player1Choice || gameState?.playerChoices?.[currentUserId]?.choice)
+          : (gameState?.player2Choice || gameState?.playerChoices?.[currentUserId]?.choice);
+        const hasChosen = Boolean(myChoice || gameState?.playerChoices?.[currentUserId]?.committed);
+        const isRoundCommit = gameState?.status === 'ROUND_COMMIT' || gameState?.phase === 'selecting';
+        const isMyTurn = isRoundCommit && !hasChosen;
+
         return (
           <RockPaperScissorsBoard
             state={gameState}
             currentUserId={currentUserId}
+            isMyTurn={isMyTurn}
+            hasPlayerChosen={hasChosen}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
             onAction={(actionType, data) => handleGameAction(actionType, data)}
             onSubmitChoice={(choice) => handleGameAction('CHOOSE', { choice })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
+            onTurnTimeout={() => {
+              if (!hasChosen && isRoundCommit) {
+                const choices = ['ROCK', 'PAPER', 'SCISSORS'];
+                const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+                handleGameAction('CHOOSE', { choice: randomChoice });
+              }
+            }}
           />
         );
+      }
 
       case 'checkers':
         return (

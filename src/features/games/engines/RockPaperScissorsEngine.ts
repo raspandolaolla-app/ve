@@ -41,6 +41,10 @@ export const initializeRPSState = (player1Id: string, player2Id: string): RPSSta
     matchWinner: null,
     roundNumber: 1,
 
+    currentTurnUserId: player1Id,
+    turnUserId: player1Id,
+    turnDurationSeconds: 15,
+
     // Campos de compatibilidad de plataforma
     round: 1,
     targetWins: 3,
@@ -106,10 +110,21 @@ export const processRPSAction = (state: RPSState, userId: string, choice: RPSCho
   currentChoices[userId] = { choice: normalizedChoice, committed: true };
   newState.playerChoices = currentChoices;
 
+  // Actualizar turno: si uno eligió, el turno activo restante es del otro jugador
+  if (newState.player1Choice && !newState.player2Choice) {
+    newState.currentTurnUserId = newState.player2Id;
+    newState.turnUserId = newState.player2Id;
+  } else if (!newState.player1Choice && newState.player2Choice) {
+    newState.currentTurnUserId = newState.player1Id;
+    newState.turnUserId = newState.player1Id;
+  }
+
   // Si ambos han elegido, revelamos y evaluamos
   if (newState.player1Choice && newState.player2Choice) {
     newState.status = 'ROUND_REVEAL';
     newState.phase = 'round_result';
+    newState.currentTurnUserId = null;
+    newState.turnUserId = null;
     const roundWinner = evaluateRound(newState.player1Choice, newState.player2Choice);
     newState.roundWinner = roundWinner;
 
@@ -155,11 +170,15 @@ export const processRPSAction = (state: RPSState, userId: string, choice: RPSCho
       newState.winnerUserId = newState.player2Id;
       newState.status = 'MATCH_ENDED';
       newState.phase = 'match_ended';
+      newState.currentTurnUserId = null;
+      newState.turnUserId = null;
     } else if (newState.player2Lives <= 0) {
       newState.matchWinner = 'PLAYER1';
       newState.winnerUserId = newState.player1Id;
       newState.status = 'MATCH_ENDED';
       newState.phase = 'match_ended';
+      newState.currentTurnUserId = null;
+      newState.turnUserId = null;
     }
   }
 
@@ -168,6 +187,29 @@ export const processRPSAction = (state: RPSState, userId: string, choice: RPSCho
 
 // Acción para avanzar a la siguiente ronda (llamada tras 2.5s o por botón)
 export const nextRound = (state: RPSState): RPSState => {
+  // Verificar si alguien ganó el match
+  if (state.player1Lives <= 0) {
+    return {
+      ...state,
+      status: 'MATCH_ENDED',
+      matchWinner: 'PLAYER2',
+      winnerUserId: state.player2Id,
+      currentTurnUserId: null,
+      turnUserId: null,
+    };
+  }
+
+  if (state.player2Lives <= 0) {
+    return {
+      ...state,
+      status: 'MATCH_ENDED',
+      matchWinner: 'PLAYER1',
+      winnerUserId: state.player1Id,
+      currentTurnUserId: null,
+      turnUserId: null,
+    };
+  }
+
   if (state.status !== 'ROUND_REVEAL' && state.phase !== 'round_result') return state;
   if (state.matchWinner || state.status === 'MATCH_ENDED') return state;
   
@@ -188,6 +230,9 @@ export const nextRound = (state: RPSState): RPSState => {
     roundWinnerUserId: null,
     roundNumber: nextRnd,
     round: nextRnd,
+    currentTurnUserId: state.player1Id,
+    turnUserId: state.player1Id,
+    turnDurationSeconds: 15,
   };
 };
 
@@ -264,6 +309,13 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       return { valid: true };
     }
 
+    if (actionType === 'TIMEOUT') {
+      if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
+        return { valid: false, reason: 'No se puede procesar timeout fuera de fase de selección.' };
+      }
+      return { valid: true };
+    }
+
     return { valid: false, reason: `Tipo de acción no soportada: ${actionType}` };
   }
 
@@ -309,6 +361,30 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
         isValid: true,
         isGameOver: false,
         winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
+
+    if (action.actionType === 'TIMEOUT') {
+      const choices: RPSChoice[] = ['ROCK', 'PAPER', 'SCISSORS'];
+      const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+      const targetUserId = action.userId || state.currentTurnUserId || (
+        !state.player1Choice ? state.player1Id : state.player2Id
+      );
+      const newState = processRPSAction(state, targetUserId, randomChoice);
+      const isGameOver = newState.status === 'MATCH_ENDED' || Boolean(newState.matchWinner);
+      const winnerUserId = newState.matchWinner === 'PLAYER1' 
+        ? newState.player1Id 
+        : newState.matchWinner === 'PLAYER2' 
+        ? newState.player2Id 
+        : newState.winnerUserId || null;
+
+      return {
+        newState,
+        isValid: true,
+        isGameOver,
+        winnerUserId,
         winnerTeamIndex: null,
         isDraw: false,
       };

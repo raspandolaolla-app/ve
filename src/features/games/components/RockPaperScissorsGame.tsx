@@ -12,16 +12,19 @@ import { Trophy, RefreshCw, ShieldAlert, Heart } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { FINANCIAL_RULES } from '../../../utils/constants';
 import { initializeRPSState, processRPSAction, nextRound, translateChoice } from '../engines/RockPaperScissorsEngine';
+import { TurnTimer } from './TurnTimer';
 
 export function RockPaperScissorsGame({
   table,
   players,
   currentUserId,
+  turnExpiresAt,
   onLeave,
 }: {
   table: GameTable;
   players: TablePlayer[];
   currentUserId?: string;
+  turnExpiresAt?: string;
   onLeave: () => void;
 }) {
   const uniquePlayers = Array.from(
@@ -111,6 +114,16 @@ export function RockPaperScissorsGame({
     );
   };
 
+  // Manejar timeout de turno: jugar automáticamente jugada aleatoria
+  const handleTurnTimeout = () => {
+    if (!hasCommitted && isMyTurn && !isGameOver && !isSettling) {
+      console.warn('[RPS_GAME] Timeout alcanzado: eligiendo jugada aleatoria automática');
+      const choices: RPSChoice[] = ['ROCK', 'PAPER', 'SCISSORS'];
+      const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+      handleMakeChoice(randomChoice);
+    }
+  };
+
   const isWinner = state.matchWinner 
     ? state.matchWinner === (isPlayer1 ? 'PLAYER1' : 'PLAYER2')
     : (state.winnerUserId === currentUserId || opponentLives <= 0);
@@ -180,6 +193,20 @@ export function RockPaperScissorsGame({
           {renderLives(opponentLives, opponentId ? state.playerNames[opponentId] || 'Rival' : 'Rival')}
         </div>
       </div>
+
+      {/* Temporizador de Turno Sincronizado */}
+      {turnExpiresAt && !isGameOver && (
+        <div className="w-full">
+          <TurnTimer
+            turnExpiresAt={turnExpiresAt}
+            durationSeconds={15}
+            isMyTurn={isMyTurn}
+            activePlayerName={isMyTurn ? 'TÚ' : (opponentId ? state.playerNames[opponentId] || 'Rival' : 'Rival')}
+            status={state.status}
+            onTimeout={handleTurnTimeout}
+          />
+        </div>
+      )}
 
       {/* Arena de Duelo */}
       <div className="w-full bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 text-center">

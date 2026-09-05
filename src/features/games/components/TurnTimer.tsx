@@ -34,38 +34,57 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
   useEffect(() => {
     const normalizedStatus = String(status || '').toLowerCase();
-    // No consumir tiempo competitivo durante STARTING, READY o WAITING
-    const isActive = ['playing', 'active', 'in_progress'].includes(normalizedStatus);
+    // No consumir tiempo competitivo durante fases previas a jugar o fases terminales
+    const isPausedOrInactive = [
+      'starting',
+      'ready',
+      'waiting',
+      'finished',
+      'cancelled',
+      'settled',
+      'completed',
+      'abandoned',
+      'match_ended',
+    ].includes(normalizedStatus);
 
-    if (!isActive) {
+    if (isPausedOrInactive) {
       setRemaining(durationSeconds);
       return;
     }
 
-    const computeTime = () => {
-      if (!turnExpiresAt) return durationSeconds;
-      const expireMs = new Date(turnExpiresAt).getTime();
-      if (isNaN(expireMs)) return durationSeconds;
-      const diffSec = Math.ceil((expireMs - Date.now()) / 1000);
-      return Math.max(0, diffSec);
-    };
+    if (!turnExpiresAt) {
+      setRemaining(durationSeconds);
+      return;
+    }
 
-    const initial = computeTime();
-    setRemaining(initial);
+    const deadline = new Date(turnExpiresAt).getTime();
+    if (isNaN(deadline)) {
+      setRemaining(durationSeconds);
+      return;
+    }
 
-    if (initial === 0 && !timedOutRef.current && onTimeout) {
+    const now = Date.now();
+    const initialTimeLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+    setRemaining(initialTimeLeft);
+
+    // Si ya expiró al montar, disparar timeout inmediatamente
+    if (initialTimeLeft === 0 && !timedOutRef.current) {
       timedOutRef.current = true;
-      onTimeout();
+      console.warn('[TURN_TIMER] Tiempo ya expirado al montar, disparando timeout');
+      onTimeout?.();
+      return;
     }
 
     const interval = setInterval(() => {
-      const left = computeTime();
+      const currentTime = Date.now();
+      const left = Math.max(0, Math.ceil((deadline - currentTime) / 1000));
       setRemaining(left);
 
-      if (left === 0 && !timedOutRef.current && onTimeout) {
+      if (left === 0 && !timedOutRef.current) {
         timedOutRef.current = true;
         clearInterval(interval);
-        onTimeout();
+        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
+        onTimeout?.();
       }
     }, 1000);
 

@@ -1,22 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, RefreshCw, Trophy } from 'lucide-react';
+import { Heart, RefreshCw, Trophy, Sparkles } from 'lucide-react';
 import type { RPSState, RPSChoice } from '../engines/RockPaperScissorsEngine';
+import { TurnTimer } from './TurnTimer';
 
 interface RockPaperScissorsBoardProps {
   state: RPSState;
   currentUserId: string;
+  isMyTurn?: boolean;
+  hasPlayerChosen?: boolean;
+  turnExpiresAt?: string;
+  sessionId?: string;
+  turnTimeLeft?: number;
   onAction?: (actionType: string, data: any) => void;
   onSubmitChoice?: (choice: RPSChoice) => void;
   onNextRound?: () => void;
+  onTimeout?: () => void;
+  onTurnTimeout?: () => void;
 }
 
 export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({ 
   state, 
   currentUserId, 
+  isMyTurn: propIsMyTurn,
+  hasPlayerChosen: propHasPlayerChosen,
+  turnExpiresAt,
+  sessionId,
+  turnTimeLeft,
   onAction,
   onSubmitChoice,
   onNextRound,
+  onTimeout,
+  onTurnTimeout,
 }) => {
   const [selectedChoice, setSelectedChoice] = useState<'ROCK' | 'PAPER' | 'SCISSORS' | null>(null);
 
@@ -43,11 +58,20 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
 
   const myChoice = rawMyChoice ? (rawMyChoice.toString().toUpperCase() as 'ROCK' | 'PAPER' | 'SCISSORS') : selectedChoice;
   const opponentChoice = rawOpponentChoice ? (rawOpponentChoice.toString().toUpperCase() as 'ROCK' | 'PAPER' | 'SCISSORS') : null;
-  const hasChosen = Boolean(myChoice || state.playerChoices?.[currentUserId]?.committed);
+  const hasChosen = Boolean(myChoice || state.playerChoices?.[currentUserId]?.committed || propHasPlayerChosen);
 
   const isRoundCommit = state.status === 'ROUND_COMMIT' || state.phase === 'selecting';
   const isRoundReveal = state.status === 'ROUND_REVEAL' || state.phase === 'round_result';
   const isMatchEnded = state.status === 'MATCH_ENDED' || state.status === 'game_won' || Boolean(state.matchWinner) || myLives <= 0 || opponentLives <= 0;
+
+  // Determinar si es el turno de este jugador para elegir
+  const computedIsMyTurn = propIsMyTurn !== undefined 
+    ? propIsMyTurn 
+    : (isRoundCommit && !hasChosen && !isMatchEnded);
+
+  const activeTurnName = computedIsMyTurn 
+    ? 'TÚ' 
+    : (state.playerNames?.[opponentId] || 'OPONENTE');
 
   // Resetear selección local cuando se cambia a nueva ronda
   useEffect(() => {
@@ -68,10 +92,41 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   }, [isRoundReveal, isMatchEnded, onAction, onNextRound]);
 
   const handleChoice = (choice: 'ROCK' | 'PAPER' | 'SCISSORS') => {
-    if (!isRoundCommit || hasChosen) return;
+    // Validar turno
+    if (!computedIsMyTurn) {
+      console.warn('[RPS] No es tu turno para elegir jugada');
+      return;
+    }
+
+    // Validar que no haya elegido ya
+    if (hasChosen) {
+      console.warn('[RPS] Ya elegiste, esperando al oponente');
+      return;
+    }
+
+    // Validar estado de ronda
+    if (!isRoundCommit || isMatchEnded) {
+      console.warn('[RPS] La ronda no está activa para selecciones');
+      return;
+    }
+
     setSelectedChoice(choice);
     if (onAction) onAction('CHOOSE', { choice });
     if (onSubmitChoice) onSubmitChoice(choice);
+  };
+
+  const handleTimeout = () => {
+    console.warn('[RPS] Temporizador de turno agotado');
+    if (onTurnTimeout) {
+      onTurnTimeout();
+    } else if (onTimeout) {
+      onTimeout();
+    } else if (!hasChosen && isRoundCommit) {
+      // Auto-elegir jugada aleatoria si no hay handler provisto
+      const choices: ('ROCK' | 'PAPER' | 'SCISSORS')[] = ['ROCK', 'PAPER', 'SCISSORS'];
+      const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+      handleChoice(randomChoice);
+    }
   };
 
   const getChoiceIcon = (choice: string | null | undefined) => {
@@ -132,8 +187,22 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
 
   return (
     <div id="rps-board-container" className="flex flex-col items-center justify-center p-4 max-w-xl mx-auto w-full">
+      {/* Temporizador de Turno */}
+      {turnExpiresAt && (
+        <div className="w-full max-w-md mb-4">
+          <TurnTimer
+            turnExpiresAt={turnExpiresAt}
+            durationSeconds={state.turnDurationSeconds || 15}
+            isMyTurn={computedIsMyTurn}
+            activePlayerName={activeTurnName}
+            status={state.status}
+            onTimeout={handleTimeout}
+          />
+        </div>
+      )}
+
       {/* Marcador de Vidas */}
-      <div id="rps-lives-display" className="flex justify-between w-full max-w-md mb-8 px-4">
+      <div id="rps-lives-display" className="flex justify-between w-full max-w-md mb-6 px-4">
         {isPlayer1 ? (
           <>
             {renderLives(myLives, "Tus Vidas")}
@@ -145,6 +214,21 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
             {renderLives(myLives, "Tus Vidas")}
           </>
         )}
+      </div>
+
+      {/* Indicador de Turno Activo */}
+      <div className="w-full max-w-md mb-3 text-center">
+        {computedIsMyTurn && !hasChosen ? (
+          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold animate-pulse">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>🎯 Tu turno - Elige tu jugada</span>
+          </div>
+        ) : hasChosen && isRoundCommit ? (
+          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span>⏳ Esperando la elección del oponente...</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Área de Enfrentamiento */}
@@ -207,8 +291,13 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
               key={option.id}
               id={`rps-choice-btn-${option.id.toLowerCase()}`}
               data-testid={`rps-${option.id.toLowerCase()}`}
+              disabled={!computedIsMyTurn || hasChosen || isMatchEnded}
               onClick={() => handleChoice(option.id as any)}
-              className="flex flex-col items-center justify-center p-4 bg-[#131926] hover:bg-[#1A2235] border border-slate-700 hover:border-amber-500/50 rounded-2xl transition-all active:scale-95 group touch-manipulation cursor-pointer"
+              className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all touch-manipulation cursor-pointer ${
+                computedIsMyTurn && !hasChosen
+                  ? 'bg-gradient-to-br from-[#131926] to-[#1e293b] hover:from-[#1A2235] hover:to-[#27354f] border border-slate-700 hover:border-amber-500/50 shadow-lg hover:scale-105 active:scale-95 group'
+                  : 'bg-slate-850 border border-slate-800 text-slate-500 cursor-not-allowed opacity-50'
+              }`}
             >
               <span className="text-4xl mb-2 group-hover:scale-110 transition-transform">{option.icon}</span>
               <span className="text-sm font-bold text-slate-300 group-hover:text-white">{option.label}</span>

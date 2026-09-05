@@ -330,16 +330,22 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
             </div>
 
             <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
-              <span className="text-slate-400">Cédula de Identidad</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400">Cédula de Identidad</span>
+                <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">Blindada</span>
+              </div>
               <span className="font-mono font-medium text-slate-200">
-                {profile?.cedulaMasked ? maskCedula(profile.cedulaMasked) : 'Verificado vía KYC'}
+                {profile?.cedula ? `V-${profile.cedula}` : (profile?.cedulaMasked ? maskCedula(profile.cedulaMasked) : 'Verificado vía KYC')}
               </span>
             </div>
 
             <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
-              <span className="text-slate-400">Teléfono Móvil</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400">Teléfono Móvil</span>
+                <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold">Blindado</span>
+              </div>
               <span className="font-mono font-medium text-slate-200">
-                {profile?.phoneMasked ? maskPhone(profile.phoneMasked) : 'Verificado vía KYC'}
+                {profile?.telefono || (profile?.phoneMasked ? maskPhone(profile.phoneMasked) : 'Verificado vía KYC')}
               </span>
             </div>
 

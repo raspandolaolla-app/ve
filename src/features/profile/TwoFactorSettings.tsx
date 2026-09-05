@@ -59,14 +59,32 @@ export function TwoFactorSettings({ userRole, onStatusChange }: TwoFactorSetting
   const isAdminOrOperator = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'OPERATOR';
 
   const loadStatus = useCallback(async () => {
-    setLoading(true);
-    const st = await TwoFactorRepository.get2FAStatus();
-    setStatus(st);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const st = await TwoFactorRepository.get2FAStatus();
+      setStatus(st);
+    } catch (error) {
+      console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadStatus();
+    let isMounted = true;
+    const execute = async () => {
+      try {
+        if (isMounted) {
+          await loadStatus();
+        }
+      } catch (error) {
+        console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+      }
+    };
+    execute();
+    return () => {
+      isMounted = false;
+    };
   }, [loadStatus]);
 
   // Iniciar configuración 2FA

@@ -19,7 +19,7 @@ export function ClaimTestBonusModal({ hasClaimed = false, onSuccess }: ClaimTest
   const [claimedLocal, setClaimedLocal] = useState(hasClaimed);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
-  if (claimedLocal) {
+  if (claimedLocal && !feedback) {
     return null;
   }
 
@@ -30,14 +30,16 @@ export function ClaimTestBonusModal({ hasClaimed = false, onSuccess }: ClaimTest
     try {
       const res = await WalletRepository.claimTestBonus();
       if (res.success) {
-        setClaimedLocal(true);
         setFeedback({
           success: true,
-          message: res.message || '¡Bono de 5.000 Bs acreditado exitosamente en tu billetera!',
+          message: res.message || 'Bono de prueba acreditado exitosamente.',
         });
         if (onSuccess) {
           onSuccess();
         }
+        setTimeout(() => {
+          setClaimedLocal(true);
+        }, 4000);
       } else {
         if (res.error?.includes('BONO_YA_RECLAMADO')) {
           setClaimedLocal(true);
@@ -116,6 +118,8 @@ export function ClaimTestBonusModal({ hasClaimed = false, onSuccess }: ClaimTest
 
       {feedback && (
         <div
+          id="claim-test-bonus-feedback"
+          data-testid="claim-test-bonus-feedback"
           className={`mt-3 p-3 rounded-xl border flex items-center gap-2 text-xs ${
             feedback.success
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'

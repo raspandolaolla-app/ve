@@ -440,6 +440,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const refreshProfile = async () => {
+    if (typeof window !== 'undefined') {
+      const mockAuthStr = window.localStorage.getItem('playwright-mock-auth');
+      if (mockAuthStr) {
+        try {
+          const mockData = JSON.parse(mockAuthStr);
+          if (mockData.profile) {
+            setProfile({ ...mockData.profile });
+            console.log('[AUTH] Perfil mock recargado desde localStorage (E2E)');
+            return;
+          }
+        } catch {
+          // Continuar con flujo estándar
+        }
+      }
+    }
     if (!user) return;
     try {
       const fetchedProfile = await ProfileRepository.getCurrentProfile(user.id);

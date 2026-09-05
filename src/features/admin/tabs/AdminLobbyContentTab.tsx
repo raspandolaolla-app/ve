@@ -80,14 +80,32 @@ export function AdminLobbyContentTab() {
   const [activeVideoModalUrl, setActiveVideoModalUrl] = useState<string | null>(null);
 
   const loadBanners = useCallback(async () => {
-    setLoading(true);
-    const data = await BannerRepository.getAllBannersForAdmin();
-    setBanners(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const data = await BannerRepository.getAllBannersForAdmin();
+      setBanners(data);
+    } catch (error) {
+      console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadBanners();
+    let isMounted = true;
+    const execute = async () => {
+      try {
+        if (isMounted) {
+          await loadBanners();
+        }
+      } catch (error) {
+        console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+      }
+    };
+    execute();
+    return () => {
+      isMounted = false;
+    };
   }, [loadBanners]);
 
   // Manejador de Carga de Archivos a Supabase Storage

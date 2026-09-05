@@ -282,7 +282,7 @@ export function TablesView() {
           sessionRecord?.table_id &&
           (sessionRecord.is_settled === true ||
             sessionRecord.ended_at !== null ||
-            ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE', 'IN_PROGRESS', 'IN_GAME'].includes(sessionStatus))
+            ['SETTLED', 'FINISHED', 'CANCELLED', 'COMPLETED', 'ABANDONED', 'CLOSED', 'ACTIVE'].includes(sessionStatus))
         ) {
           recentlyClosedTableIds.current.add(sessionRecord.table_id);
           recentlyClosedTimestamps.current.set(sessionRecord.table_id, Date.now());
@@ -377,7 +377,7 @@ export function TablesView() {
           const updatedTable = { ...activeTable, ...tablePayload.new };
           setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
 
-          const isPlayable = ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(newStatus);
+          const isPlayable = ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(newStatus);
           if (isPlayable) {
             checkAndEnterGame(updatedTable);
           }
@@ -392,7 +392,7 @@ export function TablesView() {
         if (!isMounted || !sessionPayload.new) return;
         const sessStatus = (sessionPayload.new.status || '').toUpperCase();
         const isSessionActive =
-          ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(sessStatus) ||
+          ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(sessStatus) ||
           (sessStatus === 'WAITING' && activeTable.gameType === 'bingo');
 
         if (isSessionActive) {
@@ -411,7 +411,7 @@ export function TablesView() {
         if (activeSess) {
           const sStatus = (activeSess.status || '').toUpperCase();
           const isPlayableSession =
-            ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(sStatus) ||
+            ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(sStatus) ||
             (sStatus === 'WAITING' && activeTable.gameType === 'bingo');
 
           if (isPlayableSession) {
@@ -425,7 +425,7 @@ export function TablesView() {
         if (!isMounted) return;
         if (freshTable) {
           const tStatus = (freshTable.status || '').toUpperCase();
-          if (['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING'].includes(tStatus)) {
+          if (['ACTIVE', 'SALES', 'DRAWING'].includes(tStatus)) {
             await checkAndEnterGame(freshTable);
           }
         }
@@ -1177,7 +1177,7 @@ export function TablesView() {
                             variant="primary"
                             size="sm"
                             leftIcon={
-                              ['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status) ? (
+                              ['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status) ? (
                                 <Play className="w-4 h-4 fill-current" />
                               ) : (
                                 <Clock className="w-4 h-4 animate-pulse" />
@@ -1185,7 +1185,7 @@ export function TablesView() {
                             }
                             disabled={
                               !userAlreadySeated ||
-                              !['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
+                              !['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
                             }
                             onClick={() => {
                               if (!user) return;
@@ -1198,7 +1198,7 @@ export function TablesView() {
                           >
                             {!userAlreadySeated
                               ? 'Ocupa un puesto para jugar'
-                              : ['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
+                              : ['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
                               ? 'ENTRAR A LA PARTIDA'
                               : canStart
                               ? 'Esperando inicio del anfitrión...'

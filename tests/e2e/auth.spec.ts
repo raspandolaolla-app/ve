@@ -20,9 +20,12 @@ const MOCK_USER = {
     lastName: 'Test',
     email: 'test-user@raspando.ve',
     accountStatus: 'active',
-    identityVerificationStatus: 'pending',
+    identityVerificationStatus: 'approved',
     humanVerificationStatus: 'approved',
     isMfaEnabled: false,
+    cedula: '12345678',
+    telefono: '+584121234567',
+    isProfileLocked: true,
   },
   role: 'PLAYER'
 };
@@ -32,7 +35,7 @@ test.describe('Authentication Flows - E2E', () => {
     await page.goto('./');
     const loginBtn = page.locator('#header-signin-google-btn');
     await expect(loginBtn).toBeVisible();
-    await expect(loginBtn).toContainText('Continuar con Google');
+    await expect(loginBtn).toContainText('INGRESAR');
   });
 
   test('Autenticación mediante Mock Auth y persistencia tras recarga', async ({ page }) => {

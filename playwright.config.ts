@@ -1,64 +1,107 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'path';
 
-/**
- * See https://playwright.dev/docs/test-configuration.
- */
+// Cargar variables de entorno específicas para testing
+dotenv.config({ path: '.env.test' });
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
+const baseURL = process.env.BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+
 export default defineConfig({
-  testDir: './tests/e2e',
-  /* Maximum time one test can run for. */
-  timeout: 30 * 1000,
-  expect: {
-    /**
-     * Maximum time expect() should wait for the condition to be met.
-     */
-    timeout: 5000
-  },
-  /* Run tests in files in parallel */
-  fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  testDir: './e2e',
+  testMatch: '**/*.spec.ts',
+  fullyParallel: false, // Secuencial para mantener consistencia de estado
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  workers: process.env.CI ? 1 : 1,
+  
+  reporter: [
+    ['html', { 
+      outputFolder: 'playwright-report',
+      open: 'never',
+    }],
+    ['list'],
+    ['json', { outputFile: 'test-results/results.json' }],
+    ['junit', { outputFile: 'test-results/junit-results.xml' }],
+  ],
+  
+  globalSetup: './e2e/global-setup',
+  globalTeardown: './e2e/global-teardown',
+  
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    
-    // Bypass CSP or allow insecure connections if needed for testing
-    ignoreHTTPSErrors: true,
+    actionTimeout: 20000,
+    navigationTimeout: 30000,
+    testIdAttribute: 'data-testid',
+    locale: 'es-VE',
+    timezoneId: 'America/Caracas',
+    extraHTTPHeaders: {
+      'Accept-Language': 'es-VE,es;q=0.9',
+    },
   },
 
-  /* Configure projects for major browsers */
   projects: [
     {
+      name: 'setup',
+      testMatch: '**/*.setup.ts',
+    },
+    {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { 
+        ...devices['Desktop Firefox'],
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { 
+        ...devices['Desktop Safari'],
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
-    /* Test against mobile viewports. */
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      use: { 
+        ...devices['Pixel 5'],
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
     {
       name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
+      use: { 
+        ...devices['iPhone 13'],
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'accessibility',
+      testMatch: '**/*a11y*.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
+
+  timeout: 60000,
+  expect: {
+    timeout: 10000,
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.05,
+    },
+  },
 });

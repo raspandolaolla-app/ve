@@ -35,14 +35,30 @@
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
   <script>
-    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+    // Registro de Service Worker PWA resiliente (Solo en ventana principal y contexto seguro)
+    var isTopWindow = false;
+    try {
+      isTopWindow = window.self === window.top;
+    } catch (e) {
+      isTopWindow = false;
+    }
+
+    if ('serviceWorker' in navigator && isTopWindow && (window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js').then(function(reg) {
-          console.log('[PWA] Service Worker registrado:', reg.scope);
-          if ('PushManager' in window) console.log('[PWA] Push Notifications disponibles');
-        }).catch(function(err) {
-          console.warn('[PWA] Service Worker error:', err);
-        });
+        try {
+          navigator.serviceWorker.register('./sw.js').then(function(reg) {
+            console.log('[PWA] Service Worker registrado:', reg.scope);
+            if ('PushManager' in window) console.log('[PWA] Push Notifications disponibles');
+          }).catch(function(err) {
+            // Manejo silencioso de restricciones de sandbox o permisos de seguridad del navegador
+            if (err && (err.name === 'SecurityError' || String(err).includes('insecure'))) {
+              return;
+            }
+            console.debug('[PWA] Service Worker no disponible en este entorno:', err);
+          });
+        } catch (err) {
+          // Ignorar excepciones síncronas de contexto restringido
+        }
       });
     }
     document.addEventListener('gesturestart', function(e) { e.preventDefault(); });

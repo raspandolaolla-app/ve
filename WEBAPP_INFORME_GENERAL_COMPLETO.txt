@@ -2,10 +2,31 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:15:00 -07:00 (UTC 2026-09-05 01:15:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:35:00 -07:00 (UTC 2026-09-05 01:35:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 137_ensure_game_variant_column.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 138_profile_rls_and_auto_creation_trigger.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MIGRACIÓN 138 Y BLINDAJE RLS / .UPDATE() ESTRICTO EN ONBOARDING:
+   - Resolución del Error RLS en `profiles` ("new row violates row-level security policy for table profiles"):
+     * `supabase/migrations/138_profile_rls_and_auto_creation_trigger.sql` implementa las políticas RLS definitivas:
+       - INSERT: `WITH CHECK (auth.uid() = id OR (user_id IS NOT NULL AND auth.uid() = user_id))` permitiendo auto-inserción segura.
+       - UPDATE: `USING (auth.uid() = id OR (user_id IS NOT NULL AND auth.uid() = user_id))` permitiendo al usuario modificar su propio perfil sin tocar el de terceros.
+       - SELECT: `USING (true)` para consultas de perfiles y mesas en el juego.
+     * Trigger automático `on_auth_user_created` en `auth.users` ejecutando `public.fn_auto_create_user_profile_and_wallet()`:
+       - Al registrarse un usuario con Google OAuth, se crea de forma inmediata y automática su fila en `profiles` y su billetera `wallets` con saldo cero en VES.
+       - Emplea bloques con manejo de excepciones y fallbacks para garantizar total resiliencia con cualquier variación del esquema de perfiles.
+   - Frontend `ProfileOnboarding.tsx` 100% Actualizado:
+     * Empleo estricto de `.update()` (eliminando llamadas a `.insert()` o `.upsert()`), asegurando que solo se actualice la fila ya existente generada por el trigger.
+     * Captura especializada del error de unicidad `23505` con mensajes transparentes y amigables en español:
+       - Si la cédula ya existe: *"⚠️ Esta cédula ya está registrada en otro perfil. Cada persona solo puede tener una cuenta. Verifica el número o contacta a soporte."*
+       - Si el teléfono ya existe: *"⚠️ Este número de teléfono ya está registrado en otro perfil. Verifica el número o contacta a soporte."*
+     * Captura del error RLS `42501`: *"⚠️ Error de permisos: No tienes autorización para modificar este perfil. Cierra sesión y vuelve a intentarlo."*
+     * Validación interactiva en tiempo real: formato numérico estricto de cédula (7 a 9 dígitos), teléfono (mínimo 10 dígitos), nombre completo en mayúsculas, y validación estricta de mayoría de edad (+18 años).
+     * Modal con overlay backdrop oscuro `bg-[#0B0F17]/95`, diseño institucional y transiciones suaves.
+   - Verificación de Calidad:
+     * `lint_applet` ejecutado con éxito: 0 errores, 0 advertencias de TypeScript.
+     * `compile_applet` ejecutado con éxito: build de producción validado.
 
 0) MIGRACIÓN 137 Y BLINDAJE DE CONSULTAS DE BINGO / CSP / LOGIN EXCLUSIVO GOOGLE:
    - Corrección CSP para Cloudflare Turnstile (`index.html`):

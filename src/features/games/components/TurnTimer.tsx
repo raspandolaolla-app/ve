@@ -2,14 +2,13 @@
 // RASPANDO LA OLLA — COMPONENTE DE TEMPORIZADOR DE TURNO SINCRONIZADO
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 
-interface TurnTimerProps {
+export interface TurnTimerProps {
   turnExpiresAt?: string;
-  durationSeconds?: number; // Default 30s
-  isMyTurn: boolean;
+  durationSeconds?: number;
+  isMyTurn?: boolean;
   activePlayerName?: string;
   status?: string;
   onTimeout?: () => void;
@@ -18,15 +17,15 @@ interface TurnTimerProps {
 
 export const TurnTimer: React.FC<TurnTimerProps> = ({
   turnExpiresAt,
-  durationSeconds = 30,
-  isMyTurn,
-  activePlayerName = 'Opónente',
-  status = 'playing',
+  durationSeconds = 15,
+  isMyTurn = false,
+  activePlayerName = 'Rival',
+  status,
   onTimeout,
   className = '',
 }) => {
   const [remaining, setRemaining] = useState<number>(durationSeconds);
-  const timedOutRef = React.useRef(false);
+  const timedOutRef = useRef(false);
 
   useEffect(() => {
     timedOutRef.current = false;
@@ -34,7 +33,8 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
   useEffect(() => {
     const normalizedStatus = String(status || '').toLowerCase();
-    // No consumir tiempo competitivo durante fases previas a jugar o fases terminales
+    
+    // Solo ejecutar o pausar el temporizador según el estado jugable
     const isPausedOrInactive = [
       'starting',
       'ready',
@@ -45,6 +45,8 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       'completed',
       'abandoned',
       'match_ended',
+      'round_reveal',
+      'round_result',
     ].includes(normalizedStatus);
 
     if (isPausedOrInactive) {
@@ -57,27 +59,38 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       return;
     }
 
-    const deadline = new Date(turnExpiresAt).getTime();
-    if (isNaN(deadline)) {
+    const now = Date.now();
+    const storedExpiresAt = new Date(turnExpiresAt).getTime();
+    if (isNaN(storedExpiresAt)) {
       setRemaining(durationSeconds);
       return;
     }
 
-    const now = Date.now();
-    const initialTimeLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
-    setRemaining(initialTimeLeft);
+    // ✅ CORRECCIÓN CRÍTICA: Si el turnExpiresAt guardado ya pasó, pero el juego 
+    // sigue en estado jugable (ej. ROUND_COMMIT o ACTIVE), significa que el backend no actualizó el tiempo 
+    // (ej. al pasar a la siguiente ronda). Extendemos optimistamente desde AHORA.
+    const effectiveExpiresAt = storedExpiresAt < now 
+      ? now + durationSeconds * 1000 
+      : storedExpiresAt;
 
-    // Si ya expiró al montar, disparar timeout inmediatamente
-    if (initialTimeLeft === 0 && !timedOutRef.current) {
+    if (storedExpiresAt < now) {
+      console.warn('[TURN_TIMER] turnExpiresAt desactualizado. Extendiendo optimistamente.');
+    }
+
+    const initialTimeLeft = Math.max(0, Math.ceil((effectiveExpiresAt - now) / 1000));
+    setRemaining(initialTimeLeft);
+    timedOutRef.current = false;
+
+    if (initialTimeLeft === 0) {
       timedOutRef.current = true;
-      console.warn('[TURN_TIMER] Tiempo ya expirado al montar, disparando timeout');
+      console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
       onTimeout?.();
       return;
     }
 
     const interval = setInterval(() => {
       const currentTime = Date.now();
-      const left = Math.max(0, Math.ceil((deadline - currentTime) / 1000));
+      const left = Math.max(0, Math.ceil((effectiveExpiresAt - currentTime) / 1000));
       setRemaining(left);
 
       if (left === 0 && !timedOutRef.current) {
@@ -97,13 +110,12 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
   const isWarning = remaining <= 5 && remaining > 0;
   const isTimeOut = remaining === 0;
-
   const formattedPlayerName = activePlayerName.trim().toUpperCase();
 
   return (
     <div
       id="turn-timer-container"
-      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${
+      className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl border transition-all ${
         isTimeOut
           ? 'bg-red-950/40 border-red-600/60 text-red-400'
           : isWarning
@@ -151,3 +163,6 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     </div>
   );
 };
+
+export default TurnTimer;
+

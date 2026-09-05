@@ -316,9 +316,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mockAuthStr) {
         try {
           const mockData = JSON.parse(mockAuthStr);
+          const mockProfile = mockData.profile ? {
+            cedula: '12345678',
+            telefono: '+584121234567',
+            isProfileLocked: true,
+            nombreReal: 'Robot Test',
+            fechaNacimiento: '1995-01-01',
+            estadoResidencia: 'Distrito Capital',
+            ...mockData.profile,
+          } : null;
           setUser(mockData.user);
           setSession(mockData.session);
-          setProfile(mockData.profile);
+          setProfile(mockProfile);
           setRole(mockData.role || 'PLAYER');
           setHasAcceptedTerms(true);
           setState('authenticated');
@@ -504,29 +513,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     console.log('[AUTH] Logout solicitado');
+    const wasMock = typeof window !== 'undefined' && Boolean(window.localStorage.getItem('playwright-mock-auth'));
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('playwright-mock-auth');
     }
-    if (!supabase) return;
     try {
-      try {
-        await AdminRepository.endUserSession();
-      } catch (err) {
-        // Ignorar fallo en registro de actividad
+      if (!wasMock) {
+        try {
+          await AdminRepository.endUserSession();
+        } catch (err) {
+          // Ignorar fallo en registro de actividad
+        }
       }
       if (user?.id) {
         RealtimeManager.cleanupUserEvents(user.id);
       }
-      await supabase.auth.signOut();
+      if (supabase && !wasMock) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.error('[AUTH] Error al cerrar sesión:', err);
+    } finally {
+      loadedUserIdRef.current = null;
       setUser(null);
       setSession(null);
       setProfile(null);
       setRole('PLAYER');
+      setHasAcceptedTerms(false);
+      setTermsRecord(null);
       setState('unauthenticated');
       setError(null);
       setIsSigningIn(false);
-    } catch (err) {
-      console.error('[AUTH] Error al cerrar sesión:', err);
     }
   };
 

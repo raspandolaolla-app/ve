@@ -63,15 +63,15 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
             const statusUpper = String(updatedTable.status || '').toUpperCase();
 
             // Si la mesa pasó a FINISHED, CANCELLED o CLOSED, removerla inmediatamente de la vista
-            if (['FINISHED', 'CANCELLED', 'CLOSED'].includes(statusUpper)) {
+            if (statusUpper === 'FINISHED' || statusUpper === 'CANCELLED' || statusUpper === 'CLOSED') {
               setAvailableBingoTables((prev) => prev.filter((t) => t.id !== updatedTable.id));
             } else {
               loadBingoTables();
             }
           } else if (payload.eventType === 'INSERT') {
             const newTable = payload.new;
-            const statusUpper = String(newTable?.status || '').toUpperCase();
-            if (['WAITING', 'OPEN', 'SALES', 'READY'].includes(statusUpper)) {
+            const statusUpper = String(newTable.status || '').toUpperCase();
+            if (statusUpper !== 'FINISHED' && statusUpper !== 'CANCELLED' && statusUpper !== 'CLOSED') {
               loadBingoTables();
             }
           } else if (payload.eventType === 'DELETE') {
@@ -139,7 +139,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           table:game_tables (
             id,
             game_type,
-            game_variant,
+            config,
             entry_fee,
             name
           )
@@ -152,7 +152,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
         console.warn('Fallback a consulta de countdowns por IDs de mesas:', error?.message);
         const { data: bTables } = await client
           .from('game_tables')
-          .select('id, game_type, game_variant, entry_fee, name')
+          .select('id, game_type, config, entry_fee, name')
           .eq('game_type', 'bingo');
 
         const bTableIds = (bTables || []).map((t: any) => t.id);
@@ -230,15 +230,11 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           ),
           game_table_players (
             user_id,
-            status,
-            profiles (
-              display_name,
-              avatar_url
-            )
+            status
           )
         `)
         .or('game_type.eq.bingo,game_type.eq.BINGO')
-        .in('status', ['WAITING', 'OPEN', 'SALES', 'READY'])
+        .in('status', ['WAITING', 'READY', 'SALES', 'ACTIVE', 'OPEN', 'DRAWING'])
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -247,7 +243,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           .from('game_tables')
           .select('*')
           .or('game_type.eq.bingo,game_type.eq.BINGO')
-          .in('status', ['WAITING', 'OPEN', 'SALES', 'READY'])
+          .in('status', ['WAITING', 'READY', 'SALES', 'ACTIVE', 'OPEN', 'DRAWING'])
           .order('created_at', { ascending: false });
         tables = fallback.data;
       }
@@ -339,32 +335,6 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
 
   const handleJoinTable = async (tableId: string) => {
     try {
-      const client = getSupabaseClient();
-      if (!client) {
-        alert('El servicio no está disponible temporalmente.');
-        return;
-      }
-
-      // Invocar la RPC segura join_table_transaction
-      const { data, error } = await client.rpc('join_table_transaction', {
-        p_table_id: tableId,
-      });
-
-      if (error) {
-        if (error.message?.includes('MESA_NO_DISPONIBLE')) {
-          alert('⚠️ Esta mesa ya no está aceptando jugadores.');
-          return;
-        } else if (error.message?.includes('MESA_LLENA')) {
-          alert('⚠️ Esta mesa ya alcanzó su capacidad máxima.');
-          return;
-        } else if (error.message?.includes('NO_AUTENTICADO') || error.message?.includes('AUTH_REQUIRED')) {
-          alert('⚠️ Debes iniciar sesión para unirte a una mesa.');
-          return;
-        } else {
-          console.warn('[handleJoinTable] Warning en join_table_transaction:', error.message);
-        }
-      }
-
       const selected = availableBingoTables.find((t) => t.id === tableId);
       const variant = selected?.game_variant === '75' ? '75' : '90';
 
@@ -379,9 +349,9 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
       }, 50);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al unirse:', error);
-      alert('Error al unirse a la mesa: ' + (error?.message || 'Intenta nuevamente.'));
+      alert('Error al unirse a la mesa. Intenta nuevamente.');
     }
   };
 

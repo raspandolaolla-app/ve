@@ -199,7 +199,7 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
           table:game_tables (
             id,
             entry_fee,
-            game_variant,
+            config,
             game_type,
             current_players_count,
             game_table_players (
@@ -217,7 +217,7 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
         console.warn('Fallback a consulta por IDs de mesas en BingoLiveViewer:', error?.message);
         const { data: bTables } = await supabase
           .from('game_tables')
-          .select('id, entry_fee, game_variant, game_type, current_players_count, game_table_players(user_id, status)')
+          .select('id, entry_fee, config, game_type, current_players_count, game_table_players(user_id, status)')
           .eq('game_type', 'bingo');
 
         const bTableIds = (bTables || []).map((t: any) => t.id);
@@ -244,9 +244,13 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
       const validSessions: ActiveBingoSession[] = (data || [])
         .map((s: any) => {
           const rawTable = Array.isArray(s.table) ? s.table[0] : s.table;
+          const tableObj = rawTable ? {
+            ...rawTable,
+            game_variant: rawTable.game_variant || rawTable.config?.gameVariant || rawTable.config?.variant || '90',
+          } : { id: s.table_id, entry_fee: 25, game_variant: '90' };
           return {
             ...s,
-            table: rawTable || { id: s.table_id, entry_fee: 25 },
+            table: tableObj,
           };
         })
         .filter((s: ActiveBingoSession) => {

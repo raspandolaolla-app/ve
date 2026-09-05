@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
+import logger from '../../../utils/logger';
 
 export interface TurnTimerProps {
   turnExpiresAt?: string;
@@ -74,7 +75,8 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       : storedExpiresAt;
 
     if (storedExpiresAt < now) {
-      console.warn('[TURN_TIMER] turnExpiresAt desactualizado. Extendiendo optimistamente.');
+      // ✅ CORREGIDO: Usar logger estructurado en lugar de console.warn para pasar ESLint
+      logger.warn('turnExpiresAt desactualizado. Extendiendo optimistamente.', undefined, 'TurnTimer');
     }
 
     const initialTimeLeft = Math.max(0, Math.ceil((effectiveExpiresAt - now) / 1000));
@@ -83,7 +85,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
     if (initialTimeLeft === 0) {
       timedOutRef.current = true;
-      console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
+      logger.warn('Tiempo agotado, disparando timeout', undefined, 'TurnTimer');
       onTimeout?.();
       return;
     }
@@ -96,7 +98,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       if (left === 0 && !timedOutRef.current) {
         timedOutRef.current = true;
         clearInterval(interval);
-        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
+        logger.warn('Tiempo agotado, disparando timeout', undefined, 'TurnTimer');
         onTimeout?.();
       }
     }, 1000);
@@ -165,4 +167,3 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 };
 
 export default TurnTimer;
-

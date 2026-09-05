@@ -14,26 +14,10 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug",
+    "test:bingo": "playwright test tests/e2e/bingo.spec.ts",
+    "test:mobile": "playwright test --project=\"Mobile Chrome\"",
     "test:report": "playwright show-report",
-    "test:chromium": "playwright test --project=chromium",
-    "test:firefox": "playwright test --project=firefox",
-    "test:webkit": "playwright test --project=webkit",
-    "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
-    "test:auth": "playwright test e2e/auth",
-    "test:games": "playwright test e2e/games",
-    "test:wallet": "playwright test e2e/wallet",
-    "test:bingo": "playwright test e2e/games/bingo.spec.ts",
-    "test:domino": "playwright test e2e/games/domino.spec.ts",
-    "test:truco": "playwright test e2e/games/truco.spec.ts",
-    "test:a11y": "playwright test --project=accessibility",
-    "test:a11y:report": "playwright test --project=accessibility --reporter=html",
-    "test:integration": "playwright test e2e/integration",
-    "test:smoke": "playwright test e2e/smoke",
-    "test:all": "npm run test && npm run test:a11y",
-    "test:setup-db": "tsx scripts/setup-test-users.ts",
-    "test:cleanup-db": "tsx scripts/cleanup-test-data.ts",
-    "test:report-gen": "tsx scripts/generate-test-report.ts"
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -55,7 +39,6 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.62.1",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",

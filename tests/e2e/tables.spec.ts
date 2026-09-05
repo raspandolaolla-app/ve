@@ -20,9 +20,12 @@ const MOCK_USER = {
     lastName: 'Test',
     email: 'test-user@raspando.ve',
     accountStatus: 'active',
-    identityVerificationStatus: 'pending',
+    identityVerificationStatus: 'approved',
     humanVerificationStatus: 'approved',
     isMfaEnabled: false,
+    cedula: '12345678',
+    telefono: '+584121234567',
+    isProfileLocked: true,
   },
   role: 'PLAYER'
 };

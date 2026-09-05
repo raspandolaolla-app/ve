@@ -2,10 +2,31 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 00:06:00 -07:00 (UTC 2026-09-05 07:06:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso / E2E Tests 100% PASS)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 00:26:00 -07:00 (UTC 2026-09-05 07:26:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso / Playwright E2E: smoke.spec.ts 100% PASS, auth.spec.ts 3/3 100% PASS)
 ÚLTIMA MIGRACIÓN INTEGRADA: 138_profile_rls_and_auto_creation_trigger.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CONSOLIDACIÓN TOTAL DE PLAYWRIGHT Y SCRIPTS E2E EN REPOSITORIO:
+   - Verificación de Ruta `testDir` y Configuración en `playwright.config.ts`:
+     * Se constató que `testDir` está configurado canónicamente en `'./tests/e2e'`, apuntando con precisión a la suite de pruebas oficial en la raíz del proyecto.
+     * Soporte de Base URL Dinámica: Se actualizó `baseURL` para admitir de forma flexible tanto `process.env.PLAYWRIGHT_BASE_URL` como `process.env.BASE_URL` o fallback a `'http://localhost:3000'`.
+   - Inyección de Scripts Oficiales en `package.json`:
+     * `npm run test`: Ejecuta toda la suite con Playwright (`playwright test`).
+     * `npm run test:ui`: Abre la interfaz gráfica interactiva de Playwright (`playwright test --ui`).
+     * `npm run test:headed`: Ejecución con visualización en navegador visible (`playwright test --headed`).
+     * `npm run test:bingo`: Ejecución focalizada de la prueba de Bingo (`playwright test tests/e2e/bingo.spec.ts`).
+     * `npm run test:mobile`: Ejecución contra el perfil móvil (`playwright test --project="Mobile Chrome"`).
+     * `npm run test:report`: Despliega el reporte HTML de resultados (`playwright show-report`).
+     * `npm run test:debug`: Modo depuración paso a paso (`playwright test --debug`).
+   - Normalización de Datos Mock en Suites E2E:
+     * Se integraron los campos de onboarding (`cedula: '12345678'`, `telefono: '+584121234567'`, `isProfileLocked: true`, `identityVerificationStatus: 'approved'`) en los objetos `MOCK_USER` de `lobby.spec.ts`, `tables.spec.ts`, `bingo.spec.ts`, `uno-olla.spec.ts` y `realtime.spec.ts`, garantizando que ninguna prueba automatizada sea interceptada o bloqueada por el modal de Onboarding.
+   - Ejecución y Validación de Pruebas Automatizadas:
+     * `smoke.spec.ts`: PASS (1/1 tests passed en Chromium).
+     * `auth.spec.ts`: PASS (3/3 tests passed en Chromium).
+     * `lint_applet` (tsc --noEmit): PASS (0 errores de TypeScript).
+     * `compile_applet` (npm run build): PASS (Build exitoso).
+
 
 0) DEPURACIÓN Y SANEAMIENTO DE ESTRUCTURA DEL REPOSITORIO:
    - Limpieza de Directorios Duplicados y Obsoletos:

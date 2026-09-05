@@ -601,12 +601,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'game_sessions',
           filter: `id=eq.${session.id}`,
         },
         (payload) => {
+          if (payload.eventType === 'DELETE') return;
           const updated = payload.new as any;
           if (updated) {
             setSession((prev) =>
@@ -773,11 +774,67 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     };
   }, [session?.id, currentUserId, engine, currentPlayers, table]);
 
-  // Suscripción Realtime para detectar cuando el anfitrión crea/inicia la sesión en la mesa
+  // Suscripción Realtime y Sondeo de Respaldo para detectar cuando el anfitrión crea/inicia la sesión en la mesa
   useEffect(() => {
     if (session?.id) return;
+    let isMounted = true;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+
+    const hydrateAndActivateSession = (activeSess: GameSession) => {
+      if (!isMounted) return;
+      setSession(activeSess);
+      let initialEngineState: any = {};
+      if (table.gameType === 'atrapaito') {
+        const isOnline = !table.config?.isPractice && !table.id.startsWith('practice_') && table.entryFee > 0;
+        initialEngineState = {
+          bluePos: { col: 4, row: 14 },
+          redPos: { col: 3, row: 14 },
+          walls: [],
+          blueWalls: 10,
+          redWalls: 10,
+          turn: 'BLUE',
+          action: 'MOVE',
+          wallOrientation: 'HORIZONTAL',
+          pendingWall: null,
+          winner: null,
+          mode: isOnline ? 'ONLINE' : 'VS_AI',
+          isAiThinking: false,
+          consecutiveDraws: 0,
+          blueUserId: currentPlayers[0]?.userId || null,
+          redUserId: currentPlayers[1]?.userId || null,
+          currentTurnUserId: currentPlayers[0]?.userId || null,
+          turnUserId: currentPlayers[0]?.userId || null,
+          turnDurationSeconds: 15,
+          boardType: 'CRIOLLO_WALLS',
+        };
+      } else if (engine) {
+        initialEngineState = engine.initialize(table, currentPlayers);
+      }
+      const rawState =
+        activeSess.currentState && Object.keys(activeSess.currentState).length > 0
+          ? activeSess.currentState
+          : initialEngineState;
+      const normalized = normalizeGameStateByType(
+        table.gameType,
+        rawState,
+        initialEngineState,
+        currentPlayers
+      );
+      const canonicalTurn =
+        activeSess.currentTurnUserId ||
+        (normalized.state as any)?.currentTurnUserId ||
+        (normalized.state as any)?.turnUserId;
+      if (canonicalTurn) {
+        (normalized.state as any).currentTurnUserId = canonicalTurn;
+        (normalized.state as any).turnUserId = canonicalTurn;
+      }
+      const sanitized = engine.getSanitizedStateForPlayer
+        ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
+        : normalized.state;
+      setGameState(sanitized);
+      setErrorMsg(null);
+    };
 
     const tableSessionChannel = supabase
       .channel(`table_sessions_${table.id}`)
@@ -790,73 +847,48 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           filter: `table_id=eq.${table.id}`,
         },
         async (payload) => {
+          if (!isMounted) return;
           const newOrUpdated = payload.new as any;
-          if (
-            newOrUpdated &&
-            (newOrUpdated.status === 'ACTIVE' ||
-              newOrUpdated.status === 'IN_PROGRESS' ||
-              newOrUpdated.status === 'READY')
-          ) {
-            const activeSess = await GameRepository.getActiveSession(table.id);
-            if (activeSess) {
-              setSession(activeSess);
-              let initialEngineState: any = {};
-              if (table.gameType === 'atrapaito') {
-                const isOnline = !table.config?.isPractice && !table.id.startsWith('practice_') && table.entryFee > 0;
-                initialEngineState = {
-                  bluePos: { col: 4, row: 14 },
-                  redPos: { col: 3, row: 14 },
-                  walls: [],
-                  blueWalls: 10,
-                  redWalls: 10,
-                  turn: 'BLUE',
-                  action: 'MOVE',
-                  wallOrientation: 'HORIZONTAL',
-                  pendingWall: null,
-                  winner: null,
-                  mode: isOnline ? 'ONLINE' : 'VS_AI',
-                  isAiThinking: false,
-                  consecutiveDraws: 0,
-                  blueUserId: currentPlayers[0]?.userId || null,
-                  redUserId: currentPlayers[1]?.userId || null,
-                  currentTurnUserId: currentPlayers[0]?.userId || null,
-                  turnUserId: currentPlayers[0]?.userId || null,
-                  turnDurationSeconds: 15,
-                  boardType: 'CRIOLLO_WALLS',
-                };
-              } else if (engine) {
-                initialEngineState = engine.initialize(table, currentPlayers);
+          if (newOrUpdated) {
+            const statusUpper = String(newOrUpdated.status || '').toUpperCase();
+            const isPlayable =
+              ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(statusUpper) ||
+              (statusUpper === 'WAITING' && table.gameType === 'bingo');
+
+            if (isPlayable) {
+              const activeSess = await GameRepository.getActiveSession(table.id);
+              if (activeSess && isMounted) {
+                hydrateAndActivateSession(activeSess);
               }
-              const rawState =
-                activeSess.currentState && Object.keys(activeSess.currentState).length > 0
-                  ? activeSess.currentState
-                  : initialEngineState;
-              const normalized = normalizeGameStateByType(
-                table.gameType,
-                rawState,
-                initialEngineState,
-                currentPlayers
-              );
-              const canonicalTurn =
-                activeSess.currentTurnUserId ||
-                (normalized.state as any)?.currentTurnUserId ||
-                (normalized.state as any)?.turnUserId;
-              if (canonicalTurn) {
-                (normalized.state as any).currentTurnUserId = canonicalTurn;
-                (normalized.state as any).turnUserId = canonicalTurn;
-              }
-              const sanitized = engine.getSanitizedStateForPlayer
-                ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
-                : normalized.state;
-              setGameState(sanitized);
-              setErrorMsg(null);
             }
           }
         }
       )
       .subscribe();
 
+    // Sondeo ligero de respaldo (Polling cada 2.5s)
+    // Resuelve desconexiones o latencias de WebSockets en dispositivos móviles
+    const pollInterval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const activeSess = await GameRepository.getActiveSession(table.id);
+        if (!isMounted || !activeSess) return;
+        const statusUpper = String(activeSess.status || '').toUpperCase();
+        const isPlayable =
+          ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(statusUpper) ||
+          (statusUpper === 'WAITING' && table.gameType === 'bingo');
+
+        if (isPlayable) {
+          hydrateAndActivateSession(activeSess);
+        }
+      } catch (err) {
+        // Sondeo silencioso
+      }
+    }, 2500);
+
     return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(tableSessionChannel);
     };
   }, [session?.id, table, engine, currentPlayers, currentUserId]);

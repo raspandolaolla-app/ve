@@ -2,10 +2,94 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 16:35:00 -07:00 (UTC 2026-09-04 23:35:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 17:40:00 -07:00 (UTC 2026-09-05 00:40:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 134_bingo_sales_open_until_first_ball.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 135_fix_start_game_session_enum.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CONEXIÓN DE VARIABLES DE ENTORNO Y GUÍA TÉCNICA DE CONFIGURACIÓN DE SUPABASE Y CLOUDFLARE:
+   - Sincronización del esquema de variables de entorno en `.env.example`:
+     * `VITE_SUPABASE_URL` / `SUPABASE_URL` configurado con la URL oficial del proyecto Supabase: `https://tncxgwycinbnkjbfwojt.supabase.co`.
+     * `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY`: `0x4AAAAAAEoI4ipaJrT8oCLk`.
+     * `CLOUDFLARE_TURNSTILE_SECRET_KEY`: `0x4AAAAAAEoI4kjQ9CTICyN_0kv3dq_Jymg`.
+   - Seguridad y Sanitización en Backend (`server.ts`):
+     * Manejo resiliente de `DATABASE_URL` con detección y eliminación automática de corchetes en contraseñas generadas por plantillas (`postgres:[password]@` -> `postgres:password@`).
+     * Soporte dual de cliente Supabase tanto en modo servicio (`SUPABASE_SERVICE_ROLE_KEY`) como fallback autenticado por token.
+   - Verificación de Linter y Compilación: PASS.
+
+0) IMPLEMENTACIÓN DE SEGURIDAD ANTIBOT CON CLOUDFLARE TURNSTILE (EXCLUSIVO EN RETIROS Y LOGIN):
+   - Directiva de Seguridad:
+     * Implementación estricta de Cloudflare Turnstile CAPTCHA delimitada exclusivamente a las áreas de alto riesgo: Solicitudes de Retiro de Fondos y Flujos de Autenticación / Login.
+     * Cero interferencia con la experiencia interactiva fluida durante partidas o partidas en tiempo real.
+     * Protección absoluta de la Secret Key: la `CLOUDFLARE_TURNSTILE_SECRET_KEY` se conserva de manera estricta y segura en el backend (`server.ts`), sin ser expuesta jamás al bundle cliente.
+   - Paso 1: Configuración de Entorno:
+     * `.env.example`, `.env.local` y `.env` sincronizados con `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY` y `CLOUDFLARE_TURNSTILE_SECRET_KEY`.
+   - Paso 2: Componente Reutilizable de Verificación (`src/components/common/CloudflareCaptcha.tsx`):
+     * Creado con `@marsidev/react-turnstile` y `lucide-react`.
+     * Soporte visual en tema oscuro adaptado al diseño de Raspando la Olla, idioma español y tamaños compactos/normales.
+     * Animaciones de carga y retroalimentación de éxito (`Verificación humana exitosa`) con icono `ShieldCheck`.
+   - Paso 3: Integración en Solicitudes de Retiro (`src/features/wallet/WalletView.tsx`):
+     * Estado `captchaToken` acoplado al formulario del modal de retiro.
+     * El botón de confirmación de retiro permanece inhabilitado hasta que se complete la verificación humana y los montos sean válidos.
+     * En `handleWithdrawSubmit`, el token se valida primero en el servidor contra `/api/verify-captcha`. Si es válido, se procede con la solicitud contable en `WalletRepository.requestWithdrawal`.
+     * Limpieza de token de verificación al cerrar el modal o al concretarse la operación.
+   - Paso 4: Integración en Flujo de Login (`src/components/auth/LoginModal.tsx` y `AuthContext.tsx`):
+     * Creación del componente `LoginModal` para autenticación segura (soporte de Email/Contraseña y Google OAuth).
+     * El widget de Cloudflare Turnstile valida al usuario antes de permitir el inicio de sesión o creación de cuenta.
+     * En `AuthContext.tsx`, se integran `openLoginModal` y `closeLoginModal` con renderizado centralizado, enlazando los botones de "INGRESAR" en la barra de navegación (`Header.tsx`), menú de usuario (`ProfileMenuModal.tsx`), salas de juego (`TablesView.tsx`), perfil (`ProfileView.tsx`) y billetera (`WalletView.tsx`).
+   - Paso 5: Endpoint Backend de Validación (`server.ts`):
+     * Se habilitó middleware `app.use(express.json())`.
+     * Se creó la ruta POST `/api/verify-captcha` que despacha el token con `URLSearchParams` a `https://challenges.cloudflare.com/turnstile/v0/siteverify` adjuntando la IP remota y la llave secreta.
+   - Verificación de Calidad:
+     * `lint_applet` (tsc --noEmit) superado con 0 errores.
+     * `compile_applet` (build completo de producción de Vite + Server) superado exitosamente (PASS).
+
+
+0) RESOLUCIÓN DE ERRORES 400 EN CONSULTAS DE LOBBY Y ESPECTADOR DE BINGO:
+   - Diagnóstico del Problema:
+     * PostgREST arrojaba errores HTTP 400 Bad Request en peticiones a `game_sessions`:
+       `XHR GET .../game_sessions?select=...&game_type=eq.bingo&status=in.(WAITING,READY,SALES,DRAWING,ACTIVE)... [HTTP/3 400]`
+       `XHR GET .../game_sessions?select=...&game_type=ilike.bingo&countdown_ends_at=not.is.null... [HTTP/3 400]`
+     * La columna `game_type` pertenece a la tabla relacional `game_tables`, no a `game_sessions`. Consultar `game_type` directamente en la raíz de `game_sessions` provoca error de columna inexistente en PostgreSQL / PostgREST.
+     * Adicionalmente, en `BingoLobbySection.tsx`, la consulta seleccionaba `bingo_card_purchases(user_id)` embebida en `game_sessions`, lo cual fallaba con 400 porque `bingo_card_purchases` tiene llave foránea apuntando a `game_tables(id)`, no a `game_sessions(id)`.
+   - Soluciones Implementadas:
+     * En `src/features/lobby/BingoLobbySection.tsx`:
+       - Se corrigió el selector relacional a `table:game_tables!inner (id, game_type, game_variant, entry_fee, name)`.
+       - Se reemplazó el filtro por el calificado `.eq('table.game_type', 'bingo')`.
+       - Se eliminó la relación inexistente `bingo_card_purchases(user_id)` de la consulta de sesiones.
+       - Se blindó la lógica de asignación de mesa tanto en la consulta relacional como en el fallback por IDs.
+       - Se integró y renderizó activamente el componente `BingoCountdownBanner` sobre el Historial de Ganadores de Bingo, presentando las salas de 90 Bolas y 75 Bolas con cronómetro, pozo neto (90%) y accesos directos.
+     * En `src/features/lobby/BingoLiveViewer.tsx`:
+       - Consulta confirmada con `table:game_tables!inner` y filtro calificado `.eq('table.game_type', 'bingo')`.
+       - En la suscripción Realtime a `game_sessions`, se corrigió la validación que esperaba `payload.new?.game_type` (inexistente en `game_sessions`), pasando a validar la existencia de datos de Bingo en `current_state` (`drawnBalls`, `cards`, `variant`), o correspondencia de `table_id` en las sesiones activas cargadas.
+   - Verificación de Calidad: `lint_applet` (tsc --noEmit) y `compile_applet` ejecutados con 0 errores (PASS).
+
+0) BLINDAJE DE LA REGLA DE ORO / FAIRNESS LOCK PARA VENTAS DE BINGO (isSalesClosed):
+   - Diagnóstico del Problema:
+     * Estados transitorios o temporizadores en segundo plano podían forzar prematuramente `isSalesClosed = true` en componentes de juego mientras la partida aún estaba en fase de venta (sin balotas extraídas).
+   - Soluciones Implementadas:
+     * En `src/features/games/components/GameContainer.tsx`:
+       - Se mantiene la regla canónica: `const isSalesClosed = isTerminalState || hasDrawnBalls;`.
+     * En `src/features/games/components/BingoGame.tsx`:
+       - Se introdujo `effectiveSalesClosed = isTerminalState || hasDrawnBalls || isSalesClosed;`.
+       - Se sincronizó la compra automática inicial de 1 cartón para evaluar `!effectiveSalesClosed`.
+       - Se condicionó el bloque de compra manual adicional de cartones a `!effectiveSalesClosed && !isGameOver`.
+       - Se propagó `isSalesClosed={effectiveSalesClosed}` directamente a `<BingoBoard />`.
+     * En `src/features/games/components/BingoBoard.tsx`:
+       - El tablero respeta a `isSalesClosed` provisto por el contenedor como la autoridad definitiva (`effectiveSalesClosed = isSalesClosed !== undefined ? isSalesClosed : computedSalesClosed;`), garantizando que las ventas solo se cierren si la partida terminó o si ya se extrajo al menos una balota.
+
+0) MIGRACIÓN 135: CORRECCIÓN DE ENUM session_status_enum Y RESET DE ESTADOS DE SESIÓN:
+   - Diagnóstico del Problema:
+     * El tipo enumerado de PostgreSQL `session_status_enum` no contiene el valor `'in_progress'`, sino `'WAITING'`, `'READY'`, `'ACTIVE'`, `'DRAWING'`, `'FINISHED'`, `'CANCELLED'`, `'SALES'`, `'SETTLED'`, `'ABANDONED'`.
+     * Intentar insertar o actualizar con `'in_progress'::session_status_enum` arrojaba error de PostgreSQL: `invalid input value for enum session_status_enum: "in_progress"`.
+   - Solución Implementada:
+     * Migración `supabase/migrations/135_fix_start_game_session_enum.sql`:
+       - Eliminación de todas las sobrecargas anteriores de `start_game_session_secure` para eliminar ambigüedades en PostgREST (Error 42725).
+       - Creación canónica de `start_game_session_secure(UUID, JSONB, INTEGER, UUID)` con valores por defecto que se adaptan tanto a las llamadas desde `TableRepository` / `GameRepository` (`{ p_table_id, p_initial_state, p_turn_duration_seconds }`) como a llamadas por turnos (`{ p_table_id, p_turn_duration_seconds, p_initial_turn_user_id }`).
+       - Detección segura del host de la mesa con `COALESCE((to_jsonb(v_table)->>'host_user_id')::uuid, (to_jsonb(v_table)->>'created_by')::uuid)` para evitar errores de atributos inexistentes.
+       - Asignación de estado válida: `'WAITING'` para Bingo con estado inicial de ventas (`'SALES'`), y `'ACTIVE'` para el resto de los juegos (en lugar del inválido `'in_progress'`).
+       - Script de reseteo automático de sesiones de Bingo atrapadas en `'ACTIVE'` sin balotas extraídas para devolverlas a `'WAITING'` y permitir la compra de cartones de inmediato.
+   - Verificación de Calidad: `tsc --noEmit` y `npm run build` ejecutados con 0 errores (PASS).
 
 0) MOTOR REFACTORIZADO DE PIEDRA, PAPEL O TIJERA (SISTEMA OFICIAL DE 3 VIDAS Y EMPATES REALES):
    - Diagnóstico del Problema:

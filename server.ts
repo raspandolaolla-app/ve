@@ -12,6 +12,61 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Habilitar parsing de JSON para peticiones entrantes
+app.use(express.json());
+
+// Endpoint para verificar el token de Cloudflare Turnstile
+app.post("/api/verify-captcha", async (req, res) => {
+  const { token } = req.body || {};
+
+  if (!token) {
+    return res.status(400).json({ success: false, message: "Token no proporcionado" });
+  }
+
+  const secretKey =
+    process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || "0x4AAAAAAEoI4kjQ9CTICyN_0kv3dq_Jymg";
+
+  if (!secretKey) {
+    console.error("[CAPTCHA] Falta CLOUDFLARE_TURNSTILE_SECRET_KEY en el backend");
+    return res.status(500).json({ success: false, message: "Error de configuración del servidor" });
+  }
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append("secret", secretKey);
+    formData.append("response", token);
+    const remoteIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    if (typeof remoteIp === "string") {
+      formData.append("remoteip", remoteIp.split(",")[0].trim());
+    }
+
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body: formData,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+
+    const data: any = await response.json();
+
+    if (data.success) {
+      console.log("[CAPTCHA] Verificación humana exitosa");
+      return res.json({ success: true, challenge_ts: data.challenge_ts, hostname: data.hostname });
+    } else {
+      console.warn("[CAPTCHA] Verificación fallida:", data["error-codes"]);
+      return res.status(400).json({
+        success: false,
+        message: "Verificación de seguridad fallida. Intenta de nuevo.",
+        errorCodes: data["error-codes"],
+      });
+    }
+  } catch (error) {
+    console.error("[CAPTCHA] Error al verificar con Cloudflare:", error);
+    return res.status(500).json({ success: false, message: "Error al verificar token con Cloudflare" });
+  }
+});
+
 // Configurar cliente administrativo y de servidor de Supabase
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";

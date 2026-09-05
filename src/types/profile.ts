@@ -58,6 +58,12 @@ export interface UserProfile {
   humanVerificationStatus: VerificationStatus;
   isMfaEnabled?: boolean;
   hasClaimedTestBonus?: boolean;
+  cedula?: string;
+  telefono?: string;
+  nombreReal?: string;
+  fechaNacimiento?: string;
+  estadoResidencia?: string;
+  isProfileLocked?: boolean;
   createdAt: string;
   updatedAt: string;
 }

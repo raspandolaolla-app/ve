@@ -28,6 +28,7 @@ import { AdminView } from './features/admin/AdminView';
 import { SupportView } from './features/support/SupportView';
 import { LegalModal } from './components/legal/LegalModal';
 import { TermsAcceptanceModal } from './components/legal/TermsAcceptanceModal';
+import { ProfileOnboarding } from './components/auth/ProfileOnboarding';
 import { AlertCircle, X } from 'lucide-react';
 import { PollaBoard } from './features/games/components/PollaBoard';
 import { AtrapaitoGame } from './features/games/components/AtrapaitoGame';
@@ -54,7 +55,7 @@ function AppContent() {
   const [giraLaOllaModalOpen, setGiraLaOllaModalOpen] = useState<boolean>(false);
   const [quickMatchModalOpen, setQuickMatchModalOpen] = useState<boolean>(false);
 
-  const { state, user, error, clearError, hasAcceptedTerms, confirmTermsAccepted, signOut } = useAuth();
+  const { state, user, profile, error, clearError, hasAcceptedTerms, confirmTermsAccepted, signOut, refreshProfile } = useAuth();
   const { showWarning, secondsRemaining, keepSessionAlive } = useInactivityTimeout();
   useHeartbeat();
 
@@ -100,6 +101,13 @@ function AppContent() {
 
   const isTermsModalVisible =
     state === 'authenticated' && user !== null && !hasAcceptedTerms;
+
+  // Onboarding de identidad estricto: después de aceptar términos, si el perfil no tiene cédula o teléfono registrados
+  const needsOnboarding =
+    state === 'authenticated' &&
+    user !== null &&
+    hasAcceptedTerms &&
+    (!profile?.cedula || !profile?.telefono || !profile?.isProfileLocked);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080B12] text-[#F8FAFC] antialiased selection:bg-[#FF8A00] selection:text-[#080B12]">
@@ -272,6 +280,15 @@ function AppContent() {
           onAccepted={confirmTermsAccepted}
           onSignOut={signOut}
           onOpenLegalDoc={handleOpenLegalDoc}
+        />
+      )}
+
+      {/* Modal Obligatorio de Perfilado Estricto y Blindaje de Identidad */}
+      {needsOnboarding && (
+        <ProfileOnboarding
+          onComplete={async () => {
+            await refreshProfile();
+          }}
         />
       )}
     </div>

@@ -96,6 +96,10 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
       return { valid: false, reason: 'La partida no está activa.' };
     }
 
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      return { valid: true };
+    }
+
     if (action.userId !== state.turnUserId) {
       return { valid: false, reason: 'No es tu turno de mover.' };
     }
@@ -166,6 +170,31 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
         newState: state,
         isValid: false,
         errorMessage: validation.reason,
+        isGameOver: false,
+        winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
+
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      const botMove = this.getBotMove(state, action.userId);
+      if (botMove) {
+        return this.applyAction(state, botMove);
+      }
+      const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+      const opponent =
+        state.players.find((p) => String(p.userId || '').trim().toLowerCase() !== actionUserNorm) ||
+        state.players[0];
+      const nextTurnUserId = opponent?.userId || action.userId;
+      const updatedState: CheckersState = {
+        ...state,
+        turnUserId: nextTurnUserId,
+      };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
+      return {
+        newState: updatedState,
+        isValid: true,
         isGameOver: false,
         winnerUserId: null,
         winnerTeamIndex: null,

@@ -11,12 +11,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Palette, RotateCw, Maximize2, Flame, Zap, Trophy, Swords, Sparkles } from 'lucide-react';
+import { TurnTimer } from './TurnTimer';
+import { GameRepository } from '../../../services/repositories/GameRepository';
 
 interface TrucoBoardProps {
   state: any;
   currentUserId: string;
+  turnExpiresAt?: string;
+  sessionId?: string;
   onPlayCard: (cardId: string) => void;
   onCanto: (cantoType: string) => void;
+  onTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -259,8 +264,23 @@ const RESPUESTAS = [
 // ==============================================================================
 // COMPONENTE PRINCIPAL
 // ==============================================================================
-export const TrucoBoard: React.FC<TrucoBoardProps> = ({ state, currentUserId, onPlayCard, onCanto }) => {
+export const TrucoBoard: React.FC<TrucoBoardProps> = ({
+  state,
+  currentUserId,
+  turnExpiresAt,
+  sessionId,
+  onPlayCard,
+  onCanto,
+  onTimeout,
+}) => {
   const s: any = state || {};
+
+  const handleTimeout = () => {
+    if (isMyTurn) {
+      if (onTimeout) onTimeout();
+      else if (sessionId) GameRepository.expireTurn(sessionId);
+    }
+  };
 
   // ----- Tema -----
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
@@ -406,6 +426,29 @@ export const TrucoBoard: React.FC<TrucoBoardProps> = ({ state, currentUserId, on
           </div>
         </div>
       </motion.div>
+
+      {/* ===== TEMPORIZADOR Y ESTADO DE TURNO ===== */}
+      <div className="w-full mb-3 flex flex-col items-center gap-1.5">
+        <TurnTimer
+          turnExpiresAt={turnExpiresAt}
+          durationSeconds={20}
+          isMyTurn={isMyTurn}
+          activePlayerName={players.find((p: any) => p.userId === turnUserId)?.displayName || 'RIVAL'}
+          status={status}
+          onTimeout={handleTimeout}
+        />
+        <div>
+          {isMyTurn ? (
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40 animate-pulse">
+              <Zap className="w-3.5 h-3.5" /> 🎯 Tu turno — Tira una carta o canta
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-neutral-900/80 text-neutral-400 text-xs border border-neutral-800">
+              ⏳ Esperando jugada del rival...
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ===== MESA HORIZONTAL 16:9 ===== */}
       <div

@@ -20,6 +20,7 @@ interface CheckersBoardProps {
   turnExpiresAt?: string;
   sessionId?: string;
   onMovePiece: (move: CheckersMove) => void;
+  onTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -194,6 +195,7 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
   turnExpiresAt,
   sessionId,
   onMovePiece,
+  onTimeout,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
 
@@ -250,8 +252,12 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
   };
 
   const handleTimeout = () => {
-    if (isMyTurn && sessionId) {
-      GameRepository.expireTurn(sessionId);
+    if (isMyTurn) {
+      if (onTimeout) {
+        onTimeout();
+      } else if (sessionId) {
+        GameRepository.expireTurn(sessionId);
+      }
     }
   };
 

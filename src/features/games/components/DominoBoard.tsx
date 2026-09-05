@@ -21,6 +21,7 @@ interface DominoBoardProps {
   onPlayTile: (tile: any, side: any) => void;
   onPassTurn: () => void;
   onDrawTile?: () => void; // Opcional: solo si el motor soporta ROBAR (DRAW_TILE)
+  onTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -173,6 +174,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   onPlayTile,
   onPassTurn,
   onDrawTile,
+  onTimeout,
 }) => {
   const s: any = state || {};
 
@@ -312,7 +314,13 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   };
 
   const handleTimeout = () => {
-    if (isMyTurn && sessionId) GameRepository.expireTurn(sessionId);
+    if (isMyTurn) {
+      if (onTimeout) {
+        onTimeout();
+      } else if (sessionId) {
+        GameRepository.expireTurn(sessionId);
+      }
+    }
   };
 
   const cw = 100 / COLS;

@@ -132,6 +132,10 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
       return { valid: false, reason: 'La partida no está activa.' };
     }
 
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      return { valid: true };
+    }
+
     const { pendingCanto } = state.cantoState as any;
 
     // Si hay un canto pendiente de respuesta, el único jugador que puede actuar es el respondByUserId
@@ -270,6 +274,44 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
     }
 
     const { pendingCanto } = state.cantoState as any;
+
+    // ==========================================================================
+    // 0. MANEJO DE EXPIRACIÓN DE TIEMPO (TIMEOUT)
+    // ==========================================================================
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      if (pendingCanto && action.userId === pendingCanto.respondByUserId) {
+        return this.applyAction(state, {
+          ...action,
+          actionType: 'RESPOND_CANTO',
+          actionData: { response: 'NO_QUIERO' },
+        });
+      }
+
+      const userHand = state.hands[action.userId] || [];
+      if (userHand.length > 0) {
+        return this.applyAction(state, {
+          ...action,
+          actionType: 'PLAY_CARD',
+          actionData: { cardId: userHand[0].id },
+        });
+      }
+
+      const currentIdx = state.playerOrder.indexOf(action.userId);
+      const nextTurnUserId = state.playerOrder[(currentIdx + 1) % state.playerOrder.length];
+      const updatedState: TrucoState = {
+        ...state,
+        turnUserId: nextTurnUserId,
+      };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
+      return {
+        newState: updatedState,
+        isValid: true,
+        isGameOver: false,
+        winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
 
     // ==========================================================================
     // 1. MANEJO DE RESPUESTA A CANTOS (RESPOND_CANTO)

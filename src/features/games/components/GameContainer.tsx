@@ -1201,6 +1201,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             sessionId={session?.id}
             onPlaceSymbol={(cellIndex) => handleGameAction('PLACE_SYMBOL', { cellIndex })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
+            onTimeout={() => handleGameAction('TIMEOUT', {})}
           />
         );
 
@@ -1243,6 +1244,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             turnExpiresAt={session?.turnExpiresAt}
             sessionId={session?.id}
             onMovePiece={(move) => handleGameAction('MOVE_PIECE', { move })}
+            onTimeout={() => handleGameAction('TIMEOUT', {})}
           />
         );
 
@@ -1255,6 +1257,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             sessionId={session?.id}
             onPlayTile={(tile, side) => handleGameAction('PLAY_TILE', { tile, side })}
             onPassTurn={() => handleGameAction('PASS_TURN', {})}
+            onTimeout={() => handleGameAction('TIMEOUT', {})}
           />
         );
 
@@ -1263,8 +1266,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           <TrucoBoard
             state={gameState}
             currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
             onPlayCard={(cardId) => handleGameAction('PLAY_CARD', { cardId })}
-            onCanto={(cantoType) => handleGameAction('CANTO', { cantoType })}
+            onCanto={(cantoType) => {
+              if (cantoType === 'QUIERO' || cantoType === 'NO_QUIERO') {
+                handleGameAction('RESPOND_CANTO', { response: cantoType });
+              } else {
+                handleGameAction('CANTO', { cantoType });
+              }
+            }}
+            onTimeout={() => handleGameAction('TIMEOUT', {})}
           />
         );
 

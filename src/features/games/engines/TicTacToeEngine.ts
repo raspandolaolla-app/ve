@@ -136,6 +136,10 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       return { valid: true };
     }
 
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      return { valid: true };
+    }
+
     if (normalized.status !== 'playing') {
       return { valid: false, reason: 'La partida no está en estado activo.' };
     }
@@ -144,8 +148,8 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       return { valid: false, reason: 'No es tu turno de jugar.' };
     }
 
-    if (action.actionType === 'PLACE_SYMBOL') {
-      const cellIndex = action.actionData?.cellIndex as number;
+    if (action.actionType === 'PLACE_SYMBOL' || action.actionType === 'MAKE_MOVE') {
+      const cellIndex = (action.actionData?.cellIndex ?? action.actionData?.index ?? action.actionData?.position) as number;
       if (typeof cellIndex !== 'number' || cellIndex < 0 || cellIndex > 8) {
         return { valid: false, reason: 'Posición de casilla inválida (0-8).' };
       }
@@ -175,8 +179,23 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       };
     }
 
-    if (action.actionType === 'PLACE_SYMBOL') {
-      const cellIndex = action.actionData.cellIndex as number;
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      const botMove = this.getBotMove(normalized, action.userId);
+      if (botMove) {
+        return this.applyAction(normalized, botMove);
+      }
+      return {
+        newState: normalized,
+        isValid: true,
+        isGameOver: false,
+        winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
+
+    if (action.actionType === 'PLACE_SYMBOL' || action.actionType === 'MAKE_MOVE') {
+      const cellIndex = (action.actionData?.cellIndex ?? action.actionData?.index ?? action.actionData?.position) as number;
       const pSymbols = normalized.playerSymbols || {};
       const symbol = pSymbols[action.userId] || (Object.keys(pSymbols).length === 0 ? 'X' : 'O');
       const newBoard = [...normalized.board];

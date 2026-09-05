@@ -17,6 +17,7 @@ interface TicTacToeBoardProps {
   sessionId?: string;
   onPlaceSymbol: (cellIndex: number) => void;
   onNextRound?: () => void;
+  onTimeout?: () => void;
 }
 
 // Componente X SVG bien diseñado
@@ -90,6 +91,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   sessionId,
   onPlaceSymbol,
   onNextRound,
+  onTimeout,
 }) => {
   const playerSymbols = state?.playerSymbols || {};
   const playerNames = state?.playerNames || {};
@@ -107,8 +109,12 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   const p2Id = playerIds[1] || '';
 
   const handleTimeout = () => {
-    if (isMyTurn && sessionId) {
-      GameRepository.expireTurn(sessionId);
+    if (isMyTurn) {
+      if (onTimeout) {
+        onTimeout();
+      } else if (sessionId) {
+        GameRepository.expireTurn(sessionId);
+      }
     }
   };
 

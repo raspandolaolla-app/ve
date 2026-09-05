@@ -98,6 +98,10 @@ export class DominoEngine implements IGameEngine<DominoState> {
       return { valid: false, reason: 'La partida no está activa.' };
     }
 
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      return { valid: true };
+    }
+
     if (action.userId !== state.turnUserId) {
       return { valid: false, reason: 'No es tu turno de jugar.' };
     }
@@ -175,6 +179,18 @@ export class DominoEngine implements IGameEngine<DominoState> {
         winnerTeamIndex: null,
         isDraw: false,
       };
+    }
+
+    if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      const botMove = this.getBotMove(state, action.userId);
+      if (botMove) {
+        return this.applyAction(state, botMove);
+      }
+      return this.applyAction(state, {
+        ...action,
+        actionType: 'PASS_TURN',
+        actionData: {},
+      });
     }
 
     const actionUserNorm = String(action.userId || '').trim().toLowerCase();

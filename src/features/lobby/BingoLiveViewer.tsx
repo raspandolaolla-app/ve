@@ -30,6 +30,7 @@ interface ActiveBingoSession {
   table?: {
     id: string;
     entry_fee: number;
+    game_type?: string;
     game_variant?: string;
     current_players_count?: number;
     game_table_players?: {
@@ -185,7 +186,7 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
     }
 
     try {
-      // 1. Intentar consulta relacional estructurada
+      // 1. Intentar consulta relacional estructurada sin !inner para evitar alias game_tables_1
       let { data, error } = await supabase
         .from('game_sessions')
         .select(`
@@ -195,7 +196,7 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
           current_state,
           countdown_ends_at,
           created_at,
-          table:game_tables!inner (
+          table:game_tables (
             id,
             entry_fee,
             game_variant,
@@ -207,7 +208,6 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
             )
           )
         `)
-        .eq('table.game_type', 'bingo')
         .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING', 'ACTIVE'])
         .order('created_at', { ascending: false })
         .limit(6);
@@ -251,7 +251,9 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
         })
         .filter((s: ActiveBingoSession) => {
           const sStatus = String(s.status || '').toUpperCase();
-          return sStatus !== 'FINISHED' && sStatus !== 'CANCELLED' && sStatus !== 'CLOSED';
+          const isNotFinished = sStatus !== 'FINISHED' && sStatus !== 'CANCELLED' && sStatus !== 'CLOSED';
+          const isBingo = !s.table?.game_type || s.table?.game_type === 'bingo';
+          return isNotFinished && isBingo;
         });
 
       setActiveSessions(validSessions);

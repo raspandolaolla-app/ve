@@ -127,6 +127,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
     if (!client) return;
 
     try {
+      // 1. Intentar consulta relacional estructurada sin !inner para evitar alias game_tables_1
       let { data, error } = await client
         .from('game_sessions')
         .select(`
@@ -135,7 +136,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           countdown_ends_at,
           status,
           current_state,
-          table:game_tables!inner (
+          table:game_tables (
             id,
             game_type,
             game_variant,
@@ -143,7 +144,6 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
             name
           )
         `)
-        .eq('table.game_type', 'bingo')
         .not('countdown_ends_at', 'is', null)
         .in('status', ['WAITING', 'READY', 'SALES']);
 
@@ -187,7 +187,8 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           const isFinished = sessionStatus === 'FINISHED' || tableStatus === 'FINISHED';
           const isCancelled = sessionStatus === 'CANCELLED' || tableStatus === 'CANCELLED';
           const isClosed = sessionStatus === 'CLOSED' || tableStatus === 'CLOSED';
-          return !isFinished && !isCancelled && !isClosed;
+          const isBingo = !rawTable?.game_type || rawTable?.game_type === 'bingo';
+          return !isFinished && !isCancelled && !isClosed && isBingo;
         });
         setCountdownSessions(activeCountdowns);
       }

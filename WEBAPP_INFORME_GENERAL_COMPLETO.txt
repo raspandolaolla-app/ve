@@ -2,10 +2,28 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:00:00 -07:00 (UTC 2026-09-05 01:00:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:15:00 -07:00 (UTC 2026-09-05 01:15:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 136_profile_onboarding_and_sensitive_data_protection.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 137_ensure_game_variant_column.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MIGRACIÓN 137 Y BLINDAJE DE CONSULTAS DE BINGO / CSP / LOGIN EXCLUSIVO GOOGLE:
+   - Corrección CSP para Cloudflare Turnstile (`index.html`):
+     * Se actualizó la etiqueta meta `Content-Security-Policy` para autorizar explícitamente `https://challenges.cloudflare.com` en las directivas `script-src`, `connect-src` y `frame-src`.
+     * Desbloquea la carga del script `api.js` de Turnstile y permite el renderizado del iframe interactivo de verificación antibot sin restricciones de origen.
+   - Autenticación 100% Exclusiva con Google OAuth (`src/components/auth/LoginModal.tsx` y `src/features/auth/LoginView.tsx`):
+     * Eliminación definitiva de todos los inputs de correo electrónico, contraseñas, confirmaciones y conmutadores de registro tradicional.
+     * Flujo simplificado y blindado: Encabezado institucional con bandera 🇻🇪 y título oficial "RASPANDO LA OLLA", verificación de seguridad humana obligatoria con Turnstile de Cloudflare, y botón principal de alta prominencia "Continuar con Google".
+     * El botón de Google permanece deshabilitado hasta que el usuario resuelve con éxito la verificación antibot.
+   - Migración 137 y Erradicación de Errores 400 en Lobby (`supabase/migrations/137_ensure_game_variant_column.sql`):
+     * Adición idempotente de la columna `game_variant TEXT DEFAULT '90'` en `game_tables` y `game_sessions` con sus respectivos índices `idx_game_tables_game_variant` e `idx_game_sessions_game_variant`.
+     * Ejecución de `NOTIFY pgrst, 'reload schema'` para recargar la caché de PostgREST en el backend de Supabase.
+   - Corrección de Relaciones sin `!inner` (`src/features/lobby/BingoLiveViewer.tsx` y `src/features/lobby/BingoLobbySection.tsx`):
+     * Reemplazo de `table:game_tables!inner (...)` por `table:game_tables (...)` sin el modificador `!inner`, eliminando la generación de alias colisionados tipo `game_tables_1` que causaban errores `400 Bad Request` en PostgREST.
+     * Filtrado en memoria de sesiones de bingo activas y no canceladas, garantizando una carga suave y continua de las mesas y cartones en el Lobby.
+   - Verificación de Calidad:
+     * `lint_applet` ejecutado con éxito: 0 errores, 0 advertencias.
+     * `compile_applet` ejecutado con éxito: build exitoso de producción.
 
 0) MIGRACIÓN 136: SISTEMA DE PERFILADO ESTRICTO, UNICIDAD Y BLINDAJE DE IDENTIDAD:
    - Migración de Base de Datos (`supabase/migrations/136_profile_onboarding_and_sensitive_data_protection.sql`):

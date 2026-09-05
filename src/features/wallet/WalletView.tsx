@@ -24,6 +24,7 @@ import { formatBolivares, maskPhone, maskCedula } from '../../utils/formatters';
 import { FINANCIAL_RULES } from '../../utils/constants';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import { useBcvRate } from '../../context/BcvContext';
+import { CloudflareCaptcha } from '../../components/common/CloudflareCaptcha';
 import {
   Wallet,
   ArrowDownLeft,
@@ -44,7 +45,7 @@ import {
 import { useWallet } from '../../context/WalletContext';
 
 export function WalletView() {
-  const { state, user, profile, role, isSigningIn, signInWithGoogle } = useAuth();
+  const { state, user, profile, role, isSigningIn, openLoginModal } = useAuth();
   const { activeWalletModal, closeWalletModals } = useWallet();
   const { rateInfo, refreshRate, formatUsd } = useBcvRate();
   const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
@@ -76,6 +77,7 @@ export function WalletView() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<number>(50);
   const [withdrawTotpCode, setWithdrawTotpCode] = useState<string>('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [withdrawFeedback, setWithdrawFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -200,6 +202,14 @@ export function WalletView() {
     e.preventDefault();
     if (!selectedAccountId || withdrawAmount <= 0 || !user) return;
 
+    if (!captchaToken) {
+      setWithdrawFeedback({
+        success: false,
+        message: 'Por favor, completa la verificación humana antes de solicitar el retiro.',
+      });
+      return;
+    }
+
     if (balance && withdrawAmount > balance.availableBalance) {
       setWithdrawFeedback({
         success: false,
@@ -211,9 +221,27 @@ export function WalletView() {
     setSubmittingWithdraw(true);
     setWithdrawFeedback(null);
 
-    const idempotencyKey = `wth_${user.id}_${Date.now()}`;
-
     try {
+      // 1. Verificar el token de Turnstile en el backend (/api/verify-captcha)
+      const verifyResponse = await fetch('/api/verify-captcha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: captchaToken }),
+      });
+
+      const verifyData = await verifyResponse.json();
+      if (!verifyData.success) {
+        setWithdrawFeedback({
+          success: false,
+          message: 'Verificación de seguridad fallida. Por favor intenta de nuevo.',
+        });
+        setCaptchaToken(null);
+        setSubmittingWithdraw(false);
+        return;
+      }
+
+      // 2. Si es humano verificado, procesar el retiro protegido
+      const idempotencyKey = `wth_${user.id}_${Date.now()}`;
       const res = await WalletRepository.requestWithdrawal(
         selectedAccountId,
         Number(withdrawAmount),
@@ -227,17 +255,20 @@ export function WalletView() {
           message: 'Retiro solicitado con éxito. El saldo fue retenido en el ledger contable.',
         });
         loadWalletData();
+        setCaptchaToken(null);
       } else {
         setWithdrawFeedback({
           success: false,
           message: sanitizeUserErrorMessage(res.error, 'No se pudo procesar el retiro. Tu saldo no ha sido modificado.'),
         });
+        setCaptchaToken(null);
       }
     } catch (err: any) {
       setWithdrawFeedback({
         success: false,
         message: sanitizeUserErrorMessage(err, 'No fue posible completar la solicitud de retiro.'),
       });
+      setCaptchaToken(null);
     } finally {
       setSubmittingWithdraw(false);
     }
@@ -296,7 +327,7 @@ export function WalletView() {
         <Button
           id="wallet-signin-btn"
           variant="primary"
-          onClick={signInWithGoogle}
+          onClick={openLoginModal}
           disabled={isSigningIn}
           leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
           className="w-full font-black text-sm uppercase tracking-wider bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 shadow-lg shadow-yellow-500/30"
@@ -763,7 +794,10 @@ export function WalletView() {
                 <span>Solicitud de Retiro</span>
               </h2>
               <button
-                onClick={() => setShowWithdrawModal(false)}
+                onClick={() => {
+                  setShowWithdrawModal(false);
+                  setCaptchaToken(null);
+                }}
                 className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
@@ -877,14 +911,38 @@ export function WalletView() {
                   </div>
                 )}
 
+                {/* VERIFICACIÓN HUMANA CLOUDFLARE TURNSTILE (RETIROS) */}
+                <div className="pt-2">
+                  <CloudflareCaptcha
+                    onVerify={(token) => {
+                      setCaptchaToken(token);
+                      setWithdrawFeedback(null);
+                    }}
+                    onExpire={() => setCaptchaToken(null)}
+                    size="compact"
+                  />
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setShowWithdrawModal(false)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setShowWithdrawModal(false);
+                      setCaptchaToken(null);
+                    }}
+                  >
                     Cerrar
                   </Button>
                   <Button
                     type="submit"
                     variant="primary"
-                    disabled={submittingWithdraw || withdrawAmount <= 0 || (balance && withdrawAmount > balance.availableBalance)}
+                    disabled={
+                      submittingWithdraw ||
+                      !captchaToken ||
+                      withdrawAmount <= 0 ||
+                      (balance && withdrawAmount > balance.availableBalance)
+                    }
                   >
                     {submittingWithdraw ? 'Procesando Retiro...' : 'Confirmar Retiro'}
                   </Button>

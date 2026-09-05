@@ -18,6 +18,7 @@ import { AdminRepository } from '../../services/repositories/AdminRepository';
 import { TermsService } from '../../services/legal/TermsService';
 import { RealtimeManager } from '../../services/realtime/RealtimeManager';
 import { sanitizeUserErrorMessage, classifyError } from '../../utils/errorSanitizer';
+import { LoginModal } from '../../components/auth/LoginModal';
 
 interface AuthContextValue {
   state: AuthState;
@@ -35,6 +36,9 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
+  isLoginModalOpen: boolean;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -143,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
   const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+
+  const openLoginModal = React.useCallback(() => setIsLoginModalOpen(true), []);
+  const closeLoginModal = React.useCallback(() => setIsLoginModalOpen(false), []);
 
   const loadedUserIdRef = React.useRef<string | null>(null);
   const supabase = getSupabaseClient();
@@ -539,11 +547,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
       clearError,
+      isLoginModalOpen,
+      openLoginModal,
+      closeLoginModal,
     }),
-    [state, user, session, profile, role, error, isSigningIn, hasAcceptedTerms, termsRecord]
+    [
+      state,
+      user,
+      session,
+      profile,
+      role,
+      error,
+      isSigningIn,
+      hasAcceptedTerms,
+      termsRecord,
+      isLoginModalOpen,
+      openLoginModal,
+      closeLoginModal,
+    ]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

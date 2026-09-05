@@ -195,10 +195,11 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
           current_state,
           countdown_ends_at,
           created_at,
-          table:game_tables (
+          table:game_tables!inner (
             id,
             entry_fee,
             game_variant,
+            game_type,
             current_players_count,
             game_table_players (
               user_id,
@@ -206,21 +207,37 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
             )
           )
         `)
-        .eq('game_type', 'bingo')
+        .eq('table.game_type', 'bingo')
         .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING', 'ACTIVE'])
         .order('created_at', { ascending: false })
         .limit(6);
 
-      // Fallback si la relación table falla
+      // Fallback si la relación table falla o hay error de consulta
       if (error || !data) {
-        const fallback = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('game_type', 'bingo')
-          .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING', 'ACTIVE'])
-          .order('created_at', { ascending: false })
-          .limit(6);
-        data = (fallback.data as any) || [];
+        console.warn('Fallback a consulta por IDs de mesas en BingoLiveViewer:', error?.message);
+        const { data: bTables } = await supabase
+          .from('game_tables')
+          .select('id, entry_fee, game_variant, game_type, current_players_count, game_table_players(user_id, status)')
+          .eq('game_type', 'bingo');
+
+        const bTableIds = (bTables || []).map((t: any) => t.id);
+        if (bTableIds.length > 0) {
+          const fallback = await supabase
+            .from('game_sessions')
+            .select('*')
+            .in('table_id', bTableIds)
+            .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING', 'ACTIVE'])
+            .order('created_at', { ascending: false })
+            .limit(6);
+
+          const tableMap = new Map((bTables || []).map((t: any) => [t.id, t]));
+          data = ((fallback.data as any[]) || []).map((s: any) => ({
+            ...s,
+            table: tableMap.get(s.table_id) || { id: s.table_id, entry_fee: 25 },
+          })) as any;
+        } else {
+          data = [];
+        }
       }
 
       // Filtrar estrictamente sesiones y mesas que NO estén finalizadas o canceladas
@@ -285,9 +302,11 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
           table: 'game_sessions',
         },
         (payload: any) => {
+          const cState = payload.new?.current_state || payload.old?.current_state || {};
           const isBingo =
-            payload.new?.game_type?.toLowerCase() === 'bingo' ||
-            payload.old?.game_type?.toLowerCase() === 'bingo';
+            Boolean(cState?.drawnBalls || cState?.cards75 || cState?.cards80 || cState?.cards90 || ['75', '80', '90'].includes(String(cState?.variant))) ||
+            (payload.new?.table_id && activeSessions.some((s) => s.table_id === payload.new.table_id)) ||
+            Boolean(payload.new?.countdown_ends_at || payload.old?.countdown_ends_at);
 
           if (!isBingo) return;
 

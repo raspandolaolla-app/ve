@@ -56,7 +56,7 @@ import { useWallet } from '../../context/WalletContext';
 import { CreateBingoTableForm, type CreateBingoTableParams } from './components/CreateBingoTableForm';
 
 export function TablesView() {
-  const { state, user, profile, isSigningIn, signInWithGoogle } = useAuth();
+  const { state, user, profile, isSigningIn, openLoginModal } = useAuth();
   const { balance } = useWallet();
   const userBalance = balance?.availableBalance ?? 0;
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameType | 'all'>('all');
@@ -765,7 +765,7 @@ export function TablesView() {
                 type="button"
                 variant="primary"
                 className="w-full text-xs font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 shadow-md shadow-yellow-500/30"
-                onClick={signInWithGoogle}
+                onClick={openLoginModal}
                 disabled={isSigningIn}
                 leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
               >
@@ -826,7 +826,7 @@ export function TablesView() {
                 id="btn-login-trancaito"
                 variant="secondary"
                 size="sm"
-                onClick={signInWithGoogle}
+                onClick={openLoginModal}
                 disabled={isSigningIn}
                 leftIcon={isSigningIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : undefined}
               >

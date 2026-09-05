@@ -55,7 +55,7 @@ const VENEZUELA_STATES = [
 ];
 
 export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
-  const { state, user, profile, role, hasAcceptedTerms, termsRecord, isSigningIn, signInWithGoogle, signOut, refreshProfile } = useAuth();
+  const { state, user, profile, role, hasAcceptedTerms, termsRecord, isSigningIn, openLoginModal, signOut, refreshProfile } = useAuth();
 
   // Estado KYC
   const [userKyc, setUserKyc] = useState<UserKYCStatus | null>(null);
@@ -216,7 +216,7 @@ export function ProfileView({ onOpenLegalDoc }: ProfileViewProps) {
         <Button
           id="profile-signin-btn"
           variant="primary"
-          onClick={signInWithGoogle}
+          onClick={openLoginModal}
           disabled={isSigningIn}
           leftIcon={isSigningIn ? <Loader2 className="w-4 h-4 animate-spin text-slate-950" /> : undefined}
           className="w-full font-black text-sm uppercase tracking-wider bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 shadow-lg shadow-yellow-500/30"

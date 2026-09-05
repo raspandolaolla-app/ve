@@ -66,6 +66,12 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
 
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [isSalesClosed, setIsSalesClosed] = useState<boolean>(false);
+
+  // REGLA DE ORO / FAIRNESS LOCK: Las ventas solo se cierran si la partida terminó o si YA se extrajo al menos una balota
+  const hasDrawnBalls = Array.isArray(bingoState?.drawnBalls) && bingoState.drawnBalls.length > 0;
+  const isTerminalState = isGameOver || ['FINISHED', 'CANCELLED', 'CLOSED'].includes(String(bingoState?.status || '').toUpperCase());
+  const effectiveSalesClosed = isTerminalState || hasDrawnBalls || isSalesClosed;
+
   const [isClaimingBingo, setIsClaimingBingo] = useState<boolean>(false);
   const [claimError, setClaimError] = useState<string | null>(null);
 
@@ -335,7 +341,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
 
   // Auto-comprar 1 cartón por defecto al ingresar a la mesa si aún no posee cartones
   useEffect(() => {
-    if (currentUserId && cardsPurchasedCount === 0 && !isSalesClosed) {
+    if (currentUserId && cardsPurchasedCount === 0 && !effectiveSalesClosed) {
       handleBuyCards(1);
     }
   }, [currentUserId]);
@@ -933,7 +939,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
       )}
 
       {/* Comprar Cartones Adicionales si las ventas siguen abiertas */}
-      {!isSalesClosed && !isGameOver && (
+      {!effectiveSalesClosed && !isGameOver && (
         <div className="w-full bg-slate-950 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-between">
           <div className="flex items-center space-x-2 text-xs text-slate-300 font-mono">
             <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
@@ -986,7 +992,7 @@ export function BingoGame({ table, players, currentUserId = '', onLeave }: Bingo
           setIsAutoDrawing(true);
           await forceStartDraw();
         }}
-        isSalesClosed={isSalesClosed}
+        isSalesClosed={effectiveSalesClosed}
         countdownSeconds={countdownSeconds}
         bcvRate={bcvRate}
         isMuted={isMuted}

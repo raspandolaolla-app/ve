@@ -10,6 +10,7 @@ import { TableRepository } from '../../services/repositories/TableRepository';
 import { useWallet } from '../../context/WalletContext';
 import { CreateBingoTableForm, type CreateBingoTableParams } from '../tables/components/CreateBingoTableForm';
 import { FinancialRepository } from '../../services/repositories/FinancialRepository';
+import { BingoCountdownBanner } from './BingoCountdownBanner';
 
 interface BingoLobbySectionProps {
   onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
@@ -126,7 +127,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
     if (!client) return;
 
     try {
-      const { data, error } = await client
+      let { data, error } = await client
         .from('game_sessions')
         .select(`
           id,
@@ -134,24 +135,53 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           countdown_ends_at,
           status,
           current_state,
-          game_tables (
+          table:game_tables!inner (
             id,
             game_type,
             game_variant,
             entry_fee,
             name
-          ),
-          bingo_card_purchases (
-            user_id
           )
         `)
-        .ilike('game_type', 'bingo')
+        .eq('table.game_type', 'bingo')
         .not('countdown_ends_at', 'is', null)
         .in('status', ['WAITING', 'READY', 'SALES']);
 
-      if (!error && data) {
+      // Fallback seguro si la consulta relacional con inner join falla
+      if (error || !data) {
+        console.warn('Fallback a consulta de countdowns por IDs de mesas:', error?.message);
+        const { data: bTables } = await client
+          .from('game_tables')
+          .select('id, game_type, game_variant, entry_fee, name')
+          .eq('game_type', 'bingo');
+
+        const bTableIds = (bTables || []).map((t: any) => t.id);
+        if (bTableIds.length > 0) {
+          const fallback = await client
+            .from('game_sessions')
+            .select(`
+              id,
+              table_id,
+              countdown_ends_at,
+              status,
+              current_state
+            `)
+            .in('table_id', bTableIds)
+            .not('countdown_ends_at', 'is', null)
+            .in('status', ['WAITING', 'READY', 'SALES']);
+
+          const tableMap = new Map((bTables || []).map((t: any) => [t.id, t]));
+          data = ((fallback.data as any[]) || []).map((s: any) => ({
+            ...s,
+            table: tableMap.get(s.table_id),
+            game_tables: tableMap.get(s.table_id),
+          })) as any;
+        }
+      }
+
+      if (data) {
         const activeCountdowns = data.filter((s: any) => {
-          const rawTable = Array.isArray(s.game_tables) ? s.game_tables[0] : s.game_tables;
+          const rawTable = s.table || (Array.isArray(s.game_tables) ? s.game_tables[0] : s.game_tables);
           const tableStatus = String(rawTable?.status || '').toUpperCase();
           const sessionStatus = String(s.status || '').toUpperCase();
           const isFinished = sessionStatus === 'FINISHED' || tableStatus === 'FINISHED';
@@ -359,7 +389,18 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
   };
 
   return (
-    <div id="section-bingo-virtual" className="mb-6">
+    <div id="section-bingo-virtual" className="mb-6 space-y-4">
+      {/* SALAS EN VIVO DE BINGO (90 Y 75 BOLAS) */}
+      <BingoCountdownBanner
+        tables={availableBingoTables}
+        sessions={countdownSessions}
+        onJoinTable={handleJoinTable}
+        onCreateTable={(variant) => {
+          setCreateError(null);
+          setShowCreateModal(true);
+        }}
+      />
+
       {/* HISTORIAL DE GANADORES DE BINGO */}
       <div className="rounded-2xl border border-slate-800/80 bg-gradient-to-br from-[#171A29] via-[#121624] to-[#0D101A] p-4 sm:p-5 shadow-lg">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800/60">

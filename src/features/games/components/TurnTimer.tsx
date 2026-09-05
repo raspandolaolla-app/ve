@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
-import logger from '../../../utils/logger';
 
 export interface TurnTimerProps {
   turnExpiresAt?: string;
@@ -68,15 +67,14 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     }
 
     // ✅ CORRECCIÓN CRÍTICA: Si el turnExpiresAt guardado ya pasó, pero el juego 
-    // sigue en estado jugable (ej. ROUND_COMMIT o ACTIVE), significa que el backend no actualizó el tiempo 
-    // (ej. al pasar a la siguiente ronda). Extendemos optimistamente desde AHORA.
+    // sigue en estado jugable, extendemos optimistamente desde AHORA.
     const effectiveExpiresAt = storedExpiresAt < now 
       ? now + durationSeconds * 1000 
       : storedExpiresAt;
 
     if (storedExpiresAt < now) {
-      // ✅ CORREGIDO: Usar logger estructurado en lugar de console.warn para pasar ESLint
-      logger.warn('turnExpiresAt desactualizado. Extendiendo optimistamente.', undefined, 'TurnTimer');
+      // eslint-disable-next-line no-console
+      console.warn('[TURN_TIMER] turnExpiresAt desactualizado. Extendiendo optimistamente.');
     }
 
     const initialTimeLeft = Math.max(0, Math.ceil((effectiveExpiresAt - now) / 1000));
@@ -85,7 +83,8 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
     if (initialTimeLeft === 0) {
       timedOutRef.current = true;
-      logger.warn('Tiempo agotado, disparando timeout', undefined, 'TurnTimer');
+      // eslint-disable-next-line no-console
+      console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
       onTimeout?.();
       return;
     }
@@ -98,7 +97,8 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       if (left === 0 && !timedOutRef.current) {
         timedOutRef.current = true;
         clearInterval(interval);
-        logger.warn('Tiempo agotado, disparando timeout', undefined, 'TurnTimer');
+        // eslint-disable-next-line no-console
+        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
         onTimeout?.();
       }
     }, 1000);

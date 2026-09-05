@@ -852,7 +852,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           if (newOrUpdated) {
             const statusUpper = String(newOrUpdated.status || '').toUpperCase();
             const isPlayable =
-              ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(statusUpper) ||
+              ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(statusUpper) ||
               (statusUpper === 'WAITING' && table.gameType === 'bingo');
 
             if (isPlayable) {
@@ -875,7 +875,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         if (!isMounted || !activeSess) return;
         const statusUpper = String(activeSess.status || '').toUpperCase();
         const isPlayable =
-          ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(statusUpper) ||
+          ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(statusUpper) ||
           (statusUpper === 'WAITING' && table.gameType === 'bingo');
 
         if (isPlayable) {

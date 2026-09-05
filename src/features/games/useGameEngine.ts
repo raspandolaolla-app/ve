@@ -263,7 +263,7 @@ export function useGameEngine({
 
       // Persistir el estado sincronizado de la sesión
       const isOver = Boolean(winnerUserId || isTie);
-      const sessionStatus = isOver ? 'COMPLETED' : 'IN_PROGRESS';
+      const sessionStatus = isOver ? 'FINISHED' : 'ACTIVE';
 
       await GameRepository.updateSessionState(
         session.id,

@@ -152,8 +152,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
       const sStatus = String(state.status || '').toUpperCase();
       const hasDrawn = Array.isArray(state.drawnBalls) && state.drawnBalls.length > 0;
       const isSalesAllowed = !hasDrawn && (
-        ['SALES', 'WAITING', 'READY', 'OPEN'].includes(sStatus) ||
-        sStatus === 'IN_PROGRESS' ||
+        ['SALES', 'WAITING', 'READY', 'OPEN', 'ACTIVE'].includes(sStatus) ||
         sStatus === ''
       );
       if (!isSalesAllowed) return { valid: false, reason: 'La venta de cartones está cerrada.' };
@@ -172,7 +171,7 @@ export class BingoEngine implements IGameEngine<BingoState> {
 
     if (t === 'DRAW_BALL' || t === 'AUTO_DRAW_BALL' || t === 'SERVER_AUTO_DRAW') {
       const sStatus = String(state.status || '').toUpperCase();
-      if (sStatus !== 'PLAYING' && sStatus !== 'SALES' && sStatus !== 'DRAWING' && sStatus !== 'IN_PROGRESS') {
+      if (sStatus !== 'PLAYING' && sStatus !== 'SALES' && sStatus !== 'DRAWING' && sStatus !== 'ACTIVE') {
         return { valid: false, reason: 'La partida no está activa.' };
       }
       const isSystemAction =

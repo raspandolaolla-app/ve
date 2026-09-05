@@ -39,7 +39,7 @@ export class TicTacToeGamePage {
    */
   async assertWinnerOrRoundConclusion() {
     const statusBanner = this.page.locator(
-      '#tictactoe-status-banner, text=¡RONDA GANADA, text=¡PARTIDA CONCLUIDA!, text=¡EMPATE EN EL TABLERO!'
+      '#tictactoe-status-banner, :has-text("¡RONDA GANADA"), :has-text("¡PARTIDA CONCLUIDA!"), :has-text("¡EMPATE EN EL TABLERO!")'
     ).first();
 
     await expect(statusBanner).toBeVisible({ timeout: 15000 });

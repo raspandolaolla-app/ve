@@ -68,9 +68,9 @@ app.post("/api/verify-captcha", async (req, res) => {
 });
 
 // Configurar cliente administrativo y de servidor de Supabase
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://tncxgwycinbnkjbfwojt.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_vlxeHnnl_FxJ1ziNqUsytQ_S95ZGawj";
 
 if (!supabaseServiceKey) {
   console.info('ℹ️ [SEGURIDAD] SUPABASE_SERVICE_ROLE_KEY no está configurada en el servidor. El cliente administrativo completo permanecerá desactivado.');

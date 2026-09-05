@@ -339,48 +339,107 @@ export function TablesView() {
   useEffect(() => {
     if (!activeTable) return;
 
+    let isMounted = true;
     loadTablePlayers(activeTable.id);
+
+    const checkAndEnterGame = async (tableData?: GameTable) => {
+      if (!isMounted || !activeTable?.id) return;
+      try {
+        const targetTable = tableData || activeTable;
+        const freshPlayers = await TableRepository.getTablePlayers(targetTable.id);
+        if (!isMounted) return;
+        const isSeated = freshPlayers.some((p) => p.userId === user?.id && p.status !== 'LEFT');
+        if (isSeated) {
+          setInGameData({
+            table: targetTable,
+            players: freshPlayers,
+          });
+          setActiveTable(null);
+        }
+      } catch (err) {
+        console.warn('[TablesView] Error al transicionar a la partida:', err);
+      }
+    };
 
     const unsubscribeTable = RealtimeManager.subscribeToTable(
       activeTable.id,
       (tablePayload) => {
-        if (tablePayload.new) {
-          const newStatus = (tablePayload.new.status || '').toUpperCase();
-          if (newStatus === 'CLOSED' || newStatus === 'TERMINATED' || newStatus === 'CANCELLED' || newStatus === 'EXPIRED') {
-            setActiveTable(null);
-            setInGameData(null);
-            setSeatActionFeedback({
-              success: false,
-              message: 'Esta mesa ha sido cerrada o terminada por la administración.',
-            });
-          } else {
-            const updatedTable = { ...activeTable, ...tablePayload.new };
-            setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
+        if (!isMounted || !tablePayload.new) return;
+        const newStatus = (tablePayload.new.status || '').toUpperCase();
+        if (newStatus === 'CLOSED' || newStatus === 'TERMINATED' || newStatus === 'CANCELLED' || newStatus === 'EXPIRED') {
+          setActiveTable(null);
+          setInGameData(null);
+          setSeatActionFeedback({
+            success: false,
+            message: 'Esta mesa ha sido cerrada o terminada por la administración.',
+          });
+        } else {
+          const updatedTable = { ...activeTable, ...tablePayload.new };
+          setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
 
-            if (newStatus === 'ACTIVE' || newStatus === 'IN_PROGRESS') {
-              TableRepository.getTablePlayers(activeTable.id).then((freshPlayers) => {
-                const isSeated = freshPlayers.some((p) => p.userId === user?.id && p.status !== 'LEFT');
-                if (isSeated) {
-                  setInGameData({
-                    table: updatedTable,
-                    players: freshPlayers,
-                  });
-                  setActiveTable(null);
-                }
-              });
-            }
+          const isPlayable = ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(newStatus);
+          if (isPlayable) {
+            checkAndEnterGame(updatedTable);
           }
         }
       },
       () => {
-        loadTablePlayers(activeTable.id);
+        if (isMounted) {
+          loadTablePlayers(activeTable.id);
+        }
+      },
+      (sessionPayload) => {
+        if (!isMounted || !sessionPayload.new) return;
+        const sessStatus = (sessionPayload.new.status || '').toUpperCase();
+        const isSessionActive =
+          ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(sessStatus) ||
+          (sessStatus === 'WAITING' && activeTable.gameType === 'bingo');
+
+        if (isSessionActive) {
+          checkAndEnterGame(activeTable);
+        }
       }
     );
 
+    // Sondeo de Respaldo Anti-Desconexión (Fallback ligero cada 2.5s)
+    // Garantiza que jugadores en dispositivos móviles o con pérdida temporal de WebSockets no se queden atascados
+    const pollInterval = setInterval(async () => {
+      if (!isMounted || !activeTable?.id) return;
+      try {
+        const activeSess = await GameRepository.getActiveSession(activeTable.id);
+        if (!isMounted) return;
+        if (activeSess) {
+          const sStatus = (activeSess.status || '').toUpperCase();
+          const isPlayableSession =
+            ['ACTIVE', 'IN_PROGRESS', 'READY', 'STARTING', 'SALES', 'DRAWING'].includes(sStatus) ||
+            (sStatus === 'WAITING' && activeTable.gameType === 'bingo');
+
+          if (isPlayableSession) {
+            await checkAndEnterGame(activeTable);
+            return;
+          }
+        }
+
+        // Comprobación secundaria en game_tables
+        const freshTable = await TableRepository.getTableById(activeTable.id);
+        if (!isMounted) return;
+        if (freshTable) {
+          const tStatus = (freshTable.status || '').toUpperCase();
+          if (['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING'].includes(tStatus)) {
+            await checkAndEnterGame(freshTable);
+          }
+        }
+      } catch (err) {
+        // Sondeo en segundo plano silencioso
+      }
+    }, 2500);
+
     return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
       unsubscribeTable();
     };
-  }, [activeTable?.id, loadTablePlayers]);
+  }, [activeTable?.id, loadTablePlayers, user?.id]);
 
   // Unirse por código Trancaíto
   const handleJoinByCode = async (e: React.FormEvent) => {
@@ -1118,7 +1177,7 @@ export function TablesView() {
                             variant="primary"
                             size="sm"
                             leftIcon={
-                              activeTable.status === 'ACTIVE' || activeTable.status === 'IN_PROGRESS' ? (
+                              ['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status) ? (
                                 <Play className="w-4 h-4 fill-current" />
                               ) : (
                                 <Clock className="w-4 h-4 animate-pulse" />
@@ -1126,7 +1185,7 @@ export function TablesView() {
                             }
                             disabled={
                               !userAlreadySeated ||
-                              (activeTable.status !== 'ACTIVE' && activeTable.status !== 'IN_PROGRESS')
+                              !['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
                             }
                             onClick={() => {
                               if (!user) return;
@@ -1139,7 +1198,7 @@ export function TablesView() {
                           >
                             {!userAlreadySeated
                               ? 'Ocupa un puesto para jugar'
-                              : activeTable.status === 'ACTIVE' || activeTable.status === 'IN_PROGRESS'
+                              : ['ACTIVE', 'IN_PROGRESS', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
                               ? 'ENTRAR A LA PARTIDA'
                               : canStart
                               ? 'Esperando inicio del anfitrión...'

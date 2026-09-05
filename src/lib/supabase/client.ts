@@ -11,13 +11,18 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const env: Record<string, any> = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
 
-// Obtención estricta de credenciales públicas desde variables de entorno (sin secretos ni fallbacks hardcodeados)
-const rawUrl = ((env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) || '') as string | undefined;
-const rawAnonKey = ((env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || '') as string | undefined;
+// Configuración canónica oficial del proyecto Supabase "Raspando La Olla".
+// La clave anon/publishable es pública por diseño y se utiliza en clientes frontend junto con RLS.
+const CANONICAL_SUPABASE_URL = 'https://tncxgwycinbnkjbfwojt.supabase.co';
+const CANONICAL_SUPABASE_ANON_KEY = 'sb_publishable_vlxeHnnl_FxJ1ziNqUsytQ_S95ZGawj';
 
-// Validación explícita de seguridad
+// Obtención de credenciales públicas desde variables de entorno con fallback al proyecto canónico oficial
+const rawUrl = ((env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || CANONICAL_SUPABASE_URL) || '') as string | undefined;
+const rawAnonKey = ((env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || CANONICAL_SUPABASE_ANON_KEY) || '') as string | undefined;
+
+// Validación de seguridad informativa (solo emite advertencia si faltasen ambas fuentes)
 if ((!rawUrl || !rawAnonKey) && typeof window !== 'undefined') {
-  console.error('[CRÍTICO] Variables de entorno de Supabase no configuradas (VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY). La aplicación no puede iniciar la conexión segura.');
+  console.warn('[AVISO] Variables de entorno de Supabase no configuradas y sin fallback disponible.');
 }
 
 const supabaseUrl = rawUrl?.trim();

@@ -138,9 +138,7 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
         window.localStorage.setItem('playwright-mock-auth', JSON.stringify(currentMock));
         setSuccess('✅ Perfil guardado exitosamente. Redirigiendo...');
         await refreshProfile();
-        setTimeout(() => {
-          onComplete();
-        }, 500);
+        onComplete();
         return;
       }
 

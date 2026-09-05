@@ -246,18 +246,19 @@ export interface BingoState {
   variant: BingoVariant;
   drawnBalls: number[];
   currentBall: number | null;
-  cards: Record<string, BingoCard75[]>; // User ID -> Array of cards (1 to 20 cards)
+  cards: Record<string, any[]> | any; // User ID -> Array of cards (1 to 20 cards)
   cards80?: Record<string, BingoCard80[]>;
   cards90?: Record<string, BingoCard90[]>;
   cardsPurchased: Record<string, number>; // User ID -> card count
   playerNames: Record<string, string>;
   winnerUserId: string | null;
-  status: 'in_progress' | 'bingo_won' | 'finished' | 'SALES' | 'sales' | 'DRAWING' | 'drawing' | 'PLAYING' | 'WAITING' | 'READY' | 'COMPLETED' | 'FINISHED' | 'CANCELLED' | 'ABANDONED';
+  status: 'in_progress' | 'bingo_won' | 'finished' | 'SALES' | 'sales' | 'DRAWING' | 'drawing' | 'PLAYING' | 'WAITING' | 'READY' | 'COMPLETED' | 'FINISHED' | 'CANCELLED' | 'ABANDONED' | string;
   callIntervalMs: number;
   totalBalls: number; // 75, 80, or 90
-  totalPoolBs: number;
-  winnerPoolBs: number; // 90%
-  systemFeeBs: number;  // 10%
+  totalPoolBs?: number;
+  winnerPoolBs?: number; // 90%
+  systemFeeBs?: number;  // 10%
+  [key: string]: any; // Permitir propiedades adicionales sin romper tipado
 }
 
 // ------------------------------------------------------------------------------

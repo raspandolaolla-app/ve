@@ -38,14 +38,27 @@ export const AdPlacementContainer: React.FC<AdPlacementContainerProps> = ({
   }, [engine, placement, gameType]);
 
   useEffect(() => {
-    engine.init();
-    updateCurrentAd();
+    let isMounted = true;
+    const initAd = async () => {
+      try {
+        await engine.init();
+        if (isMounted) {
+          updateCurrentAd();
+        }
+      } catch (error) {
+        console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+      }
+    };
+    initAd();
 
     const unsubscribe = engine.subscribe(() => {
-      updateCurrentAd();
+      if (isMounted) {
+        updateCurrentAd();
+      }
     });
 
     return () => {
+      isMounted = false;
       unsubscribe();
     };
   }, [engine, updateCurrentAd]);

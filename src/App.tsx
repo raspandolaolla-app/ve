@@ -60,13 +60,26 @@ function AppContent() {
   useHeartbeat();
 
   useEffect(() => {
-    if (state === 'authenticated' && user?.id) {
-      PresenceService.initGlobalPresence(user.id, {
-        displayName: user.user_metadata?.full_name || user.email || 'Jugador',
-      });
-    } else {
-      PresenceService.cleanup();
-    }
+    let isMounted = true;
+    const initPresence = async () => {
+      try {
+        if (state === 'authenticated' && user?.id) {
+          if (isMounted) {
+            PresenceService.initGlobalPresence(user.id, {
+              displayName: user.user_metadata?.full_name || user.email || 'Jugador',
+            });
+          }
+        } else {
+          PresenceService.cleanup();
+        }
+      } catch (error) {
+        console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+      }
+    };
+    initPresence();
+    return () => {
+      isMounted = false;
+    };
   }, [state, user?.id, user?.user_metadata, user?.email]);
 
   const handleSelectGame = (game: GameMetadata) => {

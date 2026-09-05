@@ -37,12 +37,19 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
   useEffect(() => {
     let isMounted = true;
     const loadBanners = async () => {
-      setLoading(true);
-      const list = await BannerRepository.getActiveBanners(location);
-      if (isMounted) {
-        setBanners(list);
-        setLoading(false);
-        setCurrentIndex(0);
+      try {
+        setLoading(true);
+        const list = await BannerRepository.getActiveBanners(location);
+        if (isMounted) {
+          setBanners(list);
+          setLoading(false);
+          setCurrentIndex(0);
+        }
+      } catch (error) {
+        console.error('[ERROR] Fallo en operación async:', error instanceof Error ? error.message : error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     loadBanners();

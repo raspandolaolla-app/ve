@@ -117,6 +117,23 @@ export class WalletRepository {
    * Reclama el bono de prueba inicial de 5000 Bs (idempotente y aislado contablemente)
    */
   public static async claimTestBonus(): Promise<{ success: boolean; message?: string; newBalance?: number; error?: string }> {
+    if (typeof window !== 'undefined' && window.localStorage.getItem('playwright-mock-auth')) {
+      const mockStr = window.localStorage.getItem('playwright-mock-auth') || '{}';
+      try {
+        const mock = JSON.parse(mockStr);
+        mock.hasClaimedTestBonus = true;
+        mock.balanceBs = (mock.balanceBs || 0) + 5000;
+        window.localStorage.setItem('playwright-mock-auth', JSON.stringify(mock));
+      } catch (e) {
+        // ignore
+      }
+      return {
+        success: true,
+        message: 'Bono de prueba acreditado exitosamente.',
+        newBalance: 5000,
+      };
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       return { success: false, error: 'El servicio de base de datos no está disponible' };

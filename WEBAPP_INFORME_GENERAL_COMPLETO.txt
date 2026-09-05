@@ -2,10 +2,32 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 17:40:00 -07:00 (UTC 2026-09-05 00:40:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-04 18:00:00 -07:00 (UTC 2026-09-05 01:00:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 135_fix_start_game_session_enum.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 136_profile_onboarding_and_sensitive_data_protection.sql
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MIGRACIÓN 136: SISTEMA DE PERFILADO ESTRICTO, UNICIDAD Y BLINDAJE DE IDENTIDAD:
+   - Migración de Base de Datos (`supabase/migrations/136_profile_onboarding_and_sensitive_data_protection.sql`):
+     * Incorporación de columnas canónicas en `profiles`: `cedula`, `telefono`, `nombre_real`, `fecha_nacimiento`, `estado_residencia`, `is_profile_locked` (BOOLEAN DEFAULT FALSE).
+     * Restricciones de unicidad absoluta mediante índices parciales: `idx_profiles_cedula_unique` e `idx_profiles_telefono_unique`, asegurando la imposibilidad de perfiles con cédulas o teléfonos duplicados.
+     * Trigger inmutable de base de datos (`trg_prevent_sensitive_update` ejecutando `prevent_sensitive_data_update`): intercepta actualizaciones de usuario regular y lanza la excepción `NO_AUTORIZADO` si intentan alterar su cédula o teléfono una vez registrados, reservando la facultad de modificación exclusivamente a Administradores y Operadores autorizados.
+   - Flujo de Login y Turnstile Prioritario (`src/components/auth/LoginModal.tsx`):
+     * El widget de Cloudflare Turnstile se posiciona como filtro de seguridad principal.
+     * El botón "Continuar con Google" permanece físicamente deshabilitado hasta que el usuario resuelve la verificación antibot.
+     * Al completarse la verificación humana, el botón de Google y los controles de correo se activan de forma instantánea.
+   - Componente de Onboarding de Identidad (`src/components/auth/ProfileOnboarding.tsx`):
+     * Modal interactivo de alta seguridad que se presenta obligatoriamente tras la autenticación a usuarios con perfiles incompletos (`!is_profile_locked` o sin cédula/teléfono).
+     * Campos validados: Cédula venezolana (7 a 9 dígitos numéricos), Teléfono móvil, Nombres y Apellidos completos según documento, Fecha de Nacimiento (validación estricta de mayoría de edad +18 años) y Estado de Residencia en Venezuela.
+     * Captura específica del error de clave única PostgreSQL `23505` con mensajes claros al usuario si la cédula o teléfono ya existen en el sistema.
+   - Integración y Mapeo en la Aplicación:
+     * `src/App.tsx`: cálculo del estado `needsOnboarding` y despliegue del modal bloqueante antes de habilitar el acceso al Lobby o salas de juego.
+     * `src/types/profile.ts`: ampliación de `UserProfile` con los atributos canónicos de identidad protegida.
+     * `src/services/repositories/ProfileRepository.ts`: actualización de `getCurrentProfile`, `ensureProfileExists` y `updateProfile` para sincronizar los campos de identidad y el estado de bloqueo.
+     * `src/features/profile/ProfileView.tsx`: visualización de Cédula y Teléfono con insignias de seguridad "Blindada" / "Blindado".
+   - Verificación de Calidad:
+     * `lint_applet` superado con 0 advertencias / 0 errores.
+     * `compile_applet` exitoso (PASS).
 
 0) CONEXIÓN DE VARIABLES DE ENTORNO Y GUÍA TÉCNICA DE CONFIGURACIÓN DE SUPABASE Y CLOUDFLARE:
    - Sincronización del esquema de variables de entorno en `.env.example`:

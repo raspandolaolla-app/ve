@@ -18,12 +18,13 @@ export class RealtimeManager {
   private static userChannels: Map<string, UserEventsChannelEntry> = new Map();
 
   /**
-   * Se suscribe a los cambios de una mesa específica y sus jugadores en tiempo real.
+   * Se suscribe a los cambios de una mesa específica, sus sesiones de juego y sus jugadores en tiempo real.
    */
   public static subscribeToTable(
     tableId: string,
     onTableChange: (payload: any) => void,
-    onPlayerChange: (payload: any) => void
+    onPlayerChange: (payload: any) => void,
+    onSessionChange?: (payload: any) => void
   ): () => void {
     const supabase = getSupabaseClient();
     if (!supabase) return () => {};
@@ -53,6 +54,23 @@ export class RealtimeManager {
         },
         (payload) => {
           onPlayerChange(payload);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_sessions',
+          filter: `table_id=eq.${tableId}`,
+        },
+        (payload) => {
+          if (onSessionChange) {
+            onSessionChange(payload);
+          } else {
+            // Si no se proporcionó callback dedicado, notificar a onTableChange
+            onTableChange(payload);
+          }
         }
       )
       .subscribe();

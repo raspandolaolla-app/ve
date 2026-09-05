@@ -1064,6 +1064,17 @@ export class TableRepository {
       turnDeadlineAt: data?.turn_deadline_at,
     });
 
+    // Notificación y sincronización inmediata en game_tables para suscriptores
+    try {
+      await supabase
+        .from('game_tables')
+        .update({ status: 'ACTIVE' })
+        .eq('id', tableId)
+        .neq('status', 'ACTIVE');
+    } catch (tblErr) {
+      console.warn('[TableRepository] Notificación de mesa secundaria no bloqueante:', tblErr);
+    }
+
     return data?.session_id || null;
   }
 

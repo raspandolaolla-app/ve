@@ -61,7 +61,7 @@ export class GameRepository {
       .from('game_sessions')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['WAITING', 'READY', 'STARTING', 'ACTIVE', 'PAUSED'])
+      .in('status', ['WAITING', 'READY', 'STARTING', 'ACTIVE', 'PAUSED', 'SALES', 'DRAWING', 'IN_PROGRESS'])
       .order('created_at', { ascending: false })
       .maybeSingle();
 

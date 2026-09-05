@@ -145,6 +145,12 @@ export class ProfileRepository {
           identityVerificationStatus: (profileData.kyc_status?.toLowerCase() === 'verified' ? 'approved' : 'pending') as any,
           humanVerificationStatus: 'approved',
           hasClaimedTestBonus: Boolean(profileData.has_claimed_test_bonus),
+          cedula: profileData.cedula,
+          telefono: profileData.telefono || profileData.phone_number,
+          nombreReal: profileData.nombre_real,
+          fechaNacimiento: profileData.fecha_nacimiento || profileData.birth_date,
+          estadoResidencia: profileData.estado_residencia || profileData.state_venezuela,
+          isProfileLocked: Boolean(profileData.is_profile_locked),
           createdAt: profileData.created_at || now,
           updatedAt: profileData.updated_at || now,
         };
@@ -243,6 +249,12 @@ export class ProfileRepository {
       identityVerificationStatus: mappedKycStatus,
       humanVerificationStatus: 'approved',
       hasClaimedTestBonus: Boolean(data.has_claimed_test_bonus),
+      cedula: data.cedula,
+      telefono: data.telefono || data.phone_number,
+      nombreReal: data.nombre_real,
+      fechaNacimiento: data.fecha_nacimiento || data.birth_date,
+      estadoResidencia: data.estado_residencia || data.state_venezuela,
+      isProfileLocked: Boolean(data.is_profile_locked),
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -306,6 +318,12 @@ export class ProfileRepository {
       state: string;
       avatarUrl: string;
       birthDate: string;
+      cedula: string;
+      telefono: string;
+      nombreReal: string;
+      fechaNacimiento: string;
+      estadoResidencia: string;
+      isProfileLocked: boolean;
     }>
   ): Promise<boolean> {
     const supabase = getSupabaseClient();
@@ -317,6 +335,15 @@ export class ProfileRepository {
     if (updates.state !== undefined) dataToUpdate.state_venezuela = updates.state;
     if (updates.avatarUrl !== undefined) dataToUpdate.avatar_url = updates.avatarUrl;
     if (updates.birthDate !== undefined) dataToUpdate.birth_date = updates.birthDate;
+    if (updates.cedula !== undefined) dataToUpdate.cedula = updates.cedula;
+    if (updates.telefono !== undefined) {
+      dataToUpdate.telefono = updates.telefono;
+      dataToUpdate.phone_number = updates.telefono;
+    }
+    if (updates.nombreReal !== undefined) dataToUpdate.nombre_real = updates.nombreReal;
+    if (updates.fechaNacimiento !== undefined) dataToUpdate.fecha_nacimiento = updates.fechaNacimiento;
+    if (updates.estadoResidencia !== undefined) dataToUpdate.estado_residencia = updates.estadoResidencia;
+    if (updates.isProfileLocked !== undefined) dataToUpdate.is_profile_locked = updates.isProfileLocked;
 
     const { error } = await supabase
       .from('profiles')

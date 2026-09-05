@@ -37,7 +37,7 @@ export const ProfileMenuModal: React.FC<ProfileMenuModalProps> = ({
   onNavigateTab,
   onOpenSupport,
 }) => {
-  const { user, profile, role, state, isSigningIn, signInWithGoogle, signOut } = useAuth();
+  const { user, profile, role, state, isSigningIn, openLoginModal, signOut } = useAuth();
   const { balance, isBalanceVisible, openDepositModal, openWithdrawModal } = useWallet();
 
   if (!isOpen) return null;
@@ -142,8 +142,8 @@ export const ProfileMenuModal: React.FC<ProfileMenuModalProps> = ({
               <p className="text-xs text-[#94A3B8]">Inicia sesión para jugar con amigos y participar en sorteos.</p>
               <button
                 onClick={() => {
-                  signInWithGoogle();
                   onClose();
+                  openLoginModal();
                 }}
                 disabled={isSigningIn}
                 className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/30 ring-1 ring-yellow-400/50 uppercase tracking-wider"

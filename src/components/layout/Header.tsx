@@ -36,7 +36,7 @@ export function Header({
   onOpenProfile,
   hasUnreadNotifications = true,
 }: HeaderProps) {
-  const { state, user, profile, role, isSigningIn, signInWithGoogle, signOut } = useAuth();
+  const { state, user, profile, role, isSigningIn, openLoginModal, signOut } = useAuth();
   const { balance, isBalanceVisible, toggleBalanceVisibility, openDepositModal } = useWallet();
 
   const isAuthenticated = state === 'authenticated' && user !== null;
@@ -251,7 +251,7 @@ export function Header({
               // BOTÓN INGRESAR GRANDE, AMARILLO Y DESTACADO
               <button
                 id="header-signin-google-btn"
-                onClick={signInWithGoogle}
+                onClick={openLoginModal}
                 disabled={isSigningIn}
                 className="px-5 sm:px-7 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:via-yellow-200 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base transition-all flex items-center gap-2.5 shadow-xl shadow-yellow-500/30 hover:shadow-yellow-400/50 hover:scale-105 active:scale-95 ring-2 ring-yellow-400/60 hover:ring-yellow-300"
               >

@@ -107,6 +107,10 @@ export interface RPSState {
   matchWinner: 'PLAYER1' | 'PLAYER2' | null;
   roundNumber: number;
 
+  currentTurnUserId?: string | null;
+  turnUserId?: string | null;
+  turnExpiresAt?: string | null;
+  turnDurationSeconds?: number;
   round?: number;
   targetWins?: number;
   scores?: Record<string, number>;

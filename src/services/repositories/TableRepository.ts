@@ -50,7 +50,7 @@ export class TableRepository {
   public static isTableAvailable(t: any): boolean {
     if (!t) return false;
     const status = String(t.status || '').toUpperCase();
-    if (status !== 'OPEN') {
+    if (status !== 'OPEN' && status !== 'WAITING' && status !== 'SALES') {
       return false;
     }
     if (t.closed_at || t.finished_at || t.closedAt || t.finishedAt) {
@@ -108,7 +108,7 @@ export class TableRepository {
       .from('game_tables')
       .select('*')
       .is('closed_at', null)
-      .in('status', ['OPEN', 'WAITING'])
+      .in('status', ['OPEN', 'WAITING', 'SALES'])
       .order('created_at', { ascending: false });
 
     if (dbGameType) {

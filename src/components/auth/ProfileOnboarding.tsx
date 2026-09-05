@@ -116,6 +116,34 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
     }
 
     try {
+      // Soporte para pruebas E2E con Mock Auth
+      if (typeof window !== 'undefined' && window.localStorage.getItem('playwright-mock-auth')) {
+        const nameParts = nombreLimpio.split(' ');
+        const firstName = nameParts[0] || 'Robot';
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Test';
+        const currentMock = JSON.parse(window.localStorage.getItem('playwright-mock-auth') || '{}');
+        currentMock.profile = {
+          ...(currentMock.profile || {}),
+          cedula: cedulaLimpia,
+          telefono: telefonoLimpio,
+          nombreReal: nombreLimpio,
+          firstName,
+          lastName,
+          fechaNacimiento: formData.fecha_nacimiento,
+          estadoResidencia: formData.estado_residencia,
+          isProfileLocked: true,
+          identityVerificationStatus: 'approved',
+          humanVerificationStatus: 'approved',
+        };
+        window.localStorage.setItem('playwright-mock-auth', JSON.stringify(currentMock));
+        setSuccess('✅ Perfil guardado exitosamente. Redirigiendo...');
+        await refreshProfile();
+        setTimeout(() => {
+          onComplete();
+        }, 500);
+        return;
+      }
+
       const client = exportedSupabase || getSupabaseClient();
       if (!client) {
         throw new Error('El servicio de base de datos no está disponible.');
@@ -268,12 +296,13 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
                 <input
                   type="text"
                   required
+                  data-testid="onboarding-cedula"
                   value={formData.cedula}
                   onChange={(e) =>
                     setFormData({ ...formData, cedula: e.target.value.replace(/\D/g, '') })
                   }
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl pl-11 pr-4 py-3.5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all placeholder:text-slate-600"
-                  placeholder="Ej: 12345678"
+                  placeholder="Número de cédula (Ej: 12345678)"
                   maxLength={9}
                 />
               </div>
@@ -288,10 +317,11 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
                 <input
                   type="tel"
                   required
+                  data-testid="onboarding-telefono"
                   value={formData.telefono}
                   onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl pl-11 pr-4 py-3.5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all placeholder:text-slate-600"
-                  placeholder="Ej: 04141234567"
+                  placeholder="Número de teléfono (Ej: 04141234567)"
                 />
               </div>
             </div>
@@ -304,10 +334,11 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
             <input
               type="text"
               required
+              data-testid="onboarding-nombre"
               value={formData.nombre_real}
               onChange={(e) => setFormData({ ...formData, nombre_real: e.target.value })}
               className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all placeholder:text-slate-600 uppercase"
-              placeholder="NOMBRES Y APELLIDOS COMPLETOS"
+              placeholder="Nombres y apellidos completos"
             />
           </div>
 
@@ -321,6 +352,7 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
                 <input
                   type="date"
                   required
+                  data-testid="onboarding-fecha-nacimiento"
                   value={formData.fecha_nacimiento}
                   onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl pl-11 pr-4 py-3.5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all [color-scheme:dark]"
@@ -336,6 +368,7 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
                 <MapPin className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-500" />
                 <select
                   required
+                  data-testid="onboarding-estado"
                   value={formData.estado_residencia}
                   onChange={(e) => setFormData({ ...formData, estado_residencia: e.target.value })}
                   className="w-full bg-[#0B0F17] border border-slate-700 rounded-xl pl-11 pr-4 py-3.5 text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all appearance-none"
@@ -354,6 +387,7 @@ export const ProfileOnboarding: React.FC<ProfileOnboardingProps> = ({ onComplete
           <button
             type="submit"
             disabled={isLoading}
+            data-testid="onboarding-submit"
             className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-base sm:text-lg rounded-xl 
                        disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 transition-all mt-4 flex items-center justify-center gap-2 active:scale-[0.99]"
           >

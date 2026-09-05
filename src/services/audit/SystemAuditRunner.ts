@@ -522,7 +522,7 @@ export class SystemAuditRunner {
         const { data: allActiveTables } = await supabase
           .from('game_tables')
           .select('*, game_table_players(*)')
-          .in('status', ['OPEN', 'WAITING', 'WAITING_PLAYERS', 'FULL', 'IN_GAME', 'STARTING']);
+          .in('status', ['OPEN', 'WAITING', 'READY', 'FULL', 'ACTIVE', 'STARTING']);
 
         let duplicateSeatsFound = 0;
         let inconsistentCountFound = 0;

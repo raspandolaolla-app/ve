@@ -61,7 +61,7 @@ export class GameRepository {
       .from('game_sessions')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['WAITING', 'READY', 'STARTING', 'ACTIVE', 'PAUSED', 'SALES', 'DRAWING', 'IN_PROGRESS'])
+      .in('status', ['WAITING', 'READY', 'ACTIVE', 'SALES', 'DRAWING'])
       .order('created_at', { ascending: false })
       .maybeSingle();
 
@@ -76,7 +76,7 @@ export class GameRepository {
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at,
       status: (data.status === 'SALES' || data.status === 'DRAWING'
         ? data.status
-        : data.status === 'ACTIVE' || data.status === 'STARTING' || data.status === 'READY' || data.status === 'WAITING'
+        : data.status === 'ACTIVE' || data.status === 'READY' || data.status === 'WAITING'
         ? (data.status === 'WAITING' || data.status === 'READY' ? data.status : 'in_progress')
         : data.status === 'FINISHED' || data.status === 'SETTLED'
         ? 'completed'
@@ -144,8 +144,9 @@ export class GameRepository {
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('start_game_session_secure', {
         p_table_id: tableId,
-        p_initial_state: stateWithTurn,
+        p_initial_state: stateWithTurn || {},
         p_turn_duration_seconds: turnSeconds,
+        p_initial_turn_user_id: canonicalTurnUserId || null,
       });
 
       if (rpcError) {
@@ -188,11 +189,13 @@ export class GameRepository {
         return null;
       }
 
-      if (rpcData?.session_id) {
+      const resolvedSessionId = rpcData?.session_id || rpcData?.sessionId;
+      if (resolvedSessionId) {
         console.log('[GAME_START_RPC_SUCCESS]', {
-          sessionId: rpcData.session_id,
+          sessionId: resolvedSessionId,
           tableId,
-          alreadyActive: Boolean(rpcData.already_active),
+          alreadyActive: Boolean(rpcData.already_active ?? rpcData.alreadyActive),
+          currentTurnUserId: rpcData.current_turn_user_id || rpcData.currentTurnUserId,
         });
         return await this.getActiveSession(tableId);
       }
@@ -287,8 +290,8 @@ export class GameRepository {
         ABANDONED: 'ABANDONED',
         WAITING: 'WAITING',
         READY: 'READY',
-        STARTING: 'STARTING',
-        PAUSED: 'PAUSED',
+        SALES: 'SALES',
+        DRAWING: 'DRAWING',
       };
       updatePayload.status = normalizedStatusMap[status] || 'ACTIVE';
     }

@@ -731,7 +731,7 @@ export class AdminTablesRepository {
       const { data: candidateTables, error: searchErr } = await supabase
         .from('game_tables')
         .select('id, status, current_players_count, game_type')
-        .in('status', ['OPEN', 'WAITING', 'WAITING_PLAYERS'])
+        .in('status', ['OPEN', 'WAITING'])
         .or(`current_players_count.eq.0,current_players_count.is.null`)
         .lt('created_at', cutoffTime);
 

@@ -227,7 +227,7 @@ export class AuditTestRepository {
       let realQuery = supabase
         .from('game_tables')
         .select('id, name, game_type')
-        .in('status', ['OPEN', 'FULL', 'STARTING', 'ACTIVE', 'WAITING', 'IN_GAME']);
+        .in('status', ['OPEN', 'FULL', 'STARTING', 'ACTIVE', 'WAITING']);
 
       if (gameType) {
         const dbEnum = GameRepository.mapGameTypeToDbEnum(gameType as GameType);

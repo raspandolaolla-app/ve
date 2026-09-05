@@ -1016,16 +1016,18 @@ export class TableRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
+    const initialTurnUser = (initialState?.turnUserId as string) || (initialState?.currentTurnUserId as string) || null;
     console.log('[GAME_START_RPC_CALL]', {
       tableId,
       turnDurationSeconds: turnDurationSeconds || 30,
-      initialTurnUserId: initialState?.turnUserId || initialState?.currentTurnUserId,
+      initialTurnUserId: initialTurnUser,
     });
 
     const { data, error } = await supabase.rpc('start_game_session_secure', {
       p_table_id: tableId,
-      p_initial_state: initialState || null,
+      p_initial_state: initialState || {},
       p_turn_duration_seconds: turnDurationSeconds || 30,
+      p_initial_turn_user_id: initialTurnUser,
     });
 
     if (error) {
@@ -1056,12 +1058,13 @@ export class TableRepository {
       throw new Error(error.message || 'Error al iniciar la partida.');
     }
 
+    const resolvedSessionId = data?.session_id || data?.sessionId || null;
     console.log('[GAME_START_RPC_SUCCESS]', {
-      sessionId: data?.session_id,
+      sessionId: resolvedSessionId,
       tableId,
-      alreadyActive: Boolean(data?.already_active),
-      currentTurnUserId: data?.current_turn_user_id,
-      turnDeadlineAt: data?.turn_deadline_at,
+      alreadyActive: Boolean(data?.already_active ?? data?.alreadyActive),
+      currentTurnUserId: data?.current_turn_user_id || data?.currentTurnUserId,
+      turnDeadlineAt: data?.turn_deadline_at || data?.turnDeadlineAt,
     });
 
     // Notificación y sincronización inmediata en game_tables para suscriptores
@@ -1075,7 +1078,7 @@ export class TableRepository {
       console.warn('[TableRepository] Notificación de mesa secundaria no bloqueante:', tblErr);
     }
 
-    return data?.session_id || null;
+    return resolvedSessionId;
   }
 
   /**

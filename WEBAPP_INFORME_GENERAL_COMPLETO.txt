@@ -2,10 +2,100 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 09:40:00 -07:00 (UTC 2026-09-05 16:40:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 14:50:00 -07:00 (UTC 2026-09-05 21:50:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 138_profile_rls_and_auto_creation_trigger.sql
+ÚLTIMA MIGRACIÓN INTEGRADA: 135_fix_start_game_session_enum.sql (Actualizada con diagnóstico RAISE NOTICE y soporte camelCase/snake_case)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CORRECCIÓN INTEGRAL Y ESTANDARIZACIÓN DEL SISTEMA DE TURNOS, TEMPORIZADORES Y TIMEOUTS EN MOTORES Y TABLEROS (TRUCO VENEZOLANO, LA VIEJA, DAMAS Y DOMINÓ):
+   - Diagnóstico y Causa Raíz Detectada:
+     * En Truco Venezolano (`TrucoEngine.ts` y `TrucoBoard.tsx`), las respuestas a los cantos ('QUIERO' y 'NO_QUIERO') eran enviadas por `GameContainer` con acción de tipo `CANTO` en lugar de `RESPOND_CANTO`, lo cual provocaba un fallo de validación ('Canto no reconocido') y bloqueaba el flujo del juego.
+     * `TrucoEngine.ts` carecía de soporte para la acción `TIMEOUT`. Cuando el temporizador expiraba, la partida quedaba congelada en espera indefinida.
+     * `TrucoBoard.tsx` no recibía `turnExpiresAt`, `sessionId`, ni `onTimeout`, y no renderizaba el componente `TurnTimer` ni un banner explicativo del estado del turno ("Tu turno" vs "Esperando jugada del rival").
+     * En Damas (`CheckersEngine.ts`), Dominó (`DominoEngine.ts`) y La Vieja (`TicTacToeEngine.ts`), la acción `TIMEOUT` no estaba contemplada en `validateAction` ni en `applyAction`, imposibilitando la resolución por tiempo límite.
+     * En `CheckersBoard.tsx`, `DominoBoard.tsx` y `TicTacToeBoard.tsx`, no se propagaba el prop `onTimeout` hacia `GameContainer`, lo que impedía que las acciones de tiempo límite fuesen procesadas uniformemente a través de `handleGameAction('TIMEOUT', {})`.
+   - Soluciones Implementadas:
+     1. `src/features/games/engines/TrucoEngine.ts`:
+        * `validateAction`: Incorporación de soporte nativo para la acción `TIMEOUT` (`valid: true`).
+        * `applyAction`: Implementación de lógica de expiración de tiempo: si hay un canto pendiente y le correspondía responder al jugador expirado, se auto-aplica `RESPOND_CANTO` con `response: 'NO_QUIERO'`. Si no hay canto pendiente, se juega automáticamente la primera carta disponible en su mano (`PLAY_CARD`), y si ya no posee cartas, se avanza el turno al siguiente jugador de la mesa en orden circular.
+     2. `src/features/games/components/TrucoBoard.tsx`:
+        * Extensión de la interfaz `TrucoBoardProps` con `turnExpiresAt?: string`, `sessionId?: string` y `onTimeout?: () => void`.
+        * Integración visual de `TurnTimer` (con duración estándar de 20s, sincronización con `turnExpiresAt` y callback a `handleTimeout`).
+        * Incorporación de banner dinámico de turno: feedback interactivo con badge esmeralda brillante pulsante ("Tu turno — Tira una carta o canta") y badge neutro ("Esperando jugada del rival...").
+        * Bloqueo estricto de cartas (`playable={isMyTurn}`) y de botones de canto cuando no es el turno del jugador y no hay canto rival pendiente de respuesta (`disabled={!isMyTurn && !pendingCanto}`).
+     3. `src/features/games/components/GameContainer.tsx`:
+        * En el caso `truco_venezolano`: discriminación precisa entre cantos y respuestas: cuando `cantoType` es `QUIERO` o `NO_QUIERO`, se despacha `handleGameAction('RESPOND_CANTO', { response: cantoType })`, resolviendo el rechazo previo por tipo de acción errónea.
+        * Transmisión de `turnExpiresAt={session?.turnExpiresAt}`, `sessionId={session?.id}` y `onTimeout={() => handleGameAction('TIMEOUT', {})}` para `truco_venezolano`, `tic_tac_toe`, `checkers` y `domino_venezolano`.
+     4. `src/features/games/engines/CheckersEngine.ts`:
+        * `validateAction` y `applyAction`: Soporte integral para `TIMEOUT`. Si el jugador en turno agota su tiempo, se calcula y ejecuta un movimiento automático inteligente con `this.getBotMove(state, action.userId)`, o en su defecto se alterna el turno al contrincante garantizando la continuidad de la partida.
+     5. `src/features/games/engines/DominoEngine.ts`:
+        * `validateAction` y `applyAction`: Soporte integral para `TIMEOUT`. Si el tiempo expira, se ejecuta `this.getBotMove(state, action.userId)`, y si no tiene fichas jugables, se procesa automáticamente `PASS_TURN`.
+     6. `src/features/games/engines/TicTacToeEngine.ts`:
+        * `validateAction` y `applyAction`: Soporte integral para `TIMEOUT` y normalización de acciones (`PLACE_SYMBOL` o `MAKE_MOVE` con `cellIndex ?? index ?? position`). En caso de timeout se auto-ejecuta `this.getBotMove(normalized, action.userId)`.
+     7. `src/features/games/components/CheckersBoard.tsx`, `DominoBoard.tsx` y `TicTacToeBoard.tsx`:
+        * Adición de `onTimeout?: () => void` a las interfaces de props de tablero y delegación prioritaria de timeout a `onTimeout?.()` antes del fallback a `GameRepository.expireTurn(sessionId)`.
+   - Verificaciones de Calidad:
+     * `compile_applet`: PASS (Compilación completa exitosa sin errores).
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores en todo el proyecto).
+
+0) RESTAURACIÓN QUIRÚRGICA DEL SISTEMA DE TURNOS, TEMPORIZADOR Y VALIDACIONES EN PIEDRA/PAPEL/TIJERA (5 ARCHIVOS CRÍTICOS):
+   - Diagnóstico y Causa Raíz Detectada:
+     * Tras resolver la creación de sesión de juego, los logs mostraron:
+       `[TURN_CHANGED] previousTurnUserId: undefined, nextTurnUserId: null, isGameOver: false`.
+     * `RockPaperScissorsEngine` no inicializaba ni actualizaba `currentTurnUserId` ni `turnUserId` tras los movimientos o en rondas sucesivas.
+     * `RockPaperScissorsBoard` no validaba si era el turno del jugador antes de permitir pulsar los botones, ni contaba con `TurnTimer` integrado ni con feedback visual de turno activo.
+     * `TurnTimer` no soportaba estados de ronda activos (`ROUND_COMMIT`, `selecting`, `playing`, `active`) y no disparaba el timeout si el tiempo ya había expirado al montar.
+     * `GameContainer` no inyectaba `isMyTurn`, `turnExpiresAt`, ni el manejador de `onTurnTimeout` al tablero de Piedra, Papel o Tijera.
+   - Soluciones Implementadas:
+     1. `src/types/games.ts`:
+        * Adición de campos tipados `currentTurnUserId?: string | null`, `turnUserId?: string | null`, `turnExpiresAt?: string | null` y `turnDurationSeconds?: number` en `RPSState`.
+     2. `src/features/games/engines/RockPaperScissorsEngine.ts`:
+        * `initializeRPSState`: Inicialización canónica de `currentTurnUserId`, `turnUserId` (con `player1Id`) y `turnDurationSeconds: 15`.
+        * `processRPSAction`: Transición estricta de turno entre jugadores (`player1Choice` -> pasa turno a `player2Id`; `player2Choice` -> pasa turno a `player1Id`; ambos elegidos -> `ROUND_REVEAL` y `currentTurnUserId: null`).
+        * `nextRound`: Verificación de condiciones de victoria si algún jugador tiene 0 vidas (`status: 'MATCH_ENDED'`). Si el match continúa, reinicio limpio de elecciones y restablecimiento de `currentTurnUserId: state.player1Id` y `turnDurationSeconds: 15`.
+        * `validateAction` y `applyAction`: Soporte nativo para acción `TIMEOUT` que auto-asigna una jugada aleatoria (`ROCK`, `PAPER`, `SCISSORS`) para el jugador que no eligió a tiempo.
+     3. `src/features/games/components/TurnTimer.tsx`:
+        * Detección precisa de deadline con `new Date(turnExpiresAt).getTime()`.
+        * Manejo de estados de inactividad vs actividad (`isPausedOrInactive`): excluye sólo estados de espera o terminales (`starting`, `ready`, `waiting`, `finished`, `cancelled`, `settled`, `completed`, `abandoned`, `match_ended`).
+        * Ejecución inmediata y segura de `onTimeout?.()` si el deadline ya expiró al montar el componente, evitando estados zombies.
+     4. `src/features/games/components/RockPaperScissorsBoard.tsx`:
+        * Extensión de props (`isMyTurn`, `hasPlayerChosen`, `turnExpiresAt`, `turnTimeLeft`, `onTurnTimeout`, etc.).
+        * Guard estricto en `handleChoice`: Bloqueo si no es el turno (`!computedIsMyTurn`), si ya eligió (`hasChosen`), o si la ronda/partida ha concluido.
+        * Integración visual de `TurnTimer` con reloj sincronizado en el área superior.
+        * Indicador de turno interactivo: "🎯 Tu turno - Elige tu jugada" (animación pulse esmeralda) vs "⏳ Esperando la elección del oponente...".
+        * Estilos diferenciados de botones: gradiente activo y hover con escalado vs estado deshabilitado con `cursor-not-allowed` y opacidad al 50%.
+     5. `src/features/games/components/RockPaperScissorsGame.tsx` y `src/features/games/components/GameContainer.tsx`:
+        * Cálculo reactivo de `isMyTurn` y `hasPlayerChosen`.
+        * Manejo de timeout de turno con elección automática de jugada aleatoria en fallback.
+        * Transmisión de propiedades sincronizadas de sesión (`turnExpiresAt`, `sessionId`, `onTurnTimeout`).
+   - Verificaciones de Calidad:
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores de TypeScript).
+     * `compile_applet`: PASS (Compilación de Vite y bundle de producción exitosos).
+
+0) RESOLUCIÓN DEFINITIVA DE ERROR HTTP 400 EN SESIONES Y CONFLICTOS DE ENUM:
+   - Diagnóstico y Causa Raíz Detectada:
+     * La consulta a `game_sessions` (`GameRepository.getActiveSession` y otros puntos del frontend) enviaba valores de estado que no existen en el enum de PostgreSQL `session_status_enum` (`STARTING`, `PAUSED`, `IN_PROGRESS`), causando un rechazo inmediato por parte del driver de base de datos (`HTTP/3 400 Bad Request: invalid input value for enum session_status_enum: "IN_PROGRESS"`).
+     * Como consecuencia, el jugador no anfitrión obtenía `activeSession: null` al iniciar la partida y no podía ingresar.
+     * En la llamada a `start_game_session_secure`, PostgreSQL emitía `PGRST203` (conflicto por sobrecarga de funciones) al llamar con 3 parámetros en lugar de los 4 exactos, y el retorno en camelCase/snake_case provocaba `sessionId: undefined` en el cliente.
+   - Soluciones Implementadas:
+     * Saneamiento estricto de filtros en `GameRepository.ts`: Eliminación de `STARTING`, `PAUSED` e `IN_PROGRESS`. Filtro canónico validado en base de datos: `['WAITING', 'READY', 'ACTIVE', 'SALES', 'DRAWING']`.
+     * Corrección de llamadas a RPC `start_game_session_secure`: Ahora se envían explícitamente los 4 parámetros (`p_table_id`, `p_initial_state`, `p_turn_duration_seconds`, `p_initial_turn_user_id`) en `GameRepository.ts` y `TableRepository.ts`, resolviendo la ambigüedad `PGRST203`.
+     * Resolución de `sessionId`: Manejo robusto de propiedades duales `data?.session_id || data?.sessionId`.
+     * Actualización de migración `135_fix_start_game_session_enum.sql`:
+       - Eliminación de todas las variantes sobrecargadas previas de `start_game_session_secure`.
+       - Inclusión de trazas de diagnóstico detalladas `RAISE NOTICE` para auditoría en Supabase.
+       - Retorno de objetos JSON compatibles tanto con camelCase (`sessionId`, `alreadyActive`, `currentTurnUserId`, etc.) como con snake_case (`session_id`, `already_active`, `current_turn_user_id`, etc.).
+       - Transición atómica de `game_tables` a estado `ACTIVE` en la misma transacción.
+     * Saneamiento transversal en la WebApp:
+       - `GameContainer.tsx`: Actualización de condiciones de jugabilidad activa a estados canónicos válidos.
+       - `TablesView.tsx`: Eliminación de `IN_PROGRESS` en listeners en tiempo real y sondeo de respaldo.
+       - `useGameEngine.ts`: Corrección del estado de actualización de sesión de `IN_PROGRESS` a `ACTIVE` y de `COMPLETED` a `FINISHED`.
+       - `BingoEngine.ts`: Compatibilidad con estado `ACTIVE`.
+       - `AdminTablesRepository.ts` y `AuditTestRepository.ts`: Eliminación de estados inválidos en consultas a `game_tables` (`WAITING_PLAYERS`, `IN_GAME`).
+   - Verificaciones de Calidad:
+     * Consultas directas ejecutadas contra Supabase: HTTP 200 OK en todas las consultas de sesiones activas.
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet` (`npm run build`): PASS (Build de producción completado limpiamente).
 
 0) INTEGRACIÓN DEL COMPONENTE "JUEGOS" — VISTA MÓVIL PREMIUM DARK CASINO:
    - Archivo creado: `src/features/games/components/JuegosView.tsx`

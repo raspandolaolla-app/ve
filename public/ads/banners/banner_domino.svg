@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="dominoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090D16" />
+      <stop offset="50%" stop-color="#141E33" />
+      <stop offset="100%" stop-color="#0A0F1D" />
+    </linearGradient>
+    <linearGradient id="dominoGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF8A00" />
+      <stop offset="100%" stop-color="#F5B942" />
+    </linearGradient>
+    <linearGradient id="tileGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#E2E8F0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" fill="url(#dominoBg)" rx="20" />
+  <rect x="3" y="3" width="1194" height="394" fill="none" stroke="#334155" stroke-width="2" rx="18" opacity="0.6" />
+
+  <!-- Decorative Glows -->
+  <circle cx="1020" cy="200" r="160" fill="#FF8A00" opacity="0.12" />
+  <circle cx="180" cy="200" r="120" fill="#22C55E" opacity="0.08" />
+
+  <!-- Left Side: Domino Tiles Vector Illustration -->
+  <g transform="translate(100, 90)">
+    <!-- Tile 1 (Doble Seis) -->
+    <g transform="rotate(-12, 60, 110)">
+      <rect width="110" height="210" rx="12" fill="url(#tileGrad)" stroke="#CBD5E1" stroke-width="3" filter="drop-shadow(0 10px 15px rgba(0,0,0,0.5))" />
+      <line x1="10" y1="105" x2="100" y2="105" stroke="#475569" stroke-width="3" />
+      <!-- Dots Top: 6 -->
+      <circle cx="32" cy="35" r="7" fill="#0F172A" />
+      <circle cx="78" cy="35" r="7" fill="#0F172A" />
+      <circle cx="32" cy="70" r="7" fill="#0F172A" />
+      <circle cx="78" cy="70" r="7" fill="#0F172A" />
+      <!-- Dots Bottom: 6 -->
+      <circle cx="32" cy="140" r="7" fill="#0F172A" />
+      <circle cx="78" cy="140" r="7" fill="#0F172A" />
+      <circle cx="32" cy="175" r="7" fill="#0F172A" />
+      <circle cx="78" cy="175" r="7" fill="#0F172A" />
+      <!-- Golden Pivot Pin -->
+      <circle cx="55" cy="105" r="4.5" fill="#D97706" />
+    </g>
+
+    <!-- Tile 2 (Blanca Seis) -->
+    <g transform="translate(90, 20) rotate(15, 60, 110)">
+      <rect width="110" height="210" rx="12" fill="url(#tileGrad)" stroke="#CBD5E1" stroke-width="3" filter="drop-shadow(0 10px 15px rgba(0,0,0,0.5))" />
+      <line x1="10" y1="105" x2="100" y2="105" stroke="#475569" stroke-width="3" />
+      <!-- Dots Bottom: 6 -->
+      <circle cx="32" cy="140" r="7" fill="#0F172A" />
+      <circle cx="78" cy="140" r="7" fill="#0F172A" />
+      <circle cx="32" cy="175" r="7" fill="#0F172A" />
+      <circle cx="78" cy="175" r="7" fill="#0F172A" />
+      <circle cx="55" cy="105" r="4.5" fill="#D97706" />
+    </g>
+  </g>
+
+  <!-- Right Side: Content -->
+  <g transform="translate(380, 0)">
+    <!-- Badge -->
+    <rect x="0" y="70" width="220" height="32" rx="16" fill="#1E293B" stroke="#FF8A00" stroke-width="1.5" />
+    <text x="110" y="91" fill="#FF8A00" font-family="system-ui, sans-serif" font-size="12" font-weight="900" letter-spacing="2" text-anchor="middle">
+      TRADICIÓN CRIOLLA
+    </text>
+
+    <!-- Main Title -->
+    <text x="0" y="165" fill="url(#dominoGold)" font-family="system-ui, sans-serif" font-size="52" font-weight="900" letter-spacing="1">
+      DOMINÓ VENEZOLANO
+    </text>
+
+    <!-- Subtitle -->
+    <text x="0" y="215" fill="#F8FAFC" font-family="system-ui, sans-serif" font-size="22" font-weight="700">
+      Mesas 1v1 y por Parejas a 100 Puntos
+    </text>
+
+    <!-- Description -->
+    <text x="0" y="260" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="16" font-weight="500">
+      Tranque de cochina, paso con cuenta atrás y apuestas en Bolívares en tiempo real.
+    </text>
+
+    <!-- Action Tag -->
+    <rect x="0" y="295" width="200" height="42" rx="12" fill="#FF8A00" />
+    <text x="100" y="322" fill="#080B12" font-family="system-ui, sans-serif" font-size="14" font-weight="900" letter-spacing="1" text-anchor="middle">
+      ENTRAR A LAS MESAS →
+    </text>
+  </g>
+</svg>

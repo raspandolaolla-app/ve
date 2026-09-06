@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="pollaBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#14281E" />
+      <stop offset="100%" stop-color="#09140E" />
+    </linearGradient>
+    <linearGradient id="pollaGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#86EFAC" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" fill="url(#pollaBg)" rx="20" />
+  <rect x="3" y="3" width="1194" height="394" fill="none" stroke="#334155" stroke-width="2" rx="18" opacity="0.6" />
+
+  <!-- Glows -->
+  <circle cx="1020" cy="200" r="160" fill="#22C55E" opacity="0.14" />
+  <circle cx="180" cy="200" r="120" fill="#EAB308" opacity="0.1" />
+
+  <!-- Left Side: Animalitos Roulette / Icons -->
+  <g transform="translate(100, 90)">
+    <!-- Roulette circle -->
+    <circle cx="110" cy="110" r="100" fill="#052E16" stroke="#22C55E" stroke-width="4" filter="drop-shadow(0 10px 20px rgba(0,0,0,0.6))" />
+    <circle cx="110" cy="110" r="85" fill="none" stroke="#15803D" stroke-width="2" stroke-dasharray="6 4" />
+    <!-- Inner golden star / badge -->
+    <circle cx="110" cy="110" r="50" fill="#166534" />
+    <!-- Center text -->
+    <text x="110" y="105" fill="#FEF08A" font-family="system-ui, sans-serif" font-size="28" font-weight="900" text-anchor="middle">00-76</text>
+    <text x="110" y="125" fill="#86EFAC" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">ANIMALITOS</text>
+
+    <!-- Little animal markers around -->
+    <circle cx="110" cy="30" r="14" fill="#EAB308" />
+    <text x="110" y="34" fill="#000" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle">04</text>
+    <circle cx="190" cy="110" r="14" fill="#22C55E" />
+    <text x="190" y="114" fill="#000" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle">12</text>
+    <circle cx="110" cy="190" r="14" fill="#38BDF8" />
+    <text x="110" y="194" fill="#000" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle">28</text>
+    <circle cx="30" cy="110" r="14" fill="#F43F5E" />
+    <text x="30" y="114" fill="#000" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle">33</text>
+  </g>
+
+  <!-- Right Side: Content -->
+  <g transform="translate(380, 0)">
+    <!-- Badge -->
+    <rect x="0" y="70" width="240" height="32" rx="16" fill="#14532D" stroke="#22C55E" stroke-width="1.5" />
+    <text x="120" y="91" fill="#86EFAC" font-family="system-ui, sans-serif" font-size="12" font-weight="900" letter-spacing="2" text-anchor="middle">
+      POZO ACUMULADO DIARIO
+    </text>
+
+    <!-- Main Title -->
+    <text x="0" y="165" fill="url(#pollaGrad)" font-family="system-ui, sans-serif" font-size="52" font-weight="900" letter-spacing="1">
+      POLLA VENEZOLANA
+    </text>
+
+    <!-- Subtitle -->
+    <text x="0" y="215" fill="#F8FAFC" font-family="system-ui, sans-serif" font-size="22" font-weight="700">
+      Selecciona tus 6 Animalitos Favoritos y Gana
+    </text>
+
+    <!-- Description -->
+    <text x="0" y="260" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="16" font-weight="500">
+      Sorteos automatizados verificables con hash transparente. Paga desde 3 aciertos.
+    </text>
+
+    <!-- Action Tag -->
+    <rect x="0" y="295" width="200" height="42" rx="12" fill="#16A34A" />
+    <text x="100" y="322" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="900" letter-spacing="1" text-anchor="middle">
+      HACER MI JUGADA →
+    </text>
+  </g>
+</svg>

@@ -65,9 +65,13 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('kyc') ||
     url.pathname.includes('balance') ||
     url.pathname.includes('game_tables') ||
-    req.headers.has('Authorization')
+    req.headers.has('Authorization') ||
+    req.destination === 'video' ||
+    req.headers.has('range') ||
+    url.pathname.endsWith('.mp4') ||
+    url.pathname.endsWith('.webm')
   ) {
-    return; // Pasa directo al navegador sin intervención del SW
+    return; // Pasa directo al navegador sin intervención del SW (evita errores 206 en videos)
   }
 
   // Estrategia Network-First con fallback seguro a Caché

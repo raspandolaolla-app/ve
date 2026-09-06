@@ -1,0 +1,1861 @@
+{
+  "protectedAdminsRaw": [
+    {
+      "id": "b0116fe2-2668-4225-8938-5aa9158ac7d3",
+      "email": "v19629049@gmail.com",
+      "protection_status": "PROTECTED",
+      "description": "Administrador Principal Protegido A - Control y Recuperación Mutua",
+      "created_at": "2026-08-26T19:16:34.522Z",
+      "updated_at": "2026-08-26T19:16:34.522Z"
+    },
+    {
+      "id": "adfd63ac-4f07-4b5d-9552-bff7073a7dec",
+      "email": "pulsoplay2026@gmail.com",
+      "protection_status": "PROTECTED",
+      "description": "Administrador Principal Protegido B - Control y Recuperación Mutua",
+      "created_at": "2026-08-26T19:16:34.522Z",
+      "updated_at": "2026-08-26T19:16:34.522Z"
+    }
+  ],
+  "superAdminsCheck": [
+    {
+      "target": {
+        "uuid": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+        "email": "v19629049@gmail.com",
+        "name": "FRANCISCO MORALES"
+      },
+      "inAuth": true,
+      "authCreatedAt": "2026-08-26T20:51:41.869Z",
+      "inProfiles": true,
+      "profileDisplayName": "FRANCISCO MORALES",
+      "inUserRoles": [
+        "SUPER_ADMIN"
+      ],
+      "inProtectedAdmins": true,
+      "protectedAdminRecord": {
+        "id": "b0116fe2-2668-4225-8938-5aa9158ac7d3",
+        "email": "v19629049@gmail.com",
+        "protection_status": "PROTECTED",
+        "description": "Administrador Principal Protegido A - Control y Recuperación Mutua",
+        "created_at": "2026-08-26T19:16:34.522Z",
+        "updated_at": "2026-08-26T19:16:34.522Z"
+      },
+      "in2FA": true,
+      "twoFaActive": true,
+      "wallet": {
+        "balance": 627,
+        "available": 627,
+        "held": 0,
+        "currency": "VES"
+      }
+    },
+    {
+      "target": {
+        "uuid": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+        "email": "pulsoplay2026@gmail.com",
+        "name": "pulso play"
+      },
+      "inAuth": true,
+      "authCreatedAt": "2026-08-26T21:01:26.806Z",
+      "inProfiles": true,
+      "profileDisplayName": "pulso play",
+      "inUserRoles": [
+        "SUPER_ADMIN"
+      ],
+      "inProtectedAdmins": true,
+      "protectedAdminRecord": {
+        "id": "adfd63ac-4f07-4b5d-9552-bff7073a7dec",
+        "email": "pulsoplay2026@gmail.com",
+        "protection_status": "PROTECTED",
+        "description": "Administrador Principal Protegido B - Control y Recuperación Mutua",
+        "created_at": "2026-08-26T19:16:34.522Z",
+        "updated_at": "2026-08-26T19:16:34.522Z"
+      },
+      "in2FA": false,
+      "wallet": {
+        "balance": 5025,
+        "available": 5025,
+        "held": 0,
+        "currency": "VES"
+      }
+    }
+  ],
+  "protectionFunctions": {
+    "expected": [
+      "is_protected_super_admin_email",
+      "is_protected_super_admin_user",
+      "is_super_admin",
+      "is_admin"
+    ],
+    "found": [
+      "is_admin",
+      "is_protected_super_admin_email",
+      "is_protected_super_admin_user",
+      "is_super_admin"
+    ],
+    "allPresent": true
+  },
+  "protectionTriggers": {
+    "expected": [
+      "trg_protected_super_admins_guard",
+      "trg_user_roles_protection_guard",
+      "trg_profiles_protection_guard"
+    ],
+    "found": [
+      {
+        "trigger_name": "trg_protected_super_admins_guard",
+        "event_object_table": "protected_super_admins"
+      },
+      {
+        "trigger_name": "trg_protected_super_admins_guard",
+        "event_object_table": "protected_super_admins"
+      },
+      {
+        "trigger_name": "trg_user_roles_protection_guard",
+        "event_object_table": "user_roles"
+      },
+      {
+        "trigger_name": "trg_user_roles_protection_guard",
+        "event_object_table": "user_roles"
+      },
+      {
+        "trigger_name": "trg_profiles_protection_guard",
+        "event_object_table": "profiles"
+      },
+      {
+        "trigger_name": "trg_profiles_protection_guard",
+        "event_object_table": "profiles"
+      }
+    ]
+  },
+  "identityMatrix": [
+    {
+      "uuid": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+      "email": "v19629049@gmail.com",
+      "name": "FRANCISCO MORALES",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "SUPER_ADMIN"
+      ],
+      "wallet": 627,
+      "protected": true,
+      "relatedData": {
+        "tables": 178,
+        "playerEntries": 0,
+        "ledger": 287,
+        "bingo": 23,
+        "polla": 44,
+        "deposits": 5
+      },
+      "classification": "A — PROTECTED ADMIN",
+      "action": "CONSERVAR (PRESERVED)"
+    },
+    {
+      "uuid": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+      "email": "v11845311@gmail.com",
+      "name": "ANA MONROY",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 4980,
+      "protected": false,
+      "relatedData": {
+        "tables": 2,
+        "playerEntries": 0,
+        "ledger": 50,
+        "bingo": 0,
+        "polla": 39,
+        "deposits": 2
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+      "email": "pulsoplay2026@gmail.com",
+      "name": "pulso play",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "SUPER_ADMIN"
+      ],
+      "wallet": 5025,
+      "protected": true,
+      "relatedData": {
+        "tables": 22,
+        "playerEntries": 0,
+        "ledger": 56,
+        "bingo": 1,
+        "polla": 20,
+        "deposits": 3
+      },
+      "classification": "A — PROTECTED ADMIN",
+      "action": "CONSERVAR (PRESERVED)"
+    },
+    {
+      "uuid": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+      "email": "adelmorales.1106@gmail.com",
+      "name": "ADEL MORALES",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 5075,
+      "protected": false,
+      "relatedData": {
+        "tables": 5,
+        "playerEntries": 0,
+        "ledger": 22,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 1
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "1584f14f-be50-4fbc-9679-885f08211433",
+      "email": "josuemarcano933@gmail.com",
+      "name": "JOSUE MARCANO",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "OPERATOR"
+      ],
+      "wallet": 5025,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 13,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 2
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "fe0b1aa8-a9af-41b3-9484-2d70f0ec8bc5",
+      "email": "jhonkelvinblisario2025@gmail.com",
+      "name": "N/A",
+      "auth": true,
+      "profile": false,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "10649e41-352c-4329-8614-b2a4ecb40679",
+      "email": "bingolacaleta@gmail.com",
+      "name": "NANY MOGOLLON",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "OPERATOR"
+      ],
+      "wallet": 5150,
+      "protected": false,
+      "relatedData": {
+        "tables": 12,
+        "playerEntries": 0,
+        "ledger": 158,
+        "bingo": 23,
+        "polla": 0,
+        "deposits": 3
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "1c136cc5-e048-4fab-a1b3-80100b62e1d5",
+      "email": "bingobingovnz@gmail.com",
+      "name": "bingo bingo",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 0,
+      "protected": false,
+      "relatedData": {
+        "tables": 1,
+        "playerEntries": 0,
+        "ledger": 3,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 1
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "5079428a-15e7-4fb7-b50d-30513b1fbb46",
+      "email": "parajugarcodmobilegnb129@gmail.com",
+      "name": "Alejandro Suarez",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "OPERATOR"
+      ],
+      "wallet": 0,
+      "protected": false,
+      "relatedData": {
+        "tables": 3,
+        "playerEntries": 0,
+        "ledger": 11,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 1
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+      "email": "ammydesilva10@gmail.com",
+      "name": "Ammy Desilva",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 0,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 6,
+        "bingo": 1,
+        "polla": 0,
+        "deposits": 1
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "c307c210-3e85-4962-a854-7fcf15b95978",
+      "email": "cesar.morales2854@gmail.com",
+      "name": "Cesar Morales",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 0,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 2,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 1
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "dfd79652-1303-4259-b0a9-8b1044311802",
+      "email": "soniacoa1234@gmail.com",
+      "name": "Sonia COA",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 0,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "7c8e5845-3f76-42c6-9e9f-4cdaeadf3df9",
+      "email": "academiadevoleyfenix@gmail.com",
+      "name": "Academiadevoley Fenix",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 50,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 2,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda",
+      "email": "ana.monroy0106@gmail.com",
+      "name": "ANA MONROY",
+      "auth": true,
+      "profile": true,
+      "roles": [
+        "PLAYER"
+      ],
+      "wallet": 5125,
+      "protected": false,
+      "relatedData": {
+        "tables": 2,
+        "playerEntries": 12,
+        "ledger": 22,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "fb506e76-770f-490a-8706-427cb6f74dfe",
+      "email": "parajugarcodmobilegnb129@gmail.com",
+      "name": "Alejandro Suarez",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "fc6b7c5a-eceb-41ba-a096-f9fcbf6f7711",
+      "email": "bingobingovnz@gmail.com",
+      "name": "bingo bingo",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "35cc0171-6d63-4d5e-9bc2-2f6647690fe0",
+      "email": "ammydesilva10@gmail.com",
+      "name": "Ammy Desilva",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "73deeffb-a477-4a44-b295-34bb77220106",
+      "email": "cesar.morales2854@gmail.com",
+      "name": "Cesar Morales",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "ffe79905-76b4-47cc-b042-3675c51b5591",
+      "email": "soniacoa1234@gmail.com",
+      "name": "Sonia COA",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "023b9808-4c68-476d-be77-5421d60ef8bf",
+      "email": "pulsoplay2026@gmail.com",
+      "name": "pulso play",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": true,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "A — PROTECTED ADMIN",
+      "action": "CONSERVAR (PRESERVED)"
+    },
+    {
+      "uuid": "280b59e8-7599-494d-9fcf-1bfe86447c09",
+      "email": "adelmorales.1106@gmail.com",
+      "name": "ADEL MORALES",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "3ee3e24a-09c5-4fcd-9c1c-3232b0f19951",
+      "email": "academiadevoleyfenix@gmail.com",
+      "name": "Academiadevoley Fenix",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "cd18cbb4-c933-4069-9a74-62dc30b6e9e2",
+      "email": "v11845311@gmail.com",
+      "name": "ANA MONROY",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "2b94c596-34dc-4423-aa31-8e6c397f68af",
+      "email": "josuemarcano933@gmail.com",
+      "name": "JOSUE MARCANO",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "a7455bfb-3677-45b9-a33a-940bead4655d",
+      "email": "bingolacaleta@gmail.com",
+      "name": "NANY MOGOLLON",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": false,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "X — AMBIGUOUS",
+      "action": "MANUAL REVIEW REQUIRED"
+    },
+    {
+      "uuid": "b594e828-ee99-47d8-bea4-6ffa7a6f22e3",
+      "email": "v19629049@gmail.com",
+      "name": "FRANCISCO MORALES",
+      "auth": false,
+      "profile": true,
+      "roles": [],
+      "wallet": null,
+      "protected": true,
+      "relatedData": {
+        "tables": 0,
+        "playerEntries": 0,
+        "ledger": 0,
+        "bingo": 0,
+        "polla": 0,
+        "deposits": 0
+      },
+      "classification": "A — PROTECTED ADMIN",
+      "action": "CONSERVAR (PRESERVED)"
+    }
+  ],
+  "identitySummary": {
+    "totalAuthUsers": 14,
+    "totalProfiles": 13,
+    "totalUserRoles": 13,
+    "totalWallets": 13,
+    "totalSuperAdmins": 4,
+    "totalAdmins": 0,
+    "totalOperadores": 3,
+    "totalUsuariosDePrueba": 0,
+    "totalUsuariosAmbiguos": 22,
+    "totalHuerfanos": 13
+  },
+  "paymentAccountsAudit": [
+    {
+      "id": "559a708a-9d28-4674-a6a6-62afa2dc02b9",
+      "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+      "ownerEmail": "v19629049@gmail.com",
+      "ownerClassification": "A — PROTECTED ADMIN",
+      "bank_code": "0102",
+      "bank_name": "Banco de Venezuela",
+      "phone_number": "04121917061",
+      "id_number_masked": "V-11845311",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2026-08-28T03:52:20.302Z",
+      "depositReferences": 0,
+      "classification": "PRODUCTION_OPERATIONAL"
+    },
+    {
+      "id": "73aef3f9-dae4-4fa0-8b5f-74d693ff3a7b",
+      "user_id": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+      "ownerEmail": "v11845311@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "bank_code": "0102",
+      "bank_name": "Banco de Venezuela",
+      "phone_number": "04121917061",
+      "id_number_masked": "V-11845311",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2026-08-28T06:01:45.085Z",
+      "depositReferences": 0,
+      "classification": "AMBIGUOUS"
+    },
+    {
+      "id": "631390b6-c727-457d-a137-d9839c72a228",
+      "user_id": "1584f14f-be50-4fbc-9679-885f08211433",
+      "ownerEmail": "josuemarcano933@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "bank_code": "0102",
+      "bank_name": "Banco de Venezuela",
+      "phone_number": "04162488753",
+      "id_number_masked": "V-32656148",
+      "is_active": true,
+      "is_default": false,
+      "created_at": "2026-08-29T22:29:38.316Z",
+      "depositReferences": 0,
+      "classification": "AMBIGUOUS"
+    }
+  ],
+  "auditLogs": {
+    "total": 45,
+    "recentSampleCount": 45,
+    "sampleClassification": {
+      "TEST": 0,
+      "SECURITY": 0,
+      "ADMINISTRATIVE": 12,
+      "FINANCIAL": 0,
+      "OPERATIONAL": 0,
+      "AMBIGUOUS": 33
+    }
+  },
+  "walletsAudit": [
+    {
+      "user_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+      "ownerEmail": "bingolacaleta@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 5150,
+      "available": 5150,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 158,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "GAME_PRIZE_CREDIT",
+          "qty": "2",
+          "total": "90.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "27",
+          "total": "1825.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "114",
+          "total": "9090.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "3",
+          "total": "15000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "10",
+          "total": "715.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "2",
+          "total": "18630.00"
+        }
+      ]
+    },
+    {
+      "user_id": "1584f14f-be50-4fbc-9679-885f08211433",
+      "ownerEmail": "josuemarcano933@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 5025,
+      "available": 5025,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 13,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "2",
+          "total": "2050.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "6",
+          "total": "2150.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "2",
+          "total": "75.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "2",
+          "total": "7950.00"
+        }
+      ]
+    },
+    {
+      "user_id": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+      "ownerEmail": "pulsoplay2026@gmail.com",
+      "ownerClassification": "A — PROTECTED ADMIN",
+      "balance": 5025,
+      "available": 5025,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 56,
+      "isSuperAdmin": true,
+      "updated_at": "2026-09-06T15:08:07.613Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "22",
+          "total": "5100.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "28",
+          "total": "4625.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "3",
+          "total": "14625.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "1",
+          "total": "50.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "2",
+          "total": "14525.00"
+        }
+      ]
+    },
+    {
+      "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+      "ownerEmail": "adelmorales.1106@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 5075,
+      "available": 5075,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 22,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "GAME_PRIZE_CREDIT",
+          "qty": "3",
+          "total": "63.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "3",
+          "total": "40.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "9",
+          "total": "200.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "4",
+          "total": "150.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "2",
+          "total": "10023.00"
+        }
+      ]
+    },
+    {
+      "user_id": "dfd79652-1303-4259-b0a9-8b1044311802",
+      "ownerEmail": "soniacoa1234@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 0,
+      "available": 0,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 0,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-03T01:25:48.519Z",
+      "ledgerBreakdown": []
+    },
+    {
+      "user_id": "d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda",
+      "ownerEmail": "ana.monroy0106@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 5125,
+      "available": 5125,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 22,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "12",
+          "total": "300.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "1",
+          "total": "25.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "8",
+          "total": "425.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "5000.00"
+        }
+      ]
+    },
+    {
+      "user_id": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+      "ownerEmail": "v11845311@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 4980,
+      "available": 4980,
+      "held": 5,
+      "currency": "VES",
+      "entriesCount": 50,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "41",
+          "total": "9765.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "4",
+          "total": "70.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "2",
+          "total": "10000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "1",
+          "total": "50.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "2",
+          "total": "5250.00"
+        }
+      ]
+    },
+    {
+      "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+      "ownerEmail": "v19629049@gmail.com",
+      "ownerClassification": "A — PROTECTED ADMIN",
+      "balance": 627,
+      "available": 627,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 287,
+      "isSuperAdmin": true,
+      "updated_at": "2026-09-06T16:05:01.972Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "GAME_PRIZE_CREDIT",
+          "qty": "8",
+          "total": "3861.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "78",
+          "total": "14930.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "182",
+          "total": "11920.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "4",
+          "total": "20000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_REFUND",
+          "qty": "14",
+          "total": "1800.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "10099.00"
+        }
+      ]
+    },
+    {
+      "user_id": "7c8e5845-3f76-42c6-9e9f-4cdaeadf3df9",
+      "ownerEmail": "academiadevoleyfenix@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 50,
+      "available": 50,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 2,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-04T21:36:54.739Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "2",
+          "total": "50.00"
+        }
+      ]
+    },
+    {
+      "user_id": "c307c210-3e85-4962-a854-7fcf15b95978",
+      "ownerEmail": "cesar.morales2854@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 0,
+      "available": 0,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 2,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-04T04:36:53.310Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "5000.00"
+        }
+      ]
+    },
+    {
+      "user_id": "1c136cc5-e048-4fab-a1b3-80100b62e1d5",
+      "ownerEmail": "bingobingovnz@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 0,
+      "available": 0,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 3,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-04T04:36:53.310Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "1",
+          "total": "25.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "5000.00"
+        }
+      ]
+    },
+    {
+      "user_id": "5079428a-15e7-4fb7-b50d-30513b1fbb46",
+      "ownerEmail": "parajugarcodmobilegnb129@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 0,
+      "available": 0,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 11,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-04T04:36:53.310Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "9",
+          "total": "475.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "5000.00"
+        }
+      ]
+    },
+    {
+      "user_id": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+      "ownerEmail": "ammydesilva10@gmail.com",
+      "ownerClassification": "X — AMBIGUOUS",
+      "balance": 0,
+      "available": 0,
+      "held": 0,
+      "currency": "VES",
+      "entriesCount": 6,
+      "isSuperAdmin": false,
+      "updated_at": "2026-09-04T04:36:53.310Z",
+      "ledgerBreakdown": [
+        {
+          "entry_type": "TABLE_ENTRY_CAPTURE",
+          "qty": "1",
+          "total": "75.00"
+        },
+        {
+          "entry_type": "TABLE_ENTRY_HOLD",
+          "qty": "3",
+          "total": "75.00"
+        },
+        {
+          "entry_type": "DEPOSIT_CREDIT",
+          "qty": "1",
+          "total": "5000.00"
+        },
+        {
+          "entry_type": "ADMIN_ADJUSTMENT",
+          "qty": "1",
+          "total": "4925.00"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "buckets": [
+      {
+        "id": "kyc-documents",
+        "name": "kyc-documents",
+        "public": false,
+        "created_at": "2026-08-26T20:20:05.272Z"
+      },
+      {
+        "id": "payment-proofs",
+        "name": "payment-proofs",
+        "public": false,
+        "created_at": "2026-08-26T20:20:05.272Z"
+      },
+      {
+        "id": "kyc-selfies",
+        "name": "kyc-selfies",
+        "public": false,
+        "created_at": "2026-08-28T04:36:58.456Z"
+      },
+      {
+        "id": "bingo-winners",
+        "name": "bingo-winners",
+        "public": true,
+        "created_at": "2026-08-30T12:24:59.399Z"
+      }
+    ],
+    "objects": [
+      {
+        "id": "5ba36c99-1753-412e-bd8e-b55a7461c164",
+        "bucket_id": "payment-proofs",
+        "name": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217/1787886413415_crvfuz.jpeg",
+        "owner": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+        "ownerEmail": "pulsoplay2026@gmail.com",
+        "classification": "PRODUCTION",
+        "created_at": "2026-08-28T03:06:54.147Z"
+      },
+      {
+        "id": "60608ddd-ce96-43d5-9fba-f7df7fa93727",
+        "bucket_id": "kyc-documents",
+        "name": "5d9d5e94-6768-4f5b-9782-b754e23b3faa/cedula_1787896418066.png",
+        "owner": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+        "ownerEmail": "v11845311@gmail.com",
+        "classification": "AMBIGUOUS",
+        "created_at": "2026-08-28T05:53:40.174Z"
+      },
+      {
+        "id": "b97973c7-c8e2-4f36-8f9b-aa6985dba9dd",
+        "bucket_id": "kyc-selfies",
+        "name": "5d9d5e94-6768-4f5b-9782-b754e23b3faa/selfie_1787896419160.jpg",
+        "owner": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+        "ownerEmail": "v11845311@gmail.com",
+        "classification": "AMBIGUOUS",
+        "created_at": "2026-08-28T05:53:40.974Z"
+      },
+      {
+        "id": "7838fe8e-9b3e-4c91-808a-ddcb1fd8cb99",
+        "bucket_id": "payment-proofs",
+        "name": "b733db64-4912-4a33-8d7a-4ee332c7b5f1/1788026085926_u3bxzj.jpg",
+        "owner": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+        "ownerEmail": "v19629049@gmail.com",
+        "classification": "PRODUCTION",
+        "created_at": "2026-08-29T17:54:48.846Z"
+      },
+      {
+        "id": "6295f19f-96ed-4df5-ada8-19a1c27fadb6",
+        "bucket_id": "payment-proofs",
+        "name": "fe0b1aa8-a9af-41b3-9484-2d70f0ec8bc5/1788035157003_epgkcq.jpg",
+        "owner": "fe0b1aa8-a9af-41b3-9484-2d70f0ec8bc5",
+        "ownerEmail": "jhonkelvinblisario2025@gmail.com",
+        "classification": "AMBIGUOUS",
+        "created_at": "2026-08-29T20:25:58.063Z"
+      },
+      {
+        "id": "57dc1d79-183c-4909-b29c-976012a45078",
+        "bucket_id": "payment-proofs",
+        "name": "b733db64-4912-4a33-8d7a-4ee332c7b5f1/1788035759894_fk2l4e.png",
+        "owner": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+        "ownerEmail": "v19629049@gmail.com",
+        "classification": "PRODUCTION",
+        "created_at": "2026-08-29T20:36:00.379Z"
+      },
+      {
+        "id": "057f5155-d48f-4898-b803-a9fec433084c",
+        "bucket_id": "payment-proofs",
+        "name": "38a8a8b6-30fd-4fed-86fd-71ea169ce856/1788288921001_06s2uy.png",
+        "owner": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+        "ownerEmail": "ammydesilva10@gmail.com",
+        "classification": "AMBIGUOUS",
+        "created_at": "2026-09-01T18:55:23.809Z"
+      },
+      {
+        "id": "cde4327b-19d8-4796-8286-058ac905b29c",
+        "bucket_id": "payment-proofs",
+        "name": "c307c210-3e85-4962-a854-7fcf15b95978/1788301154182_qh5sk0.png",
+        "owner": "c307c210-3e85-4962-a854-7fcf15b95978",
+        "ownerEmail": "cesar.morales2854@gmail.com",
+        "classification": "AMBIGUOUS",
+        "created_at": "2026-09-01T22:19:19.854Z"
+      }
+    ]
+  },
+  "foreignKeys": [
+    {
+      "constraint_name": "advertising_campaigns_asset_id_fkey",
+      "table_name": "advertising_campaigns",
+      "column_name": "asset_id",
+      "foreign_table_name": "advertising_assets",
+      "foreign_column_name": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "bingo_card_purchases_game_table_id_fkey",
+      "table_name": "bingo_card_purchases",
+      "column_name": "game_table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "bingo_winner_history_session_id_fkey",
+      "table_name": "bingo_winner_history",
+      "column_name": "session_id",
+      "foreign_table_name": "game_sessions",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "bingo_winner_history_user_id_fkey",
+      "table_name": "bingo_winner_history",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "chat_messages_ticket_id_fkey",
+      "table_name": "chat_messages",
+      "column_name": "ticket_id",
+      "foreign_table_name": "support_tickets",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "deposit_requests_user_id_fkey",
+      "table_name": "deposit_requests",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_actions_session_id_fkey",
+      "table_name": "game_actions",
+      "column_name": "session_id",
+      "foreign_table_name": "game_sessions",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_actions_user_id_fkey",
+      "table_name": "game_actions",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_session_secrets_session_id_fkey",
+      "table_name": "game_session_secrets",
+      "column_name": "session_id",
+      "foreign_table_name": "game_sessions",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "game_sessions_current_turn_user_id_fkey",
+      "table_name": "game_sessions",
+      "column_name": "current_turn_user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "game_sessions_table_id_fkey",
+      "table_name": "game_sessions",
+      "column_name": "table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_sessions_winner_user_id_fkey",
+      "table_name": "game_sessions",
+      "column_name": "winner_user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "game_settlement_recipients_ledger_entry_id_fkey",
+      "table_name": "game_settlement_recipients",
+      "column_name": "ledger_entry_id",
+      "foreign_table_name": "ledger_entries",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_settlement_recipients_settlement_id_fkey",
+      "table_name": "game_settlement_recipients",
+      "column_name": "settlement_id",
+      "foreign_table_name": "game_settlements",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_settlement_recipients_user_id_fkey",
+      "table_name": "game_settlement_recipients",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_settlements_session_id_fkey",
+      "table_name": "game_settlements",
+      "column_name": "session_id",
+      "foreign_table_name": "game_sessions",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_settlements_table_id_fkey",
+      "table_name": "game_settlements",
+      "column_name": "table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_table_players_entry_held_entry_id_fkey",
+      "table_name": "game_table_players",
+      "column_name": "entry_held_entry_id",
+      "foreign_table_name": "ledger_entries",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_table_players_table_id_fkey",
+      "table_name": "game_table_players",
+      "column_name": "table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_table_players_user_id_fkey",
+      "table_name": "game_table_players",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "game_tables_host_user_id_fkey",
+      "table_name": "game_tables",
+      "column_name": "host_user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "kyc_verifications_user_id_fkey",
+      "table_name": "kyc_verifications",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "ledger_entries_user_id_fkey",
+      "table_name": "ledger_entries",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "ledger_entries_wallet_id_fkey",
+      "table_name": "ledger_entries",
+      "column_name": "wallet_id",
+      "foreign_table_name": "wallets",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "notifications_user_id_fkey",
+      "table_name": "notifications",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "payment_accounts_user_id_fkey",
+      "table_name": "payment_accounts",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "polla_block_closures_winner_ticket_id_fkey",
+      "table_name": "polla_block_closures",
+      "column_name": "winner_ticket_id",
+      "foreign_table_name": "polla_tickets",
+      "foreign_column_name": "id",
+      "delete_rule": "NO ACTION"
+    },
+    {
+      "constraint_name": "polla_block_closures_winner_user_id_fkey",
+      "table_name": "polla_block_closures",
+      "column_name": "winner_user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "polla_tickets_ledger_entry_id_fkey",
+      "table_name": "polla_tickets",
+      "column_name": "ledger_entry_id",
+      "foreign_table_name": "ledger_entries",
+      "foreign_column_name": "id",
+      "delete_rule": "NO ACTION"
+    },
+    {
+      "constraint_name": "polla_tickets_user_id_fkey",
+      "table_name": "polla_tickets",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "rng_events_session_id_fkey",
+      "table_name": "rng_events",
+      "column_name": "session_id",
+      "foreign_table_name": "game_sessions",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "rng_events_table_id_fkey",
+      "table_name": "rng_events",
+      "column_name": "table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "support_tickets_related_table_id_fkey",
+      "table_name": "support_tickets",
+      "column_name": "related_table_id",
+      "foreign_table_name": "game_tables",
+      "foreign_column_name": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "constraint_name": "support_tickets_user_id_fkey",
+      "table_name": "support_tickets",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "support_tickets_user_id_profiles_fkey",
+      "table_name": "support_tickets",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "tournament_registrations_tournament_id_fkey",
+      "table_name": "tournament_registrations",
+      "column_name": "tournament_id",
+      "foreign_table_name": "tournaments",
+      "foreign_column_name": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "user_roles_user_id_fkey",
+      "table_name": "user_roles",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "user_totp_secrets_user_id_fkey",
+      "table_name": "user_totp_secrets",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "constraint_name": "wallets_user_id_fkey",
+      "table_name": "wallets",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "withdrawal_requests_payment_account_id_fkey",
+      "table_name": "withdrawal_requests",
+      "column_name": "payment_account_id",
+      "foreign_table_name": "payment_accounts",
+      "foreign_column_name": "id",
+      "delete_rule": "RESTRICT"
+    },
+    {
+      "constraint_name": "withdrawal_requests_user_id_fkey",
+      "table_name": "withdrawal_requests",
+      "column_name": "user_id",
+      "foreign_table_name": "profiles",
+      "foreign_column_name": "user_id",
+      "delete_rule": "RESTRICT"
+    }
+  ],
+  "triggers": [
+    {
+      "trigger_name": "trg_audit_logs_prevent_modification",
+      "event_object_table": "audit_logs",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION enforce_audit_logs_immutability()"
+    },
+    {
+      "trigger_name": "trg_audit_logs_prevent_modification",
+      "event_object_table": "audit_logs",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION enforce_audit_logs_immutability()"
+    },
+    {
+      "trigger_name": "trg_normalize_deposit_request",
+      "event_object_table": "deposit_requests",
+      "action_timing": "BEFORE",
+      "event_manipulation": "INSERT",
+      "action_statement": "EXECUTE FUNCTION fn_normalize_deposit_request()"
+    },
+    {
+      "trigger_name": "trg_game_actions_prevent_modification",
+      "event_object_table": "game_actions",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION enforce_game_actions_immutability()"
+    },
+    {
+      "trigger_name": "trg_game_actions_prevent_modification",
+      "event_object_table": "game_actions",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION enforce_game_actions_immutability()"
+    },
+    {
+      "trigger_name": "trg_sync_game_configuration_enabled_status",
+      "event_object_table": "game_configurations",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION sync_game_configuration_enabled_status()"
+    },
+    {
+      "trigger_name": "trg_close_table_when_session_finished",
+      "event_object_table": "game_sessions",
+      "action_timing": "AFTER",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION tg_close_table_when_session_finished()"
+    },
+    {
+      "trigger_name": "trg_refresh_turn_expires_at",
+      "event_object_table": "game_sessions",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION fn_refresh_turn_expires_at()"
+    },
+    {
+      "trigger_name": "trg_close_table_if_player_left",
+      "event_object_table": "game_table_players",
+      "action_timing": "AFTER",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION tg_close_table_if_player_left()"
+    },
+    {
+      "trigger_name": "trg_ledger_entries_reconcile_defaults",
+      "event_object_table": "ledger_entries",
+      "action_timing": "BEFORE",
+      "event_manipulation": "INSERT",
+      "action_statement": "EXECUTE FUNCTION fn_ledger_entries_reconcile_defaults()"
+    },
+    {
+      "trigger_name": "trg_ledger_prevent_modification",
+      "event_object_table": "ledger_entries",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION enforce_ledger_immutability()"
+    },
+    {
+      "trigger_name": "trg_ledger_prevent_modification",
+      "event_object_table": "ledger_entries",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION enforce_ledger_immutability()"
+    },
+    {
+      "trigger_name": "trg_prevent_sensitive_update",
+      "event_object_table": "profiles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION prevent_sensitive_data_update()"
+    },
+    {
+      "trigger_name": "trg_profiles_protection_guard",
+      "event_object_table": "profiles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_super_admin_profiles()"
+    },
+    {
+      "trigger_name": "trg_profiles_protection_guard",
+      "event_object_table": "profiles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_super_admin_profiles()"
+    },
+    {
+      "trigger_name": "trg_profiles_updated_at",
+      "event_object_table": "profiles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "trigger_name": "trg_protected_super_admins_guard",
+      "event_object_table": "protected_super_admins",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_protected_super_admins_table()"
+    },
+    {
+      "trigger_name": "trg_protected_super_admins_guard",
+      "event_object_table": "protected_super_admins",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_protected_super_admins_table()"
+    },
+    {
+      "trigger_name": "trg_support_tickets_updated_at",
+      "event_object_table": "support_tickets",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "trigger_name": "trg_system_settings_updated_at",
+      "event_object_table": "system_settings",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "trigger_name": "trg_user_roles_protection_guard",
+      "event_object_table": "user_roles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_super_admin_user_roles()"
+    },
+    {
+      "trigger_name": "trg_user_roles_protection_guard",
+      "event_object_table": "user_roles",
+      "action_timing": "BEFORE",
+      "event_manipulation": "DELETE",
+      "action_statement": "EXECUTE FUNCTION trg_protect_super_admin_user_roles()"
+    },
+    {
+      "trigger_name": "trg_wallets_sync_balance_column",
+      "event_object_table": "wallets",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION fn_wallets_sync_balance_column()"
+    },
+    {
+      "trigger_name": "trg_wallets_sync_balance_column",
+      "event_object_table": "wallets",
+      "action_timing": "BEFORE",
+      "event_manipulation": "INSERT",
+      "action_statement": "EXECUTE FUNCTION fn_wallets_sync_balance_column()"
+    },
+    {
+      "trigger_name": "trg_wallets_updated_at",
+      "event_object_table": "wallets",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION set_updated_at()"
+    }
+  ],
+  "catalogsStatus": {
+    "system_settings": {
+      "present": true,
+      "count": 1
+    },
+    "protected_super_admins": {
+      "present": true,
+      "count": 2
+    },
+    "game_configurations": {
+      "present": true,
+      "count": 10
+    },
+    "entry_fees": {
+      "present": true,
+      "count": 11
+    },
+    "financial_rules": {
+      "present": true,
+      "count": 1
+    },
+    "advertising_assets": {
+      "present": true,
+      "count": 7
+    },
+    "advertising_campaigns": {
+      "present": true,
+      "count": 0
+    },
+    "faq_items": {
+      "present": true,
+      "count": 6
+    },
+    "system_announcements": {
+      "present": true,
+      "count": 0
+    },
+    "tournaments": {
+      "present": true,
+      "count": 0
+    }
+  },
+  "operationalCounts": {
+    "game_actions": 32174,
+    "game_session_secrets": 4,
+    "game_sessions": 1145,
+    "game_settlement_recipients": 10,
+    "game_settlements": 21,
+    "game_table_players": 12,
+    "game_tables": 225,
+    "bingo_card_purchases": 48,
+    "bingo_winner_history": 0,
+    "polla_tickets": 103,
+    "polla_draw_results": 1,
+    "polla_block_closures": 0,
+    "deposit_requests": 20,
+    "withdrawal_requests": 0,
+    "payment_accounts": 3,
+    "ledger_entries": 632,
+    "notifications": 0,
+    "support_tickets": 0,
+    "chat_messages": 0,
+    "kyc_verifications": 0,
+    "user_activity_sessions": 0,
+    "tournament_registrations": 0,
+    "draw_audit_trail": 0,
+    "rng_events": 0,
+    "audit_logs": 45
+  }
+}

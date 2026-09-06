@@ -4,12 +4,15 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+let connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
 
 if (!connectionString) {
   console.error('Error: DATABASE_URL o SUPABASE_DB_URL no está configurada en las variables de entorno.');
   process.exit(1);
 }
+
+// Sanitizar contraseñas con corchetes accidentales de plantillas (ej: postgres:[mypassword]@ -> postgres:mypassword@)
+connectionString = connectionString.replace(/:\/\/([^:]+):\[([^\]]+)\]@/, '://$1:$2@');
 
 async function runMigrations() {
   const client = new Client({

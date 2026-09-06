@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="bingoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#1E1B4B" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="bingoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#818CF8" />
+    </linearGradient>
+    <radialGradient id="ballGrad1" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="60%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#854D0E" />
+    </radialGradient>
+    <radialGradient id="ballGrad2" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#F472B6" />
+      <stop offset="60%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#9D174D" />
+    </radialGradient>
+    <radialGradient id="ballGrad3" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="60%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#075985" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" fill="url(#bingoBg)" rx="20" />
+  <rect x="3" y="3" width="1194" height="394" fill="none" stroke="#334155" stroke-width="2" rx="18" opacity="0.6" />
+
+  <!-- Glows -->
+  <circle cx="1020" cy="200" r="170" fill="#38BDF8" opacity="0.12" />
+  <circle cx="200" cy="200" r="140" fill="#818CF8" opacity="0.1" />
+
+  <!-- Left Side: Bingo Balls & Card -->
+  <g transform="translate(90, 80)">
+    <!-- Ball 1 -->
+    <g transform="translate(30, 20)">
+      <circle cx="45" cy="45" r="45" fill="url(#ballGrad1)" filter="drop-shadow(0 10px 15px rgba(0,0,0,0.5))" />
+      <circle cx="45" cy="45" r="22" fill="#FFFFFF" />
+      <text x="45" y="52" fill="#0F172A" font-family="system-ui, sans-serif" font-size="20" font-weight="900" text-anchor="middle">B7</text>
+    </g>
+    <!-- Ball 2 -->
+    <g transform="translate(110, 80)">
+      <circle cx="55" cy="55" r="55" fill="url(#ballGrad2)" filter="drop-shadow(0 12px 20px rgba(0,0,0,0.6))" />
+      <circle cx="55" cy="55" r="26" fill="#FFFFFF" />
+      <text x="55" y="64" fill="#0F172A" font-family="system-ui, sans-serif" font-size="24" font-weight="900" text-anchor="middle">I24</text>
+    </g>
+    <!-- Ball 3 -->
+    <g transform="translate(20, 140)">
+      <circle cx="40" cy="40" r="40" fill="url(#ballGrad3)" filter="drop-shadow(0 8px 12px rgba(0,0,0,0.5))" />
+      <circle cx="40" cy="40" r="20" fill="#FFFFFF" />
+      <text x="40" y="47" fill="#0F172A" font-family="system-ui, sans-serif" font-size="18" font-weight="900" text-anchor="middle">G58</text>
+    </g>
+  </g>
+
+  <!-- Right Side: Content -->
+  <g transform="translate(380, 0)">
+    <!-- Badge -->
+    <rect x="0" y="70" width="240" height="32" rx="16" fill="#0C4A6E" stroke="#38BDF8" stroke-width="1.5" />
+    <text x="120" y="91" fill="#7DD3FC" font-family="system-ui, sans-serif" font-size="12" font-weight="900" letter-spacing="2" text-anchor="middle">
+      SALAS EN VIVO 24/7
+    </text>
+
+    <!-- Main Title -->
+    <text x="0" y="165" fill="url(#bingoGrad)" font-family="system-ui, sans-serif" font-size="52" font-weight="900" letter-spacing="1">
+      GRAN BINGO CRIOLLO
+    </text>
+
+    <!-- Subtitle -->
+    <text x="0" y="215" fill="#F8FAFC" font-family="system-ui, sans-serif" font-size="22" font-weight="700">
+      Cartones de 75 y 90 Bolas con Cantaor en Voz Real
+    </text>
+
+    <!-- Description -->
+    <text x="0" y="260" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="16" font-weight="500">
+      Línea, Esquinas, Cuatro Centros y Cartón Lleno. Premios acumulados en cada ronda.
+    </text>
+
+    <!-- Action Tag -->
+    <rect x="0" y="295" width="200" height="42" rx="12" fill="#0284C7" />
+    <text x="100" y="322" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="900" letter-spacing="1" text-anchor="middle">
+      CANTAR BINGO →
+    </text>
+  </g>
+</svg>

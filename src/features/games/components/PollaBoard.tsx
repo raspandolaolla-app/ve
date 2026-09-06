@@ -9,13 +9,27 @@ import { ANIMALITOS_CATALOG, getAnimalitoByCode } from '../../../data/pollaAnima
 import { PollaRepository, BlockSalesStatus, ShiftScheduleInfo } from '../../../services/repositories/PollaRepository';
 import type { PollaBlockType, PollaTicket, PollaDrawResultItem, PollaBlockWinner } from '../../../types/games';
 import { useAuth } from '../../auth/AuthContext';
+import { useCapabilities } from '../../../hooks/useCapabilities';
 import { Button } from '../../../components/common/Button';
 import { generatePollaTicketPng } from '../../../utils/pollaPngGenerator';
 import { RngService } from '../../../services/rng/RngService';
 import { useDrawResults } from '../../../hooks/useDrawResults';
+import { useProtectedGameplay } from '../../../context/ProtectedGameplayContext';
 
 export const PollaBoard: React.FC = () => {
   const { profile, refreshProfile } = useAuth();
+  const { executeOrPromptLogin, isAuthenticated } = useCapabilities();
+  const { protectGameplay } = useProtectedGameplay();
+
+  useEffect(() => {
+    protectGameplay(true, {
+      gameType: 'polla',
+      tableName: 'Polla Venezolana',
+    });
+    return () => {
+      protectGameplay(false);
+    };
+  }, [protectGameplay]);
   const [activeTab, setActiveTab] = useState<'NUEVA_POLLA' | 'MIS_POLLAS' | 'RESULTADOS' | 'GANADORES'>('NUEVA_POLLA');
   const [selectedBlock, setSelectedBlock] = useState<PollaBlockType>('MAÑANA');
   const [selectedDate, setSelectedDate] = useState<string>(PollaRepository.getTodayVenezuelaString());
@@ -140,6 +154,15 @@ export const PollaBoard: React.FC = () => {
 
   // Procesar compra de la Polla
   const handleBuyPolla = async () => {
+    if (!isAuthenticated) {
+      executeOrPromptLogin({
+        type: 'POLLA',
+        gameId: 'polla_venezolana',
+        tab: 'polla',
+      });
+      return;
+    }
+
     if (selectedAnimalCodes.length !== 6) {
       setActionMessage({ text: 'Debe seleccionar exactamente 6 animalitos distintos.', isError: true });
       return;
@@ -202,7 +225,7 @@ export const PollaBoard: React.FC = () => {
   };
 
   return (
-    <div id="polla-board-container" className="flex flex-col items-center p-2 sm:p-5 max-w-4xl mx-auto w-full max-w-full overflow-x-hidden">
+    <div id="polla-board-container" className="gameplay-protected-container gameplay-protected-area overscroll-none flex flex-col items-center p-2 sm:p-5 max-w-4xl mx-auto w-full max-w-full overflow-x-hidden">
       {/* Encabezado Principal */}
       <div id="polla-header" className="w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 mb-5 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -476,21 +499,36 @@ export const PollaBoard: React.FC = () => {
 
           {/* Botón de Confirmación de Compra de Polla */}
           <div className="w-full max-w-md">
-            <Button
-              onClick={handleBuyPolla}
-              disabled={selectedAnimalCodes.length !== 6 || !salesStatus.isOpen || submitting}
-              className="w-full py-4 text-base font-black rounded-2xl bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-xl transition-all disabled:opacity-40"
-            >
-              {submitting ? (
-                'Procesando Compra...'
-              ) : !salesStatus.isOpen ? (
-                'VENTA CERRADA PARA ESTE BLOQUE'
-              ) : selectedAnimalCodes.length !== 6 ? (
-                `SELECCIONA ${6 - selectedAnimalCodes.length} ANIMALITOS MÁS`
-              ) : (
-                'COMPRAR POLLA — 250.00 Bs'
-              )}
-            </Button>
+            {!isAuthenticated ? (
+              <Button
+                onClick={() => {
+                  executeOrPromptLogin({
+                    type: 'POLLA',
+                    gameId: 'polla_venezolana',
+                    tab: 'polla',
+                  });
+                }}
+                className="w-full py-4 text-base font-black rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-neutral-950 shadow-xl transition-all"
+              >
+                INICIA SESIÓN PARA COMPRAR (250.00 Bs)
+              </Button>
+            ) : (
+              <Button
+                onClick={handleBuyPolla}
+                disabled={selectedAnimalCodes.length !== 6 || !salesStatus.isOpen || submitting}
+                className="w-full py-4 text-base font-black rounded-2xl bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-xl transition-all disabled:opacity-40"
+              >
+                {submitting ? (
+                  'Procesando Compra...'
+                ) : !salesStatus.isOpen ? (
+                  'VENTA CERRADA PARA ESTE BLOQUE'
+                ) : selectedAnimalCodes.length !== 6 ? (
+                  `SELECCIONA ${6 - selectedAnimalCodes.length} ANIMALITOS MÁS`
+                ) : (
+                  'COMPRAR POLLA — 250.00 Bs'
+                )}
+              </Button>
+            )}
             <span className="text-[11px] text-neutral-400 font-mono text-center block mt-2">
               Se descontarán 250.00 Bs automáticamente de tu billetera principal.
             </span>
@@ -501,7 +539,23 @@ export const PollaBoard: React.FC = () => {
       {/* CONTENIDO DE PESTAÑA 2: MIS POLLAS */}
       {activeTab === 'MIS_POLLAS' && (
         <div className="w-full">
-          {loading ? (
+          {!isAuthenticated ? (
+            <div className="text-center py-12 bg-neutral-900 border border-neutral-800 rounded-2xl space-y-3">
+              <Ticket className="w-10 h-10 text-amber-500 mx-auto mb-2" />
+              <p className="text-sm font-bold text-neutral-200">Inicia sesión para consultar tus boletos</p>
+              <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                Accede a tu cuenta para ver tus pollas registradas, aciertos en vivo y premios asignados.
+              </p>
+              <Button
+                onClick={() => executeOrPromptLogin({ type: 'POLLA', gameId: 'polla_venezolana', tab: 'polla' })}
+                variant="primary"
+                size="sm"
+                className="font-bold bg-gradient-to-r from-yellow-400 to-amber-400 text-neutral-950"
+              >
+                Iniciar Sesión
+              </Button>
+            </div>
+          ) : loading ? (
             <div className="text-center py-10 text-neutral-400 font-mono">Cargando tus pollas...</div>
           ) : myTickets.length === 0 ? (
             <div className="text-center py-12 bg-neutral-900 border border-neutral-800 rounded-2xl">

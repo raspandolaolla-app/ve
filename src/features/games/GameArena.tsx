@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { useGameMode } from '../../hooks/useGameMode';
+import { useProtectedGameplay } from '../../context/ProtectedGameplayContext';
 import { GameEndModal } from '../../components/common/GameEndModal';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -108,17 +109,19 @@ export const GameArena: React.FC<GameArenaProps> = ({
 }) => {
   const { user } = useAuth();
   const { enterGameMode, exitGameMode } = useGameMode();
+  const { protectGameplay } = useProtectedGameplay();
   const { isFullscreen, requestFullscreen, exitFullscreen, containerRef } = useFullscreen();
   const [showEndModal, setShowEndModal] = useState(false);
   const [viewingLastMove, setViewingLastMove] = useState(false);
   const hasEnteredGameMode = useRef(false);
 
   // ============================================================================
-  // EFECTO: Entrar a modo juego + fullscreen automático al montar
+  // EFECTO: Entrar a modo juego + fullscreen automático + protección anti-pull-to-refresh
   // ============================================================================
   useEffect(() => {
     if (!hasEnteredGameMode.current) {
       enterGameMode(gameType, tableId);
+      protectGameplay(true, { gameType, tableId, tableName: gameName });
       hasEnteredGameMode.current = true;
       
       // Delay pequeño para asegurar que el DOM está listo
@@ -128,7 +131,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [gameType, tableId, enterGameMode, requestFullscreen]);
+  }, [gameType, tableId, gameName, enterGameMode, protectGameplay, requestFullscreen]);
 
   // ============================================================================
   // EFECTO: Detectar fin de partida y mostrar modal
@@ -147,16 +150,18 @@ export const GameArena: React.FC<GameArenaProps> = ({
   // ============================================================================
   useEffect(() => {
     return () => {
+      protectGameplay(false);
       exitGameMode();
       exitFullscreen().catch(() => {});
     };
-  }, [exitGameMode, exitFullscreen]);
+  }, [protectGameplay, exitGameMode, exitFullscreen]);
 
   // ============================================================================
   // HANDLERS
   // ============================================================================
   const handleGoToLobby = () => {
     setShowEndModal(false);
+    protectGameplay(false);
     exitFullscreen();
     exitGameMode();
     onLeave();
@@ -195,7 +200,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
     <>
       <div
         ref={containerRef}
-        className={`fixed inset-0 z-[90] bg-[#080B12] overflow-auto game-arena-container ${
+        className={`fixed inset-0 z-[90] bg-[#080B12] overflow-auto game-arena-container gameplay-protected-container overscroll-none select-none ${
           isFullscreen ? 'fullscreen-container' : ''
         }`}
       >

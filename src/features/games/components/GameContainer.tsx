@@ -52,6 +52,7 @@ import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { GameHeader } from './GameHeader';
 import { useGameMode } from '../../../hooks/useGameMode';
+import { useProtectedGameplay } from '../../../context/ProtectedGameplayContext';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
 import { useBingoClientDaemon } from '../../../hooks/useBingoClientDaemon';
 import { useGameSettlement } from '../hooks/useGameSettlement';
@@ -116,6 +117,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   });
 
   const { enterGameMode, exitGameMode } = useGameMode();
+  const { protectGameplay } = useProtectedGameplay();
 
   // Hook universal de pantalla completa inmersiva
   const gameContainerRef = useGameFullscreen(true);
@@ -137,13 +139,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     }
   }, []);
 
-  // Activar modo juego y pantalla completa al montar
+  // Activar modo juego, pantalla completa y blindaje anti-pull-to-refresh al montar
   useEffect(() => {
     enterGameMode(table.gameType, table.id);
+    protectGameplay(true, {
+      gameType: table.gameType,
+      tableId: table.id,
+      sessionId: session?.id,
+      tableName: table.name,
+    });
     return () => {
+      protectGameplay(false);
       exitGameMode();
     };
-  }, [table.gameType, table.id, enterGameMode, exitGameMode]);
+  }, [table.gameType, table.id, session?.id, table.name, enterGameMode, exitGameMode, protectGameplay]);
 
   // Detección de orientación y soporte Fullscreen API
   useEffect(() => {
@@ -1439,8 +1448,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   };
 
   const containerClasses = isImmersiveMode
-    ? 'game-fullscreen-wrapper game-immersive-container fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-x-hidden overflow-y-auto select-none'
-    : 'game-immersive-container min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-2xl sm:rounded-3xl overflow-x-hidden border border-neutral-800 shadow-2xl max-w-full';
+    ? 'game-fullscreen-wrapper game-immersive-container gameplay-protected-container gameplay-protected-area overscroll-none fixed inset-0 z-40 bg-neutral-950 text-neutral-100 flex flex-col w-screen h-screen overflow-x-hidden overflow-y-auto select-none'
+    : 'game-immersive-container gameplay-protected-container gameplay-protected-area overscroll-none min-h-screen bg-neutral-950 text-neutral-100 flex flex-col rounded-2xl sm:rounded-3xl overflow-x-hidden border border-neutral-800 shadow-2xl max-w-full';
 
   return (
     <div

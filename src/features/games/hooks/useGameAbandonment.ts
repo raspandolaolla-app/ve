@@ -21,16 +21,10 @@ export function useGameAbandonment({
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonNotice, setAbandonNotice] = useState<string | null>(null);
 
-  // Limpieza automática al desmontar (previene usuarios pegados en mesa)
-  useEffect(() => {
-    return () => {
-      if (session?.id && table.id) {
-        TableRepository.abandonTable(table.id, session.id).catch((err) => {
-          console.warn('[GameAbandonment] Limpieza automática al salir:', err);
-        });
-      }
-    };
-  }, [session?.id, table.id]);
+  // NOTA CRÍTICA: NO ejecutar abandono de mesa en el cleanup de desmontaje.
+  // El desmontaje de componentes puede ocurrir por re-render, recarga accidental,
+  // cambio de pestaña o latencia en móvil. El abandono SÓLO debe ejecutarse mediante
+  // confirmación explícita del usuario a través de handleConfirmAbandon().
 
   const handleConfirmAbandon = useCallback(async () => {
     if (isAbandoning) return;

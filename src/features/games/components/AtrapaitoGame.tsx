@@ -24,6 +24,7 @@ import { getGameInfo } from '../../../data/gameInfo';
 import { useAtrapaitoOnline } from '../../../hooks/useAtrapaitoOnline';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
+import { useProtectedGameplay } from '../../../context/ProtectedGameplayContext';
 
 // ==============================================================================
 // MOTOR DE AUDIO SINTETIZADO (Web Audio API)
@@ -223,6 +224,19 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
 
   // Hook universal de pantalla completa inmersiva
   const gameContainerRef = useGameFullscreen(true);
+  const { protectGameplay } = useProtectedGameplay();
+
+  useEffect(() => {
+    protectGameplay(true, {
+      gameType: 'atrapaito',
+      tableId: table?.id,
+      sessionId: sessionId || table?.id,
+      tableName: 'Atrapaíto',
+    });
+    return () => {
+      protectGameplay(false);
+    };
+  }, [table?.id, sessionId, protectGameplay]);
 
   // Prevenir que el teclado virtual se despliegue al tocar la pantalla de juego
   const preventKeyboard = useCallback((_e?: React.TouchEvent | React.MouseEvent) => {
@@ -1221,7 +1235,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
   return (
     <div
       ref={gameContainerRef}
-      className="game-fullscreen-wrapper game-immersive-container bg-[#080B12] text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-black overflow-y-auto"
+      className="game-fullscreen-wrapper game-immersive-container gameplay-protected-container gameplay-protected-area overscroll-none bg-[#080B12] text-slate-100 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-black overflow-y-auto"
       onTouchStart={preventKeyboard}
       onClick={preventKeyboard}
     >

@@ -2,10 +2,62 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 11:30:00 -07:00 (UTC 2026-09-06 18:30:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / FASE 0.5 FORENSE READ-ONLY completada / ENCABEZADO DE MARCA RASPANDO LA OLLA 🇻🇪 Y OPTIMIZACIÓN DE NAVBAR SUPERIOR 100% OPERATIVO)
-ÚLTIMA MIGRACIÓN INTEGRADA: 147_update_advertising_assets_with_real_media.sql (Sincronización integral de assets físicos en `/public/ads/banners/` con la base de datos Supabase: `default_banner.svg`, `video1.mp4`, `video2.mp4`, `video3.mp4`, `banner_domino.svg`, `banner_truco.svg`, `banner_bingo.svg`, `banner_polla.svg`, `banner_atrapaito.svg`, posters de video y configuración de campañas activas iniciales)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 12:45:00 -07:00 (UTC 2026-09-06 19:45:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / CORRECCIÓN ARQUITECTÓNICA Y RESILIENTE ERROR 42703 game_variant 100% OPERATIVO)
+ÚLTIMA MIGRACIÓN INTEGRADA: 149_fix_game_tables_game_variant_and_resilient_creation.sql (Corrección Arquitectónica y Resiliente del Error 42703: Aseguramiento DDL idempotente de game_variant en game_tables y game_sessions; desacople del INSERT estático en create_game_table_secure para utilizar columnas canónicas universales garantizadas; sincronización dinámica de game_variant vía bloque PL/pgSQL si la columna existe en el esquema; resguardo permanente de la variante en config JSONB; blindaje financiero atómico AUTH -> PROFILE -> WALLET FOR UPDATE -> HOLD -> LEDGER -> HOST SEAT 1 sin riesgos de incompatibilidad)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CORRECCIÓN ARQUITECTÓNICA Y RESILIENTE DEL ERROR 42703 EN CREACIÓN DE MESAS:
+   - Diagnóstico Riguroso de Causa Raíz:
+     * El error reportado en producción: `code: 42703, message: column "game_variant" of relation "game_tables" does not exist`.
+     * Causa: La migración 148 (y previamente la 145) incluía `game_variant` en la cláusula estática `INSERT INTO public.game_tables (..., game_variant, ...)`.
+     * En la base de datos real de Supabase, la tabla `public.game_tables` no poseía físicamente la columna `game_variant` debido a que migraciones especializadas previas (como la 110, 137 o 139 enfocadas en Bingo) no se habían aplicado o habían fallado. Al intentar insertar una columna inexistente, PostgreSQL cancelaba la transacción entera con código 42703.
+     * Además, arquitectónicamente la variante de juego para el 90% de los juegos (Tres en Raya / Tic Tac Toe, Dominó, Truco, Atrapaíto, Damas, Ajedrez, Piedra Papel Tijera, Una-Olla, Polla) pertenece a la configuración del juego (`config JSONB`) y no a una columna relacional rígida.
+   - Solución Arquitectónica Canónica:
+     * Migración `149_fix_game_tables_game_variant_and_resilient_creation.sql`:
+       1. Asegura de forma DDL idempotente la existencia de `game_variant TEXT DEFAULT NULL` en `public.game_tables` y `public.game_sessions` con sus respectivos índices para acelerar búsquedas de Bingo y Torneos.
+       2. Redefine la RPC canónica `public.create_game_table_secure`:
+          - El `INSERT INTO public.game_tables` opera exclusivamente sobre las columnas canónicas universales garantizadas (`id, game_type, name, visibility, entry_fee, min_players, max_players, current_players_count, status, created_by, host_user_id, invite_code, config, expires_at, created_at, updated_at`).
+          - La configuración efectiva `v_effective_config` (JSONB) almacena siempre `'variant': v_game_variant, 'gameVariant': v_game_variant, 'name': v_table_name, ...` garantizando disponibilidad en cualquier consulta.
+          - Sincronización Dinámica Segura: Si la columna física `game_variant` existe en `information_schema.columns`, se ejecuta una actualización dinámica en la misma transacción: `UPDATE public.game_tables SET game_variant = $1 WHERE id = $2`. Si por cualquier desfase de esquema la columna no estuviera presente, la función NUNCA arroja el error 42703 y completa la creación con total éxito.
+          - Flujo Financiero Inalterado: Validación `AUTH` -> `PROFILE` -> `WALLET FOR UPDATE` -> `VALIDACIÓN DE LÍMITES` -> `HOLD` en billetera -> `LEDGER TABLE_ENTRY_HOLD` -> `HOST SEAT 1` exclusivo en `public.game_table_players` -> `current_players_count = 1`.
+     * `TableRepository.ts`:
+       1. Admite 0 Bs. para mesas libres y montos autorizados desde 10 Bs. para juegos como `tic_tac_toe`, `bingo` y `rock_paper_scissors`, y desde 25 Bs. para Dominó y Truco hasta 5.000 Bs.
+       2. Sanitización robusta en la captura de errores: no expone detalles crudos de base de datos al usuario final y mantiene logs de desarrollo detallados `[CREATE_TABLE_REAL_ERROR]`.
+   - Verificación de Integridad:
+     * Suite completa de pruebas automatizadas: 100% PASS (Fase 24, Fase 24.2, Fase 25.1, Fase 25.2, Fase 26, Fase 27).
+     * `npm run lint` / `tsc --noEmit`: PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción exitoso).
+
+0) DIAGNÓSTICO Y CORRECCIÓN INTEGRAL DE create_game_table_secure (PROMPT MAESTRO CUMPLIDO):
+   - Causa Raíz Diagnosticada con Rigurosidad:
+     * En la migración 145, se insertaba en `public.ledger_entries` el valor `'BET_PLACED'::ledger_entry_type_enum`. Dicho valor no formaba parte del enum original `ledger_entry_type_enum` definido en la migración 001, causando el error PostgreSQL 22P02 (invalid input value for enum).
+     * La verificación financiera universal de la migración 143 (`settle_game_session`) requiere contablemente `TABLE_ENTRY_HOLD` con dirección `HOLD` para poder retener y luego capturar o devolver la entrada de mesa.
+     * En la migración 145 se rechazaban mesas con `p_entry_fee < 10.00`, impidiendo la creación de mesas gratuitas (0 Bs.) y forzando errores en clientes.
+     * En la migración 145 no se ejecutaba `ensure_current_user_profile()` previo a la validación de cuenta, provocando fallos por clave foránea si el perfil en `public.profiles` no estaba conciliado.
+     * En `TableRepository.ts`, `entryFeeNum < 25` arrojaba error directo en el cliente impidiendo crear mesas con 0 Bs., y ante fallos de la RPC no se proporcionaba un diagnóstico seguro ni un mapeo amigable al usuario.
+   - Solución Implementada:
+     * Migración `148_fix_create_game_table_secure_canonical.sql`:
+       1. Asegura la existencia de los valores de enum `TABLE_ENTRY_HOLD`, `BET_PLACED` y `HOLD` en bloques de excepción seguros.
+       2. Redefine la función canónica `public.create_game_table_secure` con orden estricto de transacción:
+          - Paso 1: Identificación y validación de usuario autenticado (`auth.uid()`).
+          - Paso 2: Ejecución de `public.ensure_current_user_profile()` para garantizar perfil y verificación de estado de cuenta (`ACCOUNT_BLOCKED`).
+          - Paso 3: Normalización robusta del tipo de juego con `public.fn_normalize_game_type_enum` y validación de disponibilidad con `public.is_game_enabled`.
+          - Paso 4: Capacidad y límites de jugadores exactos según cada juego del Game Registry (min/max para Dominó, Truco, Tres en Raya, PulsoPLAY, Damas, Ajedrez, Atrapaíto, UNA-OLLA, Bingo y Polla).
+          - Paso 5: Validación estricta de `entry_fee`: Admite 0.00 Bs. (mesas libres) y valores entre 10.00 Bs. y 5.000,00 Bs. para mesas con dinero real.
+          - Paso 6: Auto-limpieza previa con `cleanup_stale_user_game_participation` y expiración de mesas huérfanas antes de comprobar si existe una partida activa en curso.
+          - Paso 7: Bloqueo pesimista `FOR UPDATE` en `public.wallets` para garantizar concurrencia segura, inserción preventiva `ON CONFLICT DO NOTHING` si la wallet no existía, y verificación de saldo disponible suficiente (`INSUFFICIENT_FUNDS`).
+          - Paso 8: Generación de identificador UUID y código de invitación alfanumérico único garantizado.
+          - Paso 9: Inserción atómica en `public.game_tables` con `current_players_count = 1` y `status = 'OPEN'`.
+          - Paso 10: Retención contable en `public.wallets` (restando de `available_balance` y sumando a `held_balance`) e inserción inmutable en `public.ledger_entries` con `TABLE_ENTRY_HOLD` y dirección `HOLD`.
+          - Paso 11: Inserción exclusiva del Anfitrión en `public.game_table_players` con `seat_number = 1`, `status = 'JOINED'` y referencia a `entry_held_entry_id`.
+          - Paso 12: Retorno JSONB enriquecido con `success: true`, `table_id`, `id`, `invite_code`, `player_id`, `seat_number: 1`, etc.
+     * Actualización en `TableRepository.ts`:
+       1. Admite 0 Bs. y montos entre 10 y 5.000 Bs.
+       2. Incorpora log de diagnóstico seguro en consola `[CREATE_TABLE_DIAGNOSTIC]` con `user_id` ofuscado/redactado, sin exponer tokens ni secretos.
+       3. Mapeo de errores de servidor a mensajes claros y amigables para el usuario (`INSUFFICIENT_FUNDS`, `ALREADY_IN_ACTIVE_TABLE`, `AUTH_REQUIRED`, `INVALID_GAME_TYPE`, `ACCOUNT_BLOCKED`, `INVALID_ENTRY_FEE`).
+       4. Tolerancia dual ante el payload de retorno (`rpcData?.table_id || rpcData?.id`).
+   - Verificación Técnica: `tsc --noEmit` PASS (0 errores) y `compile_applet` PASS.
 
 0) OPTIMIZACIÓN UI/UX DE LA BARRA SUPERIOR Y PROTAGONISMO DE MARCA RASPANDO LA OLLA 🇻🇪:
    - Objetivo: Reorganizar la presentación de la barra superior (Header) para que el centro visual y protagonismo absoluto pertenezca a la identidad de marca: RASPANDO LA OLLA 🇻🇪.

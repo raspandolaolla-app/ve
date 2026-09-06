@@ -11,3 +11,4 @@ export * from './payments';
 export * from './security';
 export * from './admin';
 export * from './legal';
+export * from './notifications';

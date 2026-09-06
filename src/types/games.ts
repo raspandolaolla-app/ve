@@ -27,6 +27,12 @@ export interface GameMetadata {
   maxEntryFee: number;
   isActive: boolean;
   requiresCommitReveal?: boolean;
+  isNew?: boolean;
+  newSince?: string;
+  newUntil?: string;
+  badgeText?: string;
+  icon?: string;
+  category?: 'estrategia' | 'azar' | 'cartas' | 'tablero' | 'sorteo' | string;
 }
 
 export interface GameSession {

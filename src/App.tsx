@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import { BcvProvider } from './context/BcvContext';
 import { WalletProvider } from './context/WalletContext';
 import { GameModeProvider, useGameMode } from './hooks/useGameMode';
+import { ProtectedGameplayProvider, useProtectedGameplay } from './context/ProtectedGameplayContext';
 import { PresenceService } from './services/PresenceService';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -32,6 +33,9 @@ import { ProfileOnboarding } from './components/auth/ProfileOnboarding';
 import { AlertCircle, X } from 'lucide-react';
 import { PollaBoard } from './features/games/components/PollaBoard';
 import { AtrapaitoGame } from './features/games/components/AtrapaitoGame';
+import { GameAvailabilityProvider, useGameAvailability } from './context/GameAvailabilityContext';
+import { NotificationProvider, useNotifications } from './context/NotificationContext';
+import { GameDisabledScreen } from './components/common/GameDisabledScreen';
 import type { GameMetadata } from './types/games';
 import type { LegalDocId } from './types/legal';
 
@@ -40,8 +44,32 @@ const GAME_TABS = ['atrapaito', 'chess', 'checkers', 'domino', 'truco', 'tictact
 
 function AppContent() {
   const { isGameActive } = useGameMode();
+  const { isGameplayProtected, protectGameplay, getPersistedActiveGame } = useProtectedGameplay();
+  const { isGameEnabled, getDisabledReason } = useGameAvailability();
+  const { unreadCount } = useNotifications();
   const [currentTab, setCurrentTab] = useState<string>('home');
-  const isPlayingGame = isGameActive || GAME_TABS.includes(currentTab);
+  const isPlayingGame = isGameActive || GAME_TABS.includes(currentTab) || isGameplayProtected;
+
+  // Restaurar automáticamente la pestaña si el usuario tenía una partida protegida previa activa
+  useEffect(() => {
+    const saved = getPersistedActiveGame();
+    if (saved) {
+      if (saved.gameType === 'atrapaito') {
+        setCurrentTab('atrapaito');
+      } else if (saved.gameType === 'polla') {
+        setCurrentTab('polla');
+      } else if (saved.tableId) {
+        setCurrentTab('tables');
+      }
+    }
+  }, [getPersistedActiveGame]);
+
+  // Sincronizar protección con pestañas de juego directo
+  useEffect(() => {
+    if (GAME_TABS.includes(currentTab)) {
+      protectGameplay(true, { gameType: currentTab });
+    }
+  }, [currentTab, protectGameplay]);
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalDoc, setLegalModalDoc] = useState<LegalDocId>('terms');
   const [rulesModalOpen, setRulesModalOpen] = useState<boolean>(false);
@@ -81,6 +109,53 @@ function AppContent() {
       isMounted = false;
     };
   }, [state, user?.id, user?.user_metadata, user?.email]);
+
+  // Reanudar automáticamente la acción contextual del visitante tras iniciar sesión exitosamente
+  useEffect(() => {
+    if (state === 'authenticated' && user?.id) {
+      try {
+        const raw = typeof window !== 'undefined' ? window.sessionStorage?.getItem('pending_guest_action') : null;
+        if (raw) {
+          window.sessionStorage.removeItem('pending_guest_action');
+          const action = JSON.parse(raw);
+          if (action && Date.now() - (action.timestamp || 0) < 15 * 60 * 1000) {
+            console.log('[App] Reanudando acción contextual post-login:', action);
+            if (action.tab) {
+              setCurrentTab(action.tab);
+            }
+            if (action.type === 'CREATE_TABLE') {
+              setCurrentTab('tables');
+              setTimeout(() => {
+                window.dispatchEvent(
+                  new CustomEvent('open-create-table', {
+                    detail: { gameType: action.gameId, gameId: action.gameId },
+                  })
+                );
+              }, 250);
+            } else if (action.type === 'POLLA') {
+              setCurrentTab('polla');
+            } else if (action.type === 'WALLET') {
+              setCurrentTab('wallet');
+            } else if (action.type === 'PLAY_GAME' && action.gameId === 'atrapaito') {
+              setCurrentTab('atrapaito');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[App] Error al reanudar acción protegida post-login:', err);
+      }
+    }
+  }, [state, user?.id]);
+
+  // Escuchar navegación global disparada desde banners o componentes desacoplados
+  useEffect(() => {
+    const handleNavigate = (e: any) => {
+      const tab = e.detail?.tab;
+      if (tab) setCurrentTab(tab);
+    };
+    window.addEventListener('navigate-tab' as any, handleNavigate);
+    return () => window.removeEventListener('navigate-tab' as any, handleNavigate);
+  }, []);
 
   const handleSelectGame = (game: GameMetadata) => {
     if (game.id === 'atrapaito') {
@@ -134,6 +209,7 @@ function AppContent() {
           onNavigate={setCurrentTab}
           onOpenNotifications={() => setNotificationsModalOpen(true)}
           onOpenProfile={() => setProfileModalOpen(true)}
+          hasUnreadNotifications={unreadCount > 0}
         />
       )}
 
@@ -164,6 +240,7 @@ function AppContent() {
             onJoinTrancaito={handleJoinTrancaito}
             onNavigateTab={setCurrentTab}
             onOpenRules={handleOpenGameRules}
+            onOpenSupport={() => setSupportModalOpen(true)}
             onSelectBingoVariant={(_variant, tableId) => {
               setCurrentTab('tables');
               setTimeout(() => {
@@ -173,10 +250,28 @@ function AppContent() {
           />
         )}
 
-        {currentTab === 'polla' && <PollaBoard />}
+        {currentTab === 'polla' && (
+          isGameEnabled('polla_venezolana') ? (
+            <PollaBoard />
+          ) : (
+            <GameDisabledScreen
+              gameName="Polla Venezolana"
+              reason={getDisabledReason('polla_venezolana')}
+              onBack={() => setCurrentTab('home')}
+            />
+          )
+        )}
 
         {currentTab === 'atrapaito' && (
-          <AtrapaitoGame onLeave={() => setCurrentTab('home')} onExit={() => setCurrentTab('home')} />
+          isGameEnabled('atrapaito') ? (
+            <AtrapaitoGame onLeave={() => setCurrentTab('home')} onExit={() => setCurrentTab('home')} />
+          ) : (
+            <GameDisabledScreen
+              gameName="Atrapaíto"
+              reason={getDisabledReason('atrapaito')}
+              onBack={() => setCurrentTab('home')}
+            />
+          )
         )}
 
         {currentTab === 'tables' && <TablesView />}
@@ -195,7 +290,25 @@ function AppContent() {
       </main>
 
       {/* Pie de Página */}
-      {!isPlayingGame && <Footer onOpenLegalDoc={handleOpenLegalDoc} />}
+      {!isPlayingGame && (
+        <Footer
+          onOpenLegalDoc={handleOpenLegalDoc}
+          onOpenSupport={() => setSupportModalOpen(true)}
+          onNavigateFAQ={() => {
+            if (currentTab !== 'home') {
+              setCurrentTab('home');
+            }
+            setTimeout(() => {
+              const el = document.getElementById('lobby-faq-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+                window.dispatchEvent(new CustomEvent('open-faq'));
+              }
+            }, 100);
+          }}
+          onOpenRules={handleOpenGameRules}
+        />
+      )}
 
       {/* Barra de Navegación Inferior Fija (Mobile-First) */}
       {!isPlayingGame && (
@@ -314,9 +427,15 @@ export default function App() {
       <AuthProvider>
         <BcvProvider>
           <WalletProvider>
-            <GameModeProvider>
-              <AppContent />
-            </GameModeProvider>
+            <NotificationProvider>
+              <GameAvailabilityProvider>
+                <GameModeProvider>
+                  <ProtectedGameplayProvider>
+                    <AppContent />
+                  </ProtectedGameplayProvider>
+                </GameModeProvider>
+              </GameAvailabilityProvider>
+            </NotificationProvider>
           </WalletProvider>
         </BcvProvider>
       </AuthProvider>

@@ -449,9 +449,17 @@ body.game-mode-active #app-header {
   animation: zoom-in-95 0.3s ease-out;
 }
 
-/* Prevenir comportamiento de pull-to-refresh durante juego */
-body.game-mode-active {
-  overscroll-behavior: none;
+/* Prevenir comportamiento de pull-to-refresh durante juego activo (CSS Moderno) */
+html.gameplay-protected,
+body.gameplay-protected,
+html.game-mode-active,
+body.game-mode-active,
+.gameplay-protected,
+.gameplay-protected-area,
+.gameplay-protected-container {
+  overscroll-behavior-y: none !important;
+  overscroll-behavior-x: none !important;
+  overscroll-behavior: none !important;
 }
 
 /* ==============================================================================

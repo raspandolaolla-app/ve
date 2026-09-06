@@ -48,6 +48,10 @@ export interface GameConfigItem {
   shortDescription: string;
   iconName: string;
   isActive: boolean;
+  enabled?: boolean;
+  disabledReason?: string | null;
+  disabledAt?: string | null;
+  disabledBy?: string | null;
   maintenanceMessage?: string | null;
   minPlayers: number;
   maxPlayers: number;
@@ -290,6 +294,10 @@ export interface AdminGameItem {
   totalMatchesPlayed: number;
   totalVolume: number;
   isActive: boolean;
+  enabled?: boolean;
+  disabledReason?: string | null;
+  disabledAt?: string | null;
+  disabledBy?: string | null;
 }
 
 export interface AdminSupportTicketItem {

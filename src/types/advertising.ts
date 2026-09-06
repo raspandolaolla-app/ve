@@ -35,6 +35,7 @@ export interface AdvertisingAsset {
   id: string;
   assetKey: string;
   filePath: string;
+  posterPath?: string | null;
   assetType: AdAssetType;
   mimeType?: string | null;
   title?: string | null;
@@ -45,6 +46,16 @@ export interface AdvertisingAsset {
   fileSizeBytes?: number | null;
   active: boolean;
   publicUrl?: string;
+  posterUrl?: string;
+  defaultPlacement?: AdPlacement;
+  gameType?: string | null;
+  game_id?: string | null;
+  is_new_game?: boolean;
+  isNewGame?: boolean;
+  badge?: string | null;
+  ctaAction?: 'CREATE_TABLE' | 'PLAY_GAME' | 'VIEW_RULES' | 'OPEN_POLLA' | 'EXTERNAL_LINK' | string;
+  targetUrl?: string | null;
+  ctaText?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -58,6 +69,11 @@ export interface AdvertisingCampaign {
   priority: number;
   placement: AdPlacement;
   gameType?: string | null;
+  game_id?: string | null;
+  is_new_game?: boolean;
+  isNewGame?: boolean;
+  badge?: string | null;
+  ctaAction?: 'CREATE_TABLE' | 'PLAY_GAME' | 'VIEW_RULES' | 'OPEN_POLLA' | 'EXTERNAL_LINK' | string;
   deviceType: AdDeviceType;
   orientation: AdOrientation;
   startAt?: string | null;
@@ -74,6 +90,7 @@ export interface ManifestAssetItem {
   id: string;
   asset_key?: string;
   file: string;
+  poster?: string;
   type: AdAssetType;
   mime?: string;
   title?: string;
@@ -83,6 +100,14 @@ export interface ManifestAssetItem {
   duration?: number;
   size?: number;
   active?: boolean;
+  defaultPlacement?: AdPlacement;
+  gameType?: string | null;
+  game_id?: string | null;
+  is_new_game?: boolean;
+  badge?: string | null;
+  ctaAction?: 'CREATE_TABLE' | 'PLAY_GAME' | 'VIEW_RULES' | 'OPEN_POLLA' | 'EXTERNAL_LINK' | string;
+  targetUrl?: string | null;
+  ctaText?: string | null;
 }
 
 export interface AdvertisingManifest {
@@ -90,6 +115,7 @@ export interface AdvertisingManifest {
   updated_at: string;
   provider?: string;
   base_path?: string;
+  total_assets?: number;
   assets: ManifestAssetItem[];
 }
 

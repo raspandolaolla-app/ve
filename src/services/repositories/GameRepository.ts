@@ -120,12 +120,15 @@ export class GameRepository {
     }
 
     const turnSeconds = gameType === 'chess' ? 15 : (Number(initialState?.turnDurationSeconds) || 30);
-    const canonicalTurnUserId =
-      (initialState?.turnUserId as string) ||
-      (initialState?.currentTurnUserId as string) ||
-      firstTurnUserId;
+    const isSimultaneous = gameType === 'rock_paper_scissors';
+    const canonicalTurnUserId = isSimultaneous
+      ? null
+      : ((initialState?.turnUserId as string) ||
+         (initialState?.currentTurnUserId as string) ||
+         firstTurnUserId ||
+         null);
 
-    // Asegurar que el estado tenga el turno canónico inyectado
+    // Asegurar que el estado tenga el turno canónico inyectado (null si es RPS)
     const stateWithTurn = {
       ...initialState,
       turnUserId: canonicalTurnUserId,
@@ -146,7 +149,7 @@ export class GameRepository {
         p_table_id: tableId,
         p_initial_state: stateWithTurn || {},
         p_turn_duration_seconds: turnSeconds,
-        p_initial_turn_user_id: canonicalTurnUserId || null,
+        p_initial_turn_user_id: canonicalTurnUserId,
       });
 
       if (rpcError) {
@@ -390,6 +393,82 @@ export class GameRepository {
     }
 
     return true;
+  }
+
+  /**
+   * Envía la elección de Piedra, Papel o Tijera utilizando el protocolo seguro COMMIT-REVEAL.
+   * La jugada se guarda de forma privada en el servidor (game_session_secrets) hasta que ambos jugadores hayan jugado.
+   */
+  public static async submitRPSChoice(
+    sessionId: string,
+    choice: string,
+    userId?: string,
+    fallbackState?: Record<string, unknown>
+  ): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    // 1. Invocar RPC segura de commit-reveal
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('submit_rps_choice_secure', {
+        p_session_id: sessionId,
+        p_choice: choice,
+      });
+
+      if (!rpcError && rpcData?.success) {
+        return true;
+      }
+
+      if (rpcError) {
+        console.warn('[GameRepository] submit_rps_choice_secure:', rpcError.message);
+      }
+    } catch (err) {
+      console.warn('[GameRepository] Error en submit_rps_choice_secure:', err);
+    }
+
+    // 2. Fallback resiliente si la RPC no está disponible aún
+    if (fallbackState && userId) {
+      const payload: GameActionPayload = {
+        sessionId,
+        userId,
+        actionType: 'CHOOSE',
+        actionData: { choice },
+        clientTimestamp: Date.now(),
+      };
+      await this.submitAction(payload);
+      return this.updateSessionState(sessionId, fallbackState, null, 'ACTIVE', null, 15);
+    }
+
+    return false;
+  }
+
+  /**
+   * Avanza a la siguiente ronda de Piedra, Papel o Tijera reiniciando la fase de selección.
+   */
+  public static async nextRPSRound(
+    sessionId: string,
+    fallbackState?: Record<string, unknown>
+  ): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    try {
+      const { data, error } = await supabase.rpc('next_rps_round_secure', {
+        p_session_id: sessionId,
+      });
+
+      if (!error && data?.success) {
+        return true;
+      }
+    } catch (err) {
+      console.warn('[GameRepository] next_rps_round_secure:', err);
+    }
+
+    if (fallbackState) {
+      return this.updateSessionState(sessionId, fallbackState, null, 'ACTIVE', null, 15);
+    }
+
+    return false;
   }
 
   /**

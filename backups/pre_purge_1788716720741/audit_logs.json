@@ -1,0 +1,971 @@
+[
+  {
+    "id": "ef4af834-c7ee-499d-ada4-3625e6b5b85f",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_CLEANUP_GAME_TABLE",
+    "resource_type": "GAME_TABLE",
+    "resource_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "table_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+      "timestamp": "2026-08-28T04:18:09.446194+00:00",
+      "cleaned_items_count": 0
+    },
+    "created_at": "2026-08-28T04:18:09.446Z"
+  },
+  {
+    "id": "67b11cb2-66ad-457e-b73a-e941e81172c2",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_CLEANUP_GAME_TABLE",
+    "resource_type": "GAME_TABLE",
+    "resource_id": "ce5e2eee-e648-4a1c-ab39-243850a6dd64",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "table_id": "ce5e2eee-e648-4a1c-ab39-243850a6dd64",
+      "timestamp": "2026-08-28T04:18:11.622371+00:00",
+      "cleaned_items_count": 0
+    },
+    "created_at": "2026-08-28T04:18:11.622Z"
+  },
+  {
+    "id": "9ecfd797-c778-4e24-821d-649e4b64d730",
+    "actor_id": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_CLEANUP_GAME_TABLE",
+    "resource_type": "GAME_TABLE",
+    "resource_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "table_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+      "timestamp": "2026-08-28T04:39:33.260959+00:00",
+      "cleaned_items_count": 0
+    },
+    "created_at": "2026-08-28T04:39:33.260Z"
+  },
+  {
+    "id": "ab115749-66bd-46a9-bf41-283c74835cef",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_CLEANUP_GAME_TABLE",
+    "resource_type": "GAME_TABLE",
+    "resource_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "table_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+      "timestamp": "2026-08-28T04:40:26.406502+00:00",
+      "cleaned_items_count": 0
+    },
+    "created_at": "2026-08-28T04:40:26.406Z"
+  },
+  {
+    "id": "36ec2d1c-bbed-4a68-88e7-a7dea0420e11",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_CLEANUP_GAME_TABLE",
+    "resource_type": "GAME_TABLE",
+    "resource_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "table_id": "c58925b4-d27b-4295-a522-1a7563057fd4",
+      "timestamp": "2026-08-28T05:10:04.97773+00:00",
+      "cleaned_items_count": 0
+    },
+    "created_at": "2026-08-28T05:10:04.977Z"
+  },
+  {
+    "id": "20cb1c52-732e-4908-8bf6-4d9567ba12a9",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_AUTO_CLEANUP_EXPIRED_TABLES",
+    "resource_type": "GAME_TABLE_BATCH",
+    "resource_id": "AUTO_CLEANUP",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "timestamp": "2026-08-30T20:42:43.467002+00:00",
+      "expired_tables_count": 1,
+      "inactive_minutes_threshold": 5
+    },
+    "created_at": "2026-08-30T20:42:43.467Z"
+  },
+  {
+    "id": "dd94413d-2a05-4ec6-9a63-570321de074d",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_AUTO_CLEANUP_EXPIRED_TABLES",
+    "resource_type": "GAME_TABLE_BATCH",
+    "resource_id": "AUTO_CLEANUP",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "timestamp": "2026-08-31T04:20:16.218037+00:00",
+      "expired_tables_count": 3,
+      "inactive_minutes_threshold": 5
+    },
+    "created_at": "2026-08-31T04:20:16.218Z"
+  },
+  {
+    "id": "b89d2a0b-244b-4716-8334-bff67670ccd2",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ASSIGN_USER_ROLE",
+    "resource_type": "user_roles",
+    "resource_id": "5079428a-15e7-4fb7-b50d-30513b1fbb46",
+    "severity": "CRITICAL",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "aalLevel": "aal1",
+      "timestamp": "2026-08-31T15:04:43.185048+00:00",
+      "callerEmail": "v19629049@gmail.com",
+      "targetEmail": "parajugarcodmobilegnb129@gmail.com",
+      "assignedRole": "OPERATOR",
+      "targetUserId": "5079428a-15e7-4fb7-b50d-30513b1fbb46"
+    },
+    "created_at": "2026-08-31T15:04:43.185Z"
+  },
+  {
+    "id": "8e5ee8d9-ee39-4811-a869-dca6113ad049",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ASSIGN_USER_ROLE",
+    "resource_type": "user_roles",
+    "resource_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+    "severity": "CRITICAL",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "aalLevel": "aal1",
+      "timestamp": "2026-09-01T06:03:49.760166+00:00",
+      "callerEmail": "v19629049@gmail.com",
+      "targetEmail": "bingolacaleta@gmail.com",
+      "assignedRole": "OPERATOR",
+      "targetUserId": "10649e41-352c-4329-8614-b2a4ecb40679"
+    },
+    "created_at": "2026-09-01T06:03:49.760Z"
+  },
+  {
+    "id": "82ddcb3d-ed9a-42a4-9030-7aa77b95acd4",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_AUTO_CLEANUP_EXPIRED_TABLES",
+    "resource_type": "GAME_TABLE_BATCH",
+    "resource_id": "AUTO_CLEANUP",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "timestamp": "2026-09-01T16:16:34.402687+00:00",
+      "expired_tables_count": 1,
+      "inactive_minutes_threshold": 5
+    },
+    "created_at": "2026-09-01T16:16:34.402Z"
+  },
+  {
+    "id": "62117f2a-7183-4a9c-a2ad-ec555bde501a",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ASSIGN_USER_ROLE",
+    "resource_type": "user_roles",
+    "resource_id": "1584f14f-be50-4fbc-9679-885f08211433",
+    "severity": "CRITICAL",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "aalLevel": "aal1",
+      "timestamp": "2026-09-01T22:16:37.950156+00:00",
+      "callerEmail": "v19629049@gmail.com",
+      "targetEmail": "josuemarcano933@gmail.com",
+      "assignedRole": "OPERATOR",
+      "targetUserId": "1584f14f-be50-4fbc-9679-885f08211433"
+    },
+    "created_at": "2026-09-01T22:16:37.950Z"
+  },
+  {
+    "id": "88a5c3ec-2ab3-478d-b8de-e0a94f81d7e0",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 288,
+        "activity_sessions": 23,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T04:18:52.441158+00:00",
+      "total_deleted": 311
+    },
+    "created_at": "2026-09-04T04:18:52.441Z"
+  },
+  {
+    "id": "698dcca9-1cd7-400e-a376-f9cf43fa20e8",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SUPER_ADMIN",
+    "action": "SYSTEM_RESET",
+    "resource_type": "wallets",
+    "resource_id": "all_users",
+    "severity": "CRITICAL",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "note": "total_balance se calcula automáticamente",
+      "message": "Todos los saldos han sido reseteados a 0",
+      "success": true,
+      "timestamp": "2026-09-04T04:36:53.31034+00:00",
+      "reset_count": 10,
+      "total_amount_reset": 61402
+    },
+    "created_at": "2026-09-04T04:36:53.310Z"
+  },
+  {
+    "id": "85a990d6-5d35-4a20-99c9-eebe13e6759b",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 0,
+        "activity_sessions": 3,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T05:00:00.050599+00:00",
+      "total_deleted": 3
+    },
+    "created_at": "2026-09-04T05:00:00.050Z"
+  },
+  {
+    "id": "49541537-fdea-4766-8ef9-4649522cf596",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 0,
+        "activity_sessions": 3,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T05:30:00.043284+00:00",
+      "total_deleted": 3
+    },
+    "created_at": "2026-09-04T05:30:00.043Z"
+  },
+  {
+    "id": "1521f780-29a5-4571-94da-4bd58a7f3a1f",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 0,
+        "activity_sessions": 5,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T06:00:00.025131+00:00",
+      "total_deleted": 5
+    },
+    "created_at": "2026-09-04T06:00:00.025Z"
+  },
+  {
+    "id": "d9a45a6a-6b2a-4df0-bbd3-4a0b8af4dfcb",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 0,
+        "activity_sessions": 1,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T06:30:00.045215+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-04T06:30:00.045Z"
+  },
+  {
+    "id": "7dbd14da-5892-46f6-8da0-e45498f120a2",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T07:30:00.113694+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-04T07:30:00.113Z"
+  },
+  {
+    "id": "ddabf40c-5161-481f-9771-04bed42fe428",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T08:00:00.121105+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-04T08:00:00.121Z"
+  },
+  {
+    "id": "a8202c7b-d627-43e3-861a-835ade7365cf",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 0,
+        "activity_sessions": 3,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T15:00:00.039734+00:00",
+      "total_deleted": 3
+    },
+    "created_at": "2026-09-04T15:00:00.039Z"
+  },
+  {
+    "id": "8e75bd3b-11f0-4619-9da3-899e8772b034",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 4,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T16:30:00.234791+00:00",
+      "total_deleted": 4
+    },
+    "created_at": "2026-09-04T16:30:00.234Z"
+  },
+  {
+    "id": "85fe78f3-146f-492c-bc8a-fd1e7ab929ac",
+    "actor_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "actor_role": "SUPER_ADMIN",
+    "action": "ADMIN_AUTO_CLEANUP_EXPIRED_TABLES",
+    "resource_type": "GAME_TABLE_BATCH",
+    "resource_id": "AUTO_CLEANUP",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "timestamp": "2026-09-04T16:39:51.366447+00:00",
+      "expired_tables_count": 2,
+      "inactive_minutes_threshold": 5
+    },
+    "created_at": "2026-09-04T16:39:51.366Z"
+  },
+  {
+    "id": "1e5e2b0f-d2f2-4d73-b8a3-45d1756294c8",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 18,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T17:00:00.032512+00:00",
+      "total_deleted": 18
+    },
+    "created_at": "2026-09-04T17:00:00.032Z"
+  },
+  {
+    "id": "3c9d0b9c-7018-467e-b8a2-9d0e3e29e792",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T21:30:00.132827+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-04T21:30:00.132Z"
+  },
+  {
+    "id": "54dd0a76-8e52-4675-8d89-041617d4cdf8",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T22:00:00.142854+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-04T22:00:00.142Z"
+  },
+  {
+    "id": "620ac6c9-2cb2-48e8-9b11-f0b4f6c5b67a",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T22:30:00.207798+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-04T22:30:00.207Z"
+  },
+  {
+    "id": "d86836f1-ed0e-4a3e-86a1-70548c5d1c54",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 4,
+        "activity_sessions": 1,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-04T23:30:00.045646+00:00",
+      "total_deleted": 5
+    },
+    "created_at": "2026-09-04T23:30:00.045Z"
+  },
+  {
+    "id": "8fd16d1e-5294-4d5a-a8ff-be9822f8764f",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 10,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T00:00:00.055754+00:00",
+      "total_deleted": 10
+    },
+    "created_at": "2026-09-05T00:00:00.055Z"
+  },
+  {
+    "id": "4d1e82bc-efcf-4cf9-924e-e89498df7210",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T02:00:00.063567+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-05T02:00:00.063Z"
+  },
+  {
+    "id": "63ff5ddf-84db-4459-98da-c00960c60ed7",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T04:00:00.061303+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-05T04:00:00.061Z"
+  },
+  {
+    "id": "9d22c2e1-9bd9-4688-9a89-a5a443380d2c",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T07:30:00.071031+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-05T07:30:00.071Z"
+  },
+  {
+    "id": "42875928-f105-44b3-88ad-37005189eecf",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T15:30:00.033916+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-05T15:30:00.033Z"
+  },
+  {
+    "id": "574cf7c7-b2bb-4077-960d-060337a16160",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 4,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T19:00:00.034591+00:00",
+      "total_deleted": 4
+    },
+    "created_at": "2026-09-05T19:00:00.034Z"
+  },
+  {
+    "id": "fb5b94c0-30c7-4f64-ac85-bc6471dc6a67",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T21:00:00.03572+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-05T21:00:00.035Z"
+  },
+  {
+    "id": "b71a77b8-401c-4721-9178-05e3711ef9f3",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 2,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T21:30:00.041343+00:00",
+      "total_deleted": 2
+    },
+    "created_at": "2026-09-05T21:30:00.041Z"
+  },
+  {
+    "id": "ababdbf8-f1eb-489f-af6c-08c538372fa7",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T22:00:00.049828+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-05T22:00:00.049Z"
+  },
+  {
+    "id": "01cbe8d4-72c1-4656-8aae-c1f5c55aedb3",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T22:30:00.038151+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-05T22:30:00.038Z"
+  },
+  {
+    "id": "73873869-7a9f-4807-8e27-8ec6a6d9d7d3",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-05T23:00:00.037416+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-05T23:00:00.037Z"
+  },
+  {
+    "id": "9798c192-a56d-45cd-924b-ad170c42841d",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T04:00:00.067804+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T04:00:00.067Z"
+  },
+  {
+    "id": "b93e7b76-46d8-46f8-8158-1b15e2b150c4",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T04:30:00.16278+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T04:30:00.162Z"
+  },
+  {
+    "id": "c62a4d8c-28e2-4d93-8d97-d7204992e4f6",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T05:00:00.16415+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T05:00:00.164Z"
+  },
+  {
+    "id": "5e17d4c8-4375-4a0a-aa4e-a0913cdcb34b",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T05:30:00.045175+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T05:30:00.045Z"
+  },
+  {
+    "id": "7c411892-e60d-4772-bb88-6fd462866dde",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T06:00:00.031159+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T06:00:00.031Z"
+  },
+  {
+    "id": "b51b0d59-990a-4f4f-b76f-44538ea6e0f8",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 1,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T16:00:00.056089+00:00",
+      "total_deleted": 1
+    },
+    "created_at": "2026-09-06T16:00:00.056Z"
+  },
+  {
+    "id": "8c3c4dd3-10be-4740-ae3c-2991ba25b4e0",
+    "actor_id": "00000000-0000-0000-0000-000000000000",
+    "actor_role": "SYSTEM",
+    "action": "AUTO_CLEANUP",
+    "resource_type": "system",
+    "resource_id": "auto_cleanup_job",
+    "severity": "INFO",
+    "ip_address": null,
+    "user_agent": null,
+    "metadata": {
+      "deleted": {
+        "orphan_players": 6,
+        "activity_sessions": 0,
+        "cancelled_actions": 0,
+        "old_notifications": 0
+      },
+      "success": true,
+      "timestamp": "2026-09-06T16:30:00.057652+00:00",
+      "total_deleted": 6
+    },
+    "created_at": "2026-09-06T16:30:00.057Z"
+  }
+]

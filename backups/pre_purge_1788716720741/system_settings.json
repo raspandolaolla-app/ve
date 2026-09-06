@@ -1,0 +1,15 @@
+[
+  {
+    "key": "bcv_rate",
+    "value": {
+      "rate": 807.3862,
+      "source": "Banco Central de Venezuela",
+      "status": "UPDATED",
+      "updated_at": "2026-09-06T17:41:13.074009+00:00"
+    },
+    "is_public": true,
+    "description": "Tasa de Cambio Oficial del Banco Central de Venezuela (BCV) para conversión informativa USD",
+    "updated_by": null,
+    "updated_at": "2026-09-06T17:41:13.074Z"
+  }
+]

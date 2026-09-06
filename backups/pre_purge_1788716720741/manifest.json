@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-09-06T17:45:20.742Z",
+  "backupDir": "/app/applet/backups/pre_purge_1788716720741",
+  "tables": {
+    "auth_users": {
+      "count": 14,
+      "file": "auth_users.json"
+    },
+    "profiles": {
+      "count": 13,
+      "file": "profiles.json"
+    },
+    "user_roles": {
+      "count": 13,
+      "file": "user_roles.json"
+    },
+    "wallets": {
+      "count": 13,
+      "file": "wallets.json"
+    },
+    "ledger_entries": {
+      "count": 632,
+      "file": "ledger_entries.json"
+    },
+    "payment_accounts": {
+      "count": 3,
+      "file": "payment_accounts.json"
+    },
+    "deposit_requests": {
+      "count": 20,
+      "file": "deposit_requests.json"
+    },
+    "withdrawal_requests": {
+      "count": 0,
+      "file": "withdrawal_requests.json"
+    },
+    "game_tables": {
+      "count": 225,
+      "file": "game_tables.json"
+    },
+    "game_table_players": {
+      "count": 12,
+      "file": "game_table_players.json"
+    },
+    "game_sessions": {
+      "count": 1145,
+      "file": "game_sessions.json"
+    },
+    "game_session_secrets": {
+      "count": 4,
+      "file": "game_session_secrets.json"
+    },
+    "game_actions": {
+      "count": 32183,
+      "file": "game_actions.json"
+    },
+    "game_settlements": {
+      "count": 21,
+      "file": "game_settlements.json"
+    },
+    "game_settlement_recipients": {
+      "count": 10,
+      "file": "game_settlement_recipients.json"
+    },
+    "bingo_card_purchases": {
+      "count": 48,
+      "file": "bingo_card_purchases.json"
+    },
+    "bingo_winner_history": {
+      "count": 0,
+      "file": "bingo_winner_history.json"
+    },
+    "polla_tickets": {
+      "count": 103,
+      "file": "polla_tickets.json"
+    },
+    "polla_draw_results": {
+      "count": 1,
+      "file": "polla_draw_results.json"
+    },
+    "polla_block_closures": {
+      "count": 0,
+      "file": "polla_block_closures.json"
+    },
+    "audit_logs": {
+      "count": 45,
+      "file": "audit_logs.json"
+    },
+    "protected_super_admins": {
+      "count": 2,
+      "file": "protected_super_admins.json"
+    },
+    "system_settings": {
+      "count": 1,
+      "file": "system_settings.json"
+    },
+    "game_configurations": {
+      "count": 10,
+      "file": "game_configurations.json"
+    },
+    "entry_fees": {
+      "count": 11,
+      "file": "entry_fees.json"
+    },
+    "financial_rules": {
+      "count": 1,
+      "file": "financial_rules.json"
+    },
+    "advertising_assets": {
+      "count": 7,
+      "file": "advertising_assets.json"
+    },
+    "advertising_campaigns": {
+      "count": 0,
+      "file": "advertising_campaigns.json"
+    },
+    "faq_items": {
+      "count": 6,
+      "file": "faq_items.json"
+    },
+    "tournaments": {
+      "count": 0,
+      "file": "tournaments.json"
+    },
+    "storage_objects": {
+      "count": 8,
+      "file": "storage_objects.json"
+    }
+  }
+}

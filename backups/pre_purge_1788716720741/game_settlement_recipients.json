@@ -1,0 +1,102 @@
+[
+  {
+    "id": "ede3aed6-81cf-48df-a6b6-a973af983924",
+    "settlement_id": "b4e0ac6c-2320-4f2b-b6b4-c7c25cef7d1e",
+    "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "team_number": null,
+    "payout_amount": "9.00",
+    "ledger_entry_id": "2414163b-b498-4e37-85ac-0d3fc207bdf0",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-27T11:48:23.339Z"
+  },
+  {
+    "id": "3d29603d-c08d-4cea-95d6-22b0b3f493c2",
+    "settlement_id": "0510da50-07ce-4b33-86da-6a30820af905",
+    "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "team_number": null,
+    "payout_amount": "18.00",
+    "ledger_entry_id": "01f8b548-3230-4bcc-b9e2-413a2eb7a9ef",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-27T12:09:15.374Z"
+  },
+  {
+    "id": "76a11804-6bf8-496b-a35f-f1609994c8b4",
+    "settlement_id": "8a9cb053-cdff-452c-819f-1a81cbd60f88",
+    "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "team_number": null,
+    "payout_amount": "36.00",
+    "ledger_entry_id": "39bc6034-e5b1-458b-afee-8217edcb1db7",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-27T13:06:17.237Z"
+  },
+  {
+    "id": "2a733733-7ebf-452b-9426-62b33c61d95b",
+    "settlement_id": "f681443c-e595-4358-8954-5a6b7a201948",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "team_number": null,
+    "payout_amount": "9.00",
+    "ledger_entry_id": "2b655912-6a97-46bc-abdc-72d49ca0711e",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-28T05:09:00.953Z"
+  },
+  {
+    "id": "caf4da38-94e0-4388-9e92-b1dcea2428c7",
+    "settlement_id": "09a6a4bd-308b-4780-9262-c572a5081d0d",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "team_number": null,
+    "payout_amount": "3600.00",
+    "ledger_entry_id": "46bf325c-ee4c-4f9c-b393-d5f637912ba2",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-30T00:23:02.782Z"
+  },
+  {
+    "id": "21616f49-6ad8-42b9-8909-e7fac48d5b3a",
+    "settlement_id": "bdac0022-c3dc-4eac-a7c0-97231e8e6ad8",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "team_number": null,
+    "payout_amount": "90.00",
+    "ledger_entry_id": "854bf9ee-0ad5-4d66-8c78-d100fc6fb9f1",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-30T00:26:10.334Z"
+  },
+  {
+    "id": "d5844e56-f3f4-4980-b0b8-84573883b1da",
+    "settlement_id": "108127d4-59b8-4e83-ab07-53d40e2c27e7",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "team_number": null,
+    "payout_amount": "45.00",
+    "ledger_entry_id": "5de86d5a-d530-4f1a-a344-7be6871b5114",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-30T20:49:07.669Z"
+  },
+  {
+    "id": "ab9a9ae6-9261-4a76-81ea-62ae52d6e188",
+    "settlement_id": "89808782-471d-44a0-a1aa-7de0cfab425b",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "team_number": null,
+    "payout_amount": "45.00",
+    "ledger_entry_id": "98e155e2-c38d-48bc-a618-51cd87647947",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-30T20:58:17.731Z"
+  },
+  {
+    "id": "38cafdb2-bce5-4a1e-aa31-0197da82a2a1",
+    "settlement_id": "157db348-cefa-4297-b449-d7dfb21a3c8a",
+    "user_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+    "team_number": null,
+    "payout_amount": "45.00",
+    "ledger_entry_id": "7692330b-bca6-495d-9483-7cf8c5666c56",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-30T22:08:44.425Z"
+  },
+  {
+    "id": "f52f764e-366a-484f-be69-6679f06ec981",
+    "settlement_id": "6f86ae6c-331b-4e02-8b6e-af91760265d0",
+    "user_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+    "team_number": null,
+    "payout_amount": "45.00",
+    "ledger_entry_id": "1de3e11c-7cb3-402f-8ec8-e3ecb38aed89",
+    "payout_status": "CREDITED",
+    "created_at": "2026-08-31T05:07:57.892Z"
+  }
+]

@@ -1,0 +1,132 @@
+[
+  {
+    "id": "0fb4f225-bc47-4138-8d3c-d0f34f9d50ce",
+    "user_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+    "currency": "VES",
+    "available_balance": "5150.00",
+    "held_balance": "0.00",
+    "total_balance": "5150.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "5150.00"
+  },
+  {
+    "id": "a8f2d376-e0a3-4109-8f6b-4c5944d22c76",
+    "user_id": "1584f14f-be50-4fbc-9679-885f08211433",
+    "currency": "VES",
+    "available_balance": "5025.00",
+    "held_balance": "0.00",
+    "total_balance": "5025.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "5025.00"
+  },
+  {
+    "id": "465f72f7-2cab-4a03-9d13-9a11bb523703",
+    "user_id": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+    "currency": "VES",
+    "available_balance": "5025.00",
+    "held_balance": "0.00",
+    "total_balance": "5025.00",
+    "updated_at": "2026-09-06T15:08:07.613Z",
+    "balance": "5025.00"
+  },
+  {
+    "id": "c51b991f-102c-4050-8aa8-dc8ec117419c",
+    "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "currency": "VES",
+    "available_balance": "5075.00",
+    "held_balance": "0.00",
+    "total_balance": "5075.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "5075.00"
+  },
+  {
+    "id": "2850d06a-0892-45f9-8e3e-8918cd864ce8",
+    "user_id": "dfd79652-1303-4259-b0a9-8b1044311802",
+    "currency": "VES",
+    "available_balance": "0.00",
+    "held_balance": "0.00",
+    "total_balance": "0.00",
+    "updated_at": "2026-09-03T01:25:48.519Z",
+    "balance": "0.00"
+  },
+  {
+    "id": "7f6efde6-4d9e-4fe8-aec2-a471c963454f",
+    "user_id": "d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda",
+    "currency": "VES",
+    "available_balance": "5125.00",
+    "held_balance": "0.00",
+    "total_balance": "5125.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "5125.00"
+  },
+  {
+    "id": "ea61b96b-3ee4-4347-aed0-492e6f58e04b",
+    "user_id": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+    "currency": "VES",
+    "available_balance": "4980.00",
+    "held_balance": "5.00",
+    "total_balance": "4985.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "4980.00"
+  },
+  {
+    "id": "8c669403-97cf-4173-a6e9-6248a9cf6231",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "currency": "VES",
+    "available_balance": "627.00",
+    "held_balance": "0.00",
+    "total_balance": "627.00",
+    "updated_at": "2026-09-06T16:05:01.972Z",
+    "balance": "627.00"
+  },
+  {
+    "id": "535889cc-39f6-4207-a6a0-962a504c9a6a",
+    "user_id": "7c8e5845-3f76-42c6-9e9f-4cdaeadf3df9",
+    "currency": "VES",
+    "available_balance": "50.00",
+    "held_balance": "0.00",
+    "total_balance": "50.00",
+    "updated_at": "2026-09-04T21:36:54.739Z",
+    "balance": "50.00"
+  },
+  {
+    "id": "f7787719-5362-4cfd-8ef8-b84e6e42b166",
+    "user_id": "c307c210-3e85-4962-a854-7fcf15b95978",
+    "currency": "VES",
+    "available_balance": "0.00",
+    "held_balance": "0.00",
+    "total_balance": "0.00",
+    "updated_at": "2026-09-04T04:36:53.310Z",
+    "balance": "0.00"
+  },
+  {
+    "id": "34e828f1-ebc1-4094-b087-696ffd06ea73",
+    "user_id": "1c136cc5-e048-4fab-a1b3-80100b62e1d5",
+    "currency": "VES",
+    "available_balance": "0.00",
+    "held_balance": "0.00",
+    "total_balance": "0.00",
+    "updated_at": "2026-09-04T04:36:53.310Z",
+    "balance": "0.00"
+  },
+  {
+    "id": "4ab110b5-7d0c-44fb-a545-7bfcea8d3f61",
+    "user_id": "5079428a-15e7-4fb7-b50d-30513b1fbb46",
+    "currency": "VES",
+    "available_balance": "0.00",
+    "held_balance": "0.00",
+    "total_balance": "0.00",
+    "updated_at": "2026-09-04T04:36:53.310Z",
+    "balance": "0.00"
+  },
+  {
+    "id": "a06088c6-eb54-42e0-b6e6-1884b4764133",
+    "user_id": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+    "currency": "VES",
+    "available_balance": "0.00",
+    "held_balance": "0.00",
+    "total_balance": "0.00",
+    "updated_at": "2026-09-04T04:36:53.310Z",
+    "balance": "0.00"
+  }
+]

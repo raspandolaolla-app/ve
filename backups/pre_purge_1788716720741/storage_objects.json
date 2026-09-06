@@ -1,0 +1,130 @@
+[
+  {
+    "id": "5ba36c99-1753-412e-bd8e-b55a7461c164",
+    "bucket_id": "payment-proofs",
+    "name": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217/1787886413415_crvfuz.jpeg",
+    "owner": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+    "created_at": "2026-08-28T03:06:54.147Z",
+    "metadata": {
+      "eTag": "\"936ca5f5585dccbf0a4eb290d39df458\"",
+      "size": 245304,
+      "mimetype": "image/jpeg",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-28T03:06:55.000Z",
+      "contentLength": 245304,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "60608ddd-ce96-43d5-9fba-f7df7fa93727",
+    "bucket_id": "kyc-documents",
+    "name": "5d9d5e94-6768-4f5b-9782-b754e23b3faa/cedula_1787896418066.png",
+    "owner": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+    "created_at": "2026-08-28T05:53:40.174Z",
+    "metadata": {
+      "eTag": "\"5d32c5ac4c42f0680ddd3151906d03ef\"",
+      "size": 1398816,
+      "mimetype": "image/png",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-28T05:53:41.000Z",
+      "contentLength": 1398816,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "b97973c7-c8e2-4f36-8f9b-aa6985dba9dd",
+    "bucket_id": "kyc-selfies",
+    "name": "5d9d5e94-6768-4f5b-9782-b754e23b3faa/selfie_1787896419160.jpg",
+    "owner": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+    "created_at": "2026-08-28T05:53:40.974Z",
+    "metadata": {
+      "eTag": "\"8d1b202251e17041b9dbb8ffcc55cd08\"",
+      "size": 1993661,
+      "mimetype": "image/jpeg",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-28T05:53:41.000Z",
+      "contentLength": 1993661,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "7838fe8e-9b3e-4c91-808a-ddcb1fd8cb99",
+    "bucket_id": "payment-proofs",
+    "name": "b733db64-4912-4a33-8d7a-4ee332c7b5f1/1788026085926_u3bxzj.jpg",
+    "owner": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "created_at": "2026-08-29T17:54:48.846Z",
+    "metadata": {
+      "eTag": "\"15f908f27d12d1adf253f0f38f3bd4c5\"",
+      "size": 82730,
+      "mimetype": "image/jpeg",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-29T17:54:49.000Z",
+      "contentLength": 82730,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "6295f19f-96ed-4df5-ada8-19a1c27fadb6",
+    "bucket_id": "payment-proofs",
+    "name": "fe0b1aa8-a9af-41b3-9484-2d70f0ec8bc5/1788035157003_epgkcq.jpg",
+    "owner": "fe0b1aa8-a9af-41b3-9484-2d70f0ec8bc5",
+    "created_at": "2026-08-29T20:25:58.063Z",
+    "metadata": {
+      "eTag": "\"9e7088c6fabcb0fb9ed3ae5d1033fe9b\"",
+      "size": 62821,
+      "mimetype": "image/jpeg",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-29T20:25:59.000Z",
+      "contentLength": 62821,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "57dc1d79-183c-4909-b29c-976012a45078",
+    "bucket_id": "payment-proofs",
+    "name": "b733db64-4912-4a33-8d7a-4ee332c7b5f1/1788035759894_fk2l4e.png",
+    "owner": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "created_at": "2026-08-29T20:36:00.379Z",
+    "metadata": {
+      "eTag": "\"d478e5187701b72cf1040c525e44a411\"",
+      "size": 187378,
+      "mimetype": "image/png",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-08-29T20:36:01.000Z",
+      "contentLength": 187378,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "057f5155-d48f-4898-b803-a9fec433084c",
+    "bucket_id": "payment-proofs",
+    "name": "38a8a8b6-30fd-4fed-86fd-71ea169ce856/1788288921001_06s2uy.png",
+    "owner": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+    "created_at": "2026-09-01T18:55:23.809Z",
+    "metadata": {
+      "eTag": "\"30319057e8dc34da973ad007ab1a7d67\"",
+      "size": 106681,
+      "mimetype": "image/png",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-09-01T18:55:24.000Z",
+      "contentLength": 106681,
+      "httpStatusCode": 200
+    }
+  },
+  {
+    "id": "cde4327b-19d8-4796-8286-058ac905b29c",
+    "bucket_id": "payment-proofs",
+    "name": "c307c210-3e85-4962-a854-7fcf15b95978/1788301154182_qh5sk0.png",
+    "owner": "c307c210-3e85-4962-a854-7fcf15b95978",
+    "created_at": "2026-09-01T22:19:19.854Z",
+    "metadata": {
+      "eTag": "\"7a614c86994bc5f305a224136902725d\"",
+      "size": 494175,
+      "mimetype": "image/png",
+      "cacheControl": "max-age=3600",
+      "lastModified": "2026-09-01T22:19:20.000Z",
+      "contentLength": 494175,
+      "httpStatusCode": 200
+    }
+  }
+]

@@ -1,0 +1,101 @@
+[
+  {
+    "id": "d58ee878-0bce-41b1-b9d7-aa6fa8ce470e",
+    "amount": "1000.00",
+    "game_type": null,
+    "display_order": 9,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "ab8e1fc6-01a7-404c-ae34-d463f9aa27fe",
+    "amount": "100.00",
+    "game_type": null,
+    "display_order": 6,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "47298d89-8622-40d2-a259-0175598dace0",
+    "amount": "2000.00",
+    "game_type": null,
+    "display_order": 10,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "a61fd871-12ef-4080-97af-888d5160527e",
+    "amount": "250.00",
+    "game_type": null,
+    "display_order": 7,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "c67a0bf9-48cb-43fa-a1cc-952f840a3f0e",
+    "amount": "50.00",
+    "game_type": null,
+    "display_order": 5,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "09c7954b-875e-4c61-8404-f5796af515b6",
+    "amount": "25.00",
+    "game_type": null,
+    "display_order": 4,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "10caf105-909b-43af-936f-0be815b99fa7",
+    "amount": "500.00",
+    "game_type": null,
+    "display_order": 8,
+    "is_active": true,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "713d04e9-ff3b-4fc9-8661-97736e44f40a",
+    "amount": "20.00",
+    "game_type": null,
+    "display_order": 3,
+    "is_active": false,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "058646dd-a11a-4a1f-89c7-fbf63ba8bb6e",
+    "amount": "15.00",
+    "game_type": null,
+    "display_order": 2,
+    "is_active": false,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "556791ca-03f8-4619-8eee-4f16a793e9e5",
+    "amount": "10.00",
+    "game_type": null,
+    "display_order": 1,
+    "is_active": false,
+    "created_at": "2026-08-27T02:21:53.222Z",
+    "updated_at": "2026-08-27T02:21:53.222Z"
+  },
+  {
+    "id": "3c0b0b06-31b0-4fa7-a78b-474dc0f06915",
+    "amount": "5000.00",
+    "game_type": null,
+    "display_order": 8,
+    "is_active": true,
+    "created_at": "2026-08-29T21:54:52.018Z",
+    "updated_at": "2026-08-29T21:54:52.018Z"
+  }
+]

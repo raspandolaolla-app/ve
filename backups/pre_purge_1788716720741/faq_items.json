@@ -1,0 +1,50 @@
+[
+  {
+    "id": "67726468-bbea-4d02-8910-ceede8d5e19a",
+    "category": "Cuenta",
+    "question": "¿Cómo me registro en la plataforma?",
+    "answer": "Haz clic en \"Ingresar\" en la parte superior, selecciona \"Continuar con Google\" o usa tu correo. El sistema creará tu perfil y billetera automáticamente.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  },
+  {
+    "id": "b93909df-1101-4fb6-a158-f8f8aafb421a",
+    "category": "Cuenta",
+    "question": "¿Cómo recupero mi usuario o contraseña?",
+    "answer": "Si usaste Google, solo inicia sesión de nuevo. Si usaste correo, ve a \"Ingresar\" y selecciona \"¿Olvidaste tu contraseña?\" para recibir un enlace de recuperación.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  },
+  {
+    "id": "06bede13-c4aa-46c1-bfd4-794b6d02d0d7",
+    "category": "Finanzas",
+    "question": "¿Cómo realizo una recarga?",
+    "answer": "Ve a la pestaña \"Billetera\", selecciona \"Recargar\", elige tu método de pago (Pago Móvil/Zelle), ingresa el monto y sube el comprobante. Un operador lo aprobará en minutos.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  },
+  {
+    "id": "ee4bf20c-993c-4e48-b28f-19d534b64aea",
+    "category": "Finanzas",
+    "question": "¿Cómo solicito un retiro?",
+    "answer": "En \"Billetera\", haz clic en \"Retirar\", ingresa el monto y tus datos bancarios. El procesamiento toma entre 15 y 60 minutos en días hábiles.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  },
+  {
+    "id": "785c4c54-a2ff-4f7c-b622-a653e9aa74ff",
+    "category": "Juegos",
+    "question": "¿Qué pasa si se me va el internet durante una partida?",
+    "answer": "¡No te preocupes! El estado del juego se guarda en el servidor. Tienes un tiempo límite para reconectarte sin perder tu partida.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  },
+  {
+    "id": "2201609c-c1a9-4ad9-a88a-8ce825e9bf27",
+    "category": "Seguridad",
+    "question": "¿Mis datos bancarios y saldo están protegidos?",
+    "answer": "Absolutamente. Todas las transacciones se auditan en un Libro Mayor inmutable (Ledger) con cifrado SSL de extremo a extremo y autenticación multifactor.",
+    "is_active": true,
+    "created_at": "2026-09-04T23:04:50.315Z"
+  }
+]

@@ -1,0 +1,93 @@
+[
+  {
+    "id": "1e05a3d1-193c-4065-a2bd-766efaca8224",
+    "user_id": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "role": "SUPER_ADMIN",
+    "granted_by": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "granted_at": "2026-08-27T00:49:59.704Z"
+  },
+  {
+    "id": "04055d4e-1735-403b-b12d-01a788c3f777",
+    "user_id": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+    "role": "PLAYER",
+    "granted_by": "5d9d5e94-6768-4f5b-9782-b754e23b3faa",
+    "granted_at": "2026-08-27T00:49:59.704Z"
+  },
+  {
+    "id": "161f44f6-af39-4f63-9bac-7a0d0878335b",
+    "user_id": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+    "role": "SUPER_ADMIN",
+    "granted_by": "42b24c41-83a5-4c68-ab8c-7dd09f1a5217",
+    "granted_at": "2026-08-27T00:49:59.704Z"
+  },
+  {
+    "id": "24d1589e-626b-4158-9dbc-d037bb4e5218",
+    "user_id": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "role": "PLAYER",
+    "granted_by": "008b4c84-7fd0-40c8-b6d3-d4246c756e56",
+    "granted_at": "2026-08-27T00:49:59.704Z"
+  },
+  {
+    "id": "d644a64a-90c9-4a66-8c61-5904d72330bc",
+    "user_id": "1c136cc5-e048-4fab-a1b3-80100b62e1d5",
+    "role": "PLAYER",
+    "granted_by": "1c136cc5-e048-4fab-a1b3-80100b62e1d5",
+    "granted_at": "2026-08-30T11:40:27.121Z"
+  },
+  {
+    "id": "2621214b-45f5-4f0c-bb81-77752cfb2972",
+    "user_id": "5079428a-15e7-4fb7-b50d-30513b1fbb46",
+    "role": "OPERATOR",
+    "granted_by": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "granted_at": "2026-08-31T15:04:43.185Z"
+  },
+  {
+    "id": "6c59e629-5c90-45b0-84f8-53e9528ab7d6",
+    "user_id": "10649e41-352c-4329-8614-b2a4ecb40679",
+    "role": "OPERATOR",
+    "granted_by": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "granted_at": "2026-09-01T06:03:49.760Z"
+  },
+  {
+    "id": "c60f314f-2b93-4f99-8d90-b358031af9dc",
+    "user_id": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+    "role": "PLAYER",
+    "granted_by": "38a8a8b6-30fd-4fed-86fd-71ea169ce856",
+    "granted_at": "2026-09-01T18:52:51.045Z"
+  },
+  {
+    "id": "ec53019e-3cad-42a9-b9b6-e0e0c6bfa071",
+    "user_id": "1584f14f-be50-4fbc-9679-885f08211433",
+    "role": "OPERATOR",
+    "granted_by": "b733db64-4912-4a33-8d7a-4ee332c7b5f1",
+    "granted_at": "2026-09-01T22:16:37.950Z"
+  },
+  {
+    "id": "f86edbf8-bdf7-4f6f-9f05-5f261e4dfedb",
+    "user_id": "c307c210-3e85-4962-a854-7fcf15b95978",
+    "role": "PLAYER",
+    "granted_by": "c307c210-3e85-4962-a854-7fcf15b95978",
+    "granted_at": "2026-09-01T22:17:59.563Z"
+  },
+  {
+    "id": "c33d11e5-1587-4cc1-a3f4-65206e9fbcd9",
+    "user_id": "dfd79652-1303-4259-b0a9-8b1044311802",
+    "role": "PLAYER",
+    "granted_by": "dfd79652-1303-4259-b0a9-8b1044311802",
+    "granted_at": "2026-09-03T01:25:48.519Z"
+  },
+  {
+    "id": "954b0280-cbeb-4431-abcf-b82d7fb8e036",
+    "user_id": "7c8e5845-3f76-42c6-9e9f-4cdaeadf3df9",
+    "role": "PLAYER",
+    "granted_by": "7c8e5845-3f76-42c6-9e9f-4cdaeadf3df9",
+    "granted_at": "2026-09-04T16:24:10.453Z"
+  },
+  {
+    "id": "5d233fb2-29e8-4be1-b82c-830c08dd65fb",
+    "user_id": "d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda",
+    "role": "PLAYER",
+    "granted_by": "d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda",
+    "granted_at": "2026-09-06T04:27:02.774Z"
+  }
+]

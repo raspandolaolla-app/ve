@@ -3,12 +3,14 @@
 -- Proyecto: RASPANDO LA OLLA — Corrección de session_status_enum ('ACTIVE' / 'WAITING')
 -- ==============================================================================
 
--- 1. Eliminar sobrecargas previas de start_game_session_secure para evitar conflictos de firma
+-- 1. Eliminar sobrecargas previas de start_game_session_secure para evitar conflictos de firma (PGRST203)
 DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID);
 DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, JSONB);
 DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, JSONB, INT);
 DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, INTEGER, UUID);
+DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, INT, UUID);
 DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, JSONB, INT, UUID);
+DROP FUNCTION IF EXISTS public.start_game_session_secure(UUID, JSONB, INTEGER, UUID);
 
 -- 2. Asegurar que las columnas turn_deadline_at y turn_expires_at existan en game_sessions
 ALTER TABLE public.game_sessions ADD COLUMN IF NOT EXISTS turn_deadline_at TIMESTAMPTZ;
@@ -43,6 +45,8 @@ BEGIN
     RAISE EXCEPTION 'NO_AUTENTICADO: Debes iniciar sesión para comenzar la partida.';
   END IF;
 
+  RAISE NOTICE '[start_game_session_secure] Iniciando para mesa % por usuario %', p_table_id, v_user_id;
+
   -- 1. Bloquear y obtener la mesa
   SELECT * INTO v_table FROM public.game_tables WHERE id = p_table_id FOR UPDATE;
   IF NOT FOUND THEN
@@ -71,6 +75,8 @@ BEGIN
   FOR UPDATE;
 
   IF FOUND THEN
+    RAISE NOTICE '[start_game_session_secure] Sesión existente detectada: %', v_session.id;
+
     SELECT jsonb_agg(jsonb_build_object(
       'user_id', user_id,
       'seat_number', seat_number,
@@ -82,14 +88,21 @@ BEGIN
     RETURN jsonb_build_object(
       'success', true,
       'alreadyActive', true,
+      'already_active', true,
       'source', 'existing_db_session',
       'sessionId', v_session.id,
+      'session_id', v_session.id,
       'tableId', p_table_id,
+      'table_id', p_table_id,
       'currentTurnUserId', v_session.current_turn_user_id,
+      'current_turn_user_id', v_session.current_turn_user_id,
       'turnDeadlineAt', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
+      'turn_deadline_at', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
       'turnExpiresAt', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
+      'turn_expires_at', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
       'players', v_players,
-      'gameState', v_session.current_state
+      'gameState', v_session.current_state,
+      'game_state', v_session.current_state
     );
   END IF;
 
@@ -170,7 +183,14 @@ BEGIN
     NOW()
   ) RETURNING id, current_turn_user_id, turn_expires_at, turn_deadline_at, current_state INTO v_session;
 
-  -- 7. Obtener jugadores para devolver
+  RAISE NOTICE '[start_game_session_secure] Nueva sesión creada exitosamente: %', v_session.id;
+
+  -- 7. Actualizar la mesa a ACTIVE
+  UPDATE public.game_tables
+  SET status = 'ACTIVE'::table_status_enum
+  WHERE id = p_table_id AND status::text != 'ACTIVE';
+
+  -- 8. Obtener jugadores para devolver
   SELECT jsonb_agg(jsonb_build_object(
     'user_id', user_id,
     'seat_number', seat_number,
@@ -182,18 +202,25 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'alreadyActive', false,
+    'already_active', false,
     'sessionId', v_session.id,
+    'session_id', v_session.id,
     'tableId', p_table_id,
+    'table_id', p_table_id,
     'currentTurnUserId', v_session.current_turn_user_id,
+    'current_turn_user_id', v_session.current_turn_user_id,
     'turnDeadlineAt', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
+    'turn_deadline_at', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
     'turnExpiresAt', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
+    'turn_expires_at', COALESCE(v_session.turn_expires_at, v_session.turn_deadline_at),
     'players', v_players,
-    'gameState', v_session.current_state
+    'gameState', v_session.current_state,
+    'game_state', v_session.current_state
   );
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.start_game_session_secure(UUID, JSONB, INTEGER, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.start_game_session_secure(UUID, JSONB, INTEGER, UUID) TO authenticated, service_role, anon;
 
 -- ==============================================================================
 -- SCRIPT DE RESETEO (CORREGIDO CON VALORES DE ENUM VÁLIDOS)

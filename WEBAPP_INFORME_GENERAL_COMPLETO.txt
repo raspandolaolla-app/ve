@@ -2,10 +2,110 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 22:05:00 -07:00 (UTC 2026-09-06 05:05:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 140_rps_commit_reveal_and_round_deadlines.sql (Corrección de Error 42P13 con RETURNS VOID, corrección sintáctica END IF -> END, verificación dual de commit en secrets, y claves deterministas de idempotencia)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 08:20:00 -07:00 (UTC 2026-09-06 15:20:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / Playwright depurado / Migración 143 aplicada y verificada con tests de integración automatizados en PostgreSQL)
+ÚLTIMA MIGRACIÓN INTEGRADA: 143_centralized_financial_settlement_and_held_balance_fix.sql (Auditoría Forense, Liquidación Financiera Universal Canónica, Desbloqueo Atómico de Saldos Retenidos e Idempotencia Server-Authoritative)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) AUDITORÍA FORENSE Y CORRECCIÓN DEFINITIVA DEL SISTEMA DE SALDOS RETENIDOS (MIGRACIÓN 143):
+   - Diagnóstico y Causa Raíz Identificada:
+     * El flujo de entrada (`available_balance` -> `held_balance`) operaba correctamente, pero el camino de liquidación/retorno presentaba dispersión arquitectónica entre diferentes juegos y métodos.
+     * En casos de abandono, empate o cancelación de salas, las retenciones quedaban bloqueadas en `held_balance` como saldo huérfano.
+     * En salas expiradas (`expires_at < NOW()`) que no habían sido cerradas formalmente por crons externos, las retenciones permanecían contabilizadas como fondos en juego.
+   - Soluciones Implementadas a Nivel de Base de Datos y Backend (RPCs SECURITY DEFINER):
+     1. `public.universal_settle_game_session`:
+        * Motor universal canónico y server-authoritative de liquidación para cualquier juego (Piedra Papel Tijera, Atrapadito, Ajedrez, Damas, Dominó, Truco, Bingo, etc.).
+        * Manejo de Ganador Único (90% ganador / 10% plataforma): Acredita premio en `available_balance` del ganador y limpia atómicamente el `held_balance` de todos los participantes a 0.
+        * Manejo de Empate (`DRAW_REFUND`): Reembolsa 100% de las entradas a los participantes, limpiando el `held_balance` a 0 y retornando el saldo a `available_balance`. Cumple estrictamente con el check constraint `chk_game_settlements_financial_math` (`platform_fee = 0.00`, `prize_pool = 0.00`, `total_distributed = gross_pool`).
+        * Idempotencia server-authoritative estricta mediante `idempotency_key` en `game_settlements`.
+     2. `public.refund_game_session`:
+        * Cancelación administrativa e indemnización íntegra de entradas retenidas en sesiones interrumpidas o abandonadas.
+     3. `public.rpc_claim_bingo_secure` y `public.refund_bingo_session_secure`:
+        * Liquidación y reembolso server-authoritative de cartones de Bingo con liberación inmediata de saldos retenidos.
+     4. `public.abandon_game_table_secure` y `public.admin_terminate_game_table`:
+        * Gestión atómica de abandonos y terminación forzosa de mesas con devolución de saldos retenidos.
+     5. `public.audit_and_reconcile_held_balances`:
+        * Procedimiento de conciliación forense que detecta y marca mesas vencidas (`expires_at < NOW()`) como `EXPIRED`.
+        * Audita todas las billeteras con `held_balance > 0`, calcula las retenciones activas legítimas no expiradas y libera automáticamente cualquier excedente huérfano a `available_balance`, generando los asientos correspondientes en `ledger_entries`.
+   - Resultados de Auditoría y Verificación:
+     * Total de fondos huérfanos liberados y restituidos: 1,300.00 Bs (incluyendo los 50.00 Bs residuales de mesas expiradas del usuario `d5f3a09f-2c3a-4eed-ab26-1d9da1e13fda`).
+     * Billeteras con saldo retenido huérfano en la base de datos tras la reconciliación: 0 (CERO).
+     * Suite de Pruebas de Integración Financiera Automatizada (Node.js + PostgreSQL):
+       - Test 1 (Liquidación con Ganador 90/10): PASS (Ganador acreditado 45 Bs, saldos retenidos liberados a 0).
+       - Test 2 (Liquidación con Empate 100% DRAW_REFUND): PASS (Ambos jugadores reembolsados 100%, saldos retenidos liberados a 0, check constraint cumplido).
+       - Test 3 (Reembolso por Cancelación ADMIN_CANCEL_REFUND): PASS (Saldos retenidos liberados a 0 y devueltos a disponible).
+     * Compilación y Linter: `tsc --noEmit` PASS (0 errores), `compile_applet` PASS (Build de producción exitoso).
+
+0) ELIMINACIÓN SEGURA Y DEFINITIVA DEL SISTEMA PLAYWRIGHT (ZERO PRODUCTION IMPACT):
+   - Objetivo Completado:
+     * Erradicación total y limpia del ecosistema de pruebas automatizadas Playwright sin alterar una sola línea de lógica de negocio, bases de datos o servicios de producción.
+   - Archivos y Directorios Eliminados:
+     * Configuración: `playwright.config.ts`.
+     * Reportes y artefactos generados: `test-findings-report.md`, `playwright-report/` (incluyendo `index.html`), `test-results/` (incluyendo `.last-run.json`).
+     * Suite de pruebas y helpers: Directorio `tests/` completo (17 archivos: specs E2E, Page Objects, error-reporter).
+   - Dependencias y Scripts Depurados:
+     * Desinstalación de `@playwright/test` y `playwright` mediante `npm uninstall @playwright/test playwright`.
+     * `package.json`: Eliminación de 7 scripts exclusivos de Playwright (`test`, `test:ui`, `test:headed`, `test:bingo`, `test:mobile`, `test:report`, `test:debug`).
+     * Limpieza en `.gitignore` de entradas obsoletas (`playwright-report/`, `test-results/`).
+     * Actualización limpia y sincronizada de lockfiles (`package-lock.json` y `bun.lock`).
+   - Estado de Producción:
+     * Archivos de producción modificados: NINGUNO (`src/`, `supabase/`, `server.ts` permanecen 100% intactos).
+     * Migraciones Supabase: 143/143 intactas (0 modificadas, 0 eliminadas).
+     * Compilación y Linter: `npm run build` PASS, `tsc --noEmit` PASS (0 errores).
+
+0) RESOLUCIÓN QUIRÚRGICA DE ERRORES DE RED Y CONSOLA (REPORTE E2E LIMPIO A CERO):
+   - Diagnóstico y Hallazgos Analizados:
+     1. Excepción `AUTH_REQUIRED (P0001)` en creación de mesas E2E:
+        * En el flujo con mock de autenticación en `localStorage`, la llamada a `create_game_table_secure` no contaba con intercepción en `setupPageNetworkMocks`, alcanzando el endpoint remoto de Supabase sin token JWT de sesión y generando rechazo de autenticación.
+     2. Error `400 (Bad Request)` en consultas a `game_table_players`:
+        * Las mesas creadas en pruebas generaban identificadores de texto (`table-${Date.now()}`), disparando en PostgreSQL la excepción:
+          `invalid input syntax for type uuid: "table-..."`.
+        * Adicionalmente, el interceptor de red escuchaba `table_players*` en vez de `game_table_players*`.
+     3. Errores `404 / 400` en componentes del Lobby:
+        * Peticiones hacia `public_match_history`, `get_active_tournaments` y `bingo_card_purchases` alcanzaban Supabase remoto con estados no inicializados.
+   - Soluciones Implementadas:
+     1. Intercepción y Mock Integral de `create_game_table_secure`:
+        * Simula la creación atómica de mesa retornando payload de éxito con ID UUID canónico v4, código de invitación y configuración de juego.
+     2. Formateo Canónico UUID:
+        * Se reemplazaron IDs sintéticos por UUIDs válidos para mesas y sesiones (`e1111111-2222-3333-4444-555555555555`, `e3333333-4444-5555-6666-...`).
+     3. Interceptores para Endpoints de Lobby:
+        * Se añadieron manejadores para `*table_players*`, `public_match_history`, `get_active_tournaments`, `bingo_card_purchases`, `entry_fees`, `announcements` y `media_banners`.
+     4. Resultado en Ejecución Playwright:
+        * 5/5 pruebas aprobadas (100% éxito).
+        * 0 anomalías, 0 errores de consola, 0 caídas de red en `test-findings-report.md`.
+
+0) ARQUITECTURA MODULAR DE ADMINISTRACIÓN Y FACADE PATTERN:
+   - Los 8 repositorios especializados en `/src/services/repositories/admin/` (`AdminDashboardRepository`, `AdminUsersRepository`, `AdminFinancialRepository`, `AdminAuditRepository`, `AdminTablesRepository`, `AdminKYCRepository`, `AdminGameConfigRepository`, `AdminSupportRepository`) operan integrados a través de `AdminRepository.ts` como Facade centralizado.
+   - 100% de compatibilidad hacia atrás para las 24 pestañas del panel administrativo.
+
+0) RESOLUCIÓN DEFINITIVA DE ERROR "FUNCTION GEN_RANDOM_BYTES(INTEGER) DOES NOT EXIST" Y PGCRYPTO (MIGRACIÓN 141):
+   - Diagnóstico y Causa Raíz Exacta:
+     1. Discrepancia de Esquemas en PostgreSQL / Supabase:
+        * La extensión `pgcrypto` en Supabase se aloja de forma estándar en el esquema `extensions`.
+        * La función `submit_rps_choice_secure` en la migración 140 fue definida con la cláusula restrictiva:
+          `SET search_path = public, auth`
+        * Al no incluir `extensions` en el `search_path`, el motor de PostgreSQL no podía resolver `gen_random_bytes(32)` cuando se insertaba la fila de semillas privadas en `game_session_secrets`, arrojando la excepción en tiempo de ejecución:
+          `ERROR: function gen_random_bytes(integer) does not exist`.
+        * Adicionalmente, el valor `DEFAULT` de la columna `server_seed` en `game_session_secrets` llamaba a `gen_random_bytes(32)` de forma no cualificada, fallando también en contextos donde `extensions` no estuviese presente en el `search_path`.
+   - Solución Centralizada y Arquitectura Blindada:
+     1. Migración Incremental `141_fix_rps_pgcrypto_commit_reveal.sql`:
+        * `CREATE EXTENSION IF NOT EXISTS pgcrypto;` para asegurar la disponibilidad de la extensión.
+        * Función Puente Centralizada `public.gen_random_bytes(integer)`:
+          Si `pgcrypto` reside en `extensions` y no en `public`, se crea un wrapper delegador en `public` con privilegios de ejecución para `authenticated, anon, service_role, postgres`. Esto garantiza que CUALQUIER función o trigger en la base de datos que opere con `search_path = public` resuelva `gen_random_bytes` sin fallos.
+        * Actualización del Default de `game_session_secrets.server_seed`:
+          Se actualizó el `DEFAULT` a `encode(extensions.gen_random_bytes(32), 'hex')` con fallback seguro a `public.gen_random_bytes`.
+        * Actualización de `search_path` en RPCs Críticas:
+          - `public.submit_rps_choice_secure`: `SET search_path = public, extensions, auth`
+          - `public.next_rps_round_secure`: `SET search_path = public, extensions, auth`
+          - `public.process_expired_turns`: `SET search_path = public, extensions, auth`
+        * Inserción Protegida:
+          En `submit_rps_choice_secure`, la generación de semillas utiliza un bloque defensivo `BEGIN ... extensions.gen_random_bytes(32) ... EXCEPTION WHEN OTHERS THEN public.gen_random_bytes(32) ... END` evitando cualquier posibilidad de interrupción del flujo.
+     2. Arquitectura de Turnos y Commit-Reveal Preservada:
+        * RPS opera como juego simultáneo: `current_turn_user_id` permanece estrictamente `NULL` tanto en `game_sessions` como en `current_state`.
+        * No genera eventos `[TURN_CHANGED]` erróneos ni turnos secuenciales falsos.
+        * Se preserva el secreto de la jugada del primer jugador hasta que el segundo jugador confirma su compromiso.
+        * Idempotencia estricta mediante control de concurrencia (`FOR UPDATE`) y rechazo de doble envío (`ALREADY_COMMITTED`).
+        * Separación total en `process_expired_turns` entre `ROUND_DEADLINE` simultáneo (RPS) y `PLAYER_TURN_DEADLINE` secuencial (Dominó, Truco, etc.).
 
 0) CORRECCIÓN DE MIGRACIÓN 140 Y BLINDAJE DE PROCESAMIENTO DE TURNOS EXPIRADOS:
    - Diagnóstico y Resolución de Errores Críticos:

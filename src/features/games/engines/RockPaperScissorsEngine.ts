@@ -277,13 +277,13 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       return { valid: false, reason: 'La partida ya ha finalizado.' };
     }
 
-    const actionType = action.actionType;
+    const actionType = action.actionType || (action as any).type;
     if (actionType === 'CHOOSE' || actionType === 'SUBMIT_CHOICE') {
       if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
         return { valid: false, reason: 'No se están recibiendo selecciones en esta fase.' };
       }
 
-      const rawChoice = action.actionData?.choice;
+      const rawChoice = action.actionData?.choice ?? (action as any).data?.choice;
       const choice = (rawChoice || '').toString().toUpperCase();
       if (!['ROCK', 'PAPER', 'SCISSORS'].includes(choice)) {
         return { valid: false, reason: 'Opción inválida (debe ser Piedra, Papel o Tijera).' };
@@ -309,13 +309,8 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       return { valid: true };
     }
 
-    if (actionType === 'TIMEOUT') {
-      if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
-        return { valid: false, reason: 'No se puede procesar timeout fuera de fase de selección.' };
-      }
-      return { valid: true };
-    }
-
+    // ✅ ELIMINADO: Validación de TIMEOUT
+    // RPS es juego simultáneo commit-reveal, no tiene timeout por turno
     return { valid: false, reason: `Tipo de acción no soportada: ${actionType}` };
   }
 
@@ -333,8 +328,11 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       };
     }
 
-    if (action.actionType === 'CHOOSE' || action.actionType === 'SUBMIT_CHOICE') {
-      const choice = (action.actionData?.choice || '').toString().toUpperCase() as RPSChoice;
+    const actionType = action.actionType || (action as any).type;
+
+    if (actionType === 'CHOOSE' || actionType === 'SUBMIT_CHOICE') {
+      const rawChoice = action.actionData?.choice ?? (action as any).data?.choice;
+      const choice = (rawChoice || '').toString().toUpperCase() as RPSChoice;
       const newState = processRPSAction(state, action.userId, choice);
 
       const isGameOver = newState.status === 'MATCH_ENDED' || Boolean(newState.matchWinner);
@@ -354,7 +352,7 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       };
     }
 
-    if (action.actionType === 'NEXT_ROUND') {
+    if (actionType === 'NEXT_ROUND') {
       const newState = nextRound(state);
       return {
         newState,
@@ -366,34 +364,12 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       };
     }
 
-    if (action.actionType === 'TIMEOUT') {
-      const choices: RPSChoice[] = ['ROCK', 'PAPER', 'SCISSORS'];
-      const randomChoice = choices[Math.floor(Math.random() * choices.length)];
-      const targetUserId = action.userId || state.currentTurnUserId || (
-        !state.player1Choice ? state.player1Id : state.player2Id
-      );
-      const newState = processRPSAction(state, targetUserId, randomChoice);
-      const isGameOver = newState.status === 'MATCH_ENDED' || Boolean(newState.matchWinner);
-      const winnerUserId = newState.matchWinner === 'PLAYER1' 
-        ? newState.player1Id 
-        : newState.matchWinner === 'PLAYER2' 
-        ? newState.player2Id 
-        : newState.winnerUserId || null;
-
-      return {
-        newState,
-        isValid: true,
-        isGameOver,
-        winnerUserId,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
-    }
-
+    // ✅ ELIMINADO: Manejo de TIMEOUT
+    // RPS no tiene timeout
     return {
       newState: state,
       isValid: false,
-      errorMessage: 'Acción desconocida',
+      errorMessage: 'Acción desconocida o no permitida',
       isGameOver: false,
       winnerUserId: null,
       winnerTeamIndex: null,

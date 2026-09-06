@@ -1225,13 +1225,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onAction={(actionType, data) => handleGameAction(actionType, data)}
             onSubmitChoice={(choice) => handleGameAction('CHOOSE', { choice })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
-            onTurnTimeout={() => {
-              if (!hasChosen && isRoundCommit) {
-                const choices = ['ROCK', 'PAPER', 'SCISSORS'];
-                const randomChoice = choices[Math.floor(Math.random() * choices.length)];
-                handleGameAction('CHOOSE', { choice: randomChoice });
-              }
-            }}
           />
         );
       }

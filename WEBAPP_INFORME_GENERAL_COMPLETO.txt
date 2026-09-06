@@ -2,10 +2,31 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 21:55:00 -07:00 (UTC 2026-09-06 04:55:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 22:05:00 -07:00 (UTC 2026-09-06 05:05:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 140_rps_commit_reveal_and_round_deadlines.sql (RPCs atómicas submit_rps_choice_secure y next_rps_round_secure, y Round Deadlines en process_expired_turns)
+ÚLTIMA MIGRACIÓN INTEGRADA: 140_rps_commit_reveal_and_round_deadlines.sql (Corrección de Error 42P13 con RETURNS VOID, corrección sintáctica END IF -> END, verificación dual de commit en secrets, y claves deterministas de idempotencia)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CORRECCIÓN DE MIGRACIÓN 140 Y BLINDAJE DE PROCESAMIENTO DE TURNOS EXPIRADOS:
+   - Diagnóstico y Resolución de Errores Críticos:
+     1. Corrección de Error PostgreSQL 42P13:
+        * Problema: `CREATE OR REPLACE FUNCTION public.process_expired_turns() RETURNS INT` fallaba con `ERROR: 42P13: cannot change return type of existing function` debido a que la migración 117 la definió originalmente con `RETURNS VOID`.
+        * Solución: Se incluyó `DROP FUNCTION IF EXISTS public.process_expired_turns();` defensivo y se restauró la firma canónica a `RETURNS VOID`, preservando compatibilidad exacta con `server.ts` y las Edge Functions de Supabase.
+     2. Corrección de Error Sintáctico en PL/pgSQL:
+        * Problema: La sección de extracción de `player1Id` y `player2Id` terminaba con `END IF;` en un bloque `BEGIN ... EXCEPTION WHEN OTHERS THEN ...`.
+        * Solución: Reemplazado por `END;` conforme a la sintaxis del lenguaje procedimental de PostgreSQL.
+     3. Blindaje de Idempotencia y Prevención de Doble Liquidación:
+        * Problema: La migración contenía cláusulas `EXCEPTION` que aplicaban `UPDATE public.wallets` directamente si `settle_game_session` fallaba, arriesgando doble acreditación de fondos sin respaldo en el libro mayor (`ledger_entries`).
+        * Solución: Se eliminó cualquier manipulación manual directa de saldos. Toda acreditación de premios o reembolsos se delega exclusivamente a `public.settle_game_session`, la cual valida el estado de la sesión, bloqueos contables e historial de transacciones.
+        * Claves Deterministas: Se implementaron claves únicas para el daemon:
+          - Juegos Secuenciales: `seq_timeout_<sessionId>_<turnUserId>_<epoch>`
+          - RPS: `rps_timeout_<sessionId>_rnd_<round>`
+     4. Verificación Dual de Compromiso (Commit-Reveal Autoritativo):
+        * Para determinar qué jugador envió su jugada en RPS antes del deadline, `process_expired_turns` ahora consulta tanto `game_session_secrets.secret_state->'rps_choices'` como `game_sessions.current_state->'playerChoices'`, evitando desincronizaciones entre el almacén secreto y el estado público.
+     5. Protección contra Doble Envío de Jugada:
+        * En `submit_rps_choice_secure`, se incorporó la validación `ALREADY_COMMITTED` que impide a un jugador cambiar o sobrescribir su jugada secreta una vez enviada en la ronda activa.
+     6. Manejo de Timeout Doble en RPS:
+        * Si ninguno de los dos jugadores envía su jugada antes de que expire `turn_expires_at`, la partida se cancela de forma segura mediante `settle_game_session(sessionId, ARRAY[]::uuid[], ...)` reembolsando el 100% de la entrada a los participantes y cerrando la mesa.
 
 0) AUDITORÍA Y CORRECCIÓN DEFINITIVA DEL SISTEMA DE TURNOS Y ARQUITECTURA COMMIT-REVEAL DE PIEDRA, PAPEL O TIJERA (RPS):
    - Diagnóstico y Causa Raíz Centralizada:

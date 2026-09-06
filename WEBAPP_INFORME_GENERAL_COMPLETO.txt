@@ -1,11 +1,97 @@
-================================================================================
+===============================================================================
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 14:50:00 -07:00 (UTC 2026-09-05 21:50:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 17:05:00 -07:00 (UTC 2026-09-06 00:05:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 135_fix_start_game_session_enum.sql (Actualizada con diagnóstico RAISE NOTICE y soporte camelCase/snake_case)
+ÚLTIMA MIGRACIÓN INTEGRADA: 139_fix_turn_expires_at_refresh.sql (Trigger automático trg_refresh_turn_expires_at para actualización de turn_expires_at)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CORRECCIÓN QUIRÚRGICA DE IMPORTACIÓN POR DEFECTO Y GUARD LIMPIO EN ROCK PAPER SCISSORS (0 ERRORES TYPESCRIPT):
+   - Diagnóstico y Ajustes Realizados:
+     1. `src/features/games/components/GameContainer.tsx`:
+        * Modificada la importación de `RockPaperScissorsBoard` de importación con nombre (`{ RockPaperScissorsBoard }`) a importación por defecto (`import RockPaperScissorsBoard from './RockPaperScissorsBoard'`), resolviendo el error TS de resolución de exportación.
+     2. `src/features/games/components/RockPaperScissorsBoard.tsx`:
+        * Depurada la función `handleChoice` eliminando la comprobación redundante/inalcanzable `if (state.status === 'MATCH_ENDED')` tras `if (state.status !== 'ROUND_COMMIT')`, eliminando el aviso de código inalcanzable TS2367.
+        * La función ahora cuenta con 2 guards precisos: comprobación de fase de compromiso (`ROUND_COMMIT`) y comprobación de `hasPlayerChosen`.
+   - Verificaciones de Calidad:
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Compilación de producción exitosa).
+
+0) CORRECCIÓN QUIRÚRGICA DEFINITIVA DE LÓGICA SIMULTÁNEA (COMMIT-REVEAL) EN PIEDRA, PAPEL O TIJERA (RESOLUCIÓN DEL ERROR "ESPERANDO AL RIVAL" EN AMBAS VENTANAS):
+   - Diagnóstico y Causa Raíz Detectada:
+     * En Piedra, Papel o Tijera (RPS), la evaluación de `hasPlayerChosen` o `isMyTurn` no evaluaba de forma independiente y aislada el estado de cada cliente.
+     * Al registrar la jugada del primer jugador, el motor `RockPaperScissorsEngine.ts` actualizaba `currentTurnUserId` y `turnUserId` hacia el segundo jugador como si fuese un juego por turnos alternados, lo que generaba interferencias de turno secuencial en componentes compartidos.
+     * Asimismo, la verificación previa de elecciones en el cliente podía evaluar falsamente que ambos jugadores ya habían elegido o que ninguno podía elegir, mostrando "Esperando al rival" en ambas ventanas simultáneamente.
+   - Soluciones Implementadas (4 Pasos):
+     1. `src/features/games/components/RockPaperScissorsBoard.tsx`:
+        * Implementada versión blindada para juego simultáneo donde cada ventana calcula su estado de forma autónoma.
+        * Propagación limpia de `state`, `currentUserId`, `hasPlayerChosen`, `onSubmitChoice` y `onNextRound`.
+        * Guard estricto en `handleChoice`: solo se puede elegir en fase de commit (`ROUND_COMMIT` o `selecting`), si `!hasPlayerChosen` y si la partida no ha concluido.
+        * Indicador de estado dinámico y desacoplado:
+          - Jugador que ya eligió (`hasPlayerChosen === true`): Muestra spinner animado con texto "✓ Tu jugada registrada. Esperando al rival...".
+          - Jugador que aún no ha elegido (`hasPlayerChosen === false`): Muestra banner destacado "🎯 ¡Es tu turno! Elige tu jugada" con botones interactivos totalmente activos.
+        * Arena de enfrentamiento (#rps-duel-arena): Muestra "✓ Eligió" para quien ya confirmó su jugada y "Esperando..." para quien aún no lo hace, revelando las elecciones completas con animación sólo en la fase `ROUND_REVEAL`.
+        * Detección exacta de ganador/perdedor con feedback visual claro ("🎉 ¡GANASTE! (-1 Vida al rival)" vs "💀 PERDISTE (-1 Vida)" vs "🤝 ¡EMPATE! (Nadie pierde vida)").
+     2. `src/features/games/components/RockPaperScissorsGame.tsx`:
+        * Simplificado como wrapper directo de `RockPaperScissorsBoard`, delegando `currentUserId`, `hasPlayerChosen`, `onSubmitChoice` y `onNextRound`.
+     3. `src/features/games/components/GameContainer.tsx`:
+        * Cálculo estricto de `hasPlayerChosen` por jugador verificado contra `null` y `undefined`:
+          - Si `currentUserId === player1Id`: evalúa `(player1Choice !== null && player1Choice !== undefined) || playerChoices?.[currentUserId]?.committed`.
+          - Si `currentUserId === player2Id`: evalúa `(player2Choice !== null && player2Choice !== undefined) || playerChoices?.[currentUserId]?.committed`.
+        * Pasa `hasPlayerChosen` explícito al tablero para garantizar renderizado independiente en cada ventana.
+     4. `src/features/games/engines/RockPaperScissorsEngine.ts`:
+        * Eliminado el cambio alternado de `currentTurnUserId` / `turnUserId` en `processRPSAction`. Ambos jugadores permanecen en estado simultáneo de selección mientras dure `ROUND_COMMIT`.
+        * Establecidos `currentTurnUserId: null` y `turnUserId: null` tanto en `initializeRPSState` como en `nextRound`, evitando cualquier bloqueo por turnos secuenciales.
+        * `processRPSAction` transiciona a `ROUND_REVEAL` y calcula ganador, vidas y match única y exclusivamente cuando ambos jugadores (`player1Choice && player2Choice`) han elegido.
+   - Verificaciones de Calidad:
+     * `compile_applet`: PASS (Compilación exitosa).
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+
+
+0) ELIMINACIÓN DEFINITIVA DE TURNTIMER Y TIEMPOS DE ESPERA EN PIEDRA, PAPEL O TIJERA (RPS - ELECCIÓN SIMULTÁNEA COMMIT-REVEAL):
+   - Diagnóstico y Causa Raíz Confirmada:
+     * Piedra, Papel o Tijera es un juego de elección simultánea protegida (Commit-Reveal), NO un juego secuencial por turnos como Ajedrez o Damas.
+     * La presencia de `TurnTimer` calculaba tiempo basándose en un `turnExpiresAt` arbitrario del servidor, introduciendo falsas alertas de urgencia y cortes abruptos mientras ambos jugadores decidían su jugada.
+   - Soluciones Implementadas:
+     1. `src/features/games/components/RockPaperScissorsBoard.tsx`:
+        * Eliminado el componente `TurnTimer` del renderizado visual de RPS.
+        * Ambos jugadores eligen libremente y de forma simultánea. El estado visual muestra claramente:
+          - Antes de elegir: "🎯 Elige tu jugada" con botones interactivos de Piedra, Papel o Tijera.
+          - Tras elegir: "✓ Eligió" con spinner de carga y mensaje "Esperando al rival...".
+          - Revelación: Animación con rotación de las opciones solo cuando ambos jugadores han completado su jugada.
+        * Incorporación de IDs semánticos estándar para compatibilidad total con la suite E2E de Playwright (`#rps-choice-btn-rock`, `#rps-choice-btn-paper`, `#rps-choice-btn-scissors`, `#rps-lives-display`, `#rps-duel-arena`, `#rps-game-over-screen`).
+     2. `src/features/games/components/RockPaperScissorsGame.tsx`:
+        * Eliminada toda lógica activa de temporizador y propagación de callbacks de timeout a la vista del tablero.
+     3. `src/features/games/engines/RockPaperScissorsEngine.ts`:
+        * Eliminada la validación y el manejo de acciones `TIMEOUT` en `validateAction` y `applyAction`.
+        * El motor preserva de forma estricta las reglas oficiales de 3 vidas, anonimización con `getSanitizedStateForPlayer` durante la fase de selección, y evaluación pura de commit-reveal (`evaluateRound`).
+     4. `src/features/games/components/GameContainer.tsx`:
+        * Eliminada la inyección de `onTimeout` para `rock_paper_scissors`, previniendo cualquier interrupción forzada o penalización de tiempo innecesaria en la sala.
+   - Verificaciones de Calidad:
+     * `compile_applet`: PASS (Compilación completa exitosa sin errores).
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores en todo el proyecto).
+
+0) SOLUCIÓN DEFINITIVA A TIMEOUT ERRÓNEO EN PIEDRA, PAPEL O TIJERA Y TODOS LOS JUEGOS DE SALA (3 PASOS):
+   - Diagnóstico y Causa Raíz Detectada:
+     * Al realizar una jugada o pasar a una nueva ronda, `turn_expires_at` en `game_sessions` no se refrescaba en la base de datos para la nueva ronda/turno si la RPC no lo recalculaba explícitamente.
+     * El frontend leía el `turnExpiresAt` obsoleto de la ronda anterior (ej. 15s desde el inicio), disparando un timeout erróneo en medio de la partida activa e interrumpiendo el flujo.
+   - Soluciones Implementadas:
+     1. `supabase/migrations/139_fix_turn_expires_at_refresh.sql`:
+        * Creación de la función disparadora `public.fn_refresh_turn_expires_at()` y el trigger `trg_refresh_turn_expires_at` sobre `public.game_sessions`.
+        * Se activa `BEFORE UPDATE OF current_state, status` cuando `current_state` o `status` cambian.
+        * Si el estado es jugable (`ACTIVE`, `WAITING`, `READY`, `SALES`, `DRAWING`, `PLAYING`, `ROUND_COMMIT`), calcula la duración del turno (desde `current_state->>'turnDurationSeconds'` o `turn_duration_seconds` con fallback seguro de 15s) y actualiza automáticamente `turn_expires_at = NOW() + INTERVAL 'v_duration seconds'` y `turn_deadline_at`.
+        * Garantiza la actualización universal del tiempo de turno para Piedra/Papel/Tijera, Truco, Atrapaíto, La Vieja, Damas y Dominó.
+     2. `src/features/games/components/TurnTimer.tsx`:
+        * Implementación de fallback optimista: si `storedExpiresAt < now`, pero el estado del juego sigue siendo activo/jugable, detecta que el backend aún no ha emitido el nuevo timestamp y extiende el tiempo localmente (`effectiveExpiresAt = now + durationSeconds * 1000`).
+        * Evita cortes por latencia o desincronización de red, alertando en consola y reiniciando el conteo de 15s para la nueva ronda.
+        * Pausa estricta en estados no jugables (`round_reveal`, `round_result`, `match_ended`, `waiting`, etc.).
+        * Mantiene compatibilidad total con props existentes (`isMyTurn`, `activePlayerName`, `className`) y exportación doble (`export const TurnTimer` y `export default TurnTimer`).
+     3. `src/features/games/engines/RockPaperScissorsEngine.ts`:
+        * Verificación de la transición de estados en `processRPSAction` y `nextRound`. Al elegir ambos jugadores pasa limpiamente a `ROUND_REVEAL`, y tras resolver avanza a `ROUND_COMMIT` reiniciando las elecciones, vidas e historial descriptivo.
+   - Verificaciones de Calidad:
+     * `compile_applet`: PASS (Compilación completa exitosa sin errores).
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores en todo el proyecto).
 
 0) CORRECCIÓN INTEGRAL Y ESTANDARIZACIÓN DEL SISTEMA DE TURNOS, TEMPORIZADORES Y TIMEOUTS EN MOTORES Y TABLEROS (TRUCO VENEZOLANO, LA VIEJA, DAMAS Y DOMINÓ):
    - Diagnóstico y Causa Raíz Detectada:

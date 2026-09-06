@@ -37,7 +37,8 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
   clearError: () => void;
   isLoginModalOpen: boolean;
-  openLoginModal: () => void;
+  loginContextReason: string | null;
+  openLoginModal: (reason?: string | React.SyntheticEvent) => void;
   closeLoginModal: () => void;
 }
 
@@ -148,9 +149,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean>(false);
   const [termsRecord, setTermsRecord] = useState<TermsAcceptanceRecord | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [loginContextReason, setLoginContextReason] = useState<string | null>(null);
 
-  const openLoginModal = React.useCallback(() => setIsLoginModalOpen(true), []);
-  const closeLoginModal = React.useCallback(() => setIsLoginModalOpen(false), []);
+  const openLoginModal = React.useCallback((reason?: string | React.SyntheticEvent) => {
+    const text = typeof reason === 'string' ? reason : null;
+    setLoginContextReason(text);
+    setIsLoginModalOpen(true);
+  }, []);
+  const closeLoginModal = React.useCallback(() => {
+    setIsLoginModalOpen(false);
+    setLoginContextReason(null);
+  }, []);
 
   const loadedUserIdRef = React.useRef<string | null>(null);
   const supabase = getSupabaseClient();
@@ -580,6 +589,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       clearError,
       isLoginModalOpen,
+      loginContextReason,
       openLoginModal,
       closeLoginModal,
     }),
@@ -594,6 +604,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasAcceptedTerms,
       termsRecord,
       isLoginModalOpen,
+      loginContextReason,
       openLoginModal,
       closeLoginModal,
     ]
@@ -602,7 +613,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={closeLoginModal}
+        contextMessage={loginContextReason}
+      />
     </AuthContext.Provider>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 import { SUPPORTED_GAMES_METADATA } from '../../../utils/constants';
+import { useGameAvailability } from '../../../context/GameAvailabilityContext';
 import { FinancialRepository } from '../../../services/repositories/FinancialRepository';
 import { formatBolivares } from '../../../utils/formatters';
 import type { GameType, GameMode } from '../../../types/games';
@@ -74,7 +75,26 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
   onSubmit,
   onCreateBingoTable,
   onForceLeaveAndRetry,
-}) => {
+}: CreateTableModalProps) => {
+  const { isGameEnabled } = useGameAvailability();
+
+  const availableGames = React.useMemo(() => {
+    return SUPPORTED_GAMES_METADATA.filter((game) => isGameEnabled(game.id));
+  }, [isGameEnabled]);
+
+  // Si el juego actual fue deshabilitado, seleccionar el primero disponible
+  React.useEffect(() => {
+    if (availableGames.length > 0 && !isGameEnabled(createGameType)) {
+      const firstAvailable = availableGames[0];
+      setCreateGameType(firstAvailable.id);
+      if (!createIsPractice) {
+        setCreateEntryFee(firstAvailable.minEntryFee);
+      }
+      setCreateMaxPlayers(firstAvailable.maxPlayers);
+      setCreateMode(firstAvailable.allowedModes[0]);
+    }
+  }, [availableGames, createGameType, isGameEnabled, createIsPractice, setCreateGameType, setCreateEntryFee, setCreateMaxPlayers, setCreateMode]);
+
   if (!isOpen) return null;
 
   return (
@@ -161,7 +181,7 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
             }}
             className="w-full px-5 py-4 bg-slate-950 border-2 border-slate-700 rounded-2xl text-slate-100 text-base font-semibold focus:outline-none focus:border-amber-500 transition-colors"
           >
-            {SUPPORTED_GAMES_METADATA.map((game) => (
+            {availableGames.map((game) => (
               <option key={game.id} value={game.id} className="py-2">
                 {game.name} ({game.minPlayers === game.maxPlayers ? `${game.minPlayers} jug.` : `${game.minPlayers}-${game.maxPlayers} jug.`})
               </option>

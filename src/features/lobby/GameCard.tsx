@@ -4,8 +4,9 @@
 // ==============================================================================
 
 import React from 'react';
-import { Users, Zap, Trophy, Play, HelpCircle } from 'lucide-react';
+import { Users, Zap, Trophy, Play, HelpCircle, Sparkles } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
+import { GameRegistry } from '../../services/games/GameRegistry';
 
 interface GameCardProps {
   game: GameMetadata;
@@ -22,6 +23,13 @@ const GameVisualGraphic: React.FC<{ gameId: string }> = ({ gameId }) => {
         <div className="flex items-center justify-center font-black text-2xl sm:text-3xl tracking-tighter text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.6)]">
           <span>X</span>
           <span className="text-amber-400 ml-0.5">O</span>
+        </div>
+      );
+    case 'una_olla':
+      return (
+        <div className="w-8 h-11 sm:w-9 sm:h-12 rounded-md border-2 border-yellow-400/90 bg-gradient-to-tr from-amber-950 to-yellow-900/60 flex flex-col items-center justify-center text-yellow-300 font-black text-sm shadow-[0_0_12px_rgba(234,179,8,0.4)]">
+          <span className="text-base">🎴</span>
+          <span className="text-[8px] font-black tracking-tighter">OLLA</span>
         </div>
       );
     case 'rock_paper_scissors':
@@ -114,11 +122,24 @@ export const GameCard: React.FC<GameCardProps> = ({
         </button>
       )}
 
-      {/* Badge HOT */}
-      <span className="absolute top-2.5 right-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm z-10 flex items-center gap-0.5">
-        <Zap className="w-2.5 h-2.5 fill-slate-950" />
-        HOT
-      </span>
+      {/* Badge Dinámico (NUEVO, POPULAR, HOT) */}
+      {(() => {
+        const isNew = game.isNew || game.id === 'una_olla';
+        const customBadge = GameRegistry.getGameBadge(game.id);
+        const badgeLabel = isNew ? '🆕 NUEVO' : customBadge || 'HOT';
+        const badgeBg = isNew
+          ? 'from-emerald-400 via-teal-300 to-emerald-400 text-slate-950 font-black'
+          : 'from-amber-500 via-orange-500 to-red-500 text-slate-950 font-black';
+
+        return (
+          <span
+            className={`absolute top-2.5 right-2.5 bg-gradient-to-r ${badgeBg} text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm z-10 flex items-center gap-0.5`}
+          >
+            {isNew ? <Sparkles className="w-2.5 h-2.5 fill-slate-950" /> : <Zap className="w-2.5 h-2.5 fill-slate-950" />}
+            {badgeLabel}
+          </span>
+        );
+      })()}
 
       {/* Icono Central Visual Compacto */}
       <div className="h-12 sm:h-14 flex items-center justify-center my-1 group-hover:scale-105 transition-transform duration-300">

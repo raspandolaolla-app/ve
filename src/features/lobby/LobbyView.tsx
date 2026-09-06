@@ -10,10 +10,13 @@ import { BingoLiveViewer } from './BingoLiveViewer';
 import { BingoLobbySection } from './BingoLobbySection';
 import { PublicMatchHistorySection } from './PublicMatchHistorySection';
 import { FAQAccordion } from './FAQAccordion';
-import { MediaBanner } from '../../components/common/MediaBanner';
+import { LobbyMainActionButtons } from './LobbyMainActionButtons';
+import { LobbyVideoSpotlight } from '../../components/advertising/LobbyVideoSpotlight';
+import { LobbyBannerSpotlight } from '../../components/advertising/LobbyBannerSpotlight';
 import { SUPPORTED_GAMES_METADATA } from '../../utils/constants';
 import { useAuth } from '../auth/AuthContext';
 import { useWallet } from '../../context/WalletContext';
+import { useGameAvailability } from '../../context/GameAvailabilityContext';
 import {
   Flame,
   Gamepad2,
@@ -27,6 +30,7 @@ import {
   ShieldCheck,
   ChevronRight,
   BookOpen,
+  Headphones,
 } from 'lucide-react';
 import type { GameMetadata } from '../../types/games';
 
@@ -36,6 +40,7 @@ interface LobbyViewProps {
   onNavigateTab?: (tab: string) => void;
   onSelectBingoVariant?: (variant: '75' | '80' | '90', tableId: string) => void;
   onOpenRules?: (gameId?: string) => void;
+  onOpenSupport?: () => void;
 }
 
 type GameCategory = 'all' | 'traditional' | 'cards' | 'board' | 'casual';
@@ -46,23 +51,30 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onNavigateTab,
   onSelectBingoVariant,
   onOpenRules,
+  onOpenSupport,
 }) => {
   const { user } = useAuth();
   const { balance } = useWallet();
+  const { isGameEnabled } = useGameAvailability();
   const [selectedCategory, setSelectedCategory] = useState<GameCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filtro dinámico de juegos
+  // Filtro dinámico de juegos: excluye automáticamente cualquier juego deshabilitado por el admin
   const filteredGames = useMemo(() => {
     return SUPPORTED_GAMES_METADATA.filter((game) => {
-      // Búsqueda por texto
+      // 1. Control Central: Si está deshabilitado en backend/admin, NO se muestra
+      if (!isGameEnabled(game.id)) {
+        return false;
+      }
+
+      // 2. Búsqueda por texto
       const matchesSearch =
         game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         game.shortDescription.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
-      // Filtro por categoría
+      // 3. Filtro por categoría
       if (selectedCategory === 'all') return true;
       if (selectedCategory === 'traditional') {
         return ['domino_venezolano', 'truco_venezolano', 'bingo', 'atrapaito'].includes(game.id);
@@ -78,13 +90,25 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
       }
       return true;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, isGameEnabled]);
+
+  const safeNavigate = onNavigateTab || ((tab: string) => window.dispatchEvent(new CustomEvent('navigate-tab', { detail: { tab } })));
 
   return (
-    <div id="lobby-view" data-testid="lobby-main-view" className="space-y-8 pb-12">
-      {/* 1. ZONA PUBLICITARIA AUTOMÁTICA Y BANNERS MULTIMEDIA */}
-      <section id="lobby-media-banner-section" aria-label="Anuncios y Destacados">
-        <MediaBanner location="HOME" onNavigateTab={onNavigateTab} />
+    <div id="lobby-view" data-testid="lobby-main-view" className="space-y-6 sm:space-y-8 pb-12">
+      {/* 1. BOTONES PRINCIPALES: MESA / POLLA (ZONA SUPERIOR PRIORITARIA) */}
+      <section id="lobby-main-actions-section" aria-label="Accesos Principales">
+        <LobbyMainActionButtons onNavigateTab={safeNavigate} />
+      </section>
+
+      {/* 2. VÍDEO PUBLICITARIO OFICIAL (INMEDIATAMENTE DEBAJO DE LOS BOTONES — 100% VISIBLE SIN RECORTES) */}
+      <section id="lobby-video-spotlight-section" aria-label="Video Publicitario Destacado">
+        <LobbyVideoSpotlight onNavigateTab={safeNavigate} />
+      </section>
+
+      {/* 3. BANNER PUBLICITARIO OFICIAL (INMEDIATAMENTE DEBAJO DEL VÍDEO) */}
+      <section id="lobby-banner-spotlight-section" aria-label="Banner Publicitario">
+        <LobbyBannerSpotlight onNavigateTab={safeNavigate} />
       </section>
 
       {/* 2. PANTALLA GIGANTE DE BINGO EN VIVO (VISTA DE ESPECTADOR EN TIEMPO REAL) */}
@@ -107,13 +131,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         }}
       />
 
-      {/* 3. SECCIÓN DESTACADA DE BINGO: MESAS EN VIVO Y GANADORES */}
-      <section id="lobby-bingo-showcase-section" aria-label="Mesas de Bingo Disponibles">
-        <BingoLobbySection
-          onSelectBingoVariant={onSelectBingoVariant}
-          onNavigateTab={onNavigateTab}
-        />
-      </section>
+      {/* 3. SECCIÓN DESTACADA DE BINGO: MESAS EN VIVO Y GANADORES (SOLO SI ESTÁ HABILITADO) */}
+      {isGameEnabled('bingo') && (
+        <section id="lobby-bingo-showcase-section" aria-label="Mesas de Bingo Disponibles">
+          <BingoLobbySection
+            onSelectBingoVariant={onSelectBingoVariant}
+            onNavigateTab={onNavigateTab}
+          />
+        </section>
+      )}
 
       {/* 4. CATÁLOGO COMPLETO DE JUEGOS DISPONIBLES */}
       <section id="lobby-games-catalog" className="pt-1">
@@ -229,7 +255,50 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
       {/* 6. ACORDEÓN DE PREGUNTAS FRECUENTES (FAQ & SEGURIDAD) */}
       <section id="lobby-faq-section" aria-label="Preguntas Frecuentes">
-        <FAQAccordion />
+        <FAQAccordion onOpenSupport={onOpenSupport} />
+      </section>
+
+      {/* 7. AYUDA Y SOPORTE CENTRALIZADO (PREVIO AL FOOTER) */}
+      <section id="lobby-help-support-section" aria-label="Ayuda y Soporte">
+        <div className="rounded-2xl sm:rounded-3xl border border-[#1E2938] bg-gradient-to-br from-[#0D1524] to-[#0A0E18] p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3.5 text-center sm:text-left min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-[#2496FF] to-[#22C55E] p-0.5 flex items-center justify-center shrink-0 shadow-md shadow-[#2496FF]/20">
+              <div className="w-full h-full bg-[#080B12] rounded-2xl flex items-center justify-center">
+                <Headphones className="w-5 h-5 sm:w-6 sm:h-6 text-[#2496FF]" />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <h3 className="text-sm sm:text-base font-black text-white tracking-tight">
+                  ¿Necesitas Ayuda o Atención Personalizada?
+                </h3>
+                <span className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>24/7 En Vivo</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Chatea en tiempo real con un operador oficial de Raspando La Olla o consulta tus tickets.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="lobby-support-center-btn"
+            onClick={() => {
+              if (onOpenSupport) {
+                onOpenSupport();
+              } else {
+                safeNavigate('support');
+              }
+            }}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2"
+          >
+            <Headphones className="w-4 h-4" />
+            <span>Abrir Soporte al Jugador</span>
+          </button>
+        </div>
       </section>
     </div>
   );

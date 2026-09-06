@@ -13,6 +13,8 @@ import type React from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { useCapabilities } from '../../hooks/useCapabilities';
+import { normalizeCanonicalGameId } from '../../context/GameAvailabilityContext';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { GameRepository } from '../../services/repositories/GameRepository';
 import { FinancialRepository } from '../../services/repositories/FinancialRepository';
@@ -22,6 +24,7 @@ import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants
 import { formatBolivares, getGameDisplayName } from '../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import { useBcvRate } from '../../context/BcvContext';
+import { useProtectedGameplay } from '../../context/ProtectedGameplayContext';
 import type { GameTable, TablePlayer } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
@@ -152,13 +155,90 @@ export function TablesView() {
     return () => window.removeEventListener('open-table' as any, handleOpenTable);
   }, []);
 
-  // Notificar al padre cuando hay partida activa
+  // Escuchar evento para abrir modal de creación de mesa para un juego específico (desde banners, hero, etc.)
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('game-active-change', {
-      detail: { isActive: !!activeTable || !!inGameData }
-    }));
-  }, [activeTable, inGameData]);
+    const handleOpenCreateTable = (e: any) => {
+      const target = e.detail?.gameType || e.detail?.gameId;
+      if (target) {
+        const canonical = normalizeCanonicalGameId(target) as GameType;
+        if (canonical) {
+          setCreateGameType(canonical);
+          setSelectedGameFilter(canonical);
+        }
+      }
+      setCreateIsPractice(false);
+      setShowCreateModal(true);
+    };
+    window.addEventListener('open-create-table' as any, handleOpenCreateTable);
+    return () => window.removeEventListener('open-create-table' as any, handleOpenCreateTable);
+  }, []);
 
+  const { protectGameplay, getPersistedActiveGame, clearProtectedGameplay } = useProtectedGameplay();
+
+  // Sincronizar protección de partida y estado activo
+  useEffect(() => {
+    const isPlaying = !!activeTable || !!inGameData;
+    window.dispatchEvent(new CustomEvent('game-active-change', {
+      detail: { isActive: isPlaying }
+    }));
+
+    if (isPlaying) {
+      const current = inGameData?.table || activeTable;
+      protectGameplay(true, {
+        tableId: current?.id,
+        gameType: current?.gameType,
+        tableName: current?.name,
+      });
+    } else {
+      protectGameplay(false);
+    }
+  }, [activeTable, inGameData, protectGameplay]);
+
+  // Recuperación automática de mesa activa tras recarga accidental o reconexión móvil
+  useEffect(() => {
+    let isMounted = true;
+    const restoreSession = async () => {
+      if (!user?.id || inGameData || activeTable) return;
+      const persisted = getPersistedActiveGame();
+      if (!persisted?.tableId) return;
+
+      try {
+        const table = await TableRepository.getTableById(persisted.tableId);
+        if (!table || !isMounted) return;
+
+        const isPlayable = ['OPEN', 'WAITING', 'SALES', 'ACTIVE', 'READY', 'DRAWING'].includes(table.status);
+        if (!isPlayable) {
+          clearProtectedGameplay();
+          return;
+        }
+
+        const freshPlayers = await TableRepository.getTablePlayers(table.id);
+        if (!isMounted) return;
+
+        const isSeated = freshPlayers.some((p) => p.userId === user.id && p.status !== 'LEFT');
+        if (isSeated) {
+          console.log('[TablesView] Sesión protegida previa reanudada con éxito:', table.id);
+          if (['ACTIVE', 'READY', 'DRAWING', 'SALES'].includes(table.status)) {
+            setInGameData({ table, players: freshPlayers });
+          } else {
+            setActiveTable(table);
+            setTablePlayers(freshPlayers);
+          }
+        } else {
+          clearProtectedGameplay();
+        }
+      } catch (err) {
+        console.warn('[TablesView] No se pudo restaurar la sesión protegida previa:', err);
+      }
+    };
+
+    restoreSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, inGameData, activeTable, getPersistedActiveGame, clearProtectedGameplay]);
+
+  const { executeOrPromptLogin } = useCapabilities();
   const isAuthenticated = state === 'authenticated' && user !== null;
 
   // Cargar montos de entrada dinámicos
@@ -685,8 +765,12 @@ export function TablesView() {
         table={inGameData.table}
         players={inGameData.players}
         currentUserId={user?.id || ''}
-        onExit={() => setInGameData(null)}
+        onExit={() => {
+          setInGameData(null);
+          clearProtectedGameplay();
+        }}
         onPlayAgain={() => {
+          clearProtectedGameplay();
           const gameType = inGameData.table.gameType;
           const entryFee = inGameData.table.entryFee;
           const maxPlayers = inGameData.table.maxPlayers;
@@ -707,8 +791,6 @@ export function TablesView() {
 
   return (
     <div id="tables-view" className="space-y-8 max-w-6xl mx-auto">
-      <MediaBanner location="GAMES" />
-
       <AdPlacementContainer
         placement="GAME_HEADER"
         gameType={selectedGameFilter !== 'all' ? selectedGameFilter : undefined}
@@ -757,7 +839,7 @@ export function TablesView() {
             🎮 Práctica con Bots
           </Button>
 
-          {isAuthenticated && (
+          {isAuthenticated ? (
             <Button
               id="btn-open-create-table-modal"
               variant="primary"
@@ -772,6 +854,24 @@ export function TablesView() {
               leftIcon={<PlusCircle className="w-4 h-4" />}
             >
               Crear Mesa
+            </Button>
+          ) : (
+            <Button
+              id="btn-open-create-table-modal-guest"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                const targetGame = selectedGameFilter !== 'all' ? selectedGameFilter : 'domino_venezolano';
+                executeOrPromptLogin({
+                  type: 'CREATE_TABLE',
+                  gameId: targetGame,
+                  tab: 'tables',
+                });
+              }}
+              leftIcon={<PlusCircle className="w-4 h-4 text-slate-950" />}
+              className="bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 hover:from-yellow-300 hover:to-yellow-200 text-slate-950 font-black shadow-md shadow-yellow-500/20"
+            >
+              Inicia sesión para crear mesa
             </Button>
           )}
         </div>

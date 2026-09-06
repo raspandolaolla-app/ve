@@ -221,23 +221,51 @@ export class AdminDashboardRepository {
   }
 
   /**
-   * Estado operativo de los 8 juegos tradicionales venezolanos.
+   * Estado operativo de los juegos tradicionales venezolanos.
+   * Consulta game_configurations en Supabase como fuente de verdad.
    */
   public static async getGamesOverview(): Promise<AdminGameItem[]> {
-    return SUPPORTED_GAMES_METADATA.map((game, idx) => ({
-      id: game.id,
-      name: game.name,
-      shortDescription: game.shortDescription,
-      minPlayers: game.minPlayers,
-      maxPlayers: game.maxPlayers,
-      minEntryFee: game.minEntryFee,
-      maxEntryFee: game.maxEntryFee,
-      activeTables: 2 + (idx % 3),
-      activePlayers: (2 + (idx % 3)) * 2,
-      totalMatchesPlayed: 140 + idx * 85,
-      totalVolume: (140 + idx * 85) * game.minEntryFee * 2,
-      isActive: game.isActive,
-    }));
+    const supabase = getSupabaseClient();
+    let dbConfigs: Record<string, any> = {};
+
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from('game_configurations')
+          .select('game_id, enabled, is_active, disabled_reason, disabled_at, disabled_by, min_entry_fee, max_entry_fee');
+        if (data && data.length > 0) {
+          data.forEach((row: any) => {
+            dbConfigs[row.game_id] = row;
+          });
+        }
+      } catch (err) {
+        logger.error('[AdminDashboardRepository] Error consultando game_configurations:', err);
+      }
+    }
+
+    return SUPPORTED_GAMES_METADATA.map((game, idx) => {
+      const cfg = dbConfigs[game.id];
+      const isEnabled = cfg ? cfg.enabled !== false && cfg.is_active !== false : game.isActive;
+
+      return {
+        id: game.id,
+        name: game.name,
+        shortDescription: game.shortDescription,
+        minPlayers: game.minPlayers,
+        maxPlayers: game.maxPlayers,
+        minEntryFee: cfg?.min_entry_fee ? Number(cfg.min_entry_fee) : game.minEntryFee,
+        maxEntryFee: cfg?.max_entry_fee ? Number(cfg.max_entry_fee) : game.maxEntryFee,
+        activeTables: 2 + (idx % 3),
+        activePlayers: (2 + (idx % 3)) * 2,
+        totalMatchesPlayed: 140 + idx * 85,
+        totalVolume: (140 + idx * 85) * game.minEntryFee * 2,
+        isActive: isEnabled,
+        enabled: isEnabled,
+        disabledReason: cfg?.disabled_reason || null,
+        disabledAt: cfg?.disabled_at || null,
+        disabledBy: cfg?.disabled_by || null,
+      };
+    });
   }
 
   /**

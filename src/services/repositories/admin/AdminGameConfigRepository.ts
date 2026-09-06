@@ -201,7 +201,11 @@ export class AdminGameConfigRepository {
         name: row.name,
         shortDescription: row.short_description,
         iconName: row.icon_name || 'Gamepad2',
-        isActive: Boolean(row.is_active),
+        isActive: Boolean(row.is_active && row.enabled !== false),
+        enabled: row.enabled !== false,
+        disabledReason: row.disabled_reason || null,
+        disabledAt: row.disabled_at || null,
+        disabledBy: row.disabled_by || null,
         maintenanceMessage: row.maintenance_message,
         minPlayers: Number(row.min_players),
         maxPlayers: Number(row.max_players),
@@ -214,6 +218,38 @@ export class AdminGameConfigRepository {
       }));
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Habilita o deshabilita un juego mediante la RPC atómica canónica admin_set_game_enabled.
+   * Si se deshabilita, el motivo (reason) es estrictamente obligatorio.
+   */
+  public static async setGameEnabled(
+    gameId: string,
+    enabled: boolean,
+    reason?: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('admin_set_game_enabled', {
+        p_game_id: gameId,
+        p_enabled: enabled,
+        p_reason: reason?.trim() || null,
+      });
+
+      if (error) {
+        logger.error('[AdminGameConfigRepository] Error al modificar disponibilidad del juego:', error.message);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error('[AdminGameConfigRepository] Excepción en setGameEnabled:', message);
+      return { success: false, error: message };
     }
   }
 

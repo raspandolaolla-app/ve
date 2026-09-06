@@ -267,7 +267,7 @@ export class RealtimeManager {
       channel.on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${cleanUserId}`,

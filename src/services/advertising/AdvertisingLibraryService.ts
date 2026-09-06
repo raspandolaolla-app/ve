@@ -151,11 +151,13 @@ export class AdvertisingLibraryService {
 
       const assetKey = item.asset_key || item.id || `asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const publicUrl = AdvertisingAssetProvider.getAssetUrl(item.file);
+      const posterUrl = item.poster ? AdvertisingAssetProvider.getAssetUrl(item.poster) : undefined;
 
       validAssets.push({
         id: item.id || assetKey,
         assetKey,
         filePath: item.file,
+        posterPath: item.poster || null,
         assetType: item.type || validation.type || 'image',
         mimeType: item.mime || validation.mime,
         title: item.title || item.id,
@@ -166,6 +168,11 @@ export class AdvertisingLibraryService {
         fileSizeBytes: item.size || null,
         active: item.active !== false,
         publicUrl,
+        posterUrl,
+        defaultPlacement: item.defaultPlacement,
+        gameType: item.gameType,
+        targetUrl: item.targetUrl,
+        ctaText: item.ctaText,
       });
     }
 

@@ -2,10 +2,20 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 17:05:00 -07:00 (UTC 2026-09-06 00:05:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 21:32:00 -07:00 (UTC 2026-09-06 04:32:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
 ÚLTIMA MIGRACIÓN INTEGRADA: 139_fix_turn_expires_at_refresh.sql (Trigger automático trg_refresh_turn_expires_at para actualización de turn_expires_at)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) LIMPIEZA DE DIRECTORIO RESIDUAL Y AUDITORÍA DEL MOTOR DE AUDIO DE BINGO (TTS FALLBACK):
+   - Diagnóstico y Acciones Realizadas:
+     1. Limpieza de subdirectorio residual `ve-main/` tras la purga de archivos duplicados.
+     2. Verificación de robustez del motor de audio de Bingo (`src/utils/bingoAudio.ts` y `src/utils/bingoAudioPlayer.ts`):
+        * Tras la eliminación de los archivos `.mp3` estáticos en `public/bingo-audio/`, se constató que la comprobación previa (HEAD probe) detecta la ausencia de archivos estáticos y activa transparentemente el sistema de voz sintetizada nativo del navegador (Web Speech API en español `es-ES`) acompañado de acordes melódicos sintéticos con Web Audio API (`playChime`).
+        * Se evita cualquier sobrecarga de solicitudes de red o interrupción en el sorteo de balotas.
+   - Verificaciones de Calidad:
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Compilación de producción exitosa).
 
 0) CORRECCIÓN QUIRÚRGICA DE IMPORTACIÓN POR DEFECTO Y GUARD LIMPIO EN ROCK PAPER SCISSORS (0 ERRORES TYPESCRIPT):
    - Diagnóstico y Ajustes Realizados:

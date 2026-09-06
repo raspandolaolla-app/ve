@@ -2,10 +2,67 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 21:32:00 -07:00 (UTC 2026-09-06 04:32:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 21:55:00 -07:00 (UTC 2026-09-06 04:55:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 139_fix_turn_expires_at_refresh.sql (Trigger automático trg_refresh_turn_expires_at para actualización de turn_expires_at)
+ÚLTIMA MIGRACIÓN INTEGRADA: 140_rps_commit_reveal_and_round_deadlines.sql (RPCs atómicas submit_rps_choice_secure y next_rps_round_secure, y Round Deadlines en process_expired_turns)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) AUDITORÍA Y CORRECCIÓN DEFINITIVA DEL SISTEMA DE TURNOS Y ARQUITECTURA COMMIT-REVEAL DE PIEDRA, PAPEL O TIJERA (RPS):
+   - Diagnóstico y Causa Raíz Centralizada:
+     1. Desajuste de Paradigma de Turnos:
+        * Piedra, Papel o Tijera es un juego simultáneo de dos fases (COMMIT y REVEAL), NO un juego secuencial de alternancia de turnos como Ajedrez o Dominó.
+        * Sin embargo, `GameContainer.tsx` ejecutaba el flujo universal de juegos secuenciales en cada acción de RPS:
+          - Evaluaba `nextTurnUserId = null` tras la jugada.
+          - Disparaba el log `[TURN_CHANGED]` con `previousTurnUserId: undefined, nextTurnUserId: null, isGameOver: false`.
+          - Sobrescribía `game_sessions.current_state` directamente mediante `updateSessionState`, lo cual ocasionaba que la elección del jugador A sobrescribiera la del jugador B o expusiera elecciones privadas antes del reveal.
+     2. Asignación Inicial Forzada de Turno:
+        * Durante el inicio de la partida (`initGame`), se calculaba `canonicalInitialTurnId = uniquePlayers[0]?.userId`, inyectando un turno falso para el Jugador 1 y disparando `[TURN_ASSIGNED]` erróneamente para un juego simultáneo.
+     3. Temporizadores y Abandono Universal:
+        * La migración 117 (`universal_game_abandonment.sql`) evalúa `current_turn_user_id IS NOT NULL`, lo cual protegía a RPS si `current_turn_user_id = null`, pero carecía de una lógica dedicada de "Round Deadline" para evitar que un jugador abandonara la sala dejando al rival en espera perpetua.
+   - Soluciones Quirúrgicas Implementadas:
+     1. Migración Supabase `140_rps_commit_reveal_and_round_deadlines.sql`:
+        * RPC `submit_rps_choice_secure(p_session_id UUID, p_choice VARCHAR)`:
+          - Función segura con `SECURITY DEFINER` que bloquea la sesión y la fila de `game_session_secrets` (`FOR UPDATE`).
+          - Guarda la elección del jugador en `game_session_secrets.secret_state->'rps_choices'` de forma privada.
+          - En `game_sessions.current_state` únicamente publica `{ committed: true }` sin exponer la elección concreta, previniendo trampas e inspecciones en el navegador.
+          - Solo cuando ambos jugadores han confirmado su compromiso (`v_c1 IS NOT NULL AND v_c2 IS NOT NULL`), revela las elecciones simultáneamente, calcula el ganador de la ronda, descuenta vidas, evalúa si hay ganador del match y publica el estado `ROUND_REVEAL` o `MATCH_ENDED`.
+          - Mantiene permanentemente `current_turn_user_id = NULL` para la sesión de RPS.
+        * RPC `next_rps_round_secure(p_session_id UUID)`:
+          - Avanza la ronda de forma atómica, resetea las elecciones a `null`, reinicia los flags de compromiso y establece el temporizador de la nueva ronda.
+        * Actualización de `process_expired_turns()`:
+          - Añadida sección específica para juegos simultáneos (`rps` / `rock_paper_scissors`): si expira el tiempo límite de la ronda (`turn_expires_at < NOW()`) y un jugador completó su compromiso mientras el otro no jugó, se otorga la victoria por abandono/timeout al jugador que sí jugó a tiempo.
+     2. Capa de Repositorios (`src/services/repositories/GameRepository.ts`):
+        * `createOrGetSession`:
+          - Identifica si el juego es simultáneo (`gameType === 'rock_paper_scissors'`). En ese caso, establece `canonicalTurnUserId = null` y pasa `p_initial_turn_user_id: null` a `start_game_session_secure`.
+        * Nuevos métodos autoritativos:
+          - `submitRPSChoice(sessionId, choice, userId, fallbackState)`: Invoca `submit_rps_choice_secure` con fallback resiliente.
+          - `nextRPSRound(sessionId, fallbackState)`: Invoca `next_rps_round_secure` con fallback resiliente.
+     3. Contenedor Principal (`src/features/games/components/GameContainer.tsx`):
+        * `initGame`:
+          - Garantiza `canonicalInitialTurnId = null` para RPS y evita registrar falsos eventos `[TURN_ASSIGNED]`.
+          - Registra `[ROUND_DEADLINE]` en lugar de `[TURN_DEADLINE]` para juegos simultáneos.
+        * `Realtime game_sessions listener`:
+          - Solo inyecta `canonicalTurn` en `currentTurnUserId` para juegos secuenciales. Para RPS, mantiene `currentTurnUserId = null`.
+        * `handlePlayerAction`:
+          - Desacoplamiento completo de RPS: las acciones `CHOOSE` y `NEXT_ROUND` son delegadas directamente a `GameRepository.submitRPSChoice` y `GameRepository.nextRPSRound`.
+          - Se elimina por completo la emisión de `[TURN_CHANGED]` en RPS, preservando dicho evento exclusivamente para los juegos por turnos alternados.
+     4. Tablero de Juego (`src/features/games/components/RockPaperScissorsBoard.tsx`):
+        * Soporta tanto `state.status === 'ROUND_COMMIT'` como `state.phase === 'selecting'` para validación de jugadas.
+        * Garantiza que los botones de Piedra, Papel o Tijera respondan inmediatamente y muestren "✓ Tu jugada registrada. Esperando al rival..." sin interferencia de turnos.
+   - Verificaciones de Calidad:
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Compilación de producción exitosa).
+
+0) VERIFICACIÓN DE ESTADO, LIMPIEZA Y REINICIO DEL SERVIDOR DE DESARROLLO:
+   - Diagnóstico y Acciones Realizadas:
+     1. Verificación completa del workspace tras la eliminación de archivos residuales.
+     2. Validación exhaustiva de tipado TypeScript (`tsc --noEmit`) sin advertencias ni errores.
+     3. Compilación de producción con Vite (`npm run build`) verificada al 100% PASS.
+     4. Reinicio del servidor de desarrollo Node.js/Vite para asegurar el servicio óptimo en puerto 3000.
+   - Verificaciones de Calidad:
+     * `lint_applet` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Compilación de producción exitosa).
+     * Dev Server: Reiniciado y en ejecución activa.
 
 0) LIMPIEZA DE DIRECTORIO RESIDUAL Y AUDITORÍA DEL MOTOR DE AUDIO DE BINGO (TTS FALLBACK):
    - Diagnóstico y Acciones Realizadas:

@@ -46,8 +46,8 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   }, [state.status, state.phase, state.roundWinner, onNextRound, onAction]);
 
   const handleChoice = (choice: RPSChoice) => {
-    // ✅ GUARD 1: Solo permitir elegir si estamos en fase de compromiso (ROUND_COMMIT)
-    if (state.status !== 'ROUND_COMMIT') {
+    // ✅ GUARD 1: Solo permitir elegir si estamos en fase de compromiso (ROUND_COMMIT / selecting)
+    if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
       console.warn('[RPS] No es el momento de elegir');
       return;
     }

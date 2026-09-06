@@ -317,11 +317,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           initialEngineState = engine.initialize(table, uniquePlayers);
         }
 
-        const canonicalInitialTurnId =
-          (initialEngineState as any)?.turnUserId ||
-          (initialEngineState as any)?.currentTurnUserId ||
-          (initialEngineState as any)?.playerWhiteUserId ||
-          uniquePlayers[0]?.userId;
+        const isSimultaneousGame = table.gameType === 'rock_paper_scissors';
+        const canonicalInitialTurnId = isSimultaneousGame
+          ? null
+          : ((initialEngineState as any)?.turnUserId ||
+             (initialEngineState as any)?.currentTurnUserId ||
+             (initialEngineState as any)?.playerWhiteUserId ||
+             uniquePlayers[0]?.userId);
 
         let activeSession: GameSession | null = null;
         if (isPractice) {
@@ -330,7 +332,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             tableId: table.id,
             gameType: table.gameType,
             roundNumber: 1,
-            currentTurnUserId: canonicalInitialTurnId,
+            currentTurnUserId: isSimultaneousGame ? null : canonicalInitialTurnId,
             status: 'in_progress',
             grossPool: 0,
             winnerPrizeAmount: 0,
@@ -423,14 +425,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
 
           // Obtener turno canónico unificado garantizando coincidencia con DB
-          const canonicalTurnUserId =
-            activeSession.currentTurnUserId ||
-            loadedState.currentTurnUserId ||
-            loadedState.turnUserId ||
-            canonicalInitialTurnId;
+          const canonicalTurnUserId = isSimultaneousGame
+            ? null
+            : (activeSession.currentTurnUserId ||
+               loadedState.currentTurnUserId ||
+               loadedState.turnUserId ||
+               canonicalInitialTurnId);
 
-          loadedState.turnUserId = canonicalTurnUserId;
-          loadedState.currentTurnUserId = canonicalTurnUserId;
+          if (!isSimultaneousGame) {
+            loadedState.turnUserId = canonicalTurnUserId;
+            loadedState.currentTurnUserId = canonicalTurnUserId;
+          } else {
+            loadedState.turnUserId = null;
+            loadedState.currentTurnUserId = null;
+          }
 
           // Determinar si la sesión en base de datos necesita hidratación inicial (únicamente si faltan propiedades)
           const isDbStateIncomplete =
@@ -496,19 +504,28 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             stateValid: normalized.isValid,
             missingProps: normalized.missingProps,
           });
-          logger.info('[TURN_ASSIGNED]', {
-            sessionId: activeSession.id,
-            currentTurnUserId: canonicalTurnUserId,
-          });
-          logger.info('[TURN_DEADLINE]', {
-            sessionId: activeSession.id,
-            turnDeadlineAt: updatedSession.turnExpiresAt,
-          });
+          if (!isSimultaneousGame && canonicalTurnUserId) {
+            logger.info('[TURN_ASSIGNED]', {
+              sessionId: activeSession.id,
+              currentTurnUserId: canonicalTurnUserId,
+            });
+          }
+          if (isSimultaneousGame) {
+            logger.info('[ROUND_DEADLINE]', {
+              sessionId: activeSession.id,
+              deadlineAt: updatedSession.turnExpiresAt,
+            });
+          } else {
+            logger.info('[TURN_DEADLINE]', {
+              sessionId: activeSession.id,
+              turnDeadlineAt: updatedSession.turnExpiresAt,
+            });
+          }
           logger.info('[GAME_ACTIVE]', {
             sessionId: activeSession.id,
             gameType: table.gameType,
             stateValid: normalized.isValid,
-            currentTurnUserId: canonicalTurnUserId,
+            currentTurnUserId: isSimultaneousGame ? null : canonicalTurnUserId,
             turnDeadlineAt: updatedSession.turnExpiresAt,
           });
 
@@ -631,10 +648,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               gameState,
               currentPlayers
             );
-            const canonicalTurn = updated.current_turn_user_id || (normalized.state as any)?.currentTurnUserId || (normalized.state as any)?.turnUserId;
-            if (canonicalTurn) {
-              (normalized.state as any).currentTurnUserId = canonicalTurn;
-              (normalized.state as any).turnUserId = canonicalTurn;
+            const isSimultaneous = table.gameType === 'rock_paper_scissors';
+            if (!isSimultaneous) {
+              const canonicalTurn = updated.current_turn_user_id || (normalized.state as any)?.currentTurnUserId || (normalized.state as any)?.turnUserId;
+              if (canonicalTurn) {
+                (normalized.state as any).currentTurnUserId = canonicalTurn;
+                (normalized.state as any).turnUserId = canonicalTurn;
+              }
+            } else {
+              (normalized.state as any).currentTurnUserId = null;
+              (normalized.state as any).turnUserId = null;
             }
             const sanitized = engine.getSanitizedStateForPlayer
               ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
@@ -1137,7 +1160,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       }
 
       try {
-        // 3. Persistir la acción en Supabase (Game Actions)
+        // En Piedra, Papel o Tijera (RPS) el modelo es COMMIT-REVEAL simultáneo (sin turnos secuenciales)
+        if (table.gameType === 'rock_paper_scissors') {
+          if (actionType === 'CHOOSE') {
+            const choice = (finalActionData as any)?.choice;
+            logger.info('[RPS_COMMIT]', {
+              sessionId: session.id,
+              userId: currentUserId,
+              choice,
+            });
+            await GameRepository.submitRPSChoice(session.id, choice, currentUserId, result.newState);
+          } else if (actionType === 'NEXT_ROUND') {
+            logger.info('[RPS_NEXT_ROUND]', {
+              sessionId: session.id,
+            });
+            await GameRepository.nextRPSRound(session.id, result.newState);
+          }
+
+          if (result.isGameOver && !isSettledRef.current) {
+            await handleSettleGame(
+              result.winnerUserId || null,
+              Boolean(result.isDraw),
+              result.winnerTeamIndex
+            );
+          }
+          return;
+        }
+
+        // 3. Persistir la acción en Supabase (Game Actions para juegos secuenciales)
         await GameRepository.submitAction(payload);
 
         const nextTurnUserId = (result.newState as any)?.currentTurnUserId || (result.newState as any)?.turnUserId || null;

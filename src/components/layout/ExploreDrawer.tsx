@@ -19,6 +19,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { SUPPORTED_GAMES_METADATA, GLOBAL_DRAWS_METADATA } from '../../utils/constants';
+import { useGameAvailability } from '../../context/GameAvailabilityContext';
 import type { GameMetadata } from '../../types/games';
 
 interface ExploreDrawerProps {
@@ -38,6 +39,13 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
   onOpenSupport,
   onOpenRules,
 }) => {
+  const { isGameEnabled } = useGameAvailability();
+
+  // Filtrar juegos habilitados
+  const enabledGames = React.useMemo(() => {
+    return SUPPORTED_GAMES_METADATA.filter((game) => isGameEnabled(game.id));
+  }, [isGameEnabled]);
+
   // Bloquear scroll de la ventana principal cuando el drawer está abierto
   useEffect(() => {
     if (isOpen) {
@@ -130,46 +138,48 @@ export const ExploreDrawer: React.FC<ExploreDrawerProps> = ({
 
         {/* Contenido Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Sorteo Global Permanente */}
-          <div className="space-y-2">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#F5B942] flex items-center gap-1.5 px-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Sorteo Comunitario</span>
-            </div>
-            {GLOBAL_DRAWS_METADATA.map((draw) => (
-              <button
-                key={draw.id}
-                onClick={() => handleTabClick('polla')}
-                className="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-[#171E2A] to-[#1E2938] border border-[#F5B942]/30 hover:border-[#F5B942] transition-all flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#F5B942]/10 border border-[#F5B942]/30 flex items-center justify-center text-xl">
-                    🐾
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-[#F8FAFC] group-hover:text-[#F5B942] transition-colors flex items-center gap-1.5">
-                      <span>{draw.name}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30 font-semibold">
-                        Sorteos 2x Día
-                      </span>
+          {/* Sorteo Global Permanente (Solo si Polla Venezolana está habilitada) */}
+          {isGameEnabled('polla_venezolana') && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#F5B942] flex items-center gap-1.5 px-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Sorteo Comunitario</span>
+              </div>
+              {GLOBAL_DRAWS_METADATA.map((draw) => (
+                <button
+                  key={draw.id}
+                  onClick={() => handleTabClick('polla')}
+                  className="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-[#171E2A] to-[#1E2938] border border-[#F5B942]/30 hover:border-[#F5B942] transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#F5B942]/10 border border-[#F5B942]/30 flex items-center justify-center text-xl">
+                      🐾
                     </div>
-                    <p className="text-[11px] text-[#94A3B8] line-clamp-1">{draw.shortDescription}</p>
+                    <div>
+                      <div className="text-xs font-black text-[#F8FAFC] group-hover:text-[#F5B942] transition-colors flex items-center gap-1.5">
+                        <span>{draw.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/30 font-semibold">
+                          Sorteos 2x Día
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#94A3B8] line-clamp-1">{draw.shortDescription}</p>
+                    </div>
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#F5B942] transition-colors shrink-0" />
-              </button>
-            ))}
-          </div>
+                  <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#F5B942] transition-colors shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Juegos de Mesa Multijugador */}
           <div className="space-y-2">
             <div className="text-[11px] font-bold uppercase tracking-wider text-[#94A3B8] flex items-center gap-1.5 px-1">
               <Zap className="w-3.5 h-3.5 text-[#FF8A00]" />
-              <span>Mesas y Salas en Vivo ({SUPPORTED_GAMES_METADATA.length})</span>
+              <span>Mesas y Salas en Vivo ({enabledGames.length})</span>
             </div>
 
             <div className="grid grid-cols-1 gap-1.5">
-              {SUPPORTED_GAMES_METADATA.map((game) => (
+              {enabledGames.map((game) => (
                 <button
                   key={game.id}
                   id={`explore-game-${game.id}`}

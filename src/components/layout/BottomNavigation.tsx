@@ -3,7 +3,8 @@
 // ==============================================================================
 
 import React from 'react';
-import { Home, Headphones, Zap, Menu, Wallet } from 'lucide-react';
+import { Home, Headphones, Zap, Menu, Wallet, Gamepad2 } from 'lucide-react';
+import { useAuth } from '../../features/auth/AuthContext';
 import { useWallet } from '../../context/WalletContext';
 
 interface BottomNavigationProps {
@@ -23,6 +24,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onOpenGiraLaOlla,
   onOpenQuickMatch,
 }) => {
+  const { user, state } = useAuth();
+  const isAuthenticated = state === 'authenticated' && user !== null;
   const { openWithdrawModal } = useWallet();
 
   const handleWithdrawClick = () => {
@@ -104,17 +107,30 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             </span>
           </div>
 
-          {/* 4. Billetera */}
-          <button
-            id="bottom-nav-wallet"
-            onClick={() => onNavigate('wallet')}
-            className={`flex flex-col items-center justify-center min-w-[52px] transition-all active:scale-90 cursor-pointer ${
-              currentTab === 'wallet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Billetera</span>
-          </button>
+          {/* 4. Billetera (Autenticado) o Mesas (Visitante) */}
+          {isAuthenticated ? (
+            <button
+              id="bottom-nav-wallet"
+              onClick={() => onNavigate('wallet')}
+              className={`flex flex-col items-center justify-center min-w-[52px] transition-all active:scale-90 cursor-pointer ${
+                currentTab === 'wallet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Billetera</span>
+            </button>
+          ) : (
+            <button
+              id="bottom-nav-tables"
+              onClick={() => onNavigate('tables')}
+              className={`flex flex-col items-center justify-center min-w-[52px] transition-all active:scale-90 cursor-pointer ${
+                currentTab === 'tables' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              <span className="text-[9px] sm:text-[10px] mt-0.5 font-bold uppercase tracking-wider">Mesas</span>
+            </button>
+          )}
 
           {/* 5. Explorar */}
           <button

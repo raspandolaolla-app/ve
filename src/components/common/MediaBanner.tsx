@@ -15,6 +15,8 @@ import { Sparkles, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BannerRepository, type ContentBannerItem } from '../../services/repositories/BannerRepository';
 import { VideoAdPlayer } from './VideoAdPlayer';
 import { getAssetUrl } from '../../utils/assetUtils';
+import { AdPlacementContainer } from '../advertising/AdPlacementContainer';
+import type { AdPlacement } from '../../types/advertising';
 
 interface MediaBannerProps {
   location?: string;
@@ -73,6 +75,29 @@ export const MediaBanner: React.FC<MediaBannerProps> = ({
 
     return () => clearInterval(timer);
   }, [loading, banners.length, isPaused, autoSlideIntervalMs, isVideoAd]);
+
+  // Si no hay banners legacy de Supabase, realizar fallback transparente a AdPlacementContainer (/public/ads/)
+  if (!loading && banners.length === 0) {
+    const placementMap: Record<string, AdPlacement> = {
+      HOME: 'HOME_TOP',
+      LOBBY_MAIN: 'HOME_TOP',
+      GAMES: 'GAME_HEADER',
+      POLLA: 'GAME_POLLA',
+      BINGO: 'GAME_BINGO',
+      DOMINO: 'GAME_DOMINO',
+      TRUCO: 'GAME_TRUCO',
+      ATRAPAITO: 'GAME_ATRAPAITO',
+    };
+    const placement = placementMap[location.toUpperCase()] || 'HOME_TOP';
+    return (
+      <AdPlacementContainer
+        placement={placement}
+        onNavigate={onNavigateTab}
+        className={className}
+        showBadge={true}
+      />
+    );
+  }
 
   if (loading || banners.length === 0 || !current) return null;
 

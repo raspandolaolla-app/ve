@@ -15,15 +15,17 @@ import {
   Loader2,
   ShieldCheck,
   Chrome,
+  Sparkles,
 } from 'lucide-react';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  contextMessage?: string | null;
 }
 
-export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
+export const LoginModal = ({ isOpen, onClose, contextMessage }: LoginModalProps) => {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -126,6 +128,19 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             La plataforma multijugador definitiva. Inicia sesión de forma segura.
           </p>
         </div>
+
+        {/* MENSAJE CONTEXTUAL (SI EL VISITANTE INTENTÓ UNA ACCIÓN ESPECÍFICA) */}
+        {contextMessage && (
+          <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border border-amber-500/40 rounded-2xl flex items-center gap-3 text-left animate-in fade-in">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 text-amber-400">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div className="text-xs text-amber-200 font-medium leading-relaxed">
+              <span className="font-bold text-amber-300 block mb-0.5">Acción protegida</span>
+              {contextMessage}
+            </div>
+          </div>
+        )}
 
         {/* MENSAJE DE ERROR */}
         {error && (

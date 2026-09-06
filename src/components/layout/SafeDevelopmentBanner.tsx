@@ -50,11 +50,11 @@ export function SafeDevelopmentBanner() {
     fetchMarquees();
   }, []);
 
-  // Mensaje por defecto si no hay marquesinas configuradas
+  // Mensaje oficial por defecto si no hay marquesinas configuradas en la base de datos
   const defaultMarquee: MarqueeAnnouncement = {
     id: 'default-marquee',
-    title: 'MODO PRUEBA',
-    content: '🎉 BIENVENID@S — ESTAMOS EN MODO PRUEBA — SOLICITA TU RECARGA GRATIS DE PRUEBA DESPUÉS DE INGRESAR — ESTAMOS PROBANDO EL FUNCIONAMIENTO DE LA WEBAPP — JUEGA GRATIS Y DIVIÉRTETE 🎮',
+    title: 'RASPANDO LA OLLA',
+    content: '🇻🇪 BIENVENID@S A RASPANDO LA OLLA / PulsoPLAY — PLATAFORMA OFICIAL MULTIJUGADOR EN TIEMPO REAL — DOMINÓ, TRUCO, BINGO, ATRAPAÍTO Y LA POLLA VENEZOLANA 🎮',
     type: 'PROMOTION',
     priority: 100
   };

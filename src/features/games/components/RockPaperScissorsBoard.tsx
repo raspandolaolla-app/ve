@@ -1,0 +1,232 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Heart, Trophy, Loader } from 'lucide-react';
+import type { RPSChoice, RPSState } from '../engines/RockPaperScissorsEngine';
+
+export interface RockPaperScissorsBoardProps {
+  state: RPSState;
+  currentUserId?: string;
+  hasPlayerChosen?: boolean;
+  onSubmitChoice?: (choice: RPSChoice) => void;
+  onNextRound?: () => void;
+  isMyTurn?: boolean;
+  onAction?: (actionType: string, data: any) => void;
+  turnExpiresAt?: string;
+  sessionId?: string;
+  turnTimeLeft?: number;
+  onTurnTimeout?: () => void;
+  onTimeout?: () => void;
+}
+
+export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
+  state,
+  currentUserId = '',
+  hasPlayerChosen = false,
+  onSubmitChoice,
+  onNextRound,
+  onAction,
+}) => {
+  const [showResult, setShowResult] = useState(false);
+
+  // Auto-avanzar a la siguiente ronda después de mostrar el resultado
+  useEffect(() => {
+    const isReveal = state.status === 'ROUND_REVEAL' || state.phase === 'round_result';
+    if (isReveal && state.roundWinner) {
+      setShowResult(true);
+      const timer = setTimeout(() => {
+        setShowResult(false);
+        if (onNextRound) {
+          onNextRound();
+        } else if (onAction) {
+          onAction('NEXT_ROUND', {});
+        }
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.status, state.phase, state.roundWinner, onNextRound, onAction]);
+
+  const handleChoice = (choice: RPSChoice) => {
+    // ✅ GUARD 1: Solo permitir elegir si estamos en fase de compromiso (ROUND_COMMIT / selecting)
+    if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
+      console.warn('[RPS] No es el momento de elegir');
+      return;
+    }
+    
+    // ✅ GUARD 2: No permitir elegir si el jugador ya hizo su jugada en esta ronda
+    if (hasPlayerChosen) {
+      console.warn('[RPS] Ya elegiste, esperando al oponente');
+      return;
+    }
+    
+    // Si pasa ambos guards, la jugada es válida
+    if (onSubmitChoice) {
+      onSubmitChoice(choice);
+    } else if (onAction) {
+      onAction('CHOOSE', { choice });
+    }
+  };
+
+  const isPlayer1 = currentUserId === state.player1Id;
+
+  const getResultMessage = () => {
+    if (!state.roundWinner) return null;
+    
+    if (state.roundWinner === 'DRAW') {
+      return { text: '🤝 ¡EMPATE! (Nadie pierde vida)', color: 'text-amber-400', bg: 'bg-amber-500/20' };
+    }
+    
+    const isWinner = (state.roundWinner === 'PLAYER1' && isPlayer1) || (state.roundWinner === 'PLAYER2' && !isPlayer1);
+    
+    return isWinner
+      ? { text: '🎉 ¡GANASTE! (-1 Vida al rival)', color: 'text-emerald-400', bg: 'bg-emerald-500/20' }
+      : { text: '💀 PERDISTE (-1 Vida)', color: 'text-red-400', bg: 'bg-red-500/20' };
+  };
+
+  const getChoiceIcon = (choice: string | null | undefined) => {
+    if (!choice) return null;
+    const c = choice.toLowerCase();
+    if (c === 'rock') return '🪨';
+    if (c === 'paper') return '📄';
+    if (c === 'scissors') return '✂️';
+    return null;
+  };
+
+  const p1Name = state.playerNames?.[state.player1Id] || 'Jugador 1';
+  const p2Name = (state.player2Id && state.playerNames?.[state.player2Id]) || 'Jugador 2';
+
+  const p1Lives = state.player1Lives ?? (state.lives && state.player1Id ? state.lives[state.player1Id] : 3) ?? 3;
+  const p2Lives = state.player2Lives ?? (state.lives && state.player2Id ? state.lives[state.player2Id] : 3) ?? 3;
+
+  const isRevealing = state.status === 'ROUND_REVEAL' || state.phase === 'round_result';
+  const isGameOver = state.status === 'MATCH_ENDED' || state.phase === 'match_ended' || Boolean(state.matchWinner);
+
+  const p1HasChosen = Boolean(
+    (currentUserId === state.player1Id && hasPlayerChosen) ||
+    (state.player1Choice !== null && state.player1Choice !== undefined) ||
+    state.playerChoices?.[state.player1Id]?.committed
+  );
+  const p2HasChosen = Boolean(
+    (currentUserId === state.player2Id && hasPlayerChosen) ||
+    (state.player2Choice !== null && state.player2Choice !== undefined) ||
+    (state.player2Id && state.playerChoices?.[state.player2Id]?.committed)
+  );
+
+  return (
+    <div id="rps-board-container" className="w-full max-w-full overflow-x-hidden bg-gradient-to-br from-[#0F1523] to-[#1A2235] rounded-2xl p-6 border border-slate-800">
+      {/* Vidas de los jugadores */}
+      <div id="rps-lives-display" data-testid="player-lives" className="flex justify-between items-center mb-6">
+        <div className="text-center">
+          <p className="text-white text-sm font-bold mb-2">{p1Name}</p>
+          <div className="flex gap-1 justify-center">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Heart key={i} size={24} className={i < p1Lives ? 'text-red-500 fill-red-500' : 'text-slate-600'} />
+            ))}
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-amber-400 text-xl font-black">RONDA {state.roundNumber || state.round || 1}</p>
+          <p className="text-slate-400 text-xs">Mejor de 3 Vidas</p>
+        </div>
+        <div className="text-center">
+          <p className="text-white text-sm font-bold mb-2">{p2Name}</p>
+          <div className="flex gap-1 justify-center">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Heart key={i} size={24} className={i < p2Lives ? 'text-red-500 fill-red-500' : 'text-slate-600'} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Arena de enfrentamiento */}
+      <div id="rps-duel-arena" className="flex justify-center items-center gap-8 mb-6 py-4 bg-slate-900/60 rounded-xl border border-slate-800/80">
+        <div className="text-center min-w-[100px]">
+          <AnimatePresence mode="wait">
+            {state.player1Choice && isRevealing ? (
+              <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0 }} className="text-6xl mb-2">
+                {getChoiceIcon(state.player1Choice)}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <p className="text-white text-sm font-medium">
+            {state.player1Choice && isRevealing ? p1Name : p1HasChosen ? '✓ Eligió' : 'Esperando...'}
+          </p>
+        </div>
+        <div className="text-4xl text-amber-400 font-black">VS</div>
+        <div className="text-center min-w-[100px]">
+          <AnimatePresence mode="wait">
+            {state.player2Choice && isRevealing ? (
+              <motion.div initial={{ scale: 0, rotate: 180 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0 }} className="text-6xl mb-2">
+                {getChoiceIcon(state.player2Choice)}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <p className="text-white text-sm font-medium">
+            {state.player2Choice && isRevealing ? p2Name : p2HasChosen ? '✓ Eligió' : 'Esperando...'}
+          </p>
+        </div>
+      </div>
+
+      {/* Resultado de la ronda */}
+      <AnimatePresence>
+        {showResult && state.roundWinner && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className={`text-center p-4 rounded-xl mb-6 ${getResultMessage()?.bg}`}>
+            <p className={`text-xl font-black ${getResultMessage()?.color}`}>{getResultMessage()?.text}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Botones de selección y estado */}
+      {(state.status === 'ROUND_COMMIT' || state.phase === 'selecting') && !isGameOver && (
+        <>
+          <div className="flex gap-4 mb-4">
+            {(['rock', 'paper', 'scissors'] as const).map((choice) => (
+              <button
+                key={choice}
+                id={`rps-choice-btn-${choice}`}
+                onClick={() => handleChoice(choice as RPSChoice)}
+                disabled={hasPlayerChosen || isGameOver}
+                data-testid={`rps-${choice}`}
+                className={`flex-1 px-4 py-4 rounded-xl font-bold text-lg transition-all ${
+                  !hasPlayerChosen && !isGameOver
+                    ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg hover:scale-105 active:scale-95 cursor-pointer' 
+                    : 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-50'
+                }`}
+              >
+                {choice === 'rock' ? '🪨 Piedra' : choice === 'paper' ? '📄 Papel' : '✂️ Tijera'}
+              </button>
+            ))}
+          </div>
+
+          {/* Indicador de estado CORREGIDO y blindado */}
+          <div className="text-center mt-4">
+            {hasPlayerChosen ? (
+              <div className="flex items-center justify-center gap-2 text-cyan-400 font-bold animate-pulse">
+                <Loader size={18} className="animate-spin" />
+                <span>✓ Tu jugada registrada. Esperando al rival...</span>
+              </div>
+            ) : (
+              <span className="text-emerald-400 font-bold text-lg">
+                🎯 ¡Es tu turno! Elige tu jugada
+              </span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Victoria final */}
+      {(state.status === 'MATCH_ENDED' || state.phase === 'match_ended' || isGameOver) && (
+        <div id="rps-game-over-screen" data-testid="rps-victory-banner" className="text-center p-6 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-xl border-2 border-amber-500">
+          <Trophy size={48} className="text-amber-400 mx-auto mb-4" />
+          <p className="text-2xl font-black text-amber-400 mb-2">🏆 ¡VICTORIA!</p>
+          <p className="text-white font-medium">
+            {state.matchWinner === 'PLAYER1' || state.winnerUserId === state.player1Id
+              ? `${p1Name} gana el match`
+              : `${p2Name} gana el match`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RockPaperScissorsBoard;

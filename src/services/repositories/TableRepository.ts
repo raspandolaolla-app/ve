@@ -866,9 +866,9 @@ export class TableRepository {
    * Crea una nueva mesa pública o privada de forma segura.
    */
   public static async createTable(payload: CreateTablePayload): Promise<GameTable | null> {
-    const entryFeeNum = Number(payload.entryFee || 0);
-    if (entryFeeNum < 25 || entryFeeNum > 5000) {
-      throw new Error('INVALID_ENTRY_FEE: El monto de participación debe estar entre 25 Bs. y 5.000 Bs.');
+    const entryFeeNum = Number(payload.entryFee ?? 0);
+    if (entryFeeNum < 0 || (entryFeeNum > 0 && (entryFeeNum < 10 || entryFeeNum > 5000))) {
+      throw new Error('El monto de participación debe ser 0 Bs. (libre) o estar entre 10 Bs. y 5.000 Bs.');
     }
 
     const supabase = getSupabaseClient();
@@ -895,10 +895,20 @@ export class TableRepository {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData?.user) {
         console.warn('[TableRepository] CREATE_TABLE_ERROR: No authenticated session found', authError);
-        throw new Error('AUTH_REQUIRED: Debes iniciar sesión para crear una mesa.');
+        throw new Error('Debes iniciar sesión para crear una mesa.');
       }
       authUser = authData.user;
     }
+
+    // Diagnóstico seguro en frontend (sin exponer credenciales o tokens)
+    const redactedUserId = authUser?.id ? `${authUser.id.substring(0, 8)}***` : 'anon';
+    console.info('[CREATE_TABLE_DIAGNOSTIC]', {
+      user_id: redactedUserId,
+      game_type: payload.gameType,
+      entry_fee: entryFeeNum,
+      max_players: payload.maxPlayers,
+      visibility: payload.isPrivate ? 'PRIVATE' : 'PUBLIC',
+    });
 
     // Asegurar que el perfil esté conciliado en public.profiles
     await ProfileRepository.ensureCurrentUserProfile();
@@ -962,32 +972,40 @@ export class TableRepository {
         message: rpcError?.message,
         details: rpcError?.details,
         hint: rpcError?.hint,
-        raw: rpcError
       });
-      console.error('[TableRepository] CREATE_TABLE_ERROR', {
-        operation: 'create_game_table_secure',
-        userId: authUser.id,
-        gameType: payload.gameType,
-        dbGameType,
-        entryFee: payload.entryFee,
-        maxPlayers: payload.maxPlayers,
-        isPrivate: payload.isPrivate,
-        error: {
-          message: rpcError.message,
-          code: rpcError.code,
-          details: rpcError.details,
-          hint: rpcError.hint,
-        },
-      });
-      throw new Error(rpcError.message || 'No fue posible crear la mesa en este momento.');
+
+      // Mapeo amigable de errores para la experiencia de usuario
+      const errMsg = rpcError.message || '';
+      if (errMsg.includes('INSUFFICIENT_FUNDS')) {
+        throw new Error('Saldo insuficiente en tu billetera para crear esta mesa.');
+      }
+      if (errMsg.includes('ALREADY_IN_ACTIVE_TABLE')) {
+        throw new Error('Ya tienes una mesa o partida activa en curso de este juego.');
+      }
+      if (errMsg.includes('AUTH_REQUIRED')) {
+        throw new Error('Debes iniciar sesión para crear una mesa.');
+      }
+      if (errMsg.includes('INVALID_GAME_TYPE') || errMsg.includes('GAME_DISABLED')) {
+        throw new Error('El juego seleccionado no está disponible temporalmente.');
+      }
+      if (errMsg.includes('ACCOUNT_BLOCKED')) {
+        throw new Error('Tu cuenta no puede crear mesas actualmente.');
+      }
+      if (errMsg.includes('INVALID_ENTRY_FEE')) {
+        throw new Error('Monto de entrada no válido.');
+      }
+
+      throw new Error(errMsg || 'No se pudo crear la mesa. Inténtalo nuevamente.');
     }
 
-    if (!rpcData?.success) {
-      throw new Error('No fue posible crear la mesa en este momento.');
+    if (!rpcData?.success && !rpcData?.table_id && !rpcData?.id) {
+      throw new Error('No fue posible crear la mesa en este momento. Inténtalo nuevamente.');
     }
+
+    const tableId = rpcData.table_id || rpcData.id;
 
     return {
-      id: rpcData.table_id,
+      id: tableId,
       gameType: payload.gameType,
       name: rpcData.name || tableName,
       mode: payload.mode || (payload.maxPlayers === 4 ? '2v2' : '1v1'),

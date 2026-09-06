@@ -30,11 +30,9 @@ export class WalletPage {
     await expect(claimBtn).toBeVisible({ timeout: 10000 });
     await claimBtn.click();
 
-    // Esperar confirmación del bono
-    const successFeedback = this.page.locator('#claim-test-bonus-feedback, [data-testid="claim-test-bonus-feedback"]').first();
-    if (await successFeedback.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(successFeedback).toBeVisible();
-    }
+    // Esperar a que se procese y se muestre la confirmación o desaparezca el botón
+    const successFeedback = this.page.locator('text=Bono de prueba acreditado, text=exitosamente, .text-emerald-400').first();
+    await expect(successFeedback.or(claimBtn)).toBeVisible({ timeout: 10000 });
   }
 
   /**

@@ -2,10 +2,482 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 08:20:00 -07:00 (UTC 2026-09-06 15:20:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / Playwright depurado / Migración 143 aplicada y verificada con tests de integración automatizados en PostgreSQL)
-ÚLTIMA MIGRACIÓN INTEGRADA: 143_centralized_financial_settlement_and_held_balance_fix.sql (Auditoría Forense, Liquidación Financiera Universal Canónica, Desbloqueo Atómico de Saldos Retenidos e Idempotencia Server-Authoritative)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 11:30:00 -07:00 (UTC 2026-09-06 18:30:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / FASE 0.5 FORENSE READ-ONLY completada / ENCABEZADO DE MARCA RASPANDO LA OLLA 🇻🇪 Y OPTIMIZACIÓN DE NAVBAR SUPERIOR 100% OPERATIVO)
+ÚLTIMA MIGRACIÓN INTEGRADA: 147_update_advertising_assets_with_real_media.sql (Sincronización integral de assets físicos en `/public/ads/banners/` con la base de datos Supabase: `default_banner.svg`, `video1.mp4`, `video2.mp4`, `video3.mp4`, `banner_domino.svg`, `banner_truco.svg`, `banner_bingo.svg`, `banner_polla.svg`, `banner_atrapaito.svg`, posters de video y configuración de campañas activas iniciales)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) OPTIMIZACIÓN UI/UX DE LA BARRA SUPERIOR Y PROTAGONISMO DE MARCA RASPANDO LA OLLA 🇻🇪:
+   - Objetivo: Reorganizar la presentación de la barra superior (Header) para que el centro visual y protagonismo absoluto pertenezca a la identidad de marca: RASPANDO LA OLLA 🇻🇪.
+   - Ocultamiento de Botones Directos de la Barra Superior:
+     * Ocultados visualmente de la barra superior los botones directos "POLLA VENEZOLANA" y "MESAS / SALAS".
+     * Ambas funciones, componentes, pantallas, datos, servicios y flujos siguen 100% activos y accesibles desde:
+       a) El Lobby/Home principal mediante los componentes destacados `LobbyMainActionButtons` ("MESAS & SALAS" y "POLLA VENEZOLANA"), el carrusel y el catálogo.
+       b) La barra flotante inferior `BottomNavigation` mediante el botón dorado central "JUGAR YA" y los botones de navegación.
+       c) El panel lateral `ExploreDrawer` ("Sorteo Comunitario Polla" y "Mesas y Salas en Vivo").
+       d) Las rutas y tabs internas (`polla`, `tables`).
+   - Nuevo Encabezado de Marca RASPANDO LA OLLA 🇻🇪:
+     * Isotipo oficial `logo.svg` enmarcado en contenedor biselado con resplandor dorado ámbar degradado.
+     * Tipografía display black/bold de alta legibilidad y contraste con texto "RASPANDO" en blanco nítido y "LA OLLA" en gradiente ámbar dorado venezolano (`#FF8A00` a `#FFB703`).
+     * Bandera venezolana 🇻🇪 integrada como elemento visual con drop-shadow, armónica y escalada.
+     * Subtítulo lema "Juegos & Sorteos en Vivo" con micro-indicador esmeralda activo.
+     * Semántica y accesibilidad completa: contenedor interactivo con `role="button"`, `tabIndex={0}`, `aria-label="Raspando La Olla 🇻🇪 - Volver al Inicio"`, soporte táctil y de teclado (Enter / Space) para retornar al Home.
+   - Responsive Real y Soporte PWA / Safe Areas:
+     * Dispositivos móviles estrechos (320px, 360px, 375px, 390px, 412px, 430px): visualización impecable sin desbordamiento horizontal, sin texto cortado, sin scroll horizontal y sin altura excesiva.
+     * Eliminada la barra secundaria superior duplicada en móviles (`#header-mobile-quick-nav`) para otorgar protagonismo total a la marca y reducir el consumo vertical.
+     * Compatible con notch / safe-areas de iOS y Android (`safe-area-top`).
+     * Lado derecho equilibrado con saldo disponible, campana de notificaciones, acceso de perfil/avatar, cierre de sesión y botón INGRESAR de alto contraste para usuarios no autenticados.
+   - Preservación Estricta: Sin tocar migraciones, sin alterar Realtime, sin alterar esquemas ni dependencias.
+
+
+0) BLINDAJE TRANSVERSAL CONTRA PULL-TO-REFRESH Y ABANDONO ACCIDENTAL EN MÓVILES (PROMPT MAESTRO CUMPLIDO):
+   - Objetivo: Impedir que gestos accidentales de arrastre vertical ("pull-to-refresh") o reloads en dispositivos móviles causen desconexión, recarga, desmontaje destructivo de componentes, pérdida de visual de la partida o abandono de mesa.
+   - 1. Contexto Global Reutilizable (`ProtectedGameplayContext.tsx`):
+     * Creado el hook centralizado `useProtectedGameplay()` y proveedor `ProtectedGameplayProvider`.
+     * Control del estado reactivo `isGameplayProtected`, detalles de mesa activa (`activeGameDetails`), y helpers `protectGameplay()`, `clearProtectedGameplay()`, `getPersistedActiveGame()`.
+     * Inyección dinámica de clases en `document.documentElement` y `document.body` (`gameplay-protected`, `game-mode-active`).
+   - 2. Interceptor Táctil Inteligente contra Pull-to-Refresh:
+     * Interceptor selectivo en eventos `touchstart` y `touchmove` con `{ passive: false }`.
+     * Lógica diferencial:
+       - Si el usuario se encuentra en la parte superior (`window.scrollY <= 0` o `scrollTop <= 0`) y arrastra hacia abajo (`currentY > startY`), el evento `touchmove` es cancelado con `e.preventDefault()`, anulando el gesto nativo de recarga del navegador (Chrome, Safari, Firefox móvil).
+       - Si el arrastre ocurre dentro de un contenedor con scroll interno y `scrollTop > 0`, el scroll nativo es 100% respetado sin interferencias.
+       - En arrastre hacia arriba (scroll hacia abajo), el comportamiento nativo no es bloqueado.
+   - 3. Bloqueo Nativo con CSS Moderno (`index.css`):
+     * Reglas directas: `html.gameplay-protected, body.gameplay-protected, .gameplay-protected, .gameplay-protected-area, .gameplay-protected-container { overscroll-behavior-y: none !important; overscroll-behavior: none !important; }`.
+     * Bloquea a nivel de compositor gráfico el rebote y recarga nativa de Safari iOS y Chrome Android.
+   - 4. Blindaje del Ciclo de Vida y Abandono Seguro (`useGameAbandonment.ts`):
+     * ELIMINADA la llamada automática a `TableRepository.abandonTable()` dentro del `useEffect` de desmontaje (`return () => ...`).
+     * Razón técnica: El desmontaje de componentes puede ocurrir por re-render, recarga accidental, suspensión de pestaña o latencia de red. El abandono de una mesa de juego SÓLO se ejecuta cuando el usuario explícitamente pulsa "Abandonar Partida" y confirma en el modal (`handleConfirmAbandon`).
+   - 5. Persistencia y Recuperación de Sesión Activa (`sessionStorage`):
+     * La sesión activa se guarda de forma transitoria en `rlo_active_game_session` (`tableId`, `sessionId`, `gameType`, `tableName`, timestamp).
+     * Si ocurre un refresco manual forzado o corte de red:
+       - `App.tsx` detecta la sesión activa y restaura de inmediato la pestaña correspondiente (`tables`, `atrapaito`, `polla`).
+       - `TablesView.tsx` consulta de forma segura el estado de la mesa y los asientos en Supabase. Si el jugador continúa sentado y la mesa sigue activa o en espera, reanuda `inGameData` o `activeTable` automáticamente sin duplicar al jugador ni crear una sesión vacía.
+   - 6. Cobertura Universal de Todos los Juegos:
+     * `GameContainer.tsx` (Dominó, Truco, Bingo, Damas, Ajedrez, Tic Tac Toe, Piedra Papel Tijera, Una-Olla).
+     * `GameArena.tsx` (Contenedor maestro de juegos y partidas activas).
+     * `AtrapaitoGame.tsx` (Juego de acción en tiempo real con Canvas y Web Audio).
+     * `PollaBoard.tsx` (Quiniela de animalitos).
+     * `TablesView.tsx` (Salas de espera y transiciones de mesa).
+     * `App.tsx` (Enrutador principal y layout).
+
+0) FASE 0.5 — CLASIFICACIÓN FORENSE DEFINITIVA DE CUENTAS, SALDOS Y ACTIVOS (100% READ-ONLY):
+   - Estado de Seguridad: PRE-PURGE BLOCKED Activo. Cero modificaciones en base de datos.
+   - Auditoría de los 14 Usuarios en auth.users:
+     * 2 SUPER_ADMIN protegidos (Francisco Morales y Pulso Play).
+     * 3 OPERATOR legítimos asignados formalmente por Francisco Morales (Josue Marcano, Nany Mogollon, Alejandro Suarez).
+     * 8 REAL_PLAYER legítimos registrados mediante Google OAuth real con aceptación de términos v1.0.
+     * 1 ORPHAN_AUTHENTICATED (Jhonkelvin Belisario, usuario OAuth real sin perfil público pero con comprobante de pago subido en Storage).
+     * 0 Cuentas sintéticas de prueba ("test/dummy").
+   - Reconciliación Contable y Saldos de Prueba:
+     * El día 2026-09-04T04:36:53Z se aplicó un reset masivo contable a 0.00 Bs.
+     * Posterior al reset, se distribuyeron bonos manuales de prueba (`BONO_DE_PRUEBA_5000_BS`) y reembolsos automáticos de mesas canceladas.
+     * Los saldos actuales de Francisco Morales (627.00 Bs) y Pulso Play (5025.00 Bs) cuadran exactamente al centavo con el Libro Mayor (0.00 Bs de discrepancia).
+     * Los saldos actuales son saldo promocional/de pruebas acumulado por testeo operativo, NO fondos fiduciarios reales.
+   - Dictamen de Cuentas Ana Monroy:
+     * Ambas cuentas provienen de cuentas de Google diferentes (sub OAuth distintos).
+     * No deben fusionarse a nivel de base de datos para no corromper la integridad referencial de OAuth ni el historial inmutable de apuestas de Polla.
+   - Dictamen de Cuentas de Pago y Storage:
+     * Las 3 cuentas bancarias en `payment_accounts` son legítimas (Francisco Morales, Ana Monroy, Josue Marcano).
+     * Los 8 objetos en `storage.objects` pertenecen a usuarios reales (comprobantes de pago y documentos KYC). No deben eliminarse a ciegas.
+
+
+0) OPTIMIZACIÓN INTEGRAL DE FAQ, FOOTER Y CONTENIDO INFERIOR (MOBILE-FIRST & ACCORDION):
+   - Principio "NO ELIMINAR INFORMACIÓN" Estrictamente Cumplido:
+     * Cero preguntas eliminadas: Las 12 preguntas existentes (tanto del acordeón previo como del fallback de soporte y reglas financieras) fueron preservadas íntegramente.
+     * Cero enlaces legales eliminados: Términos, Privacidad, Reglas de Juego y Juego Responsable (+18) 100% accesibles y conectados a `LegalModal`.
+     * Cero garantías o avisos eliminados: La Regla 90/10, Mayores de 18 & KYC, 2FA, Cifrado SSL, Libro Contable Auditado y Moneda Bolívares (Bs.) permanecen accesibles tanto en móvil como en escritorio.
+   - Centralización y Rediseño de FAQ como "Centro de Ayuda" (`FAQAccordion.tsx`):
+     * Estructura organizada en 6 categorías lógicas:
+       1. 🔐 Cuenta y Acceso (Registro con Google/Email, Recuperación de contraseña, Verificación KYC +18).
+       2. 🎮 Juegos y Reglas (Regla 90/10 en mesas comunitarias, Bingo Online y Polla Venezolana, Reconexión ante cortes de internet).
+       3. 💰 Billetera y Pagos (Recargas con Pago Móvil interbancario/transferencias, Retiro directo a cuentas bancarias).
+       4. 🏆 Premios y Torneos (Potes acumulados, eliminatorias y tablas de posiciones).
+       5. 🛡️ Seguridad y Confianza (Quiénes somos / PulsoPLAY, Cifrado SSL y Libro Mayor contable inmutable).
+       6. 📱 Aplicación y PWA (Instalación en pantalla de inicio Android/iOS, notificaciones y modo sin tiendas).
+     * Comportamiento Mobile-First:
+       - En dispositivos móviles y PWA, el FAQ inicia colapsado en un encabezado elegante de 54px ("Preguntas Frecuentes & Centro de Ayuda • 12 Respuestas"), reduciendo el scroll vertical de más de 1200px a una sola barra táctil.
+       - Al expandir, el usuario navega cómodamente mediante selector horizontal de categorías táctiles (chips interactivos) o buscador instantáneo en tiempo real por palabras clave.
+       - Cada categoría muestra su conteo de preguntas y se despliega con transiciones suaves sin apilamiento caótico.
+     * Comportamiento en Escritorio (Desktop/Tablet):
+       - Presentación amplia con selector de categorías, descripciones contextuales, indicadores de cantidad y acordeón de preguntas con tipografía de alto contraste.
+     * Escucha de Eventos Globales:
+       - Se añadió listener para el evento `'open-faq'`, permitiendo que cualquier enlace del Footer o menú inferior expanda y enfoque el FAQ suavemente.
+   - Nueva Jerarquía Estructural de la Zona Inferior:
+     * Contenido Principal -> Historial Público -> Acordeón de FAQ (Centro de Ayuda) -> Banner de Ayuda y Soporte 24/7 -> Footer Compacto.
+     * Integrado nuevo bloque `lobby-help-support-section` en `LobbyView.tsx` con acceso directo a operadores en vivo y creación de tickets.
+   - Rediseño de Footer Mobile-First (`Footer.tsx`):
+     * Modo Móvil (< 768px):
+       - Sustitución de las 3 columnas apiladas gigantes por una barra compacta de marca + cuadrícula 2x2 de accesos rápidos táctiles (`[ ❓ Preguntas frecuentes ]`, `[ 🛟 Ayuda y soporte ]`, `[ 📜 Información legal ]`, `[ 🔒 Privacidad y datos ]`).
+       - Botón desplegable inline para consultar Garantías de Seguridad & Libro Mayor (Regla 90/10, KYC, SSL, Ledger, Bs.) sin consumir espacio vertical de manera permanente.
+       - Espaciado inferior de seguridad (`pb-28 sm:pb-12`) para garantizar que la barra flotante `BottomNavigation` jamás cubra el copyright ni los enlaces legales.
+     * Modo Escritorio (>= 768px):
+       - Se preserva el diseño a 3 columnas amplias con identidad corporativa de PulsoPLAY, garantías de la plataforma, seguridad financiera, fila de enlaces legales y advertencias de juego responsable.
+   - Verificación Técnica:
+     * `compile_applet` PASS (build de producción completado con éxito).
+     * `lint_applet` PASS (0 errores TypeScript, 0 errores de sintaxis).
+
+0) EJECUCIÓN DE LA FASE 0 — PRODUCTION PRE-PURGE PREFLIGHT (100% READ-ONLY):
+   - Principio de Seguridad Absoluta Cumplido:
+     * Cero mutaciones ejecutadas sobre Supabase (0 INSERT, 0 UPDATE, 0 DELETE, 0 TRUNCATE, 0 DROP, 0 ALTER).
+     * Sesión forzada con `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;`.
+   - Backup Físico Completo Generado y Verificado en Disco:
+     * Directorio: `/app/applet/backups/pre_purge_1788716720741/`
+     * 31 tablas y recursos exportados en formato JSON con `manifest.json`. Total de 32,183 acciones, 1,145 sesiones, 225 mesas, 632 movimientos de ledger, 14 usuarios de Auth, 13 perfiles, 13 billeteras y 8 objetos de Storage respaldados.
+   - Auditoría de los 2 Super Administradores Protegidos:
+     * Super Admin 1: `b733db64-4912-4a33-8d7a-4ee332c7b5f1` (`v19629049@gmail.com`, FRANCISCO MORALES). Presente en `auth.users`, `profiles`, `user_roles` (SUPER_ADMIN), `protected_super_admins`, `user_2fa_secrets` (activo) y `wallets`.
+     * Super Admin 2: `42b24c41-83a5-4c68-ab8c-7dd09f1a5217` (`pulsoplay2026@gmail.com`, pulso play). Presente en `auth.users`, `profiles`, `user_roles` (SUPER_ADMIN), `protected_super_admins` y `wallets`.
+     * Funciones de protección activas: `is_protected_super_admin_email`, `is_protected_super_admin_user`, `is_super_admin`, `is_admin`.
+     * Triggers de protección activos: `trg_protected_super_admins_guard`, `trg_user_roles_protection_guard`, `trg_profiles_protection_guard`.
+   - Auditoría Crítica de Payment Accounts:
+     * Identificadas 3 cuentas bancarias en `public.payment_accounts`.
+     * Cuenta 1 (`559a708a-9d28-4674-a6a6-62afa2dc02b9`) pertenece al SUPER ADMIN Francisco Morales (Banco de Venezuela). CLASIFICACIÓN: `PRODUCTION_OPERATIONAL`. DEBE CONSERVARSE.
+     * Cuenta 2 y 3 pertenecen a Ana Monroy y Josue Marcano (Operador).
+   - Auditoría Crítica de Storage:
+     * 4 buckets verificados (`kyc-documents`, `payment-proofs`, `kyc-selfies`, `bingo-winners`).
+     * De los 8 objetos existentes, 3 comprobantes pertenecen directamente a los 2 Super Administradores y 2 a documentos de identidad KYC (Cédula y Selfie de Ana Monroy).
+   - Auditoría de Identidad y Regla de Bloqueo Pre-Purga:
+     * Se identificaron 12 usuarios que no son inequívocamente descartables: 3 operadores registrados (`josuemarcano933@gmail.com`, `bingolacaleta@gmail.com`, `parajugarcodmobilegnb129@gmail.com`) y 8 usuarios con nombres reales venezolanos y cédulas asociadas.
+     * En estricto apego a la regla: "Si existe aunque sea un usuario ambiguo: PRE-PURGE BLOCKED", la fase destructiva queda bloqueada hasta recibir clasificación manual y confirmación explícita del usuario.
+
+0) AJUSTE FINAL DEL BLOQUE PUBLICITARIO Y REORGANIZACIÓN DEL LOBBY PRINCIPAL:
+   - Orden Visual Obligatorio Implementado en el Lobby Principal (`LobbyView.tsx`):
+     * Jerarquía estricta cumplida según el diagrama maestro:
+       1. BOTONES PRINCIPALES: MESA / POLLA (`LobbyMainActionButtons.tsx`)
+       2. VÍDEO PUBLICITARIO OFICIAL COMPLETAMENTE VISIBLE (`LobbyVideoSpotlight.tsx`)
+       3. BANNER PUBLICITARIO OFICIAL (`LobbyBannerSpotlight.tsx`)
+       4. RESTO DEL CONTENIDO (Pantalla Gigante de Bingo en Vivo, Torneos, Catálogo de Juegos, etc.)
+   - Componente de Botones Principales de Acción Rápida (`LobbyMainActionButtons.tsx`):
+     * Botón "Mesas & Salas": Enlace directo a la pestaña de mesas con badge "Mesas en Vivo", icono temático de control de juego dorado, tipografía de alto impacto y microinteracción táctil activa.
+     * Botón "Polla Venezolana": Enlace directo con badge "Gran Pozo Acumulado", icono oficial de huella 🐾, y validación de disponibilidad contextual.
+     * Layout fluido: `grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-5xl mx-auto` con padding seguro para dispositivos móviles y PWA.
+   - Solución Radical a Videos Cortados Verticalmente (`LobbyVideoSpotlight.tsx` & `GameVideoAd.tsx`):
+     * Auditoría de CSS completada: Se eliminaron los contenedores con alturas fijas forzadas y relaciones de aspecto horizontales fijas (`aspect-[21/5]` o `aspect-video`) que provocaban recorte de videos verticales.
+     * Reemplazo de regla `object-cover` por `object-fit: contain` (`object-contain`) como estándar por defecto, garantizando que el 100% de los fotogramas, textos y gráficos del video permanezcan íntegramente visibles sin deformación.
+     * Detección dinámica de orientación y dimensiones reales del video mediante `onLoadedMetadata` (`videoWidth`, `videoHeight`, `aspectRatio`, `orientation` = horizontal | vertical | square).
+     * Dimensionamiento responsive inteligente del contenedor:
+       - Videos Verticales (ej. 9:16 o 3:4): El contenedor se autoajusta a un ancho acotado (`max-w-md` en PC, `max-w-sm` en móvil) y altura proporcional calculada con `aspectRatio` y tope `max-height: min(72vh, 600px)`.
+       - Videos Horizontales (16:9): Contenedor ancho (`max-w-5xl mx-auto`) con altura adaptada y tope `max-height: min(58vh, 460px)`.
+       - Videos Cuadrados (1:1): Contenedor centrado (`max-w-md mx-auto aspect-square`).
+     * Prevención absoluta de Layout Shift (CLS): Reserva de espacio inicial y fondo neutro oscuro elegante (`#06080F`) con borde sutil ámbar.
+     * Experiencia de Usuario (UX) preservada: En estado normal el video se muestra 100% limpio sin elementos obstructivos. En hover (PC) o toque táctil (móvil/PWA), se despliegan sutilmente el control de audio persistente (`adAudioPreference`), insignias y botón CTA contextual conectado al Game Registry. En inactividad, se oculta automáticamente.
+     * Playlist y rotación continua: Soporte para transicionar fluidamente entre múltiples videos promocionales al finalizar cada reproducción (`onEnded`).
+   - Componente de Banner Publicitario (`LobbyBannerSpotlight.tsx`):
+     * Posicionado inmediatamente debajo del video publicitario oficial con separación visual equilibrada.
+     * Muestra banners gráficos rotativos (SVG/PNG/JPG/WebP) con altura balanceada (`h-[95px] sm:h-[115px] md:h-[135px] max-h-[160px]`), badge de publicidad, texto informativo y botón de acción directa.
+     * Rotación automática temporizada a 7 segundos con pausa al posar el cursor o interactuar.
+   - Actualización de Reproductores Secundarios (`VideoAdPlayer.tsx` y `AdPlacementContainer.tsx`):
+     * Homogeneización con `videoFit="contain"` y adaptación de relación de aspecto en tiempo real para evitar cualquier recorte incidental en otras vistas del sistema.
+
+0) AUDITORÍA PROFUNDA Y DRY RUN DE PREPARACIÓN PARA PRODUCCIÓN REAL EN SUPABASE (FASE 1):
+   - Inventario Completo y Clasificación de Tablas (40 tablas activas en el esquema público):
+     * Categoría A (Infraestructura / Configuración - NO TOCAR): `system_settings` (1 registro), `protected_super_admins` (2 registros), `user_2fa_secrets` (2 registros de los administradores).
+     * Categoría B (Catálogos y Reglas del Sistema - NO TOCAR): `game_configurations` (10 juegos oficiales), `entry_fees` (11 niveles oficiales de entrada), `financial_rules` (1 regla global 90/10), `advertising_assets` (7 assets oficiales), `faq_items` (6 preguntas frecuentes), `system_announcements` (0 registros).
+     * Categoría C (Cuentas Administrativas Protegidas): Identificación blindada de los 2 SUPER_ADMINS reales:
+       1. `v19629049@gmail.com` (ID: `b733db64-4912-4a33-8d7a-4ee332c7b5f1`, Francisco Morales, Super Admin A).
+       2. `pulsoplay2026@gmail.com` (ID: `42b24c41-83a5-4c68-ab8c-7dd09f1a5217`, pulso play, Super Admin B).
+       Se conservan sus cuentas en `auth.users`, `profiles`, `user_roles`, `user_2fa_secrets` y `wallets` (con reseteo de balance operativo a 0.00 Bs).
+     * Categoría D (Datos Operativos y Cuentas de Prueba a Purgar):
+       - Cuentas de prueba en `auth.users`: 12 usuarios de prueba identificados.
+       - Perfiles y billeteras de prueba: 11 en `profiles`, 11 en `wallets`, 11 en `user_roles`.
+       - Mesas y partidas de prueba: 225 mesas en `game_tables`, 1,145 sesiones en `game_sessions`, 32,075 acciones en `game_actions`, 4 secretos en `game_session_secrets`, 12 jugadores en `game_table_players`, 21 liquidaciones en `game_settlements`, 10 receptores en `game_settlement_recipients`.
+       - Juegos adicionales: 48 compras en `bingo_card_purchases`, 103 boletos en `polla_tickets`, 1 sorteo en `polla_draw_results`.
+       - Finanzas de prueba: 20 solicitudes en `deposit_requests`, 3 cuentas bancarias en `payment_accounts`, 632 movimientos en `ledger_entries`.
+       - Storage: 7 archivos de prueba identificados en los buckets (`kyc-documents`: 1, `payment-proofs`: 5, `kyc-selfies`: 1). Los 4 buckets se conservan intactos.
+   - Evaluación Dry Run Ejecutada en Modo Estricto de Solo Lectura (READ-ONLY):
+     * Cero mutaciones ejecutadas (0 INSERT, 0 UPDATE, 0 DELETE, 0 TRUNCATE).
+     * Plan de ejecución de limpieza segura (`PRODUCTION_CLEANUP_PLAN`) establecido con orden topológico para evitar violaciones de claves foráneas.
+   - Actualización de Marquee Frontend (`SafeDevelopmentBanner.tsx`):
+     * Reemplazo del mensaje por defecto de fallback que mencionaba "MODO PRUEBA" por el anuncio oficial de bienvenida a producción de Raspando La Olla / PulsoPLAY.
+
+0) REDUCCIÓN DEL TAMAÑO DEL BANNER SUPERIOR A LA MITAD (50% DE ALTURA Y ESCALA):
+   - Carrusel Hero Principal Superior (`GameHeroCarousel.tsx`):
+     * Reducción al 50% de la altura vertical mínima en todos los breakpoints:
+       - Móvil / Base: de `min-h-[315px]` a `min-h-[160px]`.
+       - Pantallas pequeñas (sm): de `min-h-[357px]` a `min-h-[180px]`.
+       - Tablets (md): de `min-h-[400px]` a `min-h-[200px]`.
+       - Escritorio / PC (lg): de `min-h-[441px]` a `min-h-[220px]`.
+       - Pantallas panorámicas (xl): de `min-h-[462px]` a `min-h-[235px]`.
+     * Rebalanceo del padding del contenedor: de `p-6 sm:p-9 md:p-12` a `p-3.5 sm:p-5 md:p-6 lg:p-7`.
+     * Tipografía proporcional: H1 ajustado a `text-lg sm:text-xl md:text-2xl lg:text-3xl font-black`, y subtítulos a `text-[11px] sm:text-xs md:text-sm line-clamp-1 sm:line-clamp-2`.
+     * Botones y controles compactos: CTA reducido a `px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs`, badge a `text-[9px] sm:text-[10px]`, flechas de navegación a `w-8 h-8` y paginación inferior optimizada.
+   - Contenedor Multimedia de Banners (`AdPlacementContainer.tsx`):
+     * Proporción y altura vertical reducidas armónicamente a la mitad:
+       - Ratios actualizados: `aspect-[21/5]` en móvil y `sm:aspect-[28/6]` en PC.
+       - Alturas mínimas y máximas: `min-h-[90px] md:min-h-[115px] lg:min-h-[135px]` con tope máximo `max-h-[190px]` (antes 378px).
+   - Verificación de Linter y Compilación:
+     * `tsc --noEmit` completado exitosamente con 0 errores.
+     * `vite build` de producción completado exitosamente en estado PASS.
+
+0) OPTIMIZACIÓN Y AMPLIACIÓN DE LA VISTA VERTICAL DE VIDEO EN PC (+5% VERTICAL):
+   - Carrusel Principal de Juegos y Videos (`GameHeroCarousel.tsx`):
+     * Incremento exacto del 5% en la altura vertical mínima en todos los breakpoints, especialmente para pantallas de escritorio (PC):
+       - Base / móvil: de `min-h-[300px]` a `min-h-[315px]` (+5%).
+       - Pantallas intermedias (sm): de `min-h-[340px]` a `min-h-[357px]` (+5%).
+       - Tablets (md): de `min-h-[380px]` a `min-h-[400px]` (+5%).
+       - Escritorio / PC (lg): de `min-h-[420px]` a `min-h-[441px]` (+5%).
+       - Monitores de alta resolución (xl): incorporación de `xl:min-h-[462px]` (+5% adicional sobre pantallas grandes) para prevenir que la relación de aspecto panorámica recorte el video arriba y abajo.
+   - Contenedores de Ubicación Publicitaria (`AdPlacementContainer.tsx`):
+     * Ajuste de proporciones verticales en +5%:
+       - Ratio base: de `aspect-[21/9]` a `aspect-[21/9.45]`.
+       - Ratio en PC (sm en adelante): de `aspect-[24/7]` a `aspect-[24/7.35]`.
+       - Altura mínima y máxima: `min-h-[147px]` (antes 140px, +5%), con `md:min-h-[190px]` y `lg:min-h-[230px]` para PC, y tope `max-h-[378px]` (antes 360px, +5%).
+   - Adaptador Común de Video (`VideoAdPlayer.tsx`):
+     * Proporción vertical en PC actualizada de `sm:aspect-[21/9]` a `sm:aspect-[21/9.45]`.
+   - Componente Base de Video (`GameVideoAd.tsx`):
+     * Incorporación de prop configurable `videoFit?: 'cover' | 'contain' | 'fill'` con valor por defecto `'cover'`.
+     * Adición de clase de centrado óptico `object-center` para mantener el foco en el centro geométrico del video.
+   - Verificación de Linter y Compilación:
+     * `tsc --noEmit` completado exitosamente con 0 errores.
+     * `vite build` de producción completado exitosamente.
+
+0) RESOLUCIÓN DE ERRORES DE LINTER Y TIPADO EN REPRODUCTOR PUBLICITARIO (GAME VIDEO AD):
+   - Sincronización de API en `GameRegistry` (`src/services/games/GameRegistry.ts`):
+     * Incorporación del método canónico `getGameCtaLabel(rawId: string, isAuthenticated: boolean)` para resolver dinámicamente etiquetas de llamada a la acción contextuales según el estado de autenticación del usuario.
+     * Incorporación del alias `getCanonicalGameId(rawId: string)` que redirige a `getCanonicalId(rawId)` garantizando retrocompatibilidad con las distintas capas de la plataforma.
+   - Robustecimiento de `useCapabilities` (`src/hooks/useCapabilities.ts`):
+     * Adición de la propiedad opcional `reason?: string` a la interfaz `ProtectedActionRequest`.
+     * Soporte para mensajes contextuales directos en `getContextualLoginMessage`: si la acción protegida especifica un motivo descriptivo (ej. "Inicia sesión para jugar a Dominó Clásico Venezolano"), este se proyecta directamente en el modal de inicio de sesión.
+   - Sincronización en `GameVideoAd` (`src/components/advertising/GameVideoAd.tsx`):
+     * Actualización de la invocación `GameRegistry.getCanonicalId` y compatibilidad total con `GameRegistry.getGameCtaLabel` y `executeOrPromptLogin`.
+     * Verificación estricta con `lint_applet` (`tsc --noEmit`) y `compile_applet`: PASS con 0 errores y compilación de producción exitosa.
+
+0) INTEGRACIÓN DEL REGISTRO CENTRAL DE JUEGOS Y CONTROL DE ACCESO CONTEXTUAL (FASE 4 Y 5 PUBLICIDAD):
+   - Creación del Registro Central `GameRegistry` (`src/services/games/GameRegistry.ts`):
+     * Fuente canónica única de metadatos, alias normalizados, descripciones, badges (`🆕 NUEVO`, `POPULAR`, `HOT`, `POZO EN JUEGO`) y configuraciones de llamada a la acción (CTA) para todos los juegos de la plataforma (Dominó, Truco, Bingo, Polla, Atrapaíto, Una-Olla, etc.).
+     * Provee etiquetas y acciones diferenciadas para usuarios autenticados vs. visitantes (ej. "CREAR MESA" vs. "Inicia sesión para crear mesa").
+     * Incluye detección y promoción automática de juegos nuevos (`isNewGame`) con badges de alta visibilidad.
+   - Creación del Hook de Permisos y Autorización `useCapabilities` (`src/hooks/useCapabilities.ts`):
+     * Encapsula la lógica de verificación de sesión y permisos de usuario (`canCreateTable`, `canJoinTable`, `canAccessWallet`, `canAccessPolla`, `canPlayFree`).
+     * Implementa `executeOrPromptLogin(intent, callback)`: Si el visitante no está autenticado, almacena su intención en `sessionStorage` (`pending_guest_action`) con sello de tiempo y razón contextual, abriendo el modal de inicio de sesión.
+   - Mensaje Contextual en Modal de Inicio de Sesión (`LoginModal.tsx` & `AuthContext.tsx`):
+     * Se añadió soporte para `loginContextReason` en `AuthContext.tsx` con compatibilidad tipada para eventos de botón (`React.SyntheticEvent`).
+     * `LoginModal.tsx` ahora renderiza un banner visual dorado destacando la acción protegida que intentó el usuario (ej. "Acción protegida: Inicia sesión para crear una mesa de Dominó Clásico Venezolano").
+   - Reanudación Automática Post-Login (`App.tsx`):
+     * Se incorporó un efecto en `App.tsx` que, tras completar el inicio de sesión (`state === 'authenticated'`), recupera la intención almacenada en `sessionStorage` y reanuda la acción sin que el usuario tenga que buscarla nuevamente (navegando a la pestaña correspondiente y disparando `open-create-table` para el juego exacto).
+     * Soporte para evento global desacoplado `navigate-tab`.
+   - Carrusel Hero de Juegos y Promociones (`GameHeroCarousel.tsx`):
+     * Desplegado en la parte superior del Lobby principal (`LobbyView.tsx`).
+     * Soporta reproducción multimedia de banners e ilustraciones de alta resolución y videos de `/public/ads/`.
+     * Control de reproducción con autoplay, pausa manual, botones de desplazamiento y soporte para gestos táctiles (swipe en móviles y tablets).
+     * Integración estricta con `isGameEnabled`: Oculta en tiempo real diapositivas de juegos desactivados por administración.
+     * Botón "¿Cómo jugar?" que abre directamente las reglas oficiales del juego seleccionado.
+   - Componentes Reutilizables de Publicidad (`GameVideoAd.tsx` & `GameBanner.tsx`):
+     * `GameVideoAd`: Reproducción silenciosa por defecto (`muted`) con botón flotante independiente de sonido (🔇 / 🔊) y memoria en `localStorage`, `playsInline` para iOS/Android y póster de precarga sin saltos de maquetación.
+     * `GameBanner`: Banner publicitario contextual con conexión directa a la creación de mesas y respeto a la disponibilidad de juegos.
+   - Protección de Billetera y Vistas Privadas para Visitantes (Sección 5):
+     * En `Header.tsx` y `BottomNavigation.tsx`, el botón de navegación a la Billetera y el saldo disponible se ocultan para usuarios no autenticados, ofreciendo en el dock inferior un acceso directo a "Mesas" públicas.
+     * En `TablesView.tsx`, los visitantes disfrutan de un botón destacado "Inicia sesión para crear mesa" que preserva el juego seleccionado.
+     * En `PollaBoard.tsx`, el botón de compra y la pestaña "Mis Pollas" muestran una interfaz explicativa invitando a iniciar sesión para adquirir boletos o consultar historial.
+   - Catálogo de Juegos y Ficha "Una-Olla":
+     * Se actualizó `GameCard.tsx` con gráfica visual distintiva para el nuevo juego `una_olla` y badges dinámicos obtenidos desde `GameRegistry`.
+
+0) PREVENCIÓN DE BUCLES INFINITOS DE RE-RENDER (MAXIMUM UPDATE DEPTH EXCEEDED):
+   - Se resolvió el error de ejecución de React "Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render".
+   - Causa raíz:
+     1. En `AdPlacementContainer.tsx`, se invocaba `useAds(placement, { gameType })`, pasando un nuevo objeto literal en cada render.
+     2. En `useAds.ts`, el `useEffect` principal incluía el objeto `options` y la función `effectiveIsGameEnabled` en su array de dependencias. Al cambiar la referencia del objeto en cada renderizado, el efecto se re-ejecutaba perpetuamente.
+     3. En `AdService.ts`, el método `subscribe` ejecutaba inmediatamente el callback de forma síncrona al registrarse el listener, provocando una actualización síncrona de estado (`setCampaigns`) en cada ciclo de suscripción del efecto.
+   - Solución implementada:
+     1. Desacoplamiento de dependencias inestables: Se extrajeron los valores primitivos (`gameType`, `deviceType`, `orientation`) en `useAds.ts`.
+     2. Almacenamiento seguro en `useRef` para funciones (`isGameEnabledRef`) y longitud de campañas (`campaignsLengthRef`), permitiendo que callbacks como `nextAd`, `prevAd` y `goToAd` tengan dependencias estables `[]`.
+     3. Comparación profunda de arrays (`areCampaignArraysEqual`): Se implementó `setCampaignsIfChanged` para que, si los anuncios devueltos no varían, React conserve la referencia anterior y corte en seco cualquier ciclo de re-renderizado.
+     4. En `AdService.ts`, se eliminó la ejecución síncrona del listener dentro de `subscribe()`.
+     5. En `AdPlacementContainer.tsx`, se memorizó el objeto de opciones con `useMemo` y se depuraron las dependencias del `useEffect` de rotación utilizando primitivos (`isCurrentVideo: boolean`).
+   - Verificación: `lint_applet` (`tsc --noEmit`) PASS y `compile_applet` PASS.
+
+0) CORRECCIÓN DE REGLAS DE HOOKS EN COMPONENTE MEDIABANNER:
+   - Se resolvió el error de ejecución de React "Rendered fewer hooks than expected. This may be caused by an accidental early return statement" en `MediaBanner.tsx`.
+   - Causa raíz: Un retorno condicional anticipado (fallback a `AdPlacementContainer`) se encontraba ubicado antes de la invocación de `useEffect` para la rotación automática de anuncios. Al cambiar el estado de `loading` o la cantidad de banners, React detectaba una discrepancia en el número total de hooks ejecutados entre renders.
+   - Solución: Se reordenaron todas las llamadas a hooks (`useState`, `useEffect`) para ejecutarse incondicionalmente en la parte superior del componente antes de cualquier bifurcación de retorno o renderizado condicional.
+   - Verificación: Linter y build de producción (`compile_applet`) verificados en estado PASS.
+
+0) SISTEMA PROFESIONAL DE PUBLICIDAD — BANNERS, IMÁGENES Y VIDEOS (/public/ads/):
+   - Principios Rectores Absolutos de la Arquitectura de Anuncios:
+     * No crear una segunda WebApp ni duplicar sistemas de publicidad.
+     * La carpeta física `/public/ads/` es la fuente canónica de archivos estáticos (offline-first).
+     * Cero fallos en cascada: Los fallos de red o de carga de medios jamás rompen la navegación ni el Game Engine.
+     * Respeto estricto a la disponibilidad central de juegos (Sección 41): Un juego deshabilitado en backend/admin jamás recibe anuncios ni llamadas a la acción que promuevan su juego.
+     * Compatibilidad universal: Rendimiento optimizado en Desktop, Android, iOS (Safari/Chrome), WebApp PWA instalada, conexiones lentas y rápidas.
+   - Diagnóstico y Verificación de la Carpeta Física `/public/ads/`:
+     * Verificados los 3 videos existentes: `video1.mp4` (2.4MB), `video2.mp4` (2.9MB), `video3.mp4` (2.4MB) en resolución HD 1280x720.
+     * Generados posters físicos extraídos de cada video mediante ffmpeg: `poster_video1.jpg`, `poster_video2.jpg`, `poster_video3.jpg`.
+     * Creados banners vectoriales SVG premium de alta fidelidad para juegos tradicionales:
+       - `banner_domino.svg`: Dominó tradicional venezolano (piezas cochina doble seis, trancaíto).
+       - `banner_truco.svg`: Truco venezolano (envite, flor, quiero vale 4, baraja española).
+       - `banner_bingo.svg`: Gran Bingo criollo (bolas 75/90, bombo dorado, cartones).
+       - `banner_polla.svg`: Polla criolla (lotería animalitos 00-76, pozo acumulado).
+       - `banner_atrapaito.svg`: Parchís criollo 4 jugadores (dados, fichas criollas, carrera al cielo).
+     * Todos los assets fueron validados en disco sin enlaces rotos ni archivos huérfanos.
+   - Creación del Script Automatizado de Auditoría (`scripts/validateAds.mjs`):
+     * Valida sintaxis JSON de `/public/ads/manifest.json`.
+     * Comprueba existencia física, tamaño y permisos de cada archivo declarado.
+     * Comprueba correspondencia entre tipo MIME, extensión y poster de video.
+     * Detecta archivos huérfanos en `/public/ads/`. Resultado: 0 errores, 100% PASS.
+   - Creación del Servicio Centralizado `AdService` (`src/services/advertising/AdService.ts`):
+     * Núcleo unificado de publicidad que combina el inventario estático local (`manifest.json`) con las campañas dinámicas en Supabase (`advertising_campaigns`).
+     * Soporte offline-first: Si Supabase no está configurado, o no tiene campañas para un espacio publicitario, o falla la conexión, los assets de `/public/ads/` se activan automáticamente como campañas de respaldo.
+     * Filtrado dinámico por `placement` (HOME_TOP, LOBBY, GAMES, GAME_DOMINO, etc.), dispositivo (`DESKTOP`, `TABLET`, `MOBILE`) y orientación (`PORTRAIT`, `LANDSCAPE`).
+     * Filtro de Disponibilidad de Juegos: Si `isGameEnabled` reporta un juego deshabilitado, las campañas asociadas o cuyos botones apunten a dicho juego se suprimen instantáneamente.
+     * Sanitizador estricto de URLs: Bloquea protocolos maliciosos (`javascript:`, `vbscript:`, `data:text/html`).
+     * Detección de fallos y rotación reactiva: Si un medio falla, `reportAdFailure` lo rota sin dejar pantallas negras.
+     * Suscripción en tiempo real vía WebSocket con PostgreSQL Realtime (`advertising_campaigns` y `advertising_assets`).
+   - Desarrollo del Hook Especializado `useAds` (`src/hooks/useAds.ts`):
+     * Conecta cualquier vista con el `AdService` de forma reactiva y tipada.
+     * Maneja estados de carga, lista de anuncios elegibles, rotación manual y automática (`nextAd`, `prevAd`, `goToAd`).
+     * Integrado de forma nativa con `GameAvailabilityContext`.
+   - Rediseño y Potenciación de `AdPlacementContainer` (`src/components/advertising/AdPlacementContainer.tsx`):
+     * Soporta reproducción fluida de video: `autoPlay`, `muted`, `playsInline`, `preload="metadata"`, `poster`.
+     * Control de audio accesible flotante (🔇 / 🔊) permitiendo al usuario activar el sonido voluntariamente.
+     * Rotación automática por temporizador (banners) o al finalizar reproducción (`onEnded` en videos).
+     * Indicadores de paginación (dots) y flechas de navegación previo/siguiente discretas.
+     * Aspect ratio blindado (`aspect-[21/9] sm:aspect-[24/7]`) previniendo Layout Shifts (CLS).
+     * Fallback en cascada a poster o banner oficial si la carga de video o imagen sufre un error.
+   - Unificación de `MediaBanner` (`src/components/common/MediaBanner.tsx`):
+     * Si no existen banners legacy en Supabase `content_banners`, delega automáticamente en `AdPlacementContainer`, garantizando compatibilidad total sin duplicar código.
+   - Optimización de Streaming en el Service Worker (`public/sw.js`):
+     * Se añadieron reglas de bypass directo en el Service Worker para archivos `.mp4`, `.webm` y peticiones con cabecera `Range` (HTTP 206 Partial Content), previniendo bloqueos de streaming de video en navegadores móviles (Safari iOS y Chrome Android).
+   - Migración de Base de Datos `147_update_advertising_assets_with_real_media.sql`:
+     * Inserta y actualiza los 9 assets físicos verificados en `public.advertising_assets`.
+     * Crea campañas activas predeterminadas para los videos y los juegos principales vinculados a las ubicaciones `HOME_TOP`, `GAME_DOMINO`, `GAME_TRUCO`, `GAME_BINGO`, `GAME_POLLA` y `GAME_ATRAPAITO`.
+   - Estado de Verificación:
+     * `node scripts/validateAds.mjs`: PASS (0 errores, 9 assets válidos).
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción completado con éxito).
+
+0) REESTRUCTURACIÓN INTEGRAL DEL SISTEMA DE NOTIFICACIONES (EVENT-DRIVEN & ANTI-SLOP):
+   - Principio Arquitectónico Rector:
+     "Una notificación NO debe existir porque el frontend decidió mostrar un mensaje. Una notificación debe existir porque ocurrió un EVENTO REAL DEL SISTEMA."
+   - Erradicación Total de Notificaciones Demo / Falsas:
+     * Eliminadas todas las notificaciones simuladas hardcodeadas en `src/components/layout/NotificationsModal.tsx` (`notif-1: Polla Venezolana`, `notif-2: Seguridad`, `notif-3: Salas Multijugador`, `notif-4: Bono Bienvenida`, `notif-5: Torneo Semanal`).
+     * Erradicado el valor por defecto artificial `hasUnreadNotifications = true` en `Header.tsx`, sustituido por el estado reactivo verídico provisto por el contexto de notificaciones.
+   - Creación del Contexto Global Reactivo `NotificationContext` (`src/context/NotificationContext.tsx`):
+     * Administra el ciclo de vida de notificaciones del usuario autenticado en Supabase.
+     * Consulta atómica inicial y refresco bajo demanda mediante `NotificationRepository.getUserNotifications(user.id)`.
+     * Suscripción WebSocket PostgreSQL Realtime sobre la tabla `public.notifications` con filtro `user_id = eq.${user.id}` para eventos `*` (INSERT, UPDATE, DELETE).
+     * Deduplicación estricta en memoria por ID para evitar duplicaciones visuales si un evento se sincroniza repetidamente.
+     * Actualización optimista y persistencia en base de datos para `markAsRead`, `markAllAsRead`, `deleteNotification` y `clearAllRead`.
+     * Cálculo reactivo del conteo de no leídas (`unreadCount`) libre de falsos positivos.
+   - Integración y Rediseño Profesional de `NotificationsModal.tsx`:
+     * Componente 100% conectado a `NotificationContext` con diseño Dark Casino Premium.
+     * Visualización diferenciada por categoría y tipo oficial de notificación (`DEPOSIT_APPROVED`, `WITHDRAWAL_APPROVED`, `SUPPORT_MESSAGE`, `GAME_ENABLED`, `ADMIN_BROADCAST`, etc.) con iconos contextuales y paleta cromática sobria.
+     * Formateador relativo de fechas amigable adaptado al huso horario de Venezuela.
+     * Estado vacío elegante ("Bandeja Limpia") cuando no existen notificaciones pendientes.
+     * Acciones operativas: "Marcar todas", "Limpiar leídas", borrado individual y refresco manual.
+     * Navegación interactiva precisa a la pestaña de destino (`wallet`, `support`, `tables`, `profile`, `home`) al hacer clic en la alerta.
+   - Conexión del Indicador en `Header.tsx` y `App.tsx`:
+     * Inclusión de `<NotificationProvider>` en el árbol de proveedores de la aplicación (`src/App.tsx`).
+     * El punto pulsante de alerta en la campana de cabecera solo se ilumina cuando existe al menos una notificación no leída real en Supabase (`unreadCount > 0`).
+   - Sincronización en `RealtimeManager.ts`:
+     * Actualizado el listener de la tabla `notifications` a `event: '*'` en `subscribeToUserEvents`, permitiendo que inserciones, lecturas y eliminaciones remotas se reflejen en tiempo real en todos los dispositivos abiertos por el usuario.
+   - Estado de Verificación:
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción completado con éxito).
+
+0) RESOLUCIÓN DE ERROR DE INICIALIZACIÓN — INCLUSIÓN DE GAMEAVAILABILITYPROVIDER EN EL ÁRBOL DE COMPONENTES:
+   - Causa Raíz Diagnosticada:
+     Al invocar `useGameAvailability()` dentro de `AppContent`, `Header`, `ExploreDrawer` y `CreateTableModal`, el componente raíz `App` en `src/App.tsx` no envolvía a sus componentes hijos con `<GameAvailabilityProvider>`, disparando la excepción: `"useGameAvailability debe ser utilizado dentro de un GameAvailabilityProvider"`.
+   - Corrección Defensiva de Dos Capas:
+     1. Jerarquía de Providers en `src/App.tsx`:
+        Se integró e importó `<GameAvailabilityProvider>` en el contenedor principal `App()`, envolviendo limpiamente a `<GameModeProvider><AppContent /></GameModeProvider>` dentro del flujo de autenticación, wallet y bcv.
+     2. Fallback Defensivo en `src/context/GameAvailabilityContext.tsx`:
+        Se implementó un objeto de respaldo `fallbackAvailability` en `useGameAvailability()` que consulta metadatos estáticos canónicos en caso de invocación aislada o fuera de contexto, emitiendo una advertencia en lugar de lanzar una excepción fatal hacia el `ErrorBoundary`.
+   - Verificación Técnica:
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Compilación y empaquetado de producción exitosos).
+
+0) IMPLEMENTACIÓN INTEGRAL — CONTROL CENTRAL DE DISPONIBILIDAD DE JUEGOS (MIGRACIÓN 145):
+   - Principio Arquitectónico Rector: "Ocultar un juego no es suficiente".
+     El sistema implementa una defensa en profundidad de 3 niveles:
+     * Nivel 1: Seguridad Backend en PostgreSQL (RPCs `is_game_enabled` y validación atómica en `create_game_table_secure` y matchmaking).
+     * Nivel 2: Contexto Reactivo Global (`GameAvailabilityContext`) con suscripción WebSocket PostgreSQL Realtime sobre `game_configurations`.
+     * Nivel 3: Desmontaje limpio y condicional de la UI (sin trucos CSS frágiles) y Pantalla Defensiva `GameDisabledScreen` con motivo oficial si un usuario intenta forzar navegación directa.
+   - Componentes de Base de Datos y Backend Desarrollados:
+     1. Tabla Canónica `public.game_configurations`:
+        * Columnas: `game_id` (PK, text), `name` (text), `is_active` (boolean, default true), `enabled` (boolean, default true), `disabled_reason` (text nullable), `disabled_at` (timestamptz nullable), `disabled_by` (uuid nullable references auth.users), `min_entry_fee`, `max_entry_fee`, `rake_percentage`, `metadata` (jsonb), `updated_at`.
+        * Catálogo inicial poblado y normalizado para los 10 juegos de la plataforma: `domino_venezolano`, `truco_venezolano`, `atrapaito`, `chess`, `checkers`, `rock_paper_scissors` (rps), `tictactoe`, `unaolla`, `bingo`, `polla_venezolana`.
+        * Publicación activa en `supabase_realtime` para difusión instantánea de cambios a todos los clientes conectados.
+        * Políticas RLS estrictas: Lectura pública (`SELECT true`), modificación restringida exclusivamente a administradores (`has_role(auth.uid(), 'ADMIN') OR is_super_admin()`).
+     2. Función de Seguridad `is_game_enabled(p_game_id text)`:
+        * Función `SECURITY DEFINER` con `STABLE` caching y resolución inteligente de variantes (`domino`, `rps`, `polla`, `bingo`, etc.).
+     3. RPC Transaccional con Auditoría Obligatoria `admin_set_game_enabled(...)`:
+        * Valida permisos de administrador (`ADMIN` / `SUPER_ADMIN`).
+        * Si se deshabilita un juego (`p_enabled = false`), exige obligatoriamente un motivo (`p_reason IS NOT NULL AND trim(p_reason) <> ''`).
+        * Registra la auditoría en `public.admin_audit_logs` con acción `SET_GAME_AVAILABILITY` y detalles de estado anterior/nuevo.
+     4. Blindaje en Creación de Mesas y Matchmaking:
+        * Verificación preventiva previa a cualquier retención de saldo o inserción en `game_tables`. Si el juego está deshabilitado, aborta con `GAME_DISABLED: Este juego ha sido deshabilitado temporalmente por el administrador`.
+   - Componentes Frontend Integrados:
+     1. `GameAvailabilityContext.tsx`:
+        * Mantiene en memoria el estado reactivo de todos los juegos.
+        * Suscripción WebSocket Realtime a eventos `UPDATE` e `INSERT` en `game_configurations`.
+        * Proveedor global en la raíz de la aplicación (`src/main.tsx`).
+        * Funciones `isGameEnabled(gameId)`, `getGameDisabledReason(gameId)` y `setGameEnabled(...)`.
+     2. Panel de Administración (`AdminGamesTab.tsx`):
+        * Switches interactivos para habilitar/deshabilitar juegos en tiempo real.
+        * Modal obligatorio de deshabilitación que exige motivo técnico y registra responsable.
+        * Filtros rápidos por estado (Todos, Habilitados, Deshabilitados).
+        * Badges visuales de estado y visualización del motivo oficial de mantenimiento.
+     3. Filtrado Reactivo en Catálogo y Vistas (`LobbyView.tsx`, `ExploreDrawer.tsx`, `CreateTableModal.tsx`):
+        * Los juegos deshabilitados desaparecen automáticamente del catálogo del Lobby, del Drawer de exploración y del selector de creación de mesas.
+        * Si el Bingo está deshabilitado, se ocultan tanto sus tarjetas como el carrusel de salas.
+        * Si la Polla Venezolana está deshabilitada, se oculta del banner de sorteos comunitarios y de la navegación.
+     4. Pantalla Defensiva de Acceso Directo (`GameDisabledScreen.tsx`):
+        * Si un usuario navega directamente a `/polla` o `/atrapaito` mediante URL o atajo mientras el juego está en mantenimiento, se muestra una pantalla amigable de mantenimiento que explica el motivo oficial y provee un botón para volver al Lobby.
+   - Estado de Verificación:
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción completado con éxito).
+
+0) REDISEÑO Y ELEVACIÓN DE CONTRASTE EN NAVEGACIÓN SUPERIOR (HEADER):
+   - Problema Identificado:
+     Los botones "Mesas & Salas", "Billetera" y "Polla Venezolana" en la barra superior pasaban prácticamente desapercibidos debido a baja saturación y desaparición en pantallas menores a 1024px.
+   - Mejoras Implementadas en `src/components/layout/Header.tsx`:
+     1. Expansión de Breakpoint a `sm:flex`:
+        La navegación central ahora se visualiza en teléfonos horizontales, tablets y monitores (`sm` en adelante) con contenedor cápsula de alta visibilidad (`bg-[#090E18] border-2 border-slate-700/80 shadow-xl`).
+     2. Alto Contraste y Relieve para los 3 Botones Principales:
+        * **Polla Venezolana**: Degradado de fondo ámbar-naranja, borde dorado de alto impacto, huellita vibrante y tipografía ultra negrita. Condicionado por `isGameEnabled('polla_venezolana')`.
+        * **Mesas & Salas**: Degradado de fondo índigo-azul con borde luminoso, icono `Gamepad2` color ámbar brillante (`text-amber-400`), tipografía blanca nítida y estado activo con degradado dorado.
+        * **Billetera**: Degradado de fondo esmeralda con borde verde vivo, icono `Wallet` esmeralda brillante (`text-emerald-400`), tipografía nítida y estado activo con degradado esmeralda-turquesa.
+     3. Tira de Acceso Rápido Superior para Móviles Verticales (`sm:hidden`):
+        Barra superior complementaria (`#header-mobile-quick-nav`) en la parte inferior del Header móvil con bordes 2px de alto relieve y botones llamativos para "Polla", "Mesas" y "Billetera".
+     4. Integridad de Identificadores y Tests E2E:
+        Preservación exacta de `id="nav-polla"`, `id="nav-trancaito"`, `id="nav-wallet"` y `id="nav-admin"`.
+   - Estado de Verificación:
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción completado con éxito).
+
+0) CORRECCIÓN FORENSE DEFINITIVA DE RPS: INMUNIDAD ANTE `current_state = NULL` (MIGRACIÓN 144):
+   - Diagnóstico y Causa Raíz Forense Identificada:
+     * Causa Raíz 1 (Comportamiento Nativo de PostgreSQL `jsonb_set`):
+       En PostgreSQL, la función `jsonb_set(target, path, new_value)` devuelve `SQL NULL` si `new_value` es `SQL NULL`.
+       En las RPCs `submit_rps_choice_secure` y `next_rps_round_secure`, variables intermedias como `v_winner_user_id` o `v_round_winner_user_id` eran evaluadas con `to_jsonb(v_winner_user_id)`. Cuando no había ganador todavía o en empates, `to_jsonb(NULL::uuid)` produce `SQL NULL` en lugar del JSON `null`.
+       Al encadenar múltiples llamadas `jsonb_set(...)`, si alguna recibía `SQL NULL`, la expresión completa colapsaba a `SQL NULL`.
+       Al ejecutarse `UPDATE game_sessions SET current_state = v_new_state`, se disparaba la violación de constraint:
+       `error: null value in column "current_state" of relation "game_sessions" violates not-null constraint`.
+     * Causa Raíz 2 (Resolución de Enum `game_type` en PostgreSQL):
+       El tipo enum `game_type_enum` define la etiqueta `'PIEDRA_PAPEL_TIJERA'`, mientras que en algunas funciones y tests se consultaba `'rock_paper_scissors'` o `'rps'`. Se unificó el soporte en filtros SQL usando `t.game_type::text IN ('rock_paper_scissors', 'rps', 'PIEDRA_PAPEL_TIJERA')`.
+     * Causa Raíz 3 (Orden Atómico de Transición de Estado y Liquidación Financiera):
+       Al finalizar la partida (`is_game_over = true`), la sesión se actualizaba a `status = 'FINISHED'` antes de invocar `universal_settle_game_session`. Al evaluar la pre-condición, la función de liquidación detectaba `status IN ('FINISHED', 'CANCELLED')` y retornaba `already_settled: true` sin asentar la fila en `game_settlements`.
+   - Solución Integral Implementada:
+     1. Migración Incremental `144_fix_rps_current_state_null_and_jsonb_safety.sql`:
+        * Sustitución total del patrón frágil de `jsonb_set` por composición inmutable mediante `jsonb_build_object(...)` y el operador de concatenación JSONB (`||`). En `jsonb_build_object('key', NULL)`, PostgreSQL genera válidamente `{"key": null}` sin propagar `SQL NULL`.
+        * Inicialización defensiva: `v_current_state := CASE WHEN v_session.current_state IS NULL OR jsonb_typeof(v_session.current_state) != 'object' THEN '{}'::jsonb ELSE v_session.current_state END;`.
+        * Garantía absoluta de preservación de `current_turn_user_id = NULL` en `game_sessions` para RPS (juego simultáneo).
+        * Invocación canónica de `universal_settle_game_session` mientras la sesión se encuentra `ACTIVE`, permitiendo la acreditación del pozo, deducción de fondos retenidos, creación de asientos contables en `ledger_entries`, inserción en `game_settlements` y cierre coordinado de la mesa y la sesión.
+        * Robustecimiento de `next_rps_round_secure` y `process_expired_turns` con idénticos principios de seguridad JSONB y compatibilidad de tipos enum.
+     2. Suite Automatizada de Pruebas de Integración Forense (`/scripts/test-rps-suite.ts`):
+        * PRUEBA 1: Commit Jugador 1 (ROCK) -> PASS (current_state válido y no-null, secreto encriptado en hash).
+        * PRUEBA 2: Anti-Double-Submit Jugador 1 -> PASS (bloqueo inmediato con `ALREADY_COMMITTED`).
+        * PRUEBA 3: Commit Jugador 2 (SCISSORS) y Revelación Atómica -> PASS (Ganador P1, vidas actualizadas: P1=3, P2=2).
+        * PRUEBA 4: Siguiente Ronda (`next_rps_round_secure`) -> PASS (Ronda 2 iniciada, status `ROUND_COMMIT`, secretos reseteados).
+        * PRUEBA 5: Empate (PAPER vs PAPER) -> PASS (Empate manejado limpiamente sin corromper `current_state`).
+        * PRUEBA 6: Fin de Partida y Liquidación Financiera Universal -> PASS (`game_settlements` registrado con estándar 90/10, mesa cerrada y saldo transferido).
+        * PRUEBA 7: Timeout de Ronda en RPS (`process_expired_turns`) -> PASS (Timeout procesado sin violar restricciones NOT NULL).
+        * Resultado Final de la Suite: 7/7 PRUEBAS SUPERADAS (100% PASS).
+     3. Saneamiento de Herramientas de Base de Datos:
+        * Actualización de `/scripts/migrate.ts` para sanitizar URIs de conexión PostgreSQL con contraseñas en corchetes (`postgres:[password]@`).
+   - Estado de Verificación:
+     * `npm run lint` (`tsc --noEmit`): PASS (0 errores).
+     * `compile_applet`: PASS (Build de producción completado con éxito).
 
 0) AUDITORÍA FORENSE Y CORRECCIÓN DEFINITIVA DEL SISTEMA DE SALDOS RETENIDOS (MIGRACIÓN 143):
    - Diagnóstico y Causa Raíz Identificada:

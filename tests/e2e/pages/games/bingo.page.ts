@@ -34,7 +34,7 @@ export class BingoGamePage {
   async assertBallsDrawn() {
     // Verificar visibilidad de balotas sorteadas o panel de extracción
     const ballsContainer = this.page.locator(
-      '#bingo-drawn-balls, [data-testid="drawn-ball"], #bingo-last-ball, .ball-drawn, :has-text("Balotas Sorteadas"), :has-text("Balota")'
+      '#bingo-drawn-balls, [data-testid="drawn-ball"], #bingo-last-ball, .ball-drawn, text=Balotas Sorteadas, text=Balota'
     ).first();
 
     await expect(ballsContainer).toBeVisible({ timeout: 15000 });

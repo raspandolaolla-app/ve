@@ -867,8 +867,10 @@ export class TableRepository {
    */
   public static async createTable(payload: CreateTablePayload): Promise<GameTable | null> {
     const entryFeeNum = Number(payload.entryFee ?? 0);
-    if (entryFeeNum < 0 || (entryFeeNum > 0 && (entryFeeNum < 10 || entryFeeNum > 5000))) {
-      throw new Error('El monto de participación debe ser 0 Bs. (libre) o estar entre 10 Bs. y 5.000 Bs.');
+    const isSpecialLowFeeGame = payload.gameType === 'tic_tac_toe' || payload.gameType === 'bingo' || payload.gameType === 'rock_paper_scissors';
+    const minAllowedFee = isSpecialLowFeeGame ? 10 : 25;
+    if (entryFeeNum < 0 || (entryFeeNum > 0 && entryFeeNum < minAllowedFee) || entryFeeNum > 5000) {
+      throw new Error(`INVALID_ENTRY_FEE: El monto de participación debe ser 0 Bs. (libre) o estar entre ${minAllowedFee} Bs. y 5.000 Bs.`);
     }
 
     const supabase = getSupabaseClient();
@@ -895,7 +897,7 @@ export class TableRepository {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData?.user) {
         console.warn('[TableRepository] CREATE_TABLE_ERROR: No authenticated session found', authError);
-        throw new Error('Debes iniciar sesión para crear una mesa.');
+        throw new Error('AUTH_REQUIRED: Debes iniciar sesión para crear una mesa.');
       }
       authUser = authData.user;
     }
@@ -995,7 +997,8 @@ export class TableRepository {
         throw new Error('Monto de entrada no válido.');
       }
 
-      throw new Error(errMsg || 'No se pudo crear la mesa. Inténtalo nuevamente.');
+      const sanitized = sanitizeUserErrorMessage(rpcError);
+      throw new Error(sanitized || 'No se pudo crear la mesa. Inténtalo nuevamente.');
     }
 
     if (!rpcData?.success && !rpcData?.table_id && !rpcData?.id) {

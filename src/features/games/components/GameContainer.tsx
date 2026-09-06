@@ -39,7 +39,7 @@ import { normalizeGameStateByType, inspectDominoDeck } from '../utils/gameStateG
 import { logger } from '../../../utils/logger';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
-import { RockPaperScissorsBoard } from './RockPaperScissorsBoard';
+import RockPaperScissorsBoard from './RockPaperScissorsBoard';
 import { CheckersBoard } from './CheckersBoard';
 import { DominoBoard } from './DominoBoard';
 import { TrucoBoard } from './TrucoBoard';
@@ -1206,23 +1206,26 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
       case 'rock_paper_scissors': {
-        const isP1 = currentUserId === (gameState?.player1Id || currentPlayers[0]?.userId);
-        const myChoice = isP1
-          ? (gameState?.player1Choice || gameState?.playerChoices?.[currentUserId]?.choice)
-          : (gameState?.player2Choice || gameState?.playerChoices?.[currentUserId]?.choice);
-        const hasChosen = Boolean(myChoice || gameState?.playerChoices?.[currentUserId]?.committed);
-        const isRoundCommit = gameState?.status === 'ROUND_COMMIT' || gameState?.phase === 'selecting';
-        const isMyTurn = isRoundCommit && !hasChosen;
+        const p1Id = gameState?.player1Id || currentPlayers[0]?.userId;
+        const p2Id = gameState?.player2Id || currentPlayers[1]?.userId;
+
+        // Verificación estricta contra null y undefined para el currentUserId específico
+        let hasChosen = false;
+        if (gameState && currentUserId) {
+          if (currentUserId === p1Id) {
+            hasChosen = (gameState.player1Choice !== null && gameState.player1Choice !== undefined) ||
+              Boolean(gameState.playerChoices?.[currentUserId]?.committed);
+          } else if (currentUserId === p2Id) {
+            hasChosen = (gameState.player2Choice !== null && gameState.player2Choice !== undefined) ||
+              Boolean(gameState.playerChoices?.[currentUserId]?.committed);
+          }
+        }
 
         return (
           <RockPaperScissorsBoard
             state={gameState}
-            currentUserId={currentUserId}
-            isMyTurn={isMyTurn}
+            currentUserId={currentUserId || ''}
             hasPlayerChosen={hasChosen}
-            turnExpiresAt={session?.turnExpiresAt}
-            sessionId={session?.id}
-            onAction={(actionType, data) => handleGameAction(actionType, data)}
             onSubmitChoice={(choice) => handleGameAction('CHOOSE', { choice })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
           />

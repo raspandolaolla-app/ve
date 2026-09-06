@@ -41,8 +41,8 @@ export const initializeRPSState = (player1Id: string, player2Id: string): RPSSta
     matchWinner: null,
     roundNumber: 1,
 
-    currentTurnUserId: player1Id,
-    turnUserId: player1Id,
+    currentTurnUserId: null,
+    turnUserId: null,
     turnDurationSeconds: 15,
 
     // Campos de compatibilidad de plataforma
@@ -110,14 +110,8 @@ export const processRPSAction = (state: RPSState, userId: string, choice: RPSCho
   currentChoices[userId] = { choice: normalizedChoice, committed: true };
   newState.playerChoices = currentChoices;
 
-  // Actualizar turno: si uno eligió, el turno activo restante es del otro jugador
-  if (newState.player1Choice && !newState.player2Choice) {
-    newState.currentTurnUserId = newState.player2Id;
-    newState.turnUserId = newState.player2Id;
-  } else if (!newState.player1Choice && newState.player2Choice) {
-    newState.currentTurnUserId = newState.player1Id;
-    newState.turnUserId = newState.player1Id;
-  }
+  // ✅ JUEGO SIMULTÁNEO: No alternar turnos secuenciales.
+  // Ambos jugadores eligen al mismo tiempo mientras el estado esté en ROUND_COMMIT.
 
   // Si ambos han elegido, revelamos y evaluamos
   if (newState.player1Choice && newState.player2Choice) {
@@ -230,8 +224,8 @@ export const nextRound = (state: RPSState): RPSState => {
     roundWinnerUserId: null,
     roundNumber: nextRnd,
     round: nextRnd,
-    currentTurnUserId: state.player1Id,
-    turnUserId: state.player1Id,
+    currentTurnUserId: null,
+    turnUserId: null,
     turnDurationSeconds: 15,
   };
 };

@@ -2,21 +2,32 @@ import React from 'react';
 import RockPaperScissorsBoard from './RockPaperScissorsBoard';
 import type { RPSChoice, RPSState } from '../engines/RockPaperScissorsEngine';
 
-interface RockPaperScissorsGameProps {
-  state: RPSState;
-  currentUserId: string;
-  hasPlayerChosen: boolean;
-  onSubmitChoice: (choice: RPSChoice) => void;
-  onNextRound: () => void;
+export interface RockPaperScissorsGameProps {
+  state?: RPSState;
+  currentUserId?: string;
+  hasPlayerChosen?: boolean;
+  onSubmitChoice?: (choice: RPSChoice) => void;
+  onNextRound?: () => void;
+  isMyTurn?: boolean;
+  turnTimeLeft?: number;
+  onTurnTimeout?: () => void;
+  table?: any;
+  players?: any[];
+  turnExpiresAt?: string;
+  onLeave?: () => void;
 }
 
-const RockPaperScissorsGame: React.FC<RockPaperScissorsGameProps> = ({
+export const RockPaperScissorsGame: React.FC<RockPaperScissorsGameProps> = ({
   state,
-  currentUserId,
-  hasPlayerChosen,
-  onSubmitChoice,
-  onNextRound,
+  currentUserId = '',
+  hasPlayerChosen = false,
+  onSubmitChoice = () => {},
+  onNextRound = () => {},
 }) => {
+  if (!state) {
+    return null;
+  }
+
   return (
     <RockPaperScissorsBoard
       state={state}

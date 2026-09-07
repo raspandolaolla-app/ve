@@ -2,18 +2,15 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 09:35:00 UTC (2026-09-07 02:35:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso en 10.5s)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 09:43:00 UTC (2026-09-07 02:43:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso en 10.36s / 0 vulnerabilidades npm audit)
 ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Total físico: 156 archivos en supabase/migrations/)
 MEJORA TÉCNICA RECIENTE: 
-1. Auditoría Forense Final de Producción:
-   - Reconciliación física de migraciones: 156 archivos SQL reales identificados en `supabase/migrations/` (rango 001 a 153; 8 prefijos duplicados: 047, 048, 102, 103, 110, 118, 139, 140; 5 prefijos ausentes: 104-108; primera: 001_extensions_and_enums.sql; última: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql). Se eliminaron referencias obsoletas a "80 migraciones" de fases tempranas.
-   - Sincronización verificada de lockfile: `npm ci` determinista ejecutado con código de salida 0 en entorno limpio (`rm -rf node_modules && npm ci`).
-   - Unificación de ruta de CI/CD: `.github/workflows/main.yml` configurado como la ruta oficial canónica de deployment a GitHub Pages con `concurrency.cancel-in-progress: false` para evitar cancelaciones destructivas; `.github/workflows/deploy.yml` configurado como respaldo manual (`workflow_dispatch`) para evitar colisiones de doble despliegue.
-   - Blindaje de Service Worker: `public/sw.js` e `index.html` actualizados con bypass estricto para localhost, puerto 3000, rutas de desarrollo Vite (`/src/`, `/@vite/`, `/@fs/`), garantizando que nunca intercepte scripts en desarrollo ni devuelva HTML para peticiones JS.
-   - Integridad RPC vs SQL: 97 llamadas a RPC auditadas en código frontend/backend, confirmando 100% de correspondencia exacta contra funciones declaradas en las 156 migraciones (0 funciones huérfanas).
-   - Verificación estática de Billetera y Ledger: Validado aislamiento contable, idempotencia pesimista, `universal_settle_game_session` y `refund_game_session`.
-   - Verificación de 10 juegos: Integración determinista validada en `GameContainer.tsx` (Chess, Dominó, Truco, Bingo, Polla, Atrapaíto, Damas, RPS, La Vieja, UNA-OLLA) con deduplicación garantizada de jugadores por `userId`.
+1. Resolución Forense de CI/CD para GitHub Actions #785 y #776:
+   - RUN #785 (`npm ci EUSAGE`): Reparado mediante regeneración determinista de `package-lock.json` con `npm install --package-lock-only`, sincronizando las dependencias de Express 5 y paquetes directos (Google GenAI, Turnstile, Playwright, Chess.js, OTPAuth, QR Code).
+   - RUN #776 (Cancelación post-build `The operation was canceled`): Diagnóstico y mitigación de concurrencia. La cancelación ocurría por: (1) `concurrency.cancel-in-progress: true` que abortaba ejecuciones en curso al recibirse nuevos pushes; (2) Disparos simultáneos y colisiones entre `main.yml` y `deploy.yml` compitiendo por el entorno `github-pages`.
+   - Solución de Concurrencia: Se estandarizó `concurrency.group: "pages"` con `concurrency.cancel-in-progress: false` en `main.yml` (canónico) y `deploy.yml` (manual fallback). `deploy.yml` se desvinculó de `push` y se restringió estrictamente a `workflow_dispatch`, impidiendo carreras de despliegue dual.
+   - Verificación de Pipeline: `npm ci` (PASS, código 0), `npm run typecheck` (PASS, 0 errores), `npm run lint` (PASS, 0 errores), `npm run build` (PASS, 0 errores, generación de artefacto `dist/` con base path `/ve/` y fallback SPA `dist/404.html`).
 ================================================================================
 
 --------------------------------------------------------------------------------

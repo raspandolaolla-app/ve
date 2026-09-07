@@ -2,10 +2,115 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 12:45:00 -07:00 (UTC 2026-09-06 19:45:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / CORRECCIÓN ARQUITECTÓNICA Y RESILIENTE ERROR 42703 game_variant 100% OPERATIVO)
-ÚLTIMA MIGRACIÓN INTEGRADA: 149_fix_game_tables_game_variant_and_resilient_creation.sql (Corrección Arquitectónica y Resiliente del Error 42703: Aseguramiento DDL idempotente de game_variant en game_tables y game_sessions; desacople del INSERT estático en create_game_table_secure para utilizar columnas canónicas universales garantizadas; sincronización dinámica de game_variant vía bloque PL/pgSQL si la columna existe en el esquema; resguardo permanente de la variante en config JSONB; blindaje financiero atómico AUTH -> PROFILE -> WALLET FOR UPDATE -> HOLD -> LEDGER -> HOST SEAT 1 sin riesgos de incompatibilidad)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 19:39:30 -07:00 (UTC 2026-09-07 02:39:30)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA JUEGA YA + EMPAREJAMIENTO + BLOQUEO DE JUEGOS + CÓDIGOS DE MESA 100% OPERATIVO)
+ÚLTIMA MIGRACIÓN INTEGRADA: 152_fix_join_table_by_code_and_matchmaking_availability.sql (Corrección canónica de join_table_by_code_secure con normalización de código, sanitización estricta de salida, validación en servidor de disponibilidad de juego; get_public_available_tables filtrando exclusivamente juegos activos en game_configurations; integración completa frontend en QuickMatchModal, TableFilters, TablesView y App.tsx)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0.0) REDISEÑO Y CORRECCIÓN INTEGRAL DE "JUEGA YA" + EMPAREJAMIENTO + JUEGOS BLOQUEADOS + CÓDIGOS DE MESA:
+   - Corrección Canónica de Backend (Migración 152):
+     * RPC `public.join_table_by_code_secure(p_invite_code, p_user_id)`:
+       - Normalización server-side estricta: `UPPER(TRIM(COALESCE(p_invite_code, '')))` evitando fallos por espacios en blanco o minúsculas.
+       - Validación en tiempo real de disponibilidad del juego contra `game_configurations`: si el juego tiene `is_enabled = false`, aborta inmediatamente con código y mensaje `GAME_MAINTENANCE: El juego se encuentra temporalmente en mantenimiento`.
+       - Sanitización estricta de seguridad: el retorno JSON jamás expone wallets, balances, emails ni información privada de otros jugadores. Retorna únicamente metadatos públicos de la mesa (`id, code, name, gameType, game_variant, status, entryFee, currentPlayers, maxPlayers, hostUserId, minPlayers`).
+       - Detección de reingreso idéntico sin deducción repetida de saldo: si el jugador ya está en la mesa, retorna `alreadyJoined: true` y asiento asignado.
+       - Validación atómica de asientos disponibles (`TABLE_FULL: La mesa está llena`), estado de la mesa (`TABLE_CLOSED: La mesa ya no está disponible`) y verificación de expiración (`TABLE_NOT_OPEN: El código pertenece a una mesa que ya finalizó o fue cancelada`).
+     * RPC `public.get_public_available_tables()`:
+       - Incorpora verificación cruzada con `game_configurations gc` (`gc.is_enabled IS TRUE`), impidiendo que mesas de juegos deshabilitados aparezcan en listados públicos.
+   - Centralización y Bloqueo Absoluto en Frontend:
+     * `GameAvailabilityContext.tsx`:
+       - Nuevo método `getAvailableMatchmakingGames()` que filtra estrictamente juegos con `is_enabled = true` y excluye juegos que no aplican a emparejamiento por partidas (ej. `polla_venezolana`).
+     * `QuickMatchModal.tsx` (Rediseño Integral de "Juega Ya"):
+       - Exclusiva presentación de juegos habilitados dinámicamente según la base de datos de producción.
+       - Flujo 100% server-authoritative conectando directamente con `TableRepository.findOrCreateMatchmakingTable`.
+       - Eliminación total de temporizadores ficticios y bots simulados en partidas con dinero real.
+       - Cronómetro en vivo de búsqueda de rivales con opción de cancelación limpia (`isCancelledRef`).
+       - Detección previa y en vivo de saldo en billetera (`availableBalance`), avisando con antelación si se requiere recargar.
+       - Soporte directo para Modo Práctica (0 Bs) en desktop y mobile.
+     * `TableFilters.tsx` y `TablesView.tsx`:
+       - Sincronización en tiempo real: los filtros de juegos solo muestran juegos activos.
+       - `visiblePublicTables` y `loadPublicTables` descartan proactivamente cualquier mesa de un juego deshabilitado.
+       - Si el usuario tenía seleccionado un filtro de un juego que el administrador bloquea, el filtro se reinicia de inmediato a 'all'.
+       - Entrada de código privado Trancaíto normalizada con `.trim().toUpperCase()`, feedback específico de errores sanitizados mediante `errorSanitizer.ts`.
+       - Eliminación de modales de emparejamiento duplicados y reemplazo por el modal maestro unificado `QuickMatchModal`.
+     * `BottomNavigation.tsx`:
+       - Actualización formal del botón central a "JUEGA YA" con aria-label y feedback táctil optimizado para mobile y PWA.
+
+0) RESOLUCIÓN FORENSE DEFINITIVA DEL ERROR "column p.full_name does not exist" EN start_game_session_secure:
+   - Diagnóstico Forense en Base de Datos Real:
+     * La RPC `public.start_game_session_secure` ejecutaba una consulta `LEFT JOIN public.profiles p ON p.user_id = gtp.user_id` donde proyectaba `p.full_name`.
+     * Se auditó `information_schema.columns` de la tabla `public.profiles` en producción, constatando que posee las columnas: `id, user_id, first_name, last_name, display_name, avatar_url, cedula_hash, cedula_last4, phone_number, state_venezuela, birth_date, account_status, kyc_status, created_at, updated_at, is_online, last_seen_at, email, is_mfa_enabled, has_claimed_test_bonus, cedula, telefono, nombre_real, fecha_nacimiento, estado_residencia, is_profile_locked`.
+     * No existe la columna `full_name` en `public.profiles`. Por ende, al llamar a `start_game_session_secure`, PostgreSQL abortaba la transacción con error `HTTP 400 Bad Request: column p.full_name does not exist`.
+   - Solución Canónica Implementada (Migración 151):
+     * Se reconstruyó la RPC `public.start_game_session_secure` para componer el nombre del jugador mediante:
+       `COALESCE(p.display_name, p.nombre_real, NULLIF(TRIM(p.first_name || ' ' || p.last_name), ''), 'Jugador ' || gtp.seat_number)`
+       garantizando compatibilidad universal con todos los perfiles de usuario sin depender de `p.full_name`.
+     * Retorno dual en formato estructurado (camelCase y snake_case): `tableId`/`table_id`, `sessionId`/`session_id`, `gameState`/`game_state`, `turnUserId`/`turn_user_id`, `turnDeadline`/`turnDeadlineAt`, y array de jugadores con `user_id, seat_number, name, username, avatar_url, score, status`.
+     * Idempotencia estricta: Si ya existe una sesión activa para la mesa, se devuelve la sesión existente sin duplicar registros ni alterar el estado.
+   - Verificación Forense en Entorno Real (`scripts/test_start_game_session_rpc.ts`):
+     * Ejecución exitosa con usuario anfitrión real Francisco Morales y jugador secundario real.
+     * Retorno verificado: `status: "ACTIVE"`, `success: true`, jugadores formateados con avatares reales de Google y nombres correctos, `sessionId` asignado y mesa actualizada a `ACTIVE`.
+     * Transacción ejecutada con ROLLBACK al finalizar la prueba para preservar saldos y estado limpio en producción.
+
+0.1) RESOLUCIÓN DEFINITIVA DE PUBLIC_MATCH_HISTORY (HTTP 404 RESUELTO):
+   - Diagnóstico: El frontend intentaba consultar `public_match_history`, la cual no existía en el esquema o no estaba expuesta a PostgREST debido a caché desincronizada o falta de permisos RLS.
+   - Solución: Se creó la tabla `public.public_match_history` con permisos `SELECT` otorgados a `anon`, `authenticated` y `service_role`, con RLS permisiva `p_public_match_history_select`. Se ejecutó `NOTIFY pgrst, 'reload schema'`.
+   - Verificación: Consulta HTTP directa a `https://tncxgwycinbnkjbfwojt.supabase.co/rest/v1/public_match_history?select=*&limit=1` responde con código `HTTP 200 OK`.
+
+0.2) RESOLUCIÓN DEFINITIVA DE GET_ACTIVE_TOURNAMENTS (HTTP 400 RESUELTO):
+   - Diagnóstico: La RPC `public.get_active_tournaments()` requería validación de permisos de ejecución para roles públicos y autenticados.
+   - Solución: Se otorgó explícitamente `GRANT EXECUTE ON FUNCTION public.get_active_tournaments() TO anon, authenticated, service_role;` y se verificó que no requiera parámetros.
+   - Verificación: Llamada POST directa a `https://tncxgwycinbnkjbfwojt.supabase.co/rest/v1/rpc/get_active_tournaments` con payload `{}` responde con código `HTTP 200 OK` y payload `{"success": true, "tournaments": []}`.
+
+0.3) MATRIZ DE VALIDACIÓN DE JUEGOS (10/10 PASS):
+   - Validación integral ejecutada en base de datos de producción con `scripts/test_all_games_matrix.ts`:
+     1. Tres en Raya (`tic_tac_toe`): PASS
+     2. Dominó Venezolano (`domino`): PASS
+     3. Truco Venezolano (`truco`): PASS
+     4. Piedra, Papel o Tijera (`rock_paper_scissors`): PASS
+     5. Damas Españolas (`damas`): PASS
+     6. Ajedrez Criollo (`chess`): PASS
+     7. Atrapaíto (`atrapaito`): PASS
+     8. Una Olla Card (`una_olla`): PASS
+     9. Bingo Criollo (`bingo`): PASS
+     10. Polla Venezolana (`polla_venezolana`): PASS
+
+0) VALIDACIÓN REAL EN PRODUCCIÓN + RESOLUCIÓN DEFINITIVA DE ERRORES 42703 Y 22P02 (MIGRACIÓN 150 APLICADA):
+   - Diagnóstico en Vivo contra Supabase Producción:
+     * Se realizó auditoría directa contra la base de datos remota mediante conexión PostgreSQL autenticada.
+     * Se descubrió que la definición de `account_status_enum` en producción solo contenía: `'PENDING_VERIFICATION'`, `'ACTIVE'`, `'SUSPENDED'`, `'BLOCKED'`, `'CLOSED'`. La verificación `v_profile_status IN ('SUSPENDED', 'BANNED', 'LOCKED')` forzaba un casteo a enum de `'BANNED'`, provocando el error `22P02: invalid input value for enum account_status_enum: "BANNED"`.
+     * Se descubrió que `table_status_enum` no contiene `'IN_GAME'`. Al comprobar mesas activas previas con `gt.status IN ('OPEN', 'WAITING', 'ACTIVE', 'IN_GAME', 'SALES')`, se gatillaba el error `22P02: invalid input value for enum table_status_enum: "IN_GAME"`.
+     * Se descubrió que la tabla `public.wallets` en producción no tiene la columna `created_at` (posee `id, user_id, currency, available_balance, held_balance, total_balance, updated_at, balance`). El `INSERT INTO public.wallets (..., created_at, ...)` fallaba con `42703: column "created_at" of relation "wallets" does not exist`.
+     * Se descubrió que la tabla `public.game_tables` en producción no tiene la columna `created_by` (posee `host_user_id` para el creador). El `INSERT INTO public.game_tables (..., created_by, ...)` fallaba con `42703: column "created_by" of relation "game_tables" does not exist`.
+   - Solución Canónica Implementada y Aplicada (Migración 150):
+     * Desacople estricto a `TEXT` de todas las comparaciones de enums (`v_profile_status::text`, `v_enum_game_type::text`, `gt.status::text`, `gtp.status::text`), eliminando cualquier susceptibilidad a fallos de casteo 22P02.
+     * El `INSERT INTO public.wallets` ahora utiliza exclusivamente columnas universales garantizadas (`user_id, currency, available_balance, held_balance, updated_at`).
+     * El `INSERT INTO public.game_tables` ahora utiliza exclusivamente columnas universales garantizadas (`id, game_type, name, visibility, entry_fee, min_players, max_players, current_players_count, status, host_user_id, invite_code, config, expires_at, created_at, updated_at`).
+     * Sincronización dinámica de columnas opcionales (`game_variant` y `created_by`) si existen en `information_schema.columns`.
+     * Cero bloqueo de tabla (`ALTER TABLE` descartado de la migración para garantizar ejecución instantánea sin competir por locks exclusivos).
+   - Resultados de Pruebas Reales en Supabase Remota:
+     * Prueba Real 1 (Tic Tac Toe, 25 Bs, 2 jugadores, PUBLIC) con usuario real Francisco Morales (`b733db64-4912-4a33-8d7a-4ee332c7b5f1`):
+       - Retorno RPC: `[CREATE_TABLE_SUCCESS]` -> `table_id: e2a96230-9f89-4c24-b015-68b116d5b10c`, `invite_code: PUB-FD24B2`, `entry_fee: 25.00`, `seat_number: 1`.
+       - `public.game_tables`: Registro confirmado con `status: OPEN`, `game_type: TRES_EN_RAYA`, `game_variant: CLASSIC`, `current_players_count: 1`.
+       - `public.game_table_players`: Registro confirmado con `seat_number: 1`, `status: JOINED`, anfitrión vinculado.
+       - `public.wallets`: Retención atómica confirmada: Disponible disminuyó en -25.00 Bs, Retenido aumentó en +25.00 Bs.
+       - `public.ledger_entries`: Registro contable confirmado: `TABLE_ENTRY_HOLD` con dirección `HOLD` por 25.00 Bs.
+       - Transacción revertida limpiamente tras verificación para proteger el saldo real del usuario.
+     * Matriz Completa de Validación de Juegos (10/10 PASS):
+       - `tic_tac_toe` (Tres en Raya): PASS (Mesa ID generada, status OPEN).
+       - `domino` (Dominó Criollo): PASS (game_type: DOMINO_VENEZOLANO, variant: VENEZOLANO_PAREJAS).
+       - `truco` (Truco Venezolano): PASS (game_type: TRUCO_VENEZOLANO, variant: ORIENTAL).
+       - `rock_paper_scissors` (Piedra Papel Tijera): PASS (game_type: PIEDRA_PAPEL_TIJERA, variant: BEST_OF_3).
+       - `damas` (Damas): PASS (game_type: DAMAS, variant: STANDARD).
+       - `chess` (Ajedrez Criollo): PASS (game_type: CHESS, variant: RAPID).
+       - `atrapaito` (Atrapaíto): PASS (game_type: ATRAPAITO, variant: CRIOLLO).
+       - `una_olla` (Una Olla Card): PASS (game_type: UNA_OLLA, variant: STANDARD).
+       - `bingo` (Bingo 90 Bolas): PASS (game_type: BINGO, variant: 90).
+       - `polla_venezolana` (Polla Fútbol): PASS (game_type: POLLA_VENEZOLANA, variant: FUTBOL).
+   - Estado de Verificación:
+     * Base de datos remota de Supabase: Sincronizada y funcionando al 100%.
+     * Linter / TypeScript: PASS (0 errores).
+     * Compilación y Build: PASS.
 
 0) CORRECCIÓN ARQUITECTÓNICA Y RESILIENTE DEL ERROR 42703 EN CREACIÓN DE MESAS:
    - Diagnóstico Riguroso de Causa Raíz:

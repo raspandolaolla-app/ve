@@ -2,10 +2,40 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 19:39:30 -07:00 (UTC 2026-09-07 02:39:30)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA JUEGA YA + EMPAREJAMIENTO + BLOQUEO DE JUEGOS + CÓDIGOS DE MESA 100% OPERATIVO)
-ÚLTIMA MIGRACIÓN INTEGRADA: 152_fix_join_table_by_code_and_matchmaking_availability.sql (Corrección canónica de join_table_by_code_secure con normalización de código, sanitización estricta de salida, validación en servidor de disponibilidad de juego; get_public_available_tables filtrando exclusivamente juegos activos en game_configurations; integración completa frontend en QuickMatchModal, TableFilters, TablesView y App.tsx)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-06 22:08:00 -07:00 (UTC 2026-09-07 05:08:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / AUDITORÍA FORENSE DE SEGUNDA PASADA COMPLETA / MIGRACIÓN 153 APLICADA EN SUPABASE)
+ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Auditoría Forense de Segunda Pasada: Wallet + Ledger con ciclo estricto TABLE_ENTRY_HOLD -> TABLE_ENTRY_CAPTURE / TABLE_ENTRY_REFUND; Liquidación 90/10 exacta con inserción en game_settlement_recipients; Asignación de asientos concurrente con Row-Level Seat Reclaim eliminando colisiones de asientos; Abandono multijugador y por equipos en abandon_game_secure; Bloqueo de juegos deshabilitados en create_quick_match_table y join_table_transaction; Limpieza de archivo huérfano AdminRepository.backup.ts)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0.00) AUDITORÍA FORENSE DE SEGUNDA PASADA (WALLET, LEDGER, SETTLEMENT, ASIENTOS, ABANDONO Y MOTOR DE JUEGOS):
+   - 1. Wallet + Ledger (Ciclo Estricto HOLD -> RELEASE -> CAPTURE):
+     * Diagnóstico: `join_table_transaction` registraba la retención con `BET_PLACED` en lugar del valor canónico de enum `TABLE_ENTRY_HOLD`, y no almacenaba `entry_held_entry_id` en `game_table_players`. Por su parte, `universal_settle_game_session` y `refund_game_session` no asociaban las capturas con `TABLE_ENTRY_HOLD`.
+     * Solución (Migración 153):
+       - `join_table_transaction` ahora emite de forma obligatoria `TABLE_ENTRY_HOLD` (`DEBIT` con retención en `held_balance`), guarda el `v_ledger_id` en `game_table_players.entry_held_entry_id` y valida `is_game_enabled`.
+       - En `universal_settle_game_session`: Captura atómica de fondos retenidos (`TABLE_ENTRY_CAPTURE`) cuando hay ganador, o liberación total a saldo disponible (`TABLE_ENTRY_REFUND`) en caso de empate.
+       - Auditoría completa de idempotencia basada en claves hash `settle_{session_id}` y `refund_{session_id}`.
+   - 2. Settlement 90/10 y Auditoría de Receptores (`game_settlement_recipients`):
+     * Diagnóstico: La tabla `game_settlement_recipients` no estaba siendo poblada en `universal_settle_game_session`.
+     * Solución (Migración 153):
+       - Se implementó la inserción automática y atómica de cada ganador en `public.game_settlement_recipients`, registrando `settlement_id`, `user_id`, `team_number`, `payout_amount`, `ledger_entry_id`, `payout_status = 'COMPLETED'` y timestamp.
+       - Cálculo estricto del pozo: 90% para el/los ganador(es) y 10% de comisión de plataforma (`settlement_rules` con fallback 90/10).
+   - 3. Concurrencia de Asientos y Prevención de Asientos Duplicados:
+     * Diagnóstico: El constraint `uq_game_table_players_seat` en `game_table_players(table_id, seat_number)` impedía que un nuevo jugador utilizara el número de asiento de un jugador previo que hubiese salido (`status = 'LEFT'`).
+     * Solución (Migración 153):
+       - Se implementó la técnica de Row-Level Seat Reclaim en `join_table_transaction`: antes de que un nuevo jugador ingrese en un asiento libre, cualquier registro inactivo previo con `status = 'LEFT'` en dicho asiento es liberado atómicamente a nivel de fila (`FOR UPDATE`), previniendo colisiones de índice único sin requerir bloqueos DDL de tabla completa.
+   - 4. Abandono Multijugador y por Equipos (`abandon_game_secure`):
+     * Diagnóstico: La función de abandono asumía partidas 1v1 y no resolvía victorias automáticas para equipos completos (ej. Dominó 2v2 o Truco 2v2).
+     * Solución (Migración 153):
+       - Si el jugador que abandona pertenece a un equipo (`team_number IS NOT NULL`), se identifica automáticamente a todos los jugadores del equipo rival activo (`ARRAY_AGG(user_id)`) y se liquida la partida otorgando la victoria y el premio a dicho equipo.
+       - Si es 1v1 o individual, el premio se asigna a los oponentes activos restantes. Si no queda ningún oponente activo, se reembolsa la entrada vía `refund_game_session`.
+   - 5. Juegos Bloqueados por Administrador (Enforcement Total):
+     * Se verificó y reforzó el bloqueo en todas las vías de entrada: `create_game_table_secure`, `join_table_transaction`, `join_table_by_code_secure`, `start_game_session_secure` y `create_quick_match_table` (migración 153).
+   - 6. Auditoría de Archivos Huérfanos / Basura:
+     * Se detectó el archivo de respaldo obsoleto `src/services/repositories/AdminRepository.backup.ts` (2,809 líneas) sin referencias en el proyecto. Fue eliminado de forma permanente.
+   - 7. Análisis Forense de Migraciones 001–098:
+     * Migraciones 001–014: Esquema fundacional inmutable (tablas base, enums y relaciones esenciales).
+     * Migraciones 015–098: Evolución histórica iterativa. Sus procedimientos almacenados (RPCs) tempranos fueron formalmente reemplazados por las versiones canónicas de las migraciones 140–153.
+     * Migraciones 140–153: Autoridad canónica activa en producción de toda la lógica de negocio, financiera y de motor de juegos.
 
 0.0) REDISEÑO Y CORRECCIÓN INTEGRAL DE "JUEGA YA" + EMPAREJAMIENTO + JUEGOS BLOQUEADOS + CÓDIGOS DE MESA:
    - Corrección Canónica de Backend (Migración 152):

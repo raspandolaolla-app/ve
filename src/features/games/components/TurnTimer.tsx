@@ -26,6 +26,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 }) => {
   const [remaining, setRemaining] = useState<number>(durationSeconds);
   const timedOutRef = useRef(false);
+  const lastFiredExpiresAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     timedOutRef.current = false;
@@ -66,35 +67,29 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       return;
     }
 
-    // ✅ CORRECCIÓN CRÍTICA: Si el turnExpiresAt guardado ya pasó, pero el juego 
-    // sigue en estado jugable (ej. ROUND_COMMIT o ACTIVE), significa que el backend no actualizó el tiempo 
-    // (ej. al pasar a la siguiente ronda). Extendemos optimistamente desde AHORA.
-    const effectiveExpiresAt = storedExpiresAt < now 
-      ? now + durationSeconds * 1000 
-      : storedExpiresAt;
+    // Calcular segundos restantes reales basados en el timestamp autoritativo del servidor
+    const timeLeft = Math.max(0, Math.ceil((storedExpiresAt - now) / 1000));
+    setRemaining(timeLeft);
 
-    if (storedExpiresAt < now) {
-      console.warn('[TURN_TIMER] turnExpiresAt desactualizado. Extendiendo optimistamente.');
-    }
-
-    const initialTimeLeft = Math.max(0, Math.ceil((effectiveExpiresAt - now) / 1000));
-    setRemaining(initialTimeLeft);
-    timedOutRef.current = false;
-
-    if (initialTimeLeft === 0) {
-      timedOutRef.current = true;
-      console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
-      onTimeout?.();
+    // Si ya expiró y no ha sido disparado para este turnExpiresAt específico
+    if (timeLeft === 0) {
+      if (!timedOutRef.current && lastFiredExpiresAtRef.current !== turnExpiresAt) {
+        timedOutRef.current = true;
+        lastFiredExpiresAtRef.current = turnExpiresAt;
+        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
+        onTimeout?.();
+      }
       return;
     }
 
     const interval = setInterval(() => {
       const currentTime = Date.now();
-      const left = Math.max(0, Math.ceil((effectiveExpiresAt - currentTime) / 1000));
+      const left = Math.max(0, Math.ceil((storedExpiresAt - currentTime) / 1000));
       setRemaining(left);
 
       if (left === 0 && !timedOutRef.current) {
         timedOutRef.current = true;
+        lastFiredExpiresAtRef.current = turnExpiresAt;
         clearInterval(interval);
         console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
         onTimeout?.();

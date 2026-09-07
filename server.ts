@@ -1,5 +1,4 @@
 import express from "express";
-import http from "http";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -360,15 +359,10 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 async function startServer() {
-  const httpServer = http.createServer(app);
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        hmr: process.env.DISABLE_HMR === "true" ? false : { server: httpServer },
-      },
+      server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -381,7 +375,7 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`[BINGO_SERVER] Servidor corriendo en el puerto ${PORT}`);
   });
 }

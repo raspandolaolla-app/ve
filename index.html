@@ -1,53 +1,67 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="alternate icon" href="favicon.ico" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Raspando La Olla</title>
-    <meta name="description" content="Plataforma multijugador online en tiempo real con PulsoPLAY, mesas de juegos tradicionales, billetera ledger y autenticación segura." />
-    <meta property="og:title" content="Raspando La Olla" />
-    <meta property="og:description" content="Plataforma multijugador online en tiempo real con PulsoPLAY, mesas de juegos tradicionales, billetera ledger y autenticación segura." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#020617" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Raspando La Olla" />
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      try {
-        if ('serviceWorker' in navigator && window.location.protocol.startsWith('http') && window.self === window.top) {
-          window.addEventListener('load', function() {
-            var swPath = './sw.js';
-            navigator.serviceWorker.register(swPath).then(
-              function(reg) {
-                console.log('[PWA] Service Worker registrado correctamente en scope:', reg.scope);
-                reg.onupdatefound = function() {
-                  var installingWorker = reg.installing;
-                  if (installingWorker) {
-                    installingWorker.onstatechange = function() {
-                      if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        console.log('[PWA] Nueva versión disponible; lista para actualizar.');
-                      }
-                    };
-                  }
-                };
-              },
-              function(err) {
-                console.info('[PWA] Service Worker omitido en este entorno.');
-              }
-            ).catch(function() {});
-          });
-        }
-      } catch (e) {}
-    </script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; connect-src 'self' ws: wss: https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://ve.dolarapi.com https:; frame-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: data: https://*.supabase.co https:;" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="alternate icon" href="favicon.ico" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Raspando La Olla" />
+  <title>Raspando La Olla — Plataforma Multijugador Online</title>
+  <meta name="description" content="Plataforma multijugador online en tiempo real de juegos venezolanos. Dominó, Truco, Bingo, Polla y más." />
+  <meta property="og:title" content="Raspando La Olla — Plataforma Multijugador Online" />
+  <meta property="og:description" content="Desafía a tus amigos en Raspando La Olla, Dominó, Truco, Bingo y más en tiempo real." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="favicon.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#FF8A00" />
+  <meta name="msapplication-TileColor" content="#FF8A00" />
+  <meta name="msapplication-tap-highlight" content="no" />
+  <link rel="preconnect" href="https://*.supabase.co" />
+  <link rel="dns-prefetch" href="https://ve.dolarapi.com" />
+  <link rel="preload" href="favicon.svg" as="image" type="image/svg+xml" />
+  <style>
+    body { background-color: #080B12; color: #F8FAFC; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+  <script>
+    // Registro de Service Worker PWA resiliente (Solo en ventana principal y contexto seguro)
+    var isTopWindow = false;
+    try {
+      isTopWindow = window.self === window.top;
+    } catch (e) {
+      isTopWindow = false;
+    }
 
+    if ('serviceWorker' in navigator && isTopWindow && (window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', function() {
+        try {
+          navigator.serviceWorker.register('./sw.js').then(function(reg) {
+            console.log('[PWA] Service Worker registrado:', reg.scope);
+            if ('PushManager' in window) console.log('[PWA] Push Notifications disponibles');
+          }).catch(function(err) {
+            // Manejo silencioso de restricciones de sandbox o permisos de seguridad del navegador
+            if (err && (err.name === 'SecurityError' || String(err).includes('insecure'))) {
+              return;
+            }
+            console.debug('[PWA] Service Worker no disponible en este entorno:', err);
+          });
+        } catch (err) {
+          // Ignorar excepciones síncronas de contexto restringido
+        }
+      });
+    }
+    document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+  </script>
+</body>
+</html>

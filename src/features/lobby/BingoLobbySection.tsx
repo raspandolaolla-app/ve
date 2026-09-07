@@ -43,7 +43,10 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
     const client = getSupabaseClient();
     if (!client) return;
 
-    const interval = setInterval(loadCountdowns, 3000);
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      loadCountdowns();
+    }, 8000);
 
     // Suscribirse a cambios en tiempo real con filtrado y remoción reactiva
     const subscription = client
@@ -135,7 +138,6 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           table_id,
           countdown_ends_at,
           status,
-          current_state,
           table:game_tables (
             id,
             game_type,
@@ -163,8 +165,7 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
               id,
               table_id,
               countdown_ends_at,
-              status,
-              current_state
+              status
             `)
             .in('table_id', bTableIds)
             .not('countdown_ends_at', 'is', null)
@@ -224,7 +225,6 @@ export const BingoLobbySection: React.FC<BingoLobbySectionProps> = ({
           game_sessions (
             id,
             status,
-            current_state,
             countdown_ends_at,
             winner_user_id
           ),

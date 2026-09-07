@@ -240,15 +240,19 @@ export function AdminView() {
   useEffect(() => {
     loadAllAdminData();
     const interval = setInterval(() => {
+      if (document.hidden) return;
       loadAllAdminData();
-    }, 15000);
+    }, 60000);
 
-    const clockInterval = setInterval(async () => {
-      if (isAuthorized) {
+    const syncServerTime = async () => {
+      if (isAuthorized && !document.hidden) {
         const st = await AdminRepository.getServerTime();
         if (st) setServerTimeFormatted(st.caracasFormatted);
       }
-    }, 5000);
+    };
+
+    syncServerTime();
+    const clockInterval = setInterval(syncServerTime, 60000);
 
     const unsubPresence = PresenceService.subscribeToOnlineUsers((onlineIds) => {
       setUsersList((prevUsers) =>

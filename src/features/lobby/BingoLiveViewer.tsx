@@ -224,7 +224,7 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
         if (bTableIds.length > 0) {
           const fallback = await supabase
             .from('game_sessions')
-            .select('*')
+            .select('id, table_id, status, current_state, countdown_ends_at, created_at')
             .in('table_id', bTableIds)
             .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING', 'ACTIVE'])
             .order('created_at', { ascending: false })
@@ -353,10 +353,11 @@ export const BingoLiveViewer: React.FC<BingoLiveViewerProps> = ({
       )
       .subscribe();
 
-    // Polling ligero de respaldo cada 4 segundos para asegurar sincronía de balotas
+    // Polling ligero de respaldo cada 10 segundos con pausa en segundo plano
     const pollInterval = setInterval(() => {
+      if (document.hidden) return;
       loadActiveSessions();
-    }, 4000);
+    }, 10000);
 
     return () => {
       supabase.removeChannel(channel);

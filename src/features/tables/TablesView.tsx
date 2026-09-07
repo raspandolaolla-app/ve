@@ -485,10 +485,10 @@ export function TablesView() {
       }
     );
 
-    // Sondeo de Respaldo Anti-Desconexión (Fallback ligero cada 2.5s)
+    // Sondeo de Respaldo Anti-Desconexión (Fallback ligero cada 7s)
     // Garantiza que jugadores en dispositivos móviles o con pérdida temporal de WebSockets no se queden atascados
     const pollInterval = setInterval(async () => {
-      if (!isMounted || !activeTable?.id) return;
+      if (!isMounted || !activeTable?.id || document.hidden) return;
       try {
         const activeSess = await GameRepository.getActiveSession(activeTable.id);
         if (!isMounted) return;
@@ -516,7 +516,7 @@ export function TablesView() {
       } catch (err) {
         // Sondeo en segundo plano silencioso
       }
-    }, 2500);
+    }, 7000);
 
     return () => {
       isMounted = false;

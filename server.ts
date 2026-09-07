@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -175,47 +176,68 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Función del Motor de Sorteo y Cuenta Regresiva de Bingo (Daemon)
+// Función del Motor de Sorteo y Cuenta Regresiva de Bingo (Daemon con Backoff Inteligente)
+// Reduce el consumo de Egress en Supabase cuando no hay partidas activas
 const runAutomatedBingoDraws = () => {
-  setInterval(async () => {
+  const scheduleNextTick = (delayMs: number) => {
+    setTimeout(executeBingoTick, delayMs);
+  };
+
+  const executeBingoTick = async () => {
+    let nextInterval = 15000; // Por defecto: reposo (15s) cuando no hay sesiones activas
+
     try {
       if (supabaseServerClient) {
-        // 1. Ejecutar tick unificado RPC (migración 114) vía HTTPS sin riesgo de timeout TCP
-        try {
-          const { error: tickErr } = await supabaseServerClient.rpc('run_bingo_engine_tick');
-          if (tickErr && tickErr.message && (tickErr.message.includes('function') || tickErr.message.includes('does not exist'))) {
-            // Si migración 114 aún no ha sido aplicada en la base de datos remota, ejecutar verificación básica
-            await supabaseServerClient.rpc('check_and_start_bingo_countdown');
-          }
-        } catch {
-          // Tolerar fallos de red transitorios
-        }
+        // 1. Verificar si hay sesiones de bingo activas antes de saturar PostgREST
+        let hasActiveSessions = false;
+        let hasImminentCountdown = false;
 
-        // 2. Si se cuenta con privilegios administrativos (service_role), revelar balotas directamente
         if (supabaseAdmin) {
           const { data: sessions, error } = await supabaseAdmin
             .from('game_sessions')
             .select('id, countdown_ends_at, status')
             .eq('game_type', 'bingo')
             .in('status', ['WAITING', 'READY', 'SALES', 'DRAWING'])
-            .not('countdown_ends_at', 'is', null);
+            .not('countdown_ends_at', 'is', null)
+            .limit(5);
 
-          if (!error && sessions) {
+          if (!error && sessions && sessions.length > 0) {
+            hasActiveSessions = true;
+            const now = Date.now();
+
             for (const session of sessions) {
-              const countdownEndsAt = new Date(session.countdown_ends_at);
-              const now = new Date();
-              
+              const countdownEndsAt = new Date(session.countdown_ends_at).getTime();
               if (countdownEndsAt <= now) {
+                hasImminentCountdown = true;
                 const { error: rpcError } = await supabaseAdmin.rpc('reveal_next_bingo_ball', {
-                  p_session_id: session.id
+                  p_session_id: session.id,
                 });
-                
+
                 if (rpcError && !rpcError.message.includes('TOO_FAST') && !rpcError.message.includes('BINGO_COMPLETE')) {
                   console.warn(`[BINGO_SERVER] Aviso en sesión ${session.id}:`, rpcError.message);
                 }
+              } else if (countdownEndsAt - now <= 5000) {
+                hasImminentCountdown = true;
               }
             }
           }
+        }
+
+        // Si hay sesiones o sorteos en curso, sincronizar con tick unificado RPC
+        if (hasActiveSessions) {
+          try {
+            const { error: tickErr } = await supabaseServerClient.rpc('run_bingo_engine_tick');
+            if (tickErr && tickErr.message && (tickErr.message.includes('function') || tickErr.message.includes('does not exist'))) {
+              await supabaseServerClient.rpc('check_and_start_bingo_countdown');
+            }
+          } catch {
+            // Tolerar fallos de red transitorios
+          }
+
+          nextInterval = hasImminentCountdown ? 3500 : 6000;
+        } else {
+          // Reposo cuando no hay ninguna mesa de bingo en juego
+          nextInterval = 15000;
         }
       } else if (pool && !drawWorkerDisabled) {
         // Modo directo vía pool de PostgreSQL solo si el pool está disponible y activo
@@ -232,15 +254,21 @@ const runAutomatedBingoDraws = () => {
               AND countdown_ends_at <= NOW()
             LIMIT 5;
           `);
-          for (const row of res.rows) {
-            try {
-              await client.query('SELECT public.reveal_next_bingo_ball($1);', [row.id]);
-            } catch (drawErr: any) {
-              const msg = drawErr?.message || String(drawErr);
-              if (!msg.includes('TOO_FAST') && !msg.includes('BINGO_COMPLETE')) {
-                console.warn(`[BINGO_SERVER] Aviso en sesión ${row.id}:`, msg);
+
+          if (res.rows.length > 0) {
+            nextInterval = 3500;
+            for (const row of res.rows) {
+              try {
+                await client.query('SELECT public.reveal_next_bingo_ball($1);', [row.id]);
+              } catch (drawErr: any) {
+                const msg = drawErr?.message || String(drawErr);
+                if (!msg.includes('TOO_FAST') && !msg.includes('BINGO_COMPLETE')) {
+                  console.warn(`[BINGO_SERVER] Aviso en sesión ${row.id}:`, msg);
+                }
               }
             }
+          } else {
+            nextInterval = 15000;
           }
         } catch (connErr: any) {
           const msg = connErr?.message || String(connErr);
@@ -256,15 +284,20 @@ const runAutomatedBingoDraws = () => {
         }
       }
     } catch (err: any) {
-      // Capturar cualquier error no previsto y evitar inundar los logs
       const msg = err?.message || String(err);
       if (msg.includes('timeout') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT')) {
         drawWorkerDisabled = true;
       } else {
         console.warn('[BINGO_SERVER] Advertencia en ciclo de bingo:', msg);
       }
+      nextInterval = 15000;
+    } finally {
+      scheduleNextTick(nextInterval);
     }
-  }, 2000);
+  };
+
+  // Iniciar primer ciclo
+  scheduleNextTick(3000);
 };
 
 // Iniciar el daemon de Bingo
@@ -309,10 +342,10 @@ async function runAutomatedTurnExpirations() {
   }
 }
 
-// Registrar worker de turnos
+// Registrar worker de turnos con intervalo de 8s (óptimo contra cuotas de egress)
 setInterval(() => {
   runAutomatedTurnExpirations().catch(() => {});
-}, 3000);
+}, 8000);
 
 // Daemon de Limpieza Automática de Mesas de Bingo Finalizadas (>1 hora de antigüedad)
 const runAutomatedBingoCleanup = async () => {
@@ -359,10 +392,15 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === "true" ? false : { server: httpServer },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -375,7 +413,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`[BINGO_SERVER] Servidor corriendo en el puerto ${PORT}`);
   });
 }

@@ -490,7 +490,7 @@ export class TableRepository {
       console.error('[TRANCAITO_JOIN_ERROR]', error);
       return {
         success: false,
-        error: sanitizeUserErrorMessage(error, 'Código de Trancaíto no encontrado.'),
+        error: sanitizeUserErrorMessage(error, 'No encontramos una mesa con ese código. Verifica el código e intenta nuevamente.'),
       };
     }
 

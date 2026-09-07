@@ -321,7 +321,7 @@ export class SystemAuditRunner {
       let rtErrorDetails: string | undefined;
 
       if (supabase) {
-        const channel = supabase.channel(`audit_test_${Date.now()}`);
+        const channel = supabase.channel('audit_test_realtime');
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(() => {
             rtErrorDetails = 'Tiempo de espera agotado al conectar canal WebSocket';

@@ -200,7 +200,7 @@ export class AdService {
     }
 
     this.realtimeChannel = supabase
-      .channel(`ad_service_realtime_${Date.now()}`)
+      .channel('ad_service_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'advertising_campaigns' }, () => {
         this.refreshRemoteCampaigns();
       })

@@ -159,7 +159,30 @@ export class TableRepository {
     const normalizedCode = code.trim().toUpperCase();
     const { data, error } = await supabase
       .from('game_tables')
-      .select('*')
+      .select(`
+        id,
+        game_type,
+        name,
+        mode,
+        entry_fee,
+        currency,
+        min_players,
+        max_players,
+        current_players_count,
+        status,
+        host_user_id,
+        created_by,
+        visibility,
+        is_private,
+        invite_code,
+        join_code,
+        share_token,
+        created_at,
+        started_at,
+        closed_at,
+        finished_at,
+        config
+      `)
       .or(`invite_code.eq.${normalizedCode},join_code.eq.${normalizedCode}`)
       .maybeSingle();
 
@@ -365,7 +388,30 @@ export class TableRepository {
     try {
       const { data, error } = await supabase
         .from('game_tables')
-        .select('*')
+        .select(`
+          id,
+          game_type,
+          name,
+          mode,
+          entry_fee,
+          currency,
+          min_players,
+          max_players,
+          current_players_count,
+          status,
+          host_user_id,
+          created_by,
+          visibility,
+          is_private,
+          invite_code,
+          join_code,
+          share_token,
+          created_at,
+          started_at,
+          closed_at,
+          finished_at,
+          config
+        `)
         .eq('id', tableId)
         .maybeSingle();
 

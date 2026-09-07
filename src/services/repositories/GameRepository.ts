@@ -59,7 +59,29 @@ export class GameRepository {
 
     const { data, error } = await supabase
       .from('game_sessions')
-      .select('*')
+      .select(`
+        id,
+        table_id,
+        game_type,
+        session_number,
+        current_round,
+        current_turn_user_id,
+        turn_user_id,
+        turn_deadline_at,
+        turn_expires_at,
+        status,
+        gross_pool,
+        prize_pool,
+        winner_prize_amount,
+        platform_fee,
+        service_fee_amount,
+        winner_user_id,
+        winner_team,
+        is_settled,
+        ended_at,
+        settled_at,
+        current_state
+      `)
       .eq('table_id', tableId)
       .in('status', ['WAITING', 'READY', 'ACTIVE', 'SALES', 'DRAWING'])
       .order('created_at', { ascending: false })

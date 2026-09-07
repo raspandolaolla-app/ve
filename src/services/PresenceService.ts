@@ -83,12 +83,12 @@ class PresenceServiceManager {
     // Registrar actualización en la tabla profiles
     await this.updateProfileOnlineStatus(userId, true);
 
-    // Heartbeat cada 25 segundos
+    // Heartbeat ligero de respaldo cada 120 segundos (el heartbeat principal se maneja en useHeartbeat)
     this.heartbeatInterval = setInterval(() => {
-      if (this.currentUserId) {
+      if (this.currentUserId && typeof document !== 'undefined' && !document.hidden) {
         this.updateProfileOnlineStatus(this.currentUserId, true);
       }
-    }, 25000);
+    }, 120000);
 
     // Cleanup en cierre de ventana
     if (typeof window !== 'undefined') {

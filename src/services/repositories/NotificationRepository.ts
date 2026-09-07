@@ -21,7 +21,7 @@ export class NotificationRepository {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id, user_id, type, title, message, data, is_read, created_at, source_type, source_id, read_at, expires_at, archived_at')
         .eq('user_id', userId)
         .is('archived_at', null)
         .order('created_at', { ascending: false })

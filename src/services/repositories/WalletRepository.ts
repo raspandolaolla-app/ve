@@ -19,7 +19,7 @@ export class WalletRepository {
 
     const { data, error } = await supabase
       .from('wallets')
-      .select('*')
+      .select('user_id, currency, available_balance, held_balance, is_locked, updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -50,7 +50,7 @@ export class WalletRepository {
 
     const { data, error } = await supabase
       .from('ledger_entries')
-      .select('*')
+      .select('id, user_id, amount, entry_type, direction, idempotency_key, balance_after_available, balance_after_held, description, created_at, actor_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);

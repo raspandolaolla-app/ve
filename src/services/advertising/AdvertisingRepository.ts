@@ -21,7 +21,7 @@ export class AdvertisingRepository {
     if (!supabase) return [];
 
     try {
-      let query = supabase.from('advertising_assets').select('*');
+      let query = supabase.from('advertising_assets').select('id, asset_key, file_path, asset_type, mime_type, title, description, width, height, duration_seconds, file_size_bytes, active, created_at, updated_at');
       if (!includeInactive) {
         query = query.eq('active', true);
       }

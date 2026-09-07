@@ -90,7 +90,7 @@ export class RealtimeManager {
     const supabase = getSupabaseClient();
     if (!supabase) return () => {};
 
-    const channelName = `public-game-tables-lobby-${Date.now()}`;
+    const channelName = 'public-game-tables-lobby';
     const channel: RealtimeChannel = supabase
       .channel(channelName)
       .on(

@@ -26,12 +26,10 @@ export function useHeartbeat() {
     // Heartbeat inicial al cargar / autenticar
     sendHeartbeat('PAGE_LOAD', true);
 
-    // Intervalo periódico
+    // Intervalo periódico: solo cuando la pestaña esté activa y visible (al re-enfocar se activa TAB_FOCUSED)
     timerRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
         sendHeartbeat('PERIODIC_ACTIVE');
-      } else {
-        sendHeartbeat('BACKGROUND_IDLE');
       }
     }, HEARTBEAT_INTERVAL_MS);
 

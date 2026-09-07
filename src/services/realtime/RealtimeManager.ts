@@ -9,10 +9,27 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UserEventsChannelEntry {
   channel: RealtimeChannel;
-  balanceListeners: Set<(payload: any) => void>;
-  notificationListeners: Set<(payload: any) => void>;
+  balanceListeners: Map<string, (payload: any) => void>;
+  notificationListeners: Map<string, (payload: any) => void>;
   status: string;
 }
+
+function isEffectiveListener(fn: unknown): fn is (payload: any) => void {
+  if (typeof fn !== 'function') return false;
+  const str = fn.toString().replace(/\s+/g, '');
+  if (
+    str === '()=>{}' ||
+    str === 'function(){}' ||
+    str === '()=>void0' ||
+    str === '()=>{return;}' ||
+    str === 'function(){return;}'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+let userSubCounter = 0;
 
 export class RealtimeManager {
   private static userChannels: Map<string, UserEventsChannelEntry> = new Map();
@@ -183,14 +200,39 @@ export class RealtimeManager {
   }
 
   /**
-   * Se suscribe a las notificaciones y saldo personal del usuario de forma idempotente y segura.
-   * Garantiza que exista como máximo UN canal Realtime por userId y que TODOS los listeners
-   * postgres_changes se registren ANTES de llamar a subscribe().
+   * Suscribe exclusivamente al saldo del usuario (propietario: WalletContext).
+   * Es completamente idempotente: llamadas repetidas actualizan el listener sin acumulación.
+   */
+  public static subscribeToUserBalance(
+    userId: string,
+    onBalanceChange: (payload: any) => void,
+    subscriberKey: string = 'wallet_context'
+  ): () => void {
+    return this.subscribeToUserEvents(userId, onBalanceChange, undefined, subscriberKey);
+  }
+
+  /**
+   * Suscribe exclusivamente a las notificaciones del usuario (propietario: NotificationContext).
+   * Es completamente idempotente: llamadas repetidas actualizan el listener sin acumulación.
+   */
+  public static subscribeToUserNotifications(
+    userId: string,
+    onNotification: (payload: any) => void,
+    subscriberKey: string = 'notification_context'
+  ): () => void {
+    return this.subscribeToUserEvents(userId, undefined, onNotification, subscriberKey);
+  }
+
+  /**
+   * Se suscribe a las notificaciones y/o saldo personal del usuario de forma idempotente y segura.
+   * Garantiza que exista como máximo UN canal Realtime por userId y como máximo UN listener efectivo
+   * por rol/suscriptor, registrando TODOS los listeners postgres_changes ANTES de llamar a subscribe().
    */
   public static subscribeToUserEvents(
     userId: string,
-    onBalanceChange: (payload: any) => void,
-    onNotification: (payload: any) => void
+    onBalanceChange?: (payload: any) => void,
+    onNotification?: (payload: any) => void,
+    subscriberKey?: string
   ): () => void {
     if (!userId || typeof userId !== 'string' || !userId.trim() || userId === 'null' || userId === 'undefined') {
       console.warn('[WALLET_REALTIME] Invalid userId provided, skipping subscription:', userId);
@@ -206,17 +248,71 @@ export class RealtimeManager {
       return () => {};
     }
 
+    const hasEffectiveBalance = isEffectiveListener(onBalanceChange);
+    const hasEffectiveNotification = isEffectiveListener(onNotification);
+
+    // Si ambos son no-op, null o undefined, no registrar listeners vacíos
+    if (!hasEffectiveBalance && !hasEffectiveNotification) {
+      console.log(`[WALLET_REALTIME] No effective listeners provided for ${channelName}, skipping`);
+      return () => {};
+    }
+
+    // Clave de suscriptor para idempotencia
+    let subKey = subscriberKey;
+    if (!subKey) {
+      // Si no se proporcionó clave explícita, comprobar si el mismo callback ya está registrado
+      const existingEntry = this.userChannels.get(cleanUserId);
+      if (existingEntry) {
+        if (hasEffectiveBalance && onBalanceChange) {
+          for (const [k, cb] of existingEntry.balanceListeners) {
+            if (cb === onBalanceChange) {
+              subKey = k;
+              break;
+            }
+          }
+        }
+        if (!subKey && hasEffectiveNotification && onNotification) {
+          for (const [k, cb] of existingEntry.notificationListeners) {
+            if (cb === onNotification) {
+              subKey = k;
+              break;
+            }
+          }
+        }
+      }
+      if (!subKey) {
+        subKey = `sub_${++userSubCounter}`;
+      }
+    }
+
     let entry = this.userChannels.get(cleanUserId);
 
     if (entry) {
-      // Canal ya existente: registrar listeners en el registro multiplexado
-      if (onBalanceChange) entry.balanceListeners.add(onBalanceChange);
-      if (onNotification) entry.notificationListeners.add(onNotification);
+      console.log(`[WALLET_REALTIME] REUSED CHANNEL: ${channelName}`);
+
+      if (hasEffectiveBalance && onBalanceChange) {
+        if (entry.balanceListeners.has(subKey)) {
+          console.log(`[WALLET_REALTIME] EXISTING LISTENER updated for balance [${subKey}] on ${channelName}`);
+        } else {
+          console.log(`[WALLET_REALTIME] NEW LISTENER registered for balance [${subKey}] on ${channelName}`);
+        }
+        entry.balanceListeners.set(subKey, onBalanceChange);
+      }
+
+      if (hasEffectiveNotification && onNotification) {
+        if (entry.notificationListeners.has(subKey)) {
+          console.log(`[WALLET_REALTIME] EXISTING LISTENER updated for notifications [${subKey}] on ${channelName}`);
+        } else {
+          console.log(`[WALLET_REALTIME] NEW LISTENER registered for notifications [${subKey}] on ${channelName}`);
+        }
+        entry.notificationListeners.set(subKey, onNotification);
+      }
+
       console.log(
-        `[WALLET_REALTIME] Reusing active channel ${channelName}. Listeners registered (balance: ${entry.balanceListeners.size}, notifications: ${entry.notificationListeners.size})`
+        `[WALLET_REALTIME] Active listeners for ${channelName} (balance: ${entry.balanceListeners.size}, notifications: ${entry.notificationListeners.size})`
       );
     } else {
-      console.log(`[WALLET_REALTIME] Creating channel ${channelName}`);
+      console.log(`[WALLET_REALTIME] NEW CHANNEL: ${channelName}`);
 
       // Remover canal previo huérfano en el cliente de Supabase si existiese
       try {
@@ -231,16 +327,21 @@ export class RealtimeManager {
         console.warn('[WALLET_REALTIME] Error checking stale channels:', err);
       }
 
-      const balanceListeners = new Set<(payload: any) => void>();
-      const notificationListeners = new Set<(payload: any) => void>();
+      const balanceListeners = new Map<string, (payload: any) => void>();
+      const notificationListeners = new Map<string, (payload: any) => void>();
 
-      if (onBalanceChange) balanceListeners.add(onBalanceChange);
-      if (onNotification) notificationListeners.add(onNotification);
+      if (hasEffectiveBalance && onBalanceChange) {
+        console.log(`[WALLET_REALTIME] NEW LISTENER registered for balance [${subKey}] on ${channelName}`);
+        balanceListeners.set(subKey, onBalanceChange);
+      }
+      if (hasEffectiveNotification && onNotification) {
+        console.log(`[WALLET_REALTIME] NEW LISTENER registered for notifications [${subKey}] on ${channelName}`);
+        notificationListeners.set(subKey, onNotification);
+      }
 
       const channel = supabase.channel(channelName);
 
-      // PASO 2: Registrar TODOS los listeners postgres_changes ANTES de subscribe()
-      console.log(`[WALLET_REALTIME] Registering wallet listener for ${channelName}`);
+      // Registrar listeners postgres_changes ANTES de subscribe()
       channel.on(
         'postgres_changes',
         {
@@ -263,7 +364,6 @@ export class RealtimeManager {
         }
       );
 
-      console.log(`[WALLET_REALTIME] Registering notifications listener for ${channelName}`);
       channel.on(
         'postgres_changes',
         {
@@ -297,7 +397,6 @@ export class RealtimeManager {
       };
       this.userChannels.set(cleanUserId, entry);
 
-      // PASO 4: Ejecutar subscribe()
       channel.subscribe((status, err) => {
         if (!entry) return;
         entry.status = status;
@@ -313,16 +412,20 @@ export class RealtimeManager {
       });
     }
 
-    // Retornar función de limpieza idempotente
+    // Retornar función de limpieza idempotente y selectiva
     return () => {
       const currentEntry = RealtimeManager.userChannels.get(cleanUserId);
       if (!currentEntry) return;
 
-      if (onBalanceChange) currentEntry.balanceListeners.delete(onBalanceChange);
-      if (onNotification) currentEntry.notificationListeners.delete(onNotification);
+      if (hasEffectiveBalance) {
+        currentEntry.balanceListeners.delete(subKey);
+      }
+      if (hasEffectiveNotification) {
+        currentEntry.notificationListeners.delete(subKey);
+      }
 
       console.log(
-        `[WALLET_REALTIME] Listener unsubscribed for ${channelName} (remaining balance: ${currentEntry.balanceListeners.size}, notifications: ${currentEntry.notificationListeners.size})`
+        `[WALLET_REALTIME] UNSUBSCRIBE: [${subKey}] from ${channelName} (remaining balance: ${currentEntry.balanceListeners.size}, notifications: ${currentEntry.notificationListeners.size})`
       );
 
       if (currentEntry.balanceListeners.size === 0 && currentEntry.notificationListeners.size === 0) {
@@ -367,6 +470,18 @@ export class RealtimeManager {
       }
       this.userChannels.clear();
     }
+  }
+
+  /**
+   * Retorna el número de listeners activos para balance y notificaciones de un usuario (para diagnóstico y auditoría).
+   */
+  public static getUserChannelListenerCounts(userId: string): { balance: number; notifications: number } | null {
+    const entry = this.userChannels.get(userId.trim());
+    if (!entry) return null;
+    return {
+      balance: entry.balanceListeners.size,
+      notifications: entry.notificationListeners.size,
+    };
   }
 
   /**

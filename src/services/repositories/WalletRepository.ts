@@ -19,7 +19,7 @@ export class WalletRepository {
 
     const { data, error } = await supabase
       .from('wallets')
-      .select('user_id, currency, available_balance, held_balance, is_locked, updated_at')
+      .select('user_id, currency, available_balance, held_balance, updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -36,7 +36,7 @@ export class WalletRepository {
       availableBalance: Number(data.available_balance || 0),
       heldBalance: Number(data.held_balance || 0),
       totalBalance: Number(data.available_balance || 0) + Number(data.held_balance || 0),
-      isLocked: Boolean(data.is_locked),
+      isLocked: false,
       updatedAt: data.updated_at,
     };
   }

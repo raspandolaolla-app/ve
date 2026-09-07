@@ -1,485 +1,559 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MODAL DE PARTIDA RÁPIDA (FLUJO 3 PASOS)
+// RASPANDO LA OLLA — MODAL MAESTRO "JUEGA YA" / EMPAREJAMIENTO RÁPIDO
+// ==============================================================================
+// - Filtro centralizado: solo muestra juegos 100% habilitados en game_configurations
+// - Emparejamiento server-authoritative real (TableRepository.findOrCreateMatchmakingTable)
+// - Sin temporizadores falsos ni bots simulados en partidas con dinero real
+// - Cronómetro de búsqueda en vivo con botón de cancelación
+// - Adaptable a Mobile (PWA/Touch) y Desktop
 // ==============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  X, Zap, Users, Banknote, ArrowLeft, Loader2,
-  Clock, Trophy, Sparkles, ChevronRight
+  X,
+  Zap,
+  Users,
+  Banknote,
+  ArrowLeft,
+  Loader2,
+  Trophy,
+  Sparkles,
+  ShieldCheck,
+  AlertCircle,
+  Clock,
+  RotateCcw,
+  CheckCircle2,
+  Bot,
 } from 'lucide-react';
-import { getSupabaseClient } from '../../lib/supabase/client';
-import { useAuth } from '../../hooks/useAuth';
+import { useGameAvailability } from '../../context/GameAvailabilityContext';
+import { useAuth } from '../../features/auth/AuthContext';
+import { useWallet } from '../../context/WalletContext';
 import { useAudio } from '../../hooks/useAudio';
+import { TableRepository } from '../../services/repositories/TableRepository';
+import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import type { GameType, GameMode } from '../../types/games';
 
 interface QuickMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigateToTable?: (tableId: string) => void;
+  initialGameType?: string;
 }
 
-interface AvailableTable {
-  id: string;
-  game_type: string;
-  entry_fee_bs: number;
-  max_players: number;
-  current_players: number;
-  is_private: boolean;
-  created_at: string;
-}
+type Step = 'SELECT_GAME' | 'SELECT_AMOUNT';
 
-type Step = 'SELECT_GAME' | 'SELECT_AMOUNT' | 'SELECT_TABLE';
-
-// Catálogo completo de 10 juegos
-const GAMES_CATALOG = [
-  { id: 'tic_tac_toe', name: 'La Vieja', emoji: '❌⭕', shortName: '3 en Raya' },
-  { id: 'rock_paper_scissors', name: 'Piedra Papel Tijera', emoji: '✊', shortName: 'PPT' },
-  { id: 'checkers', name: 'Damas', emoji: '♟️', shortName: 'Damas' },
-  { id: 'domino_venezolano', name: 'Dominó Venezolano', emoji: '🁣', shortName: 'Dominó' },
-  { id: 'truco_venezolano', name: 'Truco', emoji: '🃏', shortName: 'Truco' },
-  { id: 'bingo', name: 'Bingo', emoji: '🎱', shortName: 'Bingo' },
-  { id: 'polla_venezolana', name: 'Polla Venezolana', emoji: '🐾', shortName: 'Polla' },
-  { id: 'atrapaito', name: 'Atrapaíto Criollo', emoji: '🎯', shortName: '1v1 Táctico' },
-  { id: 'una_olla', name: 'Una-Olla', emoji: '🃏', shortName: 'Cartas' },
-  { id: 'chess', name: 'Ajedrez', emoji: '♚', shortName: 'Ajedrez' },
-];
-
-// Montos de entrada disponibles (Moneda oficial: Bs)
-const ENTRY_AMOUNTS = [
-  { value: 25, label: '25 Bs', color: 'emerald' },
-  { value: 50, label: '50 Bs', color: 'cyan' },
-  { value: 100, label: '100 Bs', color: 'blue' },
-  { value: 250, label: '250 Bs', color: 'indigo' },
-  { value: 500, label: '500 Bs', color: 'purple' },
-  { value: 1000, label: '1.000 Bs', color: 'pink' },
-  { value: 2500, label: '2.500 Bs', color: 'rose' },
-  { value: 5000, label: '5.000 Bs', color: 'red' },
+const FEE_OPTIONS = [
+  { value: 0, label: '0 Bs (Práctica)', isFree: true },
+  { value: 25, label: '25 Bs' },
+  { value: 50, label: '50 Bs' },
+  { value: 100, label: '100 Bs' },
+  { value: 250, label: '250 Bs' },
+  { value: 500, label: '500 Bs' },
+  { value: 1000, label: '1.000 Bs' },
 ];
 
 export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
   isOpen,
   onClose,
   onNavigateToTable,
+  initialGameType,
 }) => {
-  const { user } = useAuth();
+  const { user, profile, state } = useAuth();
+  const isAuthenticated = state === 'authenticated' && user !== null;
+  const { balance } = useWallet();
+  const availableBalance = balance?.availableBalance ?? 0;
   const { playSound } = useAudio();
+  const {
+    isGameEnabled,
+    getAvailableMatchmakingGames,
+    getGameDisabledReason,
+    loading: loadingAvailability,
+  } = useGameAvailability();
+
+  // Juegos habilitados exclusivamente para emparejamiento
+  const availableMatchmakingGames = useMemo(() => {
+    return getAvailableMatchmakingGames();
+  }, [getAvailableMatchmakingGames]);
+
+  // Estados del flujo
   const [currentStep, setCurrentStep] = useState<Step>('SELECT_GAME');
-  const [selectedGame, setSelectedGame] = useState<string | null>(null);
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [tables, setTables] = useState<AvailableTable[]>([]);
-  const [loadingTables, setLoadingTables] = useState(false);
-  const [joiningTableId, setJoiningTableId] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [selectedFee, setSelectedFee] = useState<number>(50);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset al abrir/cerrar
+  // Estados de búsqueda / emparejamiento activo
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [searchStatus, setSearchStatus] = useState<string>('Buscando mesa pública abierta...');
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const searchTimerRef = useRef<any>(null);
+  const isCancelledRef = useRef<boolean>(false);
+
+  // Inicializar o sincronizar juego seleccionado al abrir o cambiar disponibilidad
   useEffect(() => {
-    if (isOpen) {
-      setCurrentStep('SELECT_GAME');
-      setSelectedGame(null);
-      setSelectedAmount(null);
-      setTables([]);
+    if (!isOpen) {
+      setIsSearching(false);
+      setElapsedSeconds(0);
       setError(null);
+      if (searchTimerRef.current) clearInterval(searchTimerRef.current);
+      return;
     }
-  }, [isOpen]);
 
-  // Cargar mesas filtradas cuando se elige juego + monto
+    // Si viene un juego inicial y está habilitado, seleccionarlo
+    if (initialGameType && isGameEnabled(initialGameType)) {
+      setSelectedGameId(initialGameType);
+      setCurrentStep('SELECT_AMOUNT');
+    } else if (availableMatchmakingGames.length > 0) {
+      // Verificar si el actual sigue disponible
+      const currentStillValid = availableMatchmakingGames.some((g) => g.id === selectedGameId);
+      if (!currentStillValid) {
+        setSelectedGameId(availableMatchmakingGames[0].id);
+      }
+    } else {
+      setSelectedGameId('');
+    }
+  }, [isOpen, initialGameType, availableMatchmakingGames, isGameEnabled, selectedGameId]);
+
+  // Protección en tiempo real: Si el juego seleccionado se deshabilita mientras el modal está abierto
   useEffect(() => {
-    if (currentStep === 'SELECT_TABLE' && selectedGame && selectedAmount !== null) {
-      fetchFilteredTables();
+    if (isOpen && selectedGameId && !isGameEnabled(selectedGameId)) {
+      const reason = getGameDisabledReason(selectedGameId);
+      setError(`El juego seleccionado fue puesto en mantenimiento${reason ? `: "${reason}"` : '.'}`);
+      if (isSearching) {
+        handleCancelSearch();
+      }
+      // Reubicar a un juego disponible o volver al paso 1
+      const fallback = availableMatchmakingGames[0];
+      if (fallback) {
+        setSelectedGameId(fallback.id);
+      } else {
+        setSelectedGameId('');
+        setCurrentStep('SELECT_GAME');
+      }
     }
-  }, [currentStep, selectedGame, selectedAmount]);
+  }, [availableMatchmakingGames, isGameEnabled, selectedGameId, isOpen, isSearching, getGameDisabledReason]);
 
-  const fetchFilteredTables = async () => {
-    setLoadingTables(true);
-    setError(null);
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setError('Sin conexión con el servidor');
-      setLoadingTables(false);
+  // Manejo del temporizador de búsqueda
+  useEffect(() => {
+    if (isSearching) {
+      setElapsedSeconds(0);
+      searchTimerRef.current = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (searchTimerRef.current) clearInterval(searchTimerRef.current);
+    }
+    return () => {
+      if (searchTimerRef.current) clearInterval(searchTimerRef.current);
+    };
+  }, [isSearching]);
+
+  // Metadata del juego seleccionado
+  const selectedGameMeta = useMemo(() => {
+    return availableMatchmakingGames.find((g) => g.id === selectedGameId);
+  }, [availableMatchmakingGames, selectedGameId]);
+
+  // Saldo insuficiente
+  const hasInsufficientBalance = isAuthenticated && selectedFee > 0 && availableBalance < selectedFee;
+
+  // Iniciar Emparejamiento Real (Server-Authoritative)
+  const handleStartMatchmaking = async () => {
+    if (!selectedGameMeta) {
+      setError('Por favor selecciona un juego válido.');
       return;
     }
+
+    // Si requiere saldo y no está autenticado
+    if (!isAuthenticated && selectedFee > 0) {
+      setError('Debes iniciar sesión para jugar por saldo real. Puedes jugar en Modo Práctica (0 Bs).');
+      return;
+    }
+
+    // Saldo insuficiente
+    if (hasInsufficientBalance) {
+      setError(`Saldo insuficiente (${availableBalance.toFixed(2)} Bs). Recarga en tu billetera o juega en Modo Práctica.`);
+      return;
+    }
+
+    setError(null);
+    setIsSearching(true);
+    isCancelledRef.current = false;
+    setSearchStatus('Buscando mesa pública abierta...');
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('game_tables')
-        .select(`
-          id,
-          game_type,
-          entry_fee_bs,
-          max_players,
-          is_private,
-          created_at,
-          game_table_players(user_id)
-        `)
-        .eq('status', 'WAITING')
-        .eq('is_private', false)
-        .eq('game_type', selectedGame)
-        .eq('entry_fee_bs', selectedAmount)
-        .order('created_at', { ascending: false })
-        .limit(30);
+      const userDisplayName = profile
+        ? `${profile.firstName} ${profile.lastName}`.trim()
+        : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Jugador');
+      const userAvatarUrl = profile?.avatarUrl || user?.user_metadata?.avatar_url;
 
-      if (fetchError) throw fetchError;
+      const gameType = selectedGameMeta.id as GameType;
+      const mode = (selectedGameMeta.allowedModes[0] || '1v1') as GameMode;
 
-      const mapped = (data || []).map((t: any) => ({
-        id: t.id,
-        game_type: t.game_type,
-        entry_fee_bs: Number(t.entry_fee_bs || 0),
-        max_players: t.max_players,
-        current_players: t.game_table_players?.length || 0,
-        is_private: t.is_private,
-        created_at: t.created_at,
-      }));
-
-      setTables(mapped);
-    } catch (err: any) {
-      console.error('[QuickMatch] Error cargando mesas:', err);
-      setError('No se pudieron cargar las mesas. Intenta de nuevo.');
-    } finally {
-      setLoadingTables(false);
-    }
-  };
-
-  const handleJoinTable = async (tableId: string) => {
-    if (!user) {
-      setError('Debes iniciar sesión para unirte');
-      return;
-    }
-    setJoiningTableId(tableId);
-    setError(null);
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setError('Sin conexión');
-      setJoiningTableId(null);
-      return;
-    }
-    try {
-      const { error: joinError } = await supabase.rpc('join_table_transaction', {
-        p_table_id: tableId,
-        p_user_id: user.id,
+      // Llamada atómica al backend/repositorio
+      const res = await TableRepository.findOrCreateMatchmakingTable({
+        gameType,
+        entryFee: selectedFee,
+        maxPlayers: selectedGameMeta.maxPlayers,
+        mode,
+        currentUserId: user?.id || `anon_${Date.now()}`,
+        userDisplayName,
+        userAvatarUrl,
       });
-      if (joinError) {
-        if (joinError.message?.includes('duplicate') || joinError.message?.includes('ya')) {
-          setError('Ya estás en esta mesa');
-        } else if (joinError.message?.includes('full') || joinError.message?.includes('llena')) {
-          setError('La mesa está llena');
-        } else {
-          setError('No se pudo unir: ' + joinError.message);
-        }
-        setJoiningTableId(null);
+
+      if (isCancelledRef.current) {
         return;
       }
-      try { playSound('match'); } catch {}
-      if (onNavigateToTable) {
-        onNavigateToTable(tableId);
+
+      if (res.action === 'practice') {
+        try { playSound('match'); } catch {}
+        setSearchStatus('¡Mesa de práctica lista!');
+        setTimeout(() => {
+          setIsSearching(false);
+          onClose();
+          if (res.table?.id && onNavigateToTable) {
+            onNavigateToTable(res.table.id);
+          }
+        }, 400);
+      } else if (res.action === 'joined') {
+        try { playSound('match'); } catch {}
+        setSearchStatus('¡Rival encontrado! Ingresando a la mesa...');
+        setTimeout(() => {
+          setIsSearching(false);
+          onClose();
+          if (res.table?.id) {
+            if (onNavigateToTable) onNavigateToTable(res.table.id);
+            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+          }
+        }, 500);
+      } else if (res.action === 'created') {
+        try { playSound('deal'); } catch {}
+        setSearchStatus('Mesa creada. Esperando rival en la sala...');
+        setTimeout(() => {
+          setIsSearching(false);
+          onClose();
+          if (res.table?.id) {
+            if (onNavigateToTable) onNavigateToTable(res.table.id);
+            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+          }
+        }, 500);
       }
-      onClose();
-      // Forzar navegación a la vista de mesas vía evento personalizado
-      window.location.hash = '';
-      setTimeout(() => {
-        const evt = new CustomEvent('quick-match-joined', { detail: { tableId } });
-        window.dispatchEvent(evt);
-      }, 200);
     } catch (err: any) {
-      setError('Error al unirse: ' + (err?.message || String(err)));
-      setJoiningTableId(null);
+      if (isCancelledRef.current) return;
+      console.error('[QuickMatchModal] Error en emparejamiento:', err);
+      setIsSearching(false);
+      setError(sanitizeUserErrorMessage(err, 'No fue posible completar el emparejamiento. Intenta de nuevo.'));
     }
   };
 
-  const handleBack = () => {
-    setError(null);
-    if (currentStep === 'SELECT_AMOUNT') {
-      setCurrentStep('SELECT_GAME');
-      setSelectedGame(null);
-    } else if (currentStep === 'SELECT_TABLE') {
-      setCurrentStep('SELECT_AMOUNT');
-      setTables([]);
-    }
+  // Cancelar Búsqueda
+  const handleCancelSearch = () => {
+    isCancelledRef.current = true;
+    setIsSearching(false);
+    setSearchStatus('Búsqueda cancelada');
+    if (searchTimerRef.current) clearInterval(searchTimerRef.current);
   };
 
   if (!isOpen) return null;
 
-  const selectedGameInfo = GAMES_CATALOG.find(g => g.id === selectedGame);
+  // Formato MM:SS
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-[#080B12]/95 backdrop-blur-md"
-        onClick={onClose}
-      />
-
-      {/* Modal Container */}
-      <div className="relative w-full max-w-2xl bg-gradient-to-br from-[#111722] to-[#080B12] border border-[#FF8A00]/30 rounded-3xl shadow-2xl shadow-[#FF8A00]/20 overflow-hidden max-h-[92vh] flex flex-col">
-        
-        {/* HEADER FIJO */}
-        <div className="bg-gradient-to-r from-[#FF8A00]/20 via-[#F5B942]/20 to-[#FF8A00]/20 border-b border-[#FF8A00]/30 px-5 py-4 flex items-center justify-between shrink-0">
+    <div
+      id="quick-match-modal-backdrop"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#080B12]/90 backdrop-blur-md animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quick-match-title"
+    >
+      <div className="relative w-full max-w-xl bg-gradient-to-b from-[#131926] via-[#0E1420] to-[#0A0E18] border-2 border-[#FF8A00]/40 rounded-3xl shadow-2xl shadow-[#FF8A00]/20 overflow-hidden flex flex-col max-h-[92vh]">
+        {/* CABECERA */}
+        <div className="bg-gradient-to-r from-[#FF8A00]/20 via-[#F5B942]/15 to-[#FF8A00]/20 border-b border-[#FF8A00]/30 px-5 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            {currentStep !== 'SELECT_GAME' && (
+            {currentStep !== 'SELECT_GAME' && !isSearching && (
               <button
-                onClick={handleBack}
-                className="p-2 rounded-xl hover:bg-[#1E2938] text-[#94A3B8] hover:text-[#F8FAFC] transition"
-                title="Volver"
+                type="button"
+                onClick={() => {
+                  setCurrentStep('SELECT_GAME');
+                  setError(null);
+                }}
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                title="Volver a selección de juego"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-2xl shadow-lg shadow-[#FF8A00]/30">
-              ⚡
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#FF8A00] to-[#F5B942] flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/30 shrink-0">
+              <Zap className="w-6 h-6 fill-current" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-black text-[#F8FAFC] tracking-tight flex items-center gap-2">
-                PARTIDA RÁPIDA
-              </h2>
-              <p className="text-[11px] text-[#94A3B8] font-semibold uppercase tracking-wider">
-                {currentStep === 'SELECT_GAME' && 'Paso 1 · Elige tu juego'}
-                {currentStep === 'SELECT_AMOUNT' && `Paso 2 · Monto para ${selectedGameInfo?.shortName || ''}`}
-                {currentStep === 'SELECT_TABLE' && 'Paso 3 · Mesas disponibles'}
+              <div className="flex items-center gap-2">
+                <h2 id="quick-match-title" className="text-lg sm:text-xl font-black text-white tracking-wide uppercase">
+                  JUEGA YA
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-wider border border-emerald-500/40 uppercase">
+                  En Vivo
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {isSearching
+                  ? 'Buscando rival compatible...'
+                  : currentStep === 'SELECT_GAME'
+                  ? 'Paso 1 · Selecciona el juego'
+                  : `Paso 2 · Elige la entrada para ${selectedGameMeta?.name || 'tu partida'}`}
               </p>
             </div>
           </div>
+
           <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-[#1E2938] text-[#94A3B8] hover:text-[#F8FAFC] transition"
+            type="button"
+            onClick={() => {
+              if (isSearching) handleCancelSearch();
+              onClose();
+            }}
+            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+            aria-label="Cerrar modal"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* PROGRESS BAR */}
-        <div className="px-5 py-2 bg-[#080B12]/60 border-b border-[#1E2938] shrink-0">
-          <div className="flex items-center gap-2">
-            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_GAME' || currentStep === 'SELECT_AMOUNT' || currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
-            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_AMOUNT' || currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
-            <div className={`flex-1 h-1.5 rounded-full ${currentStep === 'SELECT_TABLE' ? 'bg-[#FF8A00]' : 'bg-[#1E2938]'}`} />
-          </div>
-        </div>
-
-        {/* CONTENIDO DINÁMICO */}
-        <div className="flex-1 overflow-y-auto p-5">
-          
-          {/* ========== PASO 1: ELEGIR JUEGO ========== */}
-          {currentStep === 'SELECT_GAME' && (
-            <div className="space-y-3">
-              <p className="text-sm text-[#94A3B8] text-center mb-4">
-                Selecciona el juego que quieres jugar
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {GAMES_CATALOG.map((game) => (
-                  <button
-                    key={game.id}
-                    onClick={() => {
-                      setSelectedGame(game.id);
-                      setCurrentStep('SELECT_AMOUNT');
-                    }}
-                    className="group relative bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 rounded-2xl p-4 transition-all active:scale-95 text-left"
-                  >
-                    <div className="text-5xl mb-2 group-hover:scale-110 transition-transform">
-                      {game.emoji}
-                    </div>
-                    <h3 className="text-sm font-black text-[#F8FAFC] leading-tight">
-                      {game.name}
-                    </h3>
-                    <p className="text-[10px] text-[#94A3B8] mt-0.5">
-                      {game.shortName}
-                    </p>
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ChevronRight className="w-4 h-4 text-[#FF8A00]" />
-                    </div>
-                  </button>
-                ))}
+        {/* CONTENIDO SCROLLABLE */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+          {/* Alerta de Error */}
+          {error && (
+            <div className="p-3.5 bg-red-950/40 border border-red-800/60 rounded-2xl text-xs text-red-300 flex items-start gap-2.5 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">{error}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
-          {/* ========== PASO 2: ELEGIR MONTO ========== */}
-          {currentStep === 'SELECT_AMOUNT' && selectedGame && (
-            <div className="space-y-4">
-              <div className="bg-[#171E2A] border border-[#FF8A00]/30 rounded-2xl p-4 flex items-center gap-3">
-                <div className="text-4xl">{selectedGameInfo?.emoji}</div>
-                <div>
-                  <p className="text-xs text-[#94A3B8] uppercase tracking-wider">Juego seleccionado</p>
-                  <p className="text-lg font-black text-[#F8FAFC]">{selectedGameInfo?.name}</p>
+          {/* ESTADO 1: RADAR DE BÚSQUEDA ACTIVO */}
+          {isSearching ? (
+            <div className="py-8 px-4 flex flex-col items-center justify-center text-center space-y-6">
+              {/* Radar Pulsante */}
+              <div className="relative flex items-center justify-center">
+                <div className="w-28 h-28 rounded-full bg-amber-500/10 border-2 border-amber-500/30 animate-ping absolute" />
+                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border-2 border-amber-400 flex items-center justify-center shadow-xl shadow-amber-500/20">
+                  <span className="text-4xl select-none animate-bounce">{selectedGameMeta?.icon || '⚡'}</span>
                 </div>
               </div>
 
-              <p className="text-sm text-[#94A3B8] text-center">
-                ¿Con cuánto quieres entrar?
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {ENTRY_AMOUNTS.map((amount) => (
-                  <button
-                    key={amount.value}
-                    onClick={() => {
-                      setSelectedAmount(amount.value);
-                      setCurrentStep('SELECT_TABLE');
-                    }}
-                    className="group relative bg-[#171E2A] hover:bg-[#1E2938] border-2 border-[#1E2938] hover:border-[#FF8A00] rounded-2xl p-5 transition-all active:scale-95"
-                  >
-                    <Banknote className="w-5 h-5 text-[#F5B942] mx-auto mb-2 group-hover:scale-110 transition" />
-                    <p className="text-xl sm:text-2xl font-black text-[#F8FAFC]">
-                      {amount.label}
-                    </p>
-                    {amount.value === 25 && (
-                      <span className="inline-block mt-2 text-[9px] bg-[#22C55E] text-[#080B12] font-black px-2 py-0.5 rounded-full uppercase">
-                        Entrada mínima
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
-                <p className="text-[11px] text-amber-200 flex items-center justify-center gap-1.5">
-                  <Trophy className="w-3.5 h-3.5" />
-                  <span className="font-semibold">90% del pozo para el ganador · 10% plataforma</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2 text-2xl font-black font-mono text-amber-400 tracking-wider">
+                  <Clock className="w-5 h-5 animate-spin" />
+                  <span>{formatTimer(elapsedSeconds)}</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white">{searchStatus}</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  {selectedFee === 0
+                    ? `Modo Práctica (${selectedGameMeta?.name}) · Sin costo`
+                    : `Partida de ${selectedFee} Bs · ${selectedGameMeta?.name} (Mesa pública)`}
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={handleCancelSearch}
+                className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition flex items-center gap-2 border border-slate-700 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Cancelar Búsqueda</span>
+              </button>
             </div>
-          )}
-
-          {/* ========== PASO 3: MOSTRAR MESAS ========== */}
-          {currentStep === 'SELECT_TABLE' && selectedGame && selectedAmount !== null && (
-            <div className="space-y-3">
-              {/* Resumen */}
-              <div className="bg-[#171E2A] border border-[#FF8A00]/30 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">{selectedGameInfo?.emoji}</div>
-                  <div>
-                    <p className="text-sm font-black text-[#F8FAFC]">{selectedGameInfo?.name}</p>
-                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider">
-                      Entrada: <span className="text-[#F5B942] font-bold">{`${selectedAmount} Bs`}</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={fetchFilteredTables}
-                  className="text-[11px] font-bold text-[#FF8A00] hover:text-[#F5B942] flex items-center gap-1 transition"
-                >
-                  🔄 Actualizar
-                </button>
-              </div>
-
-              {/* Loading */}
-              {loadingTables && (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="w-12 h-12 text-[#FF8A00] animate-spin mb-3" />
-                  <p className="text-[#F8FAFC] font-bold">Buscando mesas...</p>
+          ) : (
+            <>
+              {/* ESTADO 2: PASO 1 - SELECCIÓN DE JUEGO */}
+              {currentStep === 'SELECT_GAME' && (
+                <div className="space-y-4">
+                  {loadingAvailability ? (
+                    <div className="py-12 flex flex-col items-center justify-center text-center">
+                      <Loader2 className="w-8 h-8 text-amber-400 animate-spin mb-2" />
+                      <p className="text-xs text-slate-400">Verificando juegos activos...</p>
+                    </div>
+                  ) : availableMatchmakingGames.length === 0 ? (
+                    <div className="py-10 text-center space-y-3 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                      <div className="text-4xl">🛠️</div>
+                      <h3 className="text-base font-bold text-slate-200">Mantenimiento de Juegos</h3>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        Los juegos de mesa multijugador se encuentran en mantenimiento temporal por la administración. Por favor vuelve a consultar en breve.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                      {availableMatchmakingGames.map((game) => {
+                        const isSelected = selectedGameId === game.id;
+                        return (
+                          <button
+                            key={game.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedGameId(game.id);
+                              setCurrentStep('SELECT_AMOUNT');
+                              setError(null);
+                            }}
+                            className={`group relative rounded-2xl p-3.5 sm:p-4 text-left transition-all active:scale-95 border-2 flex flex-col justify-between min-h-[110px] cursor-pointer ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-400 shadow-lg shadow-amber-500/20'
+                                : 'bg-[#131926] hover:bg-[#1A2234] border-slate-800 hover:border-amber-500/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full mb-2">
+                              <span className="text-3xl sm:text-4xl group-hover:scale-110 transition-transform">
+                                {game.icon || '🎮'}
+                              </span>
+                              {isSelected && (
+                                <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0" />
+                              )}
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-black text-white leading-snug group-hover:text-amber-300 transition-colors line-clamp-1">
+                                {game.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {game.maxPlayers === 2 ? '1 vs 1' : `${game.maxPlayers} Jugadores`}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Error */}
-              {!loadingTables && error && (
-                <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-center">
-                  <p className="text-red-300 font-bold mb-2">⚠️ {error}</p>
+              {/* ESTADO 3: PASO 2 - SELECCIÓN DE ENTRADA */}
+              {currentStep === 'SELECT_AMOUNT' && selectedGameMeta && (
+                <div className="space-y-5">
+                  {/* Tarjeta del juego seleccionado */}
+                  <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{selectedGameMeta.icon || '🎮'}</span>
+                      <div>
+                        <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+                          Juego Elegido
+                        </span>
+                        <h3 className="text-base font-black text-white">{selectedGameMeta.name}</h3>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep('SELECT_GAME')}
+                      className="text-xs text-amber-400 hover:text-amber-300 font-bold underline"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+
+                  {/* Saldo de Usuario */}
+                  {isAuthenticated && (
+                    <div className="flex items-center justify-between bg-slate-900/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs">
+                      <span className="text-slate-400">Tu saldo disponible:</span>
+                      <span className="font-mono font-bold text-amber-400">
+                        {availableBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Opciones de Entrada */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2.5">
+                      Selecciona la entrada por jugador:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {FEE_OPTIONS.map((opt) => {
+                        const isSelected = selectedFee === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFee(opt.value);
+                              setError(null);
+                            }}
+                            className={`py-3 px-2 rounded-xl text-center border-2 font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-300 shadow-md shadow-amber-500/30 font-black'
+                                : opt.isFree
+                                ? 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {opt.isFree ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <Bot className="w-3.5 h-3.5" />
+                                <span>Práctica</span>
+                              </div>
+                            ) : (
+                              <span>{opt.label}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Transparencia del Pozo */}
+                  <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-[11px] text-slate-400 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Premio al Ganador: <strong className="text-slate-200">90% del pozo</strong></span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">Plataforma 10%</span>
+                  </div>
+
+                  {/* Botón Principal JUEGA YA */}
                   <button
-                    onClick={fetchFilteredTables}
-                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-xl text-sm font-bold text-red-200 transition"
+                    id="quick-match-submit-btn"
+                    type="button"
+                    onClick={handleStartMatchmaking}
+                    disabled={hasInsufficientBalance}
+                    className={`w-full py-4 rounded-2xl font-black text-base sm:text-lg uppercase tracking-wider transition-all flex items-center justify-center gap-3 shadow-xl ${
+                      hasInsufficientBalance
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 shadow-amber-500/30 hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
+                    }`}
                   >
-                    Reintentar
+                    <Zap className="w-6 h-6 fill-current" />
+                    <span>
+                      {selectedFee === 0
+                        ? 'Jugar Modo Práctica'
+                        : `Emparejar · ${selectedFee} Bs`}
+                    </span>
                   </button>
                 </div>
               )}
-
-              {/* Sin mesas */}
-              {!loadingTables && !error && tables.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="text-6xl mb-4">🎮</div>
-                  <p className="text-[#F8FAFC] font-bold text-lg mb-2">
-                    No hay mesas con entrada de {selectedAmount} Bs
-                  </p>
-                  <p className="text-[#94A3B8] text-sm max-w-xs mb-4">
-                    Prueba con otro monto o crea tu propia mesa
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleBack}
-                      className="px-4 py-2 bg-[#1E2938] hover:bg-[#171E2A] text-[#F8FAFC] rounded-xl text-sm font-bold transition"
-                    >
-                      Cambiar monto
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de mesas */}
-              {!loadingTables && tables.map((table) => {
-                const availableSeats = table.max_players - table.current_players;
-                const isFull = availableSeats <= 0;
-                const isJoining = joiningTableId === table.id;
-
-                return (
-                  <div
-                    key={table.id}
-                    className="bg-[#171E2A] hover:bg-[#1E2938] border border-[#1E2938] hover:border-[#FF8A00]/50 rounded-2xl p-4 transition-all"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Users className="w-4 h-4 text-[#22C55E]" />
-                          <span className="text-sm font-bold text-[#F8FAFC]">
-                            {table.current_players} / {table.max_players} jugadores
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>
-                            Creada hace {Math.floor((Date.now() - new Date(table.created_at).getTime()) / 60000)} min
-                          </span>
-                        </div>
-                        {/* Barra de ocupación */}
-                        <div className="mt-2 h-2 bg-[#080B12] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-[#22C55E] to-[#10B981] transition-all"
-                            style={{ width: `${(table.current_players / table.max_players) * 100}%` }}
-                          />
-                        </div>
-                        <p className="text-[10px] text-[#94A3B8] mt-1 font-semibold">
-                          {isFull ? '❌ Mesa llena' : `✨ ${availableSeats} puesto${availableSeats > 1 ? 's' : ''} disponible${availableSeats > 1 ? 's' : ''}`}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => !isFull && handleJoinTable(table.id)}
-                        disabled={isFull || isJoining}
-                        className={`shrink-0 px-6 py-4 rounded-2xl font-black text-base transition-all flex items-center gap-2 ${
-                          isFull || isJoining
-                            ? 'bg-[#1E2938] text-[#64748B] cursor-not-allowed'
-                            : 'bg-gradient-to-r from-[#FF8A00] to-[#F5B942] text-[#080B12] hover:brightness-110 shadow-lg shadow-[#FF8A00]/30 hover:scale-105 active:scale-95'
-                        }`}
-                      >
-                        {isJoining ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : isFull ? (
-                          <>
-                            <X className="w-5 h-5" />
-                            <span>LLENA</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="w-5 h-5" />
-                            <span className="text-lg">UNIRSE</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            </>
           )}
         </div>
 
-        {/* FOOTER FIJO */}
-        <div className="border-t border-[#1E2938] bg-[#080B12]/80 px-5 py-3 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-[11px] text-[#94A3B8]">
-            <Sparkles className="w-3.5 h-3.5 text-[#F5B942]" />
-            <span>Juego Responsable · +18</span>
+        {/* PIE DE PÁGINA */}
+        <div className="bg-[#0A0E18] border-t border-slate-800/80 px-5 py-3 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span>Multiplayer Server-Authoritative · 100% Auditado</span>
           </div>
           <button
-            onClick={onClose}
-            className="text-[11px] font-bold text-[#94A3B8] hover:text-[#F8FAFC] transition"
+            type="button"
+            onClick={() => {
+              if (isSearching) handleCancelSearch();
+              onClose();
+            }}
+            className="text-slate-400 hover:text-white transition font-medium"
           >
-            Cancelar
+            Cerrar
           </button>
         </div>
       </div>

@@ -98,12 +98,12 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 }
               }}
               className="bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 border-[#0E1420] shadow-[0_0_20px_rgba(245,158,11,0.7)] text-slate-950 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer flex items-center justify-center"
-              aria-label="Jugar Ya"
+              aria-label="Juega Ya"
             >
               <Zap className="w-6 h-6 sm:w-7 sm:h-7" fill="currentColor" strokeWidth={2.5} />
             </button>
             <span className="text-[8px] sm:text-[9px] font-black text-amber-400 uppercase tracking-widest mt-0.5 whitespace-nowrap">
-              JUGAR YA
+              JUEGA YA
             </span>
           </div>
 

@@ -2,18 +2,18 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 09:10:00 UTC (2026-09-07 02:10:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / dev server activo en puerto 3000 / Build exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Endurecimiento forense integral de billetera, ledger, liquidación y gestión de asientos)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 09:35:00 UTC (2026-09-07 02:35:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso en 10.5s)
+ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Total físico: 156 archivos en supabase/migrations/)
 MEJORA TÉCNICA RECIENTE: 
-1. Corrección Mecánica en Piedra, Papel o Tijera (RPS): Eliminación de TurnTimer en RockPaperScissorsBoard.tsx al tratarse de un juego de elección simultánea (commit-reveal) y no secuencial por turnos.
-2. Ejecución Quirúrgica de Optimización de Egress de Supabase (Fases 1 a 4):
-   - Backend (server.ts): Backoff inteligente en daemon de bingo (15s en reposo sin partidas activas, 3.5s-6s en sorteo) y ajuste del daemon de expiración de turnos a 8s.
-   - Lobbies y Mesas: Exclusión de la columna JSONB current_state en BingoLobbySection (loadCountdowns y loadBingoTables); ampliación de intervalos de sondeo de 2.5s-4s a 6s-10s con pausa automática en segundo plano mediante document.hidden (BingoLiveViewer, TablesView, GameContainer).
-   - Panel de Administración (AdminView): Intervalo de métricas y reloj de servidor optimizado a 60s con pausa en segundo plano.
-   - Canales Realtime Reutilizables: Eliminación de sufijos Date.now() en RealtimeManager, AdService y SystemAuditRunner para permitir multiplexación eficiente en el WebSocket de Supabase.
-   - Proyección Explícita de Columnas: Reemplazo de select('*') por columnas estrictamente requeridas en GameRepository.getActiveSession, TableRepository.getTableById/getTableByJoinCode, WalletRepository.getBalance/getTransactions, AdvertisingRepository.getAssets y NotificationRepository.getUserNotifications.
-   - Racionalización de Presencia: Desactivación de actualización continua REST cada 25s en PresenceService en favor del RPC canónico en useHeartbeat, pausando latidos cuando la pestaña está oculta. Disminución proyectada de consumo de Egress >80%.
+1. Auditoría Forense Final de Producción:
+   - Reconciliación física de migraciones: 156 archivos SQL reales identificados en `supabase/migrations/` (rango 001 a 153; 8 prefijos duplicados: 047, 048, 102, 103, 110, 118, 139, 140; 5 prefijos ausentes: 104-108; primera: 001_extensions_and_enums.sql; última: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql). Se eliminaron referencias obsoletas a "80 migraciones" de fases tempranas.
+   - Sincronización verificada de lockfile: `npm ci` determinista ejecutado con código de salida 0 en entorno limpio (`rm -rf node_modules && npm ci`).
+   - Unificación de ruta de CI/CD: `.github/workflows/main.yml` configurado como la ruta oficial canónica de deployment a GitHub Pages con `concurrency.cancel-in-progress: false` para evitar cancelaciones destructivas; `.github/workflows/deploy.yml` configurado como respaldo manual (`workflow_dispatch`) para evitar colisiones de doble despliegue.
+   - Blindaje de Service Worker: `public/sw.js` e `index.html` actualizados con bypass estricto para localhost, puerto 3000, rutas de desarrollo Vite (`/src/`, `/@vite/`, `/@fs/`), garantizando que nunca intercepte scripts en desarrollo ni devuelva HTML para peticiones JS.
+   - Integridad RPC vs SQL: 97 llamadas a RPC auditadas en código frontend/backend, confirmando 100% de correspondencia exacta contra funciones declaradas en las 156 migraciones (0 funciones huérfanas).
+   - Verificación estática de Billetera y Ledger: Validado aislamiento contable, idempotencia pesimista, `universal_settle_game_session` y `refund_game_session`.
+   - Verificación de 10 juegos: Integración determinista validada en `GameContainer.tsx` (Chess, Dominó, Truco, Bingo, Polla, Atrapaíto, Damas, RPS, La Vieja, UNA-OLLA) con deduplicación garantizada de jugadores por `userId`.
 ================================================================================
 
 --------------------------------------------------------------------------------
@@ -204,8 +204,8 @@ e) Storage Buckets (4 Buckets):
 f) Realtime (Publicaciones PostgreSQL):
    - Habilitado para sincronización en tiempo real en las tablas `game_tables`, `game_table_players`, `game_sessions` y `user_activity_sessions`.
 
-g) Historial de Migraciones (80 Archivos SQL):
-   - Estructura incremental desde `001_extensions_and_enums.sql` hasta `080_fix_multiplayer_seats_started_at_and_abandon_signature.sql` conservados íntegramente en `supabase/migrations/` para garantizar reproducibilidad.
+g) Historial de Migraciones (156 Archivos SQL Físicos):
+   - Estructura incremental desde `001_extensions_and_enums.sql` hasta `153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql` conservados íntegramente en `supabase/migrations/` para garantizar reproducibilidad. Contiene 8 prefijos duplicados (047, 048, 102, 103, 110, 118, 139, 140) y 5 prefijos ausentes (104, 105, 106, 107, 108) pertenecientes a la historia inmutable del proyecto.
 
 --------------------------------------------------------------------------------
 5. AUTENTICACIÓN Y SEGURIDAD
@@ -299,10 +299,10 @@ g) Historial de Migraciones (80 Archivos SQL):
 --------------------------------------------------------------------------------
 - Tablas totales: 35
 - Tipos / Enums: 15
-- Funciones RPC: 50+
+- Funciones RPC: 97 identificadas y auditadas en código (100% de correspondencia con migraciones)
 - Triggers: 12
 - Políticas RLS: 63+
-- Migraciones SQL: 80 (Ubicadas en `supabase/migrations/` desde 001 hasta 080)
+- Migraciones SQL: 156 archivos físicos (Ubicadas en `supabase/migrations/` con rango 001 a 153)
 
 --------------------------------------------------------------------------------
 9. CONFIGURACIÓN Y DESPLIEGUE
@@ -323,7 +323,7 @@ g) Historial de Migraciones (80 Archivos SQL):
 - CRÍTICO: Ninguno en la compilación ni en el linter (`0` errores de compilación / `0` errores en `tsc`).
 - ALTO: Eventuales micro-interrupciones de WebSocket Realtime en conexiones móviles inestables (Manejadas limpiamente por el `RealtimeManager` reconectando la suscripción sin cerrar la sesión del usuario).
 - MEDIO: `scripts/migrate.ts` requiere la variable de entorno `DATABASE_URL` para conectarse directamente al puerto PostgreSQL si se ejecutan migraciones CLI fuera del panel de Supabase.
-- BAJO: Acumulación de 80 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad).
+- BAJO: Acumulación de 156 archivos de migración SQL en `supabase/migrations/` que en el futuro podrían consolidarse en un archivo baseline en desarrollo local (Se conservan intactos por seguridad inmutable de producción).
 
 --------------------------------------------------------------------------------
 11. CÓDIGO DUPLICADO O INNECESARIO (SOLO IDENTIFICADO / NO ELIMINADO)

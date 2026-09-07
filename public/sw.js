@@ -49,12 +49,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // CRÍTICO: Bypassear completamente peticiones dinámicas, sensibles o de Supabase:
+  // CRÍTICO: Bypassear completamente peticiones dinámicas, sensibles, desarrollo o Supabase:
+  // - Rutas de desarrollo Vite (/src/, @vite, @fs, hot-update, localhost)
   // - Supabase (Auth, Realtime, REST, RPC, Storage, WebSockets)
   // - Endpoints API (/api)
   // - Encabezados de autorización (Authorization)
   // - Módulos de billetera, KYC, saldo y estado de tablas
   if (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.port === '3000' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/@id/') ||
+    url.pathname.includes('hot-update') ||
     url.hostname.includes('supabase') ||
     url.pathname.includes('/rest/v1') ||
     url.pathname.includes('/realtime/v1') ||
@@ -71,7 +80,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.mp4') ||
     url.pathname.endsWith('.webm')
   ) {
-    return; // Pasa directo al navegador sin intervención del SW (evita errores 206 en videos)
+    return; // Pasa directo al navegador sin intervención del SW
   }
 
   // Estrategia Network-First con fallback seguro a Caché

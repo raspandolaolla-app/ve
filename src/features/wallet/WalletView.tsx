@@ -14,8 +14,7 @@ import type React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { WalletRepository } from '../../services/repositories/WalletRepository';
 import { PaymentRepository } from '../../services/repositories/PaymentRepository';
-import { RealtimeManager } from '../../services/realtime/RealtimeManager';
-import type { WalletBalance, WalletTransaction } from '../../types/wallet';
+import type { WalletTransaction } from '../../types/wallet';
 import type { PaymentAccount } from '../../types/payments';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -46,10 +45,9 @@ import { useWallet } from '../../context/WalletContext';
 
 export function WalletView() {
   const { state, user, profile, role, isSigningIn, openLoginModal } = useAuth();
-  const { activeWalletModal, closeWalletModals } = useWallet();
+  const { activeWalletModal, closeWalletModals, balance, refreshBalance } = useWallet();
   const { rateInfo, refreshRate, formatUsd } = useBcvRate();
   const isAdminOrOperator = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OPERATOR';
-  const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,48 +95,31 @@ export function WalletView() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const [b, txs, accounts] = await Promise.all([
-        WalletRepository.getBalance(user.id),
+      const [txs, accounts] = await Promise.all([
         WalletRepository.getTransactions(user.id, 25),
         PaymentRepository.getPaymentAccounts(user.id),
       ]);
-      setBalance(b);
       setTransactions(txs);
       setPaymentAccounts(accounts);
       if (accounts.length > 0) {
         setSelectedAccountId((prev) => prev || accounts[0].id);
       }
+      refreshBalance();
     } catch (err) {
       console.error('Error cargando billetera:', err);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, refreshBalance]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) {
-      setBalance(null);
       setTransactions([]);
       setPaymentAccounts([]);
       return;
     }
 
     loadWalletData();
-
-    // Suscripción en tiempo real a saldo y eventos (idempotente y protegida)
-    const unsubscribeUserEvents = RealtimeManager.subscribeToUserEvents(
-      user.id,
-      () => {
-        loadWalletData();
-      },
-      () => {
-        loadWalletData();
-      }
-    );
-
-    return () => {
-      unsubscribeUserEvents();
-    };
   }, [isAuthenticated, user?.id, loadWalletData]);
 
   // Manejar solicitud de recarga

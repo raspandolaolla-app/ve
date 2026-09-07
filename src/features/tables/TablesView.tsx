@@ -14,7 +14,8 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { useCapabilities } from '../../hooks/useCapabilities';
-import { normalizeCanonicalGameId } from '../../context/GameAvailabilityContext';
+import { normalizeCanonicalGameId, useGameAvailability } from '../../context/GameAvailabilityContext';
+import { QuickMatchModal } from '../../components/common/QuickMatchModal';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { GameRepository } from '../../services/repositories/GameRepository';
 import { FinancialRepository } from '../../services/repositories/FinancialRepository';
@@ -117,15 +118,18 @@ export function TablesView() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [availableFees, setAvailableFees] = useState<number[]>([25, 50, 100, 250, 500, 1000, 2000, 5000]);
 
+  // Hook centralizado de disponibilidad de juegos en tiempo real
+  const { isGameEnabled, getDisabledReason, availableGames } = useGameAvailability();
+
+  // Limpiar filtro si el juego seleccionado fue deshabilitado por el administrador
+  useEffect(() => {
+    if (selectedGameFilter !== 'all' && !isGameEnabled(selectedGameFilter)) {
+      setSelectedGameFilter('all');
+    }
+  }, [selectedGameFilter, isGameEnabled]);
+
   // Modal de Emparejamiento Rápido (Matchmaking)
   const [showMatchmakingModal, setShowMatchmakingModal] = useState(false);
-  const [matchmakingGameType, setMatchmakingGameType] = useState<GameType>('domino_venezolano');
-  const [matchmakingEntryFee, setMatchmakingEntryFee] = useState<number>(50);
-  const [matchmakingMaxPlayers, setMatchmakingMaxPlayers] = useState<number>(2);
-  const [matchmakingMode, setMatchmakingMode] = useState<GameMode>('1v1');
-  const [isMatchmaking, setIsMatchmaking] = useState(false);
-  const [matchmakingStatusText, setMatchmakingStatusText] = useState('');
-  const [matchmakingError, setMatchmakingError] = useState<string | null>(null);
 
   // Modal de Reglas Oficiales
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -273,9 +277,9 @@ export function TablesView() {
       const filter = currentFilter === 'all' ? undefined : currentFilter;
       const tables = await TableRepository.getPublicTables(filter);
       
-      // Filtrar estrictamente contra mesas en cuarentena y validador de disponibilidad
+      // Filtrar estrictamente contra mesas en cuarentena, validador de disponibilidad y juegos deshabilitados
       const sanitized = tables.filter(
-        (t) => !recentlyClosedTableIds.current.has(t.id) && TableRepository.isTableAvailable(t)
+        (t) => !recentlyClosedTableIds.current.has(t.id) && TableRepository.isTableAvailable(t) && isGameEnabled(t.gameType)
       );
       setPublicTables(sanitized);
     } catch (err: any) {
@@ -283,7 +287,7 @@ export function TablesView() {
     } finally {
       setLoadingTables(false);
     }
-  }, [pruneRecentlyClosed]);
+  }, [pruneRecentlyClosed, isGameEnabled]);
 
   // Reconciliación debounced para absorber ráfagas de eventos Realtime
   const debouncedReconcile = useCallback(() => {
@@ -524,7 +528,7 @@ export function TablesView() {
   // Unirse por código Trancaíto
   const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rawCode = joinCodeInput.trim();
+    const rawCode = joinCodeInput.trim().toUpperCase();
 
     if (!rawCode) {
       setJoinError('Introduce el código de la mesa.');
@@ -543,7 +547,14 @@ export function TablesView() {
       const result = await TableRepository.joinTableByCode(rawCode);
 
       if (!result.success || !result.table) {
-        setJoinError(result.error || 'Código de Trancaíto no encontrado.');
+        setJoinError(result.error || 'No encontramos una mesa con ese código. Verifica el código e intenta nuevamente.');
+        return;
+      }
+
+      // Verificación de disponibilidad del juego
+      if (!isGameEnabled(result.table.gameType)) {
+        const reason = getDisabledReason(result.table.gameType);
+        setJoinError(`Esta mesa pertenece a un juego en mantenimiento${reason ? `: "${reason}"` : '.'}`);
         return;
       }
 
@@ -556,7 +567,7 @@ export function TablesView() {
       if (result.alreadyJoined) {
         setSeatActionFeedback({
           success: true,
-          message: 'Ya estás dentro de esta mesa.',
+          message: 'Ya perteneces a esta mesa. Te hemos reconectado a la sala.',
         });
       } else {
         setSeatActionFeedback({
@@ -601,61 +612,6 @@ export function TablesView() {
       });
     } finally {
       setJoiningSeat(null);
-    }
-  };
-
-  // Emparejamiento Rápido Inteligente
-  const handleQuickMatch = async () => {
-    if (!isAuthenticated && matchmakingEntryFee > 0) {
-      setMatchmakingError('Debes iniciar sesión para jugar con saldo real.');
-      return;
-    }
-
-    setIsMatchmaking(true);
-    setMatchmakingError(null);
-    setMatchmakingStatusText('Buscando mesa pública compatible...');
-
-    try {
-      const userDisplayName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Jugador');
-      const userAvatarUrl = profile?.avatarUrl || user?.user_metadata?.avatar_url;
-
-      const res = await TableRepository.findOrCreateMatchmakingTable({
-        gameType: matchmakingGameType,
-        entryFee: matchmakingEntryFee,
-        maxPlayers: matchmakingMaxPlayers,
-        mode: matchmakingMode,
-        currentUserId: user?.id || `anon_${Date.now()}`,
-        userDisplayName,
-        userAvatarUrl,
-      });
-
-      if (res.action === 'practice') {
-        setShowMatchmakingModal(false);
-        setInGameData({
-          table: res.table,
-          players: res.players || [],
-        });
-      } else if (res.action === 'joined') {
-        setMatchmakingStatusText('¡Mesa encontrada! Ingresando a la sala...');
-        setTimeout(() => {
-          setShowMatchmakingModal(false);
-          setActiveTable(res.table);
-          if (res.players) setTablePlayers(res.players);
-          loadPublicTables();
-        }, 500);
-      } else if (res.action === 'created') {
-        setMatchmakingStatusText('Nueva mesa oficial creada. Esperando oponentes...');
-        setTimeout(() => {
-          setShowMatchmakingModal(false);
-          setActiveTable(res.table);
-          if (res.players) setTablePlayers(res.players);
-          loadPublicTables();
-        }, 500);
-      }
-    } catch (err: any) {
-      setMatchmakingError(sanitizeUserErrorMessage(err, 'Error al emparejar mesa.'));
-    } finally {
-      setIsMatchmaking(false);
     }
   };
 
@@ -755,6 +711,7 @@ export function TablesView() {
   const visiblePublicTables = publicTables.filter((table) => {
     if (recentlyClosedTableIds.current.has(table.id)) return false;
     if (!TableRepository.isTableAvailable(table)) return false;
+    if (!isGameEnabled(table.gameType)) return false;
     if (selectedGameFilter !== 'all' && table.gameType !== selectedGameFilter) return false;
     return true;
   });
@@ -815,13 +772,12 @@ export function TablesView() {
             variant="secondary"
             size="sm"
             onClick={() => {
-              setMatchmakingGameType(selectedGameFilter === 'all' ? 'domino_venezolano' : selectedGameFilter);
               setShowMatchmakingModal(true);
             }}
             leftIcon={<Zap className="w-4 h-4 text-amber-400" />}
             className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
           >
-            ⚡ Partida Rápida
+            ⚡ Juega Ya
           </Button>
 
           <Button
@@ -1367,115 +1323,21 @@ export function TablesView() {
         }}
       />
 
-      {/* Modal de Emparejamiento Rápido (Matchmaking) */}
-      {showMatchmakingModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-md w-full p-4 sm:p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-amber-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-slate-100">Partida Rápida</h2>
-                  <p className="text-[11px] text-slate-400">Emparejamiento automático inteligente</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  if (!isMatchmaking) setShowMatchmakingModal(false);
-                }}
-                disabled={isMatchmaking}
-                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Juego a Disputar</label>
-                <select
-                  value={matchmakingGameType}
-                  onChange={(e) => {
-                    const g = e.target.value as GameType;
-                    setMatchmakingGameType(g);
-                    const meta = SUPPORTED_GAMES_METADATA.find((m) => m.id === g);
-                    if (meta) {
-                      setMatchmakingMaxPlayers(meta.maxPlayers);
-                      setMatchmakingMode(meta.allowedModes[0]);
-                    }
-                  }}
-                  disabled={isMatchmaking}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-semibold"
-                >
-                  {SUPPORTED_GAMES_METADATA.map((game) => (
-                    <option key={game.id} value={game.id}>
-                      {game.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-300 mb-1.5">Monto de Entrada Deseado</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[25, 50, 100, 250, 500, 1000].map((fee) => (
-                    <button
-                      key={fee}
-                      type="button"
-                      disabled={isMatchmaking}
-                      onClick={() => setMatchmakingEntryFee(fee)}
-                      className={`py-2 px-2 rounded-xl text-xs font-mono font-bold border transition text-center ${
-                        matchmakingEntryFee === fee
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      {fee} Bs.
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {isMatchmaking && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 animate-pulse">
-                  <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
-                  <div className="font-bold text-amber-300 text-sm">Buscando mesa pública abierta...</div>
-                  <div className="text-[11px] text-slate-300">{matchmakingStatusText || 'Conectando con la red en tiempo real...'}</div>
-                </div>
-              )}
-
-              {matchmakingError && (
-                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <span>{matchmakingError}</span>
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={isMatchmaking}
-                  onClick={() => setShowMatchmakingModal(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  disabled={isMatchmaking}
-                  onClick={handleQuickMatch}
-                  leftIcon={<Zap className="w-4 h-4" />}
-                >
-                  {isMatchmaking ? 'Emparejando...' : 'Buscar o Crear Mesa'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal Unificado de Emparejamiento Rápido (Juega Ya) */}
+      <QuickMatchModal
+        isOpen={showMatchmakingModal}
+        onClose={() => setShowMatchmakingModal(false)}
+        initialGameType={selectedGameFilter === 'all' ? undefined : selectedGameFilter}
+        onNavigateToTable={async (tableId) => {
+          setShowMatchmakingModal(false);
+          const tbl = await TableRepository.getTableById(tableId);
+          if (tbl) {
+            setActiveTable(tbl);
+            const plrs = await TableRepository.getTablePlayers(tableId);
+            setTablePlayers(plrs);
+          }
+        }}
+      />
 
       <GameRulesModal
         isOpen={showRulesModal}

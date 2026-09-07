@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { SUPPORTED_GAMES_METADATA } from '../../../utils/constants';
+import { useGameAvailability } from '../../../context/GameAvailabilityContext';
 import type { GameType } from '../../../types/games';
 
 export interface TableFiltersProps {
@@ -20,6 +20,8 @@ export const TableFilters: React.FC<TableFiltersProps> = ({
   loadingTables,
   onRefresh,
 }) => {
+  const { availableGames } = useGameAvailability();
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-2">
@@ -44,7 +46,7 @@ export const TableFilters: React.FC<TableFiltersProps> = ({
         >
           Todos los juegos
         </button>
-        {SUPPORTED_GAMES_METADATA.map((game) => (
+        {availableGames.map((game) => (
           <button
             key={game.id}
             onClick={() => onSelectGameFilter(game.id)}

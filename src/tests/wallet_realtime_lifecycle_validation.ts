@@ -75,6 +75,37 @@ export function runWalletRealtimeLifecycleValidation(): {
     record('Limpieza explícita en logout (cleanupUserEvents)', false, err.message);
   }
 
+  // Test 6: Regla de Idempotencia estricta (múltiples suscripciones con misma clave o contexto)
+  try {
+    const testUserId3 = 'test-user-idempotency-' + Math.random().toString(36).substring(2, 9);
+    let count1 = 0;
+    let count2 = 0;
+
+    // Llamada 1 (WalletContext)
+    const unsubBal1 = RealtimeManager.subscribeToUserBalance(testUserId3, () => { count1++; }, 'wallet_context');
+    // Llamada 2 (NotificationContext)
+    const unsubNotif1 = RealtimeManager.subscribeToUserNotifications(testUserId3, () => { count2++; }, 'notification_context');
+    // Llamada 3 (Re-render de WalletContext simulado)
+    const unsubBal2 = RealtimeManager.subscribeToUserBalance(testUserId3, () => { count1++; }, 'wallet_context');
+    // Llamada 4 (Re-render de NotificationContext simulado)
+    const unsubNotif2 = RealtimeManager.subscribeToUserNotifications(testUserId3, () => { count2++; }, 'notification_context');
+
+    const counts = RealtimeManager.getUserChannelListenerCounts(testUserId3);
+    const isIdempotent = counts !== null && counts.balance === 1 && counts.notifications === 1;
+
+    record(
+      'Idempotencia estricta: initialize múltiple resulta en exactamente (balance: 1, notifications: 1)',
+      isIdempotent,
+      `Counts: balance=${counts?.balance}, notifications=${counts?.notifications}`
+    );
+
+    unsubBal2();
+    unsubNotif2();
+    RealtimeManager.cleanupUserEvents(testUserId3);
+  } catch (err: any) {
+    record('Idempotencia estricta', false, err.message);
+  }
+
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
 
@@ -86,4 +117,9 @@ export function runWalletRealtimeLifecycleValidation(): {
   };
 }
 
-runWalletRealtimeLifecycleValidation();
+const res = runWalletRealtimeLifecycleValidation();
+if (res.failed > 0) {
+  process.exit(1);
+} else {
+  process.exit(0);
+}

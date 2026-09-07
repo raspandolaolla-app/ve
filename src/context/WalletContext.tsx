@@ -82,15 +82,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (state === 'authenticated' && user?.id) {
       refreshBalance();
 
-      // Suscripción Realtime a eventos de billetera del usuario
-      const unsubscribe = RealtimeManager.subscribeToUserEvents(
+      // Suscripción Realtime dedicada al saldo de la billetera del usuario
+      const unsubscribe = RealtimeManager.subscribeToUserBalance(
         user.id,
         () => {
           refreshBalance();
         },
-        () => {
-          refreshBalance();
-        }
+        'wallet_context'
       );
 
       return () => {

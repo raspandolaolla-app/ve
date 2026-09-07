@@ -131,10 +131,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     refreshNotifications();
 
-    const unsubscribe = RealtimeManager.subscribeToUserEvents(
+    const unsubscribe = RealtimeManager.subscribeToUserNotifications(
       user.id,
-      () => {}, // balance handler (manejado por WalletContext)
-      handleRealtimePayload
+      handleRealtimePayload,
+      'notification_context'
     );
 
     return () => {

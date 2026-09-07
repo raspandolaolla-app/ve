@@ -898,10 +898,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       )
       .subscribe();
 
-    // Sondeo ligero de respaldo (Polling cada 2.5s)
+    // Sondeo ligero de respaldo (Polling cada 6s)
     // Resuelve desconexiones o latencias de WebSockets en dispositivos móviles
     const pollInterval = setInterval(async () => {
-      if (!isMounted) return;
+      if (!isMounted || document.hidden) return;
       try {
         const activeSess = await GameRepository.getActiveSession(table.id);
         if (!isMounted || !activeSess) return;
@@ -916,7 +916,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       } catch (err) {
         // Sondeo silencioso
       }
-    }, 2500);
+    }, 6000);
 
     return () => {
       isMounted = false;

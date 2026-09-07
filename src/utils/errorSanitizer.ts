@@ -136,12 +136,15 @@ export function classifyError(rawError: unknown): ClassifiedError {
   // 2. Mantenimiento específico de un juego
   if (
     lower.includes('game_inactive') ||
+    lower.includes('game_disabled') ||
     lower.includes('mantenimiento temporal') ||
-    lower.includes('juego no disponible')
+    lower.includes('juego no disponible') ||
+    lower.includes('juego que se encuentra temporalmente en mantenimiento') ||
+    lower.includes('deshabilitado')
   ) {
     return {
       category: 'MAINTENANCE',
-      userMessage: 'El juego seleccionado se encuentra en mantenimiento temporal.',
+      userMessage: 'Esta mesa o juego se encuentra temporalmente en mantenimiento.',
       safeCode: 'GAME_MAINTENANCE',
     };
   }
@@ -274,10 +277,14 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
-  if (lower.includes('code_not_found') || lower.includes('código de trancaíto no encontrado')) {
+  if (
+    lower.includes('code_not_found') ||
+    lower.includes('código de trancaíto no encontrado') ||
+    lower.includes('no encontramos una mesa con ese código')
+  ) {
     return {
       category: 'NOT_FOUND',
-      userMessage: 'Código de Trancaíto no encontrado.',
+      userMessage: 'No encontramos una mesa con ese código. Verifica el código e intenta nuevamente.',
       safeCode: 'CODE_NOT_FOUND',
     };
   }
@@ -290,10 +297,14 @@ export function classifyError(rawError: unknown): ClassifiedError {
     };
   }
 
-  if (lower.includes('table_full') || lower.includes('esta mesa ya está completa')) {
+  if (
+    lower.includes('table_full') ||
+    lower.includes('esta mesa ya está completa') ||
+    lower.includes('límite de jugadores')
+  ) {
     return {
       category: 'INVALID_OPERATION',
-      userMessage: 'Esta mesa ya está completa.',
+      userMessage: 'Esta mesa ya alcanzó el límite de jugadores.',
       safeCode: 'TABLE_FULL',
     };
   }
@@ -303,6 +314,22 @@ export function classifyError(rawError: unknown): ClassifiedError {
       category: 'INVALID_OPERATION',
       userMessage: 'Esta partida ya comenzó y no acepta nuevos jugadores.',
       safeCode: 'GAME_ALREADY_STARTED',
+    };
+  }
+
+  if (lower.includes('table_closed') || lower.includes('esta mesa ya no está disponible')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Esta mesa ya no está disponible.',
+      safeCode: 'TABLE_CLOSED',
+    };
+  }
+
+  if (lower.includes('table_not_open') || lower.includes('esta mesa no está disponible para nuevos jugadores')) {
+    return {
+      category: 'INVALID_OPERATION',
+      userMessage: 'Esta mesa no está disponible para nuevos jugadores.',
+      safeCode: 'TABLE_NOT_OPEN',
     };
   }
 

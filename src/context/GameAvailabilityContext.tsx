@@ -30,6 +30,7 @@ interface GameAvailabilityContextType {
   getDisabledReason: (gameId: string) => string | null;
   getGameState: (gameId: string) => GameAvailabilityState | undefined;
   availableGames: GameMetadata[];
+  getAvailableMatchmakingGames: () => GameMetadata[];
   allGameStates: Record<string, GameAvailabilityState>;
   loading: boolean;
   setGameEnabled: (
@@ -243,6 +244,17 @@ export const GameAvailabilityProvider: React.FC<{ children: React.ReactNode }> =
   }, [isGameEnabled]);
 
   /**
+   * Lista oficial de juegos disponibles para emparejamiento / JUEGA YA.
+   * Filtra exclusivamente juegos habilitados y con soporte de mesa multijugador 1v1 / multiplayer.
+   * Excluye sorteos globales sin emparejamiento como Polla Venezolana.
+   */
+  const getAvailableMatchmakingGames = useCallback((): GameMetadata[] => {
+    return SUPPORTED_GAMES_METADATA.filter(
+      (g) => isGameEnabled(g.id) && g.id !== 'polla_venezolana'
+    );
+  }, [isGameEnabled]);
+
+  /**
    * Acción administrativa para habilitar/deshabilitar juego con RPC y actualización optimista.
    */
   const setGameEnabled = useCallback(
@@ -285,6 +297,7 @@ export const GameAvailabilityProvider: React.FC<{ children: React.ReactNode }> =
       getDisabledReason: getGameDisabledReason,
       getGameState,
       availableGames,
+      getAvailableMatchmakingGames,
       allGameStates: gameStates,
       loading,
       setGameEnabled,
@@ -295,6 +308,7 @@ export const GameAvailabilityProvider: React.FC<{ children: React.ReactNode }> =
       getGameDisabledReason,
       getGameState,
       availableGames,
+      getAvailableMatchmakingGames,
       gameStates,
       loading,
       setGameEnabled,
@@ -318,6 +332,8 @@ const fallbackAvailability: GameAvailabilityContextType = {
   getDisabledReason: () => null,
   getGameState: () => undefined,
   availableGames: SUPPORTED_GAMES_METADATA.filter((g) => g.isActive),
+  getAvailableMatchmakingGames: () =>
+    SUPPORTED_GAMES_METADATA.filter((g) => g.isActive && g.id !== 'polla_venezolana'),
   allGameStates: {},
   loading: false,
   setGameEnabled: async () => ({ success: false, error: 'Provider no inicializado' }),

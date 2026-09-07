@@ -153,17 +153,36 @@ function AppContent() {
       const tab = e.detail?.tab;
       if (tab) setCurrentTab(tab);
     };
+    const handleOpenQuickMatchEvent = () => {
+      setQuickMatchModalOpen(true);
+    };
+
     window.addEventListener('navigate-tab' as any, handleNavigate);
-    return () => window.removeEventListener('navigate-tab' as any, handleNavigate);
+    window.addEventListener('open-quick-match' as any, handleOpenQuickMatchEvent);
+
+    return () => {
+      window.removeEventListener('navigate-tab' as any, handleNavigate);
+      window.removeEventListener('open-quick-match' as any, handleOpenQuickMatchEvent);
+    };
   }, []);
 
   const handleSelectGame = (game: GameMetadata) => {
+    if (!isGameEnabled(game.id)) {
+      return;
+    }
     if (game.id === 'atrapaito') {
       setCurrentTab('atrapaito');
       return;
     }
+    if (game.id === 'polla_venezolana') {
+      setCurrentTab('polla');
+      return;
+    }
     setRulesGameId(game.id);
     setCurrentTab('tables');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('filter-game', { detail: { gameType: game.id } }));
+    }, 60);
   };
 
   const handleJoinTrancaito = () => {
@@ -171,10 +190,7 @@ function AppContent() {
   };
 
   const handleOpenQuickMatch = () => {
-    setCurrentTab('tables');
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('open-quick-match'));
-    }, 50);
+    setQuickMatchModalOpen(true);
   };
 
   const handleOpenLegalDoc = (docId: LegalDocId = 'terms') => {
@@ -373,6 +389,9 @@ function AppContent() {
         onNavigateToTable={(tableId) => {
           setQuickMatchModalOpen(false);
           setCurrentTab('tables');
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
+          }, 60);
         }}
       />
 

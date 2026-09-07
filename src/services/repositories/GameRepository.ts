@@ -49,6 +49,9 @@ export class GameRepository {
     return map[dbType] || (dbType.toLowerCase() as GameType);
   }
 
+  // Mutex para evitar invocaciones RPC duplicadas y concurrentes por la misma mesa
+  private static sessionInitPromises = new Map<string, Promise<GameSession | null>>();
+
   /**
    * Obtiene la sesión de juego activa asociada a una mesa.
    * Filtra exclusivamente con valores válidos del ENUM session_status_enum de PostgreSQL.
@@ -57,45 +60,57 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
 
-    const { data, error } = await supabase
+    const { data, error, status, statusText } = await supabase
       .from('game_sessions')
       .select(`
         id,
         table_id,
         game_type,
         session_number,
-        current_round,
         current_turn_user_id,
-        turn_user_id,
         turn_deadline_at,
         turn_expires_at,
         status,
         gross_pool,
         prize_pool,
-        winner_prize_amount,
         platform_fee,
-        service_fee_amount,
         winner_user_id,
         winner_team,
         is_settled,
         ended_at,
         settled_at,
-        current_state
+        current_state,
+        started_at,
+        created_at,
+        updated_at
       `)
       .eq('table_id', tableId)
       .in('status', ['WAITING', 'READY', 'ACTIVE', 'SALES', 'DRAWING'])
       .order('created_at', { ascending: false })
       .maybeSingle();
 
-    if (error || !data) return null;
+    if (error) {
+      console.error('[GameRepository.getActiveSession ERROR]', {
+        httpStatus: status,
+        statusText,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        tableId,
+      });
+      return null;
+    }
+
+    if (!data) return null;
 
     return {
       id: data.id,
       tableId: data.table_id,
       gameType: this.mapDbEnumToGameType(data.game_type),
-      roundNumber: data.session_number || data.current_round || 1,
-      currentTurnUserId: data.current_turn_user_id || data.turn_user_id,
-      turnExpiresAt: data.turn_deadline_at || data.turn_expires_at,
+      roundNumber: Number(data.session_number) || 1,
+      currentTurnUserId: data.current_turn_user_id || undefined,
+      turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
       status: (data.status === 'SALES' || data.status === 'DRAWING'
         ? data.status
         : data.status === 'ACTIVE' || data.status === 'READY' || data.status === 'WAITING'
@@ -106,12 +121,12 @@ export class GameRepository {
         ? 'abandoned'
         : 'in_progress') as any,
       grossPool: Number(data.gross_pool || 0),
-      winnerPrizeAmount: Number(data.prize_pool || data.winner_prize_amount || 0),
-      serviceFeeAmount: Number(data.platform_fee || data.service_fee_amount || 0),
-      winnerUserId: data.winner_user_id,
-      winnerTeamIndex: data.winner_team,
+      winnerPrizeAmount: Number(data.prize_pool || 0),
+      serviceFeeAmount: Number(data.platform_fee || 0),
+      winnerUserId: data.winner_user_id || undefined,
+      winnerTeamIndex: data.winner_team !== null && data.winner_team !== undefined ? Number(data.winner_team) : undefined,
       isSettled: data.status === 'SETTLED' || Boolean(data.is_settled),
-      settledAt: data.ended_at || data.settled_at,
+      settledAt: data.ended_at || data.settled_at || undefined,
       currentState: (data.current_state as Record<string, unknown>) || {},
     };
   }
@@ -121,6 +136,27 @@ export class GameRepository {
    * Prohíbe terminantemente la fabricación cliente de estados ACTIVE si la RPC falla.
    */
   public static async createOrGetSession(
+    tableId: string,
+    gameType: GameType,
+    initialState: Record<string, unknown>,
+    firstTurnUserId?: string
+  ): Promise<GameSession | null> {
+    const existingPromise = this.sessionInitPromises.get(tableId);
+    if (existingPromise) {
+      return await existingPromise;
+    }
+
+    const initPromise = this.executeCreateOrGetSession(tableId, gameType, initialState, firstTurnUserId);
+    this.sessionInitPromises.set(tableId, initPromise);
+
+    try {
+      return await initPromise;
+    } finally {
+      this.sessionInitPromises.delete(tableId);
+    }
+  }
+
+  private static async executeCreateOrGetSession(
     tableId: string,
     gameType: GameType,
     initialState: Record<string, unknown>,
@@ -222,7 +258,27 @@ export class GameRepository {
           alreadyActive: Boolean(rpcData.already_active ?? rpcData.alreadyActive),
           currentTurnUserId: rpcData.current_turn_user_id || rpcData.currentTurnUserId,
         });
-        return await this.getActiveSession(tableId);
+        const activeDbSession = await this.getActiveSession(tableId);
+        if (activeDbSession) {
+          return activeDbSession;
+        }
+
+        // Fallback defensivo inmediato utilizando los datos autoritativos ya devueltos por la RPC
+        const rpcGameState = (rpcData.game_state || rpcData.gameState || stateWithTurn) as Record<string, unknown>;
+        return {
+          id: resolvedSessionId,
+          tableId,
+          gameType,
+          roundNumber: 1,
+          currentTurnUserId: rpcData.current_turn_user_id || rpcData.currentTurnUserId || canonicalTurnUserId || undefined,
+          turnExpiresAt: rpcData.turn_deadline_at || rpcData.turnDeadlineAt || rpcData.turnDeadline || undefined,
+          status: 'in_progress',
+          grossPool: 0,
+          winnerPrizeAmount: 0,
+          serviceFeeAmount: 0,
+          isSettled: false,
+          currentState: rpcGameState,
+        };
       }
     } catch (rpcErr: any) {
       console.error('[GAME_START_RPC_ERROR]', {

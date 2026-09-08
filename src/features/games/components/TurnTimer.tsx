@@ -60,6 +60,9 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       'match_ended',
       'round_reveal',
       'round_result',
+      'round_won',
+      'game_won',
+      'draw',
     ].includes(normalizedStatus);
 
     if (isPausedOrInactive) {

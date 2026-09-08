@@ -726,12 +726,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
 
           const statusUpper = (updated?.status || '').toUpperCase();
+          const stateStatus = String((updated?.current_state as any)?.status || '').toLowerCase();
+          const hasStateWinner = Boolean((updated?.current_state as any)?.winnerUserId);
           const isTerminated =
             (statusUpper === 'SETTLED' ||
              statusUpper === 'FINISHED' ||
              statusUpper === 'ABANDONED' ||
              statusUpper === 'CANCELLED' ||
              statusUpper === 'COMPLETED' ||
+             stateStatus === 'game_won' ||
+             stateStatus === 'match_ended' ||
+             hasStateWinner ||
              Boolean(updated?.is_settled)) &&
             !isSettledRef.current;
 
@@ -742,6 +747,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               updated.winnerUserId ||
               (updated.current_state as any)?.winnerUserId ||
               (updated.current_state as any)?.winner;
+
+            console.log('[REALTIME_GAME_OVER_RECEIVED]', {
+              sessionId: session.id,
+              statusUpper,
+              stateStatus,
+              winnerId,
+            });
 
             const isDraw =
               statusUpper === 'CANCELLED' ||
@@ -893,19 +905,25 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     if (!session?.id || isSettledRef.current || settlementResult) return;
 
     let isMounted = true;
-    const pollInterval = setInterval(async () => {
+
+    const reconcileSession = async () => {
       if (!isMounted || isSettledRef.current) return;
       try {
         const freshSession = await GameRepository.getSessionById(session.id);
         if (!freshSession || !isMounted) return;
 
         const st = String(freshSession.status || '').toUpperCase();
+        const stateStatus = String((freshSession.currentState as any)?.status || '').toLowerCase();
+        const hasStateWinner = Boolean((freshSession.currentState as any)?.winnerUserId);
         const isSessionDone =
           st === 'FINISHED' ||
           st === 'SETTLED' ||
           st === 'CANCELLED' ||
           st === 'ABANDONED' ||
           st === 'COMPLETED' ||
+          stateStatus === 'game_won' ||
+          stateStatus === 'match_ended' ||
+          hasStateWinner ||
           Boolean(freshSession.isSettled);
 
         if (isSessionDone && !isSettledRef.current) {
@@ -957,15 +975,50 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           });
           setShowResults(true);
           setAbandonNotice(null);
+        } else if (!isSessionDone && freshSession.currentState) {
+          // Reconciliar estado intermedio de ronda si el oponente avanzó la partida en PC
+          const remoteState = freshSession.currentState as any;
+          const localState = gameState as any;
+          const remoteRound = Number(remoteState.round) || 1;
+          const localRound = Number(localState?.round) || 1;
+          const remoteHistoryLen = Array.isArray(remoteState.moveHistory) ? remoteState.moveHistory.length : 0;
+          const localHistoryLen = Array.isArray(localState?.moveHistory) ? localState.moveHistory.length : 0;
+
+          if (
+            remoteRound > localRound ||
+            remoteHistoryLen > localHistoryLen ||
+            (remoteState.status && remoteState.status !== localState?.status)
+          ) {
+            const normalized = normalizeGameStateByType(
+              table.gameType,
+              freshSession.currentState,
+              gameState,
+              currentPlayers
+            );
+            const sanitized = engine.getSanitizedStateForPlayer
+              ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
+              : normalized.state;
+            setGameState(sanitized);
+          }
         }
       } catch (err) {
         console.warn('[GameContainer] Error en sondeo de reconciliación de sesión:', err);
       }
-    }, 2000);
+    };
+
+    const pollInterval = setInterval(reconcileSession, 2000);
+
+    const handleWindowFocus = () => {
+      reconcileSession();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
 
     return () => {
       isMounted = false;
       clearInterval(pollInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
     };
   }, [session?.id, settlementResult, table.gameType, table.entryFee, currentPlayers, currentUserId]);
 
@@ -1402,11 +1455,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
         // 5. Liquidación oficial autoritativa centralizada en victoria o Reembolso 100% en Empate
         if (result.isGameOver && !isSettledRef.current) {
+          console.log('[SESSION_FINALIZE_START]', {
+            sessionId: session.id,
+            winnerUserId: result.winnerUserId,
+            isDraw: Boolean(result.isDraw),
+          });
           await handleSettleGame(
             result.winnerUserId || null,
             Boolean(result.isDraw),
             result.winnerTeamIndex
           );
+          setShowResults(true);
+          console.log('[SESSION_FINALIZE_SUCCESS]', {
+            sessionId: session.id,
+            winnerUserId: result.winnerUserId,
+          });
         }
       } catch (err: unknown) {
         logger.error('[GameContainer] Error ejecutando acción:', err);

@@ -90,7 +90,23 @@ export function useGameSettlement({
           }
         }
       } catch (err: unknown) {
-        console.error('[GameSettlement] Error en liquidación autoritativa universal:', err);
+        console.error('[GameSettlement] Error en liquidación autoritativa universal (usando cálculo seguro para visualización):', err);
+        const winnerPlayer = currentPlayers.find((p) => p.userId === winnerUserId);
+        const winnerName = isDraw
+          ? 'Empate Técnico'
+          : winnerUserId === currentUserId
+          ? '¡Tú obtuviste la victoria!'
+          : winnerPlayer?.displayName || 'Ganador';
+        const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
+
+        setSettlementResult({
+          grossPool,
+          prizePool: isDraw ? 0 : poolBreakdown.prizePool,
+          platformFee: isDraw ? 0 : poolBreakdown.platformFee,
+          winnerName,
+          isWinner: !isDraw && winnerUserId === currentUserId,
+          isDraw,
+        });
       } finally {
         setIsSettling(false);
       }

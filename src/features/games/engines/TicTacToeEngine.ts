@@ -130,6 +130,15 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     const normalized = normalizeTicTacToeState(state).state;
 
     if (action.actionType === 'NEXT_ROUND') {
+      if (normalized.status === 'game_won' || Boolean(normalized.winnerUserId)) {
+        return { valid: false, reason: 'La partida ya ha concluido con un ganador definitivo.' };
+      }
+      const anyTargetReached = Object.entries(normalized.scores || {}).some(
+        ([_, s]) => Number(s) >= (normalized.targetWins || 3)
+      );
+      if (anyTargetReached) {
+        return { valid: false, reason: 'La partida ya ha finalizado por victorias objetivo.' };
+      }
       if (normalized.status !== 'round_won' && normalized.status !== 'draw') {
         return { valid: false, reason: 'La ronda actual aún no ha finalizado.' };
       }
@@ -138,7 +147,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
 
     if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
       const activeTurn = normalized.turnUserId || (normalized as any).currentTurnUserId;
-      if (activeTurn && action.userId && action.userId.toLowerCase() !== String(activeTurn).toLowerCase()) {
+      if (activeTurn && action.userId && action.userId.trim().toLowerCase() !== String(activeTurn).trim().toLowerCase()) {
         return { valid: false, reason: 'Solo el jugador en turno puede emitir TIMEOUT.' };
       }
       return { valid: true };
@@ -148,7 +157,7 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       return { valid: false, reason: 'La partida no está en estado activo.' };
     }
 
-    if (action.userId !== normalized.turnUserId) {
+    if (action.userId?.trim().toLowerCase() !== normalized.turnUserId?.trim().toLowerCase()) {
       return { valid: false, reason: 'No es tu turno de jugar.' };
     }
 
@@ -265,17 +274,35 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       const winningCombo = this.checkWinner(newBoard);
 
       if (winningCombo) {
+        // Encontrar clave en scores de forma robusta e insensible a mayúsculas
+        const rawScores = normalized.scores || {};
+        const scoreKey = Object.keys(rawScores).find(
+          (k) => k.trim().toLowerCase() === actionUserNorm
+        ) || action.userId;
+
+        const currentScore = Number(rawScores[scoreKey]) || 0;
+        const newScore = currentScore + 1;
         const newScores = {
-          ...normalized.scores,
-          [action.userId]: (normalized.scores[action.userId] || 0) + 1,
+          ...rawScores,
+          [scoreKey]: newScore,
         };
 
-        const isMatchWon = newScores[action.userId] >= normalized.targetWins;
+        // Reducir vidas del oponente (si aplica)
+        const opponentId = candidateIds.find((id: string) => id.toLowerCase() !== actionUserNorm);
+        const newLives = { ...(normalized.lives || {}) };
+        if (opponentId) {
+          const oppLivesKey = Object.keys(newLives).find((k) => k.trim().toLowerCase() === opponentId.toLowerCase()) || opponentId;
+          newLives[oppLivesKey] = Math.max(0, (newLives[oppLivesKey] ?? 3) - 1);
+        }
+
+        const targetWins = typeof normalized.targetWins === 'number' && normalized.targetWins > 0 ? normalized.targetWins : 3;
+        const isMatchWon = newScore >= targetWins;
 
         const updatedState: TicTacToeState = {
           ...normalized,
           board: newBoard,
           scores: newScores,
+          lives: newLives,
           winningLine: winningCombo,
           roundWinnerUserId: action.userId,
           winnerUserId: isMatchWon ? action.userId : null,
@@ -284,6 +311,22 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
           turnUserId: isMatchWon ? action.userId : nextTurnUserId,
         };
         (updatedState as any).currentTurnUserId = updatedState.turnUserId;
+
+        console.log('[GAME_ROUND_RESULT]', {
+          round: normalized.round,
+          roundWinnerUserId: action.userId,
+          scores: newScores,
+          isMatchWon,
+          targetWins,
+        });
+
+        if (isMatchWon) {
+          console.log('[GAME_OVER_DETECTED]', {
+            winnerUserId: action.userId,
+            finalScores: newScores,
+            reason: `FIRST_TO_${targetWins}_WINS`,
+          });
+        }
 
         return {
           newState: updatedState,
@@ -298,6 +341,13 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       // Verificar empate (todas las casillas ocupadas sin ganador)
       const isBoardFull = newBoard.every((cell) => cell !== null);
       if (isBoardFull) {
+        console.log('[GAME_ROUND_RESULT]', {
+          round: normalized.round,
+          roundWinnerUserId: null,
+          scores: normalized.scores,
+          isDraw: true,
+        });
+
         const updatedState: TicTacToeState = {
           ...normalized,
           board: newBoard,
@@ -340,19 +390,44 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     if (action.actionType === 'NEXT_ROUND') {
-      const actionUserNorm = String(action.userId || '').trim().toLowerCase();
+      // PROHIBICIÓN ABSOLUTA: Si la partida ya finalizó, jamás revivirla ni resetear el tablero
+      if (normalized.status === 'game_won' || Boolean(normalized.winnerUserId)) {
+        return {
+          newState: normalized,
+          isValid: false,
+          errorMessage: 'La partida ya ha concluido y no admite más rondas.',
+          isGameOver: true,
+          winnerUserId: normalized.winnerUserId,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
+      }
+
+      const anyTargetReached = Object.entries(normalized.scores || {}).some(
+        ([_, s]) => Number(s) >= (normalized.targetWins || 3)
+      );
+      if (anyTargetReached) {
+        return {
+          newState: normalized,
+          isValid: false,
+          errorMessage: 'La partida ya ha concluido por victorias objetivo.',
+          isGameOver: true,
+          winnerUserId: normalized.winnerUserId,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
+      }
+
       const allPlayerIds = Object.keys(normalized.playerSymbols || {}).map((id) => id.trim());
       const candidateIds =
         (normalized as any).playerOrder && Array.isArray((normalized as any).playerOrder) && (normalized as any).playerOrder.length > 0
           ? (normalized as any).playerOrder.map((id: any) => String(id).trim())
           : allPlayerIds;
 
-      const currentIdx = candidateIds.findIndex((id: string) => id.toLowerCase() === actionUserNorm);
+      // El turno inicial de cada nueva ronda rota determinísticamente según el número de ronda
       const nextRoundStarter =
         candidateIds.length > 1
-          ? currentIdx !== -1
-            ? candidateIds[(currentIdx + 1) % candidateIds.length]
-            : candidateIds.find((id: string) => id.toLowerCase() !== actionUserNorm) || candidateIds[0] || action.userId
+          ? candidateIds[normalized.round % candidateIds.length]
           : candidateIds[0] || action.userId;
 
       const updatedState: TicTacToeState = {

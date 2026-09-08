@@ -2,7 +2,7 @@
 // RASPANDO LA OLLA — TABLERO DE JUEGO: LA VIEJA (X y O REDISEÑADAS)
 // ==============================================================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, RefreshCw, Sparkles } from 'lucide-react';
 import type { TicTacToeState } from '../../../types/games';
@@ -98,15 +98,65 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   const scores = state?.scores || {};
   const lives = state?.lives || {};
 
+  const norm = (id?: string | null) => String(id || '').trim().toLowerCase();
+
   const board = Array.isArray(state?.board) ? state.board : Array(9).fill(null);
   const round = state?.round || 1;
   const status = state?.status || 'playing';
   const turnUserId = state?.turnUserId || currentUserId;
-  const isMyTurn = turnUserId === currentUserId && status === 'playing';
+  const isMyTurn = norm(turnUserId) === norm(currentUserId) && status === 'playing';
 
+  // Identificar jugador 1 (X) y jugador 2 (O) de forma estricta por símbolo
   const playerIds = Object.keys(playerSymbols);
-  const p1Id = playerIds[0] || currentUserId;
-  const p2Id = playerIds[1] || '';
+  const p1Id = Object.keys(playerSymbols).find((id) => playerSymbols[id] === 'X') || playerIds[0] || currentUserId;
+  const p2Id = Object.keys(playerSymbols).find((id) => playerSymbols[id] === 'O') || playerIds.find((id) => norm(id) !== norm(p1Id)) || '';
+
+  const getScore = (id: string) => {
+    if (!id || !scores) return 0;
+    const key = Object.keys(scores).find((k) => norm(k) === norm(id));
+    return key ? Number(scores[key]) || 0 : 0;
+  };
+
+  const getLives = (id: string) => {
+    if (!id || !lives) return 3;
+    const key = Object.keys(lives).find((k) => norm(k) === norm(id));
+    return key && lives[key] !== undefined ? Number(lives[key]) : 3;
+  };
+
+  const getName = (id: string, fallback: string) => {
+    if (!id || !playerNames) return fallback;
+    const key = Object.keys(playerNames).find((k) => norm(k) === norm(id));
+    return (key && playerNames[key] ? playerNames[key] : fallback).toUpperCase();
+  };
+
+  // Cuenta regresiva de auto-avance sincronizada entre rondas (4 segundos)
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (status === 'round_won' || status === 'draw') {
+      setAutoAdvanceCountdown(4);
+      const interval = setInterval(() => {
+        setAutoAdvanceCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      setAutoAdvanceCountdown(null);
+    }
+  }, [status, round]);
+
+  useEffect(() => {
+    if (autoAdvanceCountdown === 0 && (status === 'round_won' || status === 'draw') && onNextRound) {
+      console.log('[ROUND_AUTO_ADVANCE]', { round, status });
+      onNextRound();
+    }
+  }, [autoAdvanceCountdown, status, round, onNextRound]);
 
   const handleTimeout = () => {
     if (isMyTurn) {
@@ -121,7 +171,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
     }
   };
 
-  const activeTurnName = (playerNames[turnUserId] || 'OPONENTE').toUpperCase();
+  const activeTurnName = getName(turnUserId, 'OPONENTE');
 
   return (
     <div
@@ -149,7 +199,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           <div
             id="tictactoe-player-1-card"
             className={`p-3.5 rounded-xl border transition-all ${
-              turnUserId === p1Id && status === 'playing'
+              norm(turnUserId) === norm(p1Id) && status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
@@ -162,9 +212,9 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </span>
                   <div className="truncate">
                     <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
-                      {(playerNames[p1Id] || 'JUGADOR 1').toUpperCase()}
+                      {getName(p1Id, 'JUGADOR 1')}
                     </div>
-                    {p1Id === currentUserId && (
+                    {norm(p1Id) === norm(currentUserId) && (
                       <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
                         (TÚ)
                       </span>
@@ -172,12 +222,12 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </div>
                 </div>
                 <span className="text-xl font-black text-white font-mono">
-                  {scores[p1Id] || 0}
+                  {getScore(p1Id)}
                 </span>
               </div>
               <div className="pt-1 border-t border-neutral-800/80">
                 <PlayerLives
-                  lives={lives[p1Id] !== undefined ? lives[p1Id] : 3}
+                  lives={getLives(p1Id)}
                   size="sm"
                   showText={false}
                 />
@@ -191,7 +241,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           <div
             id="tictactoe-player-2-card"
             className={`p-3.5 rounded-xl border transition-all ${
-              turnUserId === p2Id && status === 'playing'
+              norm(turnUserId) === norm(p2Id) && status === 'playing'
                 ? 'bg-amber-500/10 border-amber-500 shadow-md ring-1 ring-amber-400/50'
                 : 'bg-neutral-900/60 border-neutral-800'
             }`}
@@ -204,9 +254,9 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </span>
                   <div className="truncate">
                     <div className="text-xs sm:text-sm font-bold text-neutral-200 truncate max-w-[100px]">
-                      {(playerNames[p2Id] || 'JUGADOR 2').toUpperCase()}
+                      {getName(p2Id, 'JUGADOR 2')}
                     </div>
-                    {p2Id === currentUserId && (
+                    {norm(p2Id) === norm(currentUserId) && (
                       <span className="text-[10px] text-amber-400 font-mono tracking-wider font-semibold uppercase">
                         (TÚ)
                       </span>
@@ -214,12 +264,12 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
                   </div>
                 </div>
                 <span className="text-xl font-black text-white font-mono">
-                  {scores[p2Id] || 0}
+                  {getScore(p2Id)}
                 </span>
               </div>
               <div className="pt-1 border-t border-neutral-800/80">
                 <PlayerLives
-                  lives={lives[p2Id] !== undefined ? lives[p2Id] : 3}
+                  lives={getLives(p2Id)}
                   size="sm"
                   showText={false}
                 />
@@ -328,15 +378,24 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
         })}
       </div>
 
-      {/* Botón Siguiente Ronda */}
+      {/* Botón Siguiente Ronda y Cuenta Regresiva de Auto Avance */}
       {(state.status === 'round_won' || state.status === 'draw') && onNextRound && (
-        <button
-          onClick={onNextRound}
-          className="mt-4 flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-sm shadow-lg transition-all"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>SIGUIENTE RONDA</span>
-        </button>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          {autoAdvanceCountdown !== null && autoAdvanceCountdown > 0 && (
+            <span className="text-xs text-neutral-400 font-mono flex items-center gap-1.5 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              Siguiente ronda en <strong className="text-amber-400 font-bold">{autoAdvanceCountdown}s</strong>...
+            </span>
+          )}
+          <button
+            id="tictactoe-btn-next-round"
+            onClick={onNextRound}
+            className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4 shrink-0" />
+            <span>Siguiente Ronda Ahora</span>
+          </button>
+        </div>
       )}
     </div>
   );

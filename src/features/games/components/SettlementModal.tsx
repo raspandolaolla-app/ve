@@ -2,7 +2,7 @@
 // RASPANDO LA OLLA — MODAL DE RESULTADOS Y LIQUIDACIÓN FINANCIERA (90/10)
 // ==============================================================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, XCircle, ShieldCheck, ArrowRight, RotateCcw, Eye, Home } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
@@ -37,6 +37,20 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
   gameType,
   scoreSummary,
 }) => {
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[UI_RESULT_RENDERED]', {
+        gameType,
+        winnerName,
+        isWinner,
+        isDraw,
+        grossPool,
+        prizePool,
+        scoreSummary,
+      });
+    }
+  }, [isOpen, gameType, winnerName, isWinner, isDraw, grossPool, prizePool, scoreSummary]);
+
   if (!isOpen) return null;
 
   // Determinar los textos e indicadores canónicos

@@ -347,6 +347,17 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
     }
 
     if (actionType === 'NEXT_ROUND') {
+      if (state.status === 'MATCH_ENDED' || Boolean(state.matchWinner)) {
+        return {
+          newState: state,
+          isValid: false,
+          errorMessage: 'La partida ya ha concluido y no admite más rondas.',
+          isGameOver: true,
+          winnerUserId: state.winnerUserId || null,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
+      }
       const newState = nextRound(state);
       return {
         newState,

@@ -103,6 +103,8 @@ export function TablesView() {
 
   // Partida en Vivo Activa
   const [inGameData, setInGameData] = useState<{ table: GameTable; players: TablePlayer[] } | null>(null);
+  const inGameDataRef = useRef(inGameData);
+  inGameDataRef.current = inGameData;
 
   // Modal de Crear Mesa
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -451,12 +453,17 @@ export function TablesView() {
         if (!isMounted || !tablePayload.new) return;
         const newStatus = (tablePayload.new.status || '').toUpperCase();
         if (newStatus === 'CLOSED' || newStatus === 'TERMINATED' || newStatus === 'CANCELLED' || newStatus === 'EXPIRED') {
-          setActiveTable(null);
-          setInGameData(null);
-          setSeatActionFeedback({
-            success: false,
-            message: 'Esta mesa ha sido cerrada o terminada por la administración.',
-          });
+          // Si el jugador está jugando dentro de GameContainer (inGameData activo),
+          // GameContainer maneja la pantalla de juego y el modal de resultados/liquidación.
+          // Solo limpiamos si el usuario aún está en la vista del lobby de la mesa.
+          if (!inGameDataRef.current) {
+            setActiveTable(null);
+            setInGameData(null);
+            setSeatActionFeedback({
+              success: false,
+              message: 'Esta mesa ha sido cerrada o terminada por la administración.',
+            });
+          }
         } else {
           const updatedTable = { ...activeTable, ...tablePayload.new };
           setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));

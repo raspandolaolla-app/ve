@@ -261,9 +261,7 @@ function AppContent() {
             onSelectBingoVariant={(_variant, tableId) => {
               sessionStorage.setItem('pending_open_table_id', tableId);
               setCurrentTab('tables');
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
-              }, 60);
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
             }}
           />
         )}
@@ -392,9 +390,7 @@ function AppContent() {
           setQuickMatchModalOpen(false);
           sessionStorage.setItem('pending_open_table_id', tableId);
           setCurrentTab('tables');
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
-          }, 60);
+          window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
         }}
       />
 

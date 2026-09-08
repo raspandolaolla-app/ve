@@ -171,6 +171,12 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
       return;
     }
 
+    if (!isGameEnabled(selectedGameMeta.id)) {
+      const reason = getGameDisabledReason(selectedGameMeta.id);
+      setError(`Este juego se encuentra temporalmente deshabilitado${reason ? `: "${reason}"` : '.'}`);
+      return;
+    }
+
     // Si requiere saldo y no está autenticado
     if (!isAuthenticated && selectedFee > 0) {
       setError('Debes iniciar sesión para jugar por saldo real. Puedes jugar en Modo Práctica (0 Bs).');
@@ -238,9 +244,12 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           onClose();
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'joined' });
-            sessionStorage.setItem('pending_open_table_id', res.table.id);
-            if (onNavigateToTable) onNavigateToTable(res.table.id);
-            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+            if (onNavigateToTable) {
+              onNavigateToTable(res.table.id);
+            } else {
+              sessionStorage.setItem('pending_open_table_id', res.table.id);
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+            }
           }
         }, 500);
       } else if (res.action === 'created') {
@@ -251,9 +260,12 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           onClose();
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'created' });
-            sessionStorage.setItem('pending_open_table_id', res.table.id);
-            if (onNavigateToTable) onNavigateToTable(res.table.id);
-            window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+            if (onNavigateToTable) {
+              onNavigateToTable(res.table.id);
+            } else {
+              sessionStorage.setItem('pending_open_table_id', res.table.id);
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+            }
           }
         }, 500);
       }

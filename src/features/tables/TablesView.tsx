@@ -139,6 +139,10 @@ export function TablesView() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [rulesGameId, setRulesGameId] = useState<string>('domino_venezolano');
 
+  // Control de idempotencia y deduplicación para apertura de mesas (evita dobles eventos o carreras)
+  const openingTableIdRef = useRef<string | null>(null);
+  const lastOpenedTableRef = useRef<{ id: string; timestamp: number } | null>(null);
+
   // Exponer control del modal de Partida Rápida al padre
   useEffect(() => {
     const handleOpenQuickMatch = () => {
@@ -152,10 +156,37 @@ export function TablesView() {
   // Manejador centralizado y resiliente para abrir mesa por ID
   const handleOpenTableById = useCallback(async (tableId: string) => {
     if (!tableId) return;
+
+    // Deduplicación e idempotencia: evitar aperturas concurrentes o eventos duplicados
+    const now = Date.now();
+    if (openingTableIdRef.current === tableId) {
+      console.info('[TablesView] handleOpenTableById ignorado (ya en curso):', tableId);
+      return;
+    }
+    if (
+      lastOpenedTableRef.current &&
+      lastOpenedTableRef.current.id === tableId &&
+      now - lastOpenedTableRef.current.timestamp < 1200
+    ) {
+      console.info('[TablesView] handleOpenTableById deduplicado (repetido en <1200ms):', tableId);
+      return;
+    }
+
+    openingTableIdRef.current = tableId;
+    lastOpenedTableRef.current = { id: tableId, timestamp: now };
+
     console.info('[TABLE_OPEN_EVENT]', { tableId, timestamp: new Date().toISOString() });
     try {
       const table = await TableRepository.getTableById(tableId);
       if (!table) return;
+
+      // Verificación de disponibilidad centralizada del juego
+      if (!isGameEnabled(table.gameType)) {
+        const reason = getDisabledReason(table.gameType);
+        console.warn(`[TablesView] Mesa pertenece a juego deshabilitado (${table.gameType}):`, reason);
+        setJoinError(`El juego ${table.gameType} se encuentra temporalmente en mantenimiento${reason ? `: "${reason}"` : '.'}`);
+        return;
+      }
 
       console.info('[TABLE_ACTIVATED]', {
         tableId: table.id,
@@ -198,14 +229,19 @@ export function TablesView() {
       setActiveTable(table);
     } catch (err) {
       console.error('[TablesView] Error en handleOpenTableById:', err);
+    } finally {
+      if (openingTableIdRef.current === tableId) {
+        openingTableIdRef.current = null;
+      }
     }
-  }, [user?.id]);
+  }, [user?.id, isGameEnabled, getDisabledReason]);
 
   // Escuchar evento para abrir mesa específica desde el Lobby (Bingo, Juega Ya, etc.)
   useEffect(() => {
     const handleOpenTable = (e: any) => {
       const tableId = e.detail?.tableId;
       if (tableId) {
+        sessionStorage.removeItem('pending_open_table_id');
         handleOpenTableById(tableId);
       }
     };

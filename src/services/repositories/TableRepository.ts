@@ -10,6 +10,7 @@ import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import { getGameDisplayName } from '../../utils/formatters';
 import { GameRepository } from './GameRepository';
 import { ProfileRepository } from './ProfileRepository';
+import { normalizeCanonicalGameId } from '../../context/GameAvailabilityContext';
 import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from '../../types/tables';
 import type { GameType, GameMode } from '../../types/games';
 
@@ -921,9 +922,35 @@ export class TableRepository {
   }
 
   /**
+   * Comprueba si un juego está habilitado administrativamente en game_configurations.
+   */
+  public static async isGameAllowed(gameType: string): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return true;
+    try {
+      const canonical = normalizeCanonicalGameId(gameType);
+      const { data, error } = await supabase
+        .from('game_configurations')
+        .select('enabled, is_active')
+        .eq('game_id', canonical)
+        .maybeSingle();
+
+      if (error || !data) return true;
+      return data.enabled !== false && data.is_active !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
    * Crea una nueva mesa pública o privada de forma segura.
    */
   public static async createTable(payload: CreateTablePayload): Promise<GameTable | null> {
+    const isAllowed = await TableRepository.isGameAllowed(payload.gameType);
+    if (!isAllowed) {
+      throw new Error(`GAME_DISABLED: El juego ${payload.gameType} se encuentra temporalmente deshabilitado por administración.`);
+    }
+
     const entryFeeNum = Number(payload.entryFee ?? 0);
     const isSpecialLowFeeGame = payload.gameType === 'tic_tac_toe' || payload.gameType === 'bingo' || payload.gameType === 'rock_paper_scissors';
     const minAllowedFee = isSpecialLowFeeGame ? 10 : 25;
@@ -1271,6 +1298,11 @@ export class TableRepository {
     message?: string;
   }> {
     const { gameType, entryFee, maxPlayers, mode, currentUserId, userDisplayName, userAvatarUrl } = params;
+
+    const isAllowed = await TableRepository.isGameAllowed(gameType);
+    if (!isAllowed) {
+      throw new Error(`GAME_DISABLED: El juego ${gameType} se encuentra temporalmente deshabilitado por administración.`);
+    }
 
     // Modo Práctica
     if (entryFee === 0) {

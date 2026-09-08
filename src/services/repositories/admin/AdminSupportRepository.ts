@@ -29,10 +29,7 @@ export class AdminSupportRepository {
     try {
       let query = supabase
         .from('support_tickets')
-        .select(`
-          *,
-          profiles:user_id(first_name, last_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (filters?.status && filters.status !== 'ALL') {
@@ -45,9 +42,40 @@ export class AdminSupportRepository {
         return [];
       }
 
+      // Enriquecer con perfiles de forma desacoplada y resiliente (evita errores de ambigüedad de FK en PostgREST)
+      const userIds = Array.from(
+        new Set((data || []).map((row: any) => row.user_id).filter(Boolean))
+      );
+      let profileMap: Record<
+        string,
+        { first_name?: string; last_name?: string; display_name?: string; email?: string }
+      > = {};
+
+      if (userIds.length > 0) {
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, user_id, first_name, last_name, display_name')
+            .in('user_id', userIds);
+
+          if (profiles) {
+            profiles.forEach((p: any) => {
+              if (p.user_id) profileMap[p.user_id] = p;
+              if (p.id) profileMap[p.id] = p;
+            });
+          }
+        } catch {
+          // Continuar sin perfiles si falla la consulta no crítica
+        }
+      }
+
       let items: AdminSupportTicketItem[] = (data || []).map((row: any) => {
-        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-        const name = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Usuario';
+        const profile = profileMap[row.user_id];
+        const name = profile
+          ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
+            profile.display_name ||
+            'Usuario'
+          : 'Usuario';
 
         return {
           id: row.id,

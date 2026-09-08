@@ -2,11 +2,17 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 15:50:00 UTC (2026-09-07 08:50:00 -07:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 03:20:00 UTC (2026-09-07 20:20:00 -07:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso / 0 vulnerabilidades npm audit)
 ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-1. Diagnóstico Forense y Corrección de Deadlock en Timeout de Turno y Abandono de Mesa (`TableRepository` / PostgreSQL):
+1. Auditoría Senior y Reconciliación Integral de Imports (TS2307 en GitHub Actions):
+   - Inspección exhaustiva de 12 fases completada: verificación matemática de cada import en `src/tables` hacia `src/components`, `src/hooks`, `src/context`, `src/services`, `src/utils`, `src/types` y `src/features/games`.
+   - Cero errores en `npm run typecheck` (`tsc --noEmit`).
+   - Cero errores en `npm run lint` (`tsc --noEmit`).
+   - Compilación completa exitosa en `npm run build` (Vite + esbuild: 2308 módulos transformados, 9.26s).
+   - Verificación de no-regresión absoluta: Supabase, 157 migraciones SQL, Wallet/Ledger, Service Worker y Game Engines intactos y sin modificaciones.
+2. Diagnóstico Forense y Corrección de Deadlock en Timeout de Turno y Abandono de Mesa (`TableRepository` / PostgreSQL):
    - Diagnóstico: Se identificó la causa exacta del error recurrente en producción `canceling statement due to statement timeout` (20-22 segundos de bloqueo) al vencer el turno o procesar salida de mesa. Se trataba de un DEADLOCK MUTUO por inversión en el orden canónico de adquisición de candados (`FOR UPDATE`):
      * `abandon_game_table_secure` bloqueaba primero `game_tables` y luego `game_sessions`.
      * `universal_settle_game_session` y `expire_game_turn_secure` bloqueaban primero `game_sessions` y luego `game_tables`.

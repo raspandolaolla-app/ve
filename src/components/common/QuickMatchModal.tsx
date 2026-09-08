@@ -31,12 +31,14 @@ import { useWallet } from '../../context/WalletContext';
 import { useAudio } from '../../hooks/useAudio';
 import { TableRepository } from '../../services/repositories/TableRepository';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { logTableExitDiagnostic } from '../../utils/tableDiagnostics';
 import type { GameType, GameMode } from '../../types/games';
+import type { GameTable, TablePlayer } from '../../types/tables';
 
 interface QuickMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigateToTable?: (tableId: string) => void;
+  onNavigateToTable?: (tableId: string, table?: GameTable, players?: TablePlayer[]) => void;
   initialGameType?: string;
 }
 
@@ -231,9 +233,17 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
         setTimeout(() => {
           setIsSearching(false);
           onClose();
-          if (res.table?.id && onNavigateToTable) {
+          if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'practice' });
-            onNavigateToTable(res.table.id);
+            if (onNavigateToTable) {
+              onNavigateToTable(res.table.id, res.table, res.players);
+            } else {
+              sessionStorage.setItem('pending_open_table_id', res.table.id);
+              if (res.table) {
+                sessionStorage.setItem('pending_open_table_data', JSON.stringify({ table: res.table, players: res.players }));
+              }
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id, table: res.table, players: res.players } }));
+            }
           }
         }, 400);
       } else if (res.action === 'joined') {
@@ -245,10 +255,13 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'joined' });
             if (onNavigateToTable) {
-              onNavigateToTable(res.table.id);
+              onNavigateToTable(res.table.id, res.table, res.players);
             } else {
               sessionStorage.setItem('pending_open_table_id', res.table.id);
-              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+              if (res.table) {
+                sessionStorage.setItem('pending_open_table_data', JSON.stringify({ table: res.table, players: res.players }));
+              }
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id, table: res.table, players: res.players } }));
             }
           }
         }, 500);
@@ -261,10 +274,13 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'created' });
             if (onNavigateToTable) {
-              onNavigateToTable(res.table.id);
+              onNavigateToTable(res.table.id, res.table, res.players);
             } else {
               sessionStorage.setItem('pending_open_table_id', res.table.id);
-              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
+              if (res.table) {
+                sessionStorage.setItem('pending_open_table_data', JSON.stringify({ table: res.table, players: res.players }));
+              }
+              window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id, table: res.table, players: res.players } }));
             }
           }
         }, 500);
@@ -284,6 +300,19 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
     setIsSearching(false);
     setSearchStatus('Búsqueda cancelada');
     if (searchTimerRef.current) clearInterval(searchTimerRef.current);
+    logTableExitDiagnostic({
+      tableId: null,
+      currentUserId: user?.id,
+      seatNumber: null,
+      isHost: null,
+      tableStatus: null,
+      sessionId: null,
+      sessionStatus: null,
+      gameType: selectedGameMeta?.id,
+      playersCount: 0,
+      reason: 'MATCHMAKING_CANCELLED_BY_USER',
+      sourceComponent: 'QuickMatchModal.handleCancelSearch',
+    });
   };
 
   if (!isOpen) return null;

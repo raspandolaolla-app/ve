@@ -3,6 +3,7 @@ import type { GameTable } from '../../../types/tables';
 import type { GameSession } from '../../../types/games';
 import { TableRepository } from '../../../services/repositories/TableRepository';
 import { getSupabaseClient } from '../../../lib/supabase/client';
+import { logTableExitDiagnostic } from '../../../utils/tableDiagnostics';
 
 interface UseGameAbandonmentParams {
   table: GameTable;
@@ -38,6 +39,16 @@ export function useGameAbandonment({
             p_session_id: session.id,
           });
           if (!univErr && univData?.success) {
+            logTableExitDiagnostic({
+              tableId: table.id,
+              currentUserId: null,
+              tableStatus: table.status,
+              sessionId: session.id,
+              sessionStatus: session.status,
+              gameType: table.gameType,
+              reason: 'USER_CONFIRMED_ABANDON_RPC_SUCCESS',
+              sourceComponent: 'useGameAbandonment.handleConfirmAbandon',
+            });
             setShowAbandonModal(false);
             onExit();
             return;
@@ -45,6 +56,16 @@ export function useGameAbandonment({
         }
       }
 
+      logTableExitDiagnostic({
+        tableId: table.id,
+        currentUserId: null,
+        tableStatus: table.status,
+        sessionId: session?.id,
+        sessionStatus: session?.status,
+        gameType: table.gameType,
+        reason: 'USER_CONFIRMED_ABANDON_FALLBACK',
+        sourceComponent: 'useGameAbandonment.handleConfirmAbandon',
+      });
       await TableRepository.abandonTable(table.id, session?.id);
       setShowAbandonModal(false);
       onExit();
@@ -54,7 +75,7 @@ export function useGameAbandonment({
     } finally {
       setIsAbandoning(false);
     }
-  }, [isAbandoning, session?.id, table.id, onExit, onError]);
+  }, [isAbandoning, session?.id, session?.status, table.id, table.status, table.gameType, onExit, onError]);
 
   return {
     isAbandoning,

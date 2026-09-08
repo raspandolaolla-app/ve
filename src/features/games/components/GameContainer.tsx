@@ -37,6 +37,7 @@ import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import { normalizeGameStateByType, inspectDominoDeck } from '../utils/gameStateGuard';
 import { logger } from '../../../utils/logger';
+import { logTableExitDiagnostic } from '../../../utils/tableDiagnostics';
 
 import { TicTacToeBoard } from './TicTacToeBoard';
 import RockPaperScissorsBoard from './RockPaperScissorsBoard';
@@ -557,6 +558,15 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             stateValid: normalized.isValid,
             currentTurnUserId: isSimultaneousGame ? null : canonicalTurnUserId,
             turnDeadlineAt: updatedSession.turnExpiresAt,
+          });
+          console.info('[GAME_ACTIVE]', {
+            sessionId: activeSession.id,
+            tableId: table.id,
+            gameType: table.gameType,
+            stateValid: normalized.isValid,
+            currentTurnUserId: isSimultaneousGame ? null : canonicalTurnUserId,
+            turnDeadlineAt: updatedSession.turnExpiresAt,
+            timestamp: new Date().toISOString(),
           });
 
           const sanitizedState = engine.getSanitizedStateForPlayer
@@ -1529,6 +1539,19 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               setShowAbandonModal(true);
             }
           } else {
+            logTableExitDiagnostic({
+              tableId: table.id,
+              currentUserId,
+              seatNumber: currentPlayers.find((p) => p.userId === currentUserId)?.seatNumber,
+              isHost: isHostUser,
+              tableStatus: table.status,
+              sessionId: session?.id,
+              sessionStatus: session?.status,
+              gameType: table.gameType,
+              playersCount: currentPlayers.length,
+              reason: 'USER_NAVIGATED_BACK_HEADER',
+              sourceComponent: 'GameContainer.onBackClick',
+            });
             onExit();
           }
         }}
@@ -1563,8 +1586,38 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           grossPool={settlementResult.grossPool}
           prizePool={settlementResult.prizePool}
           platformFee={settlementResult.platformFee}
-          onReturnToLobby={onExit}
-          onPlayAgain={onPlayAgain}
+          onReturnToLobby={() => {
+            logTableExitDiagnostic({
+              tableId: table.id,
+              currentUserId,
+              seatNumber: currentPlayers.find((p) => p.userId === currentUserId)?.seatNumber,
+              isHost: isHostUser,
+              tableStatus: table.status,
+              sessionId: session?.id,
+              sessionStatus: session?.status,
+              gameType: table.gameType,
+              playersCount: currentPlayers.length,
+              reason: 'SETTLEMENT_MODAL_RETURN_TO_LOBBY',
+              sourceComponent: 'GameContainer.SettlementModal.onReturnToLobby',
+            });
+            onExit();
+          }}
+          onPlayAgain={() => {
+            logTableExitDiagnostic({
+              tableId: table.id,
+              currentUserId,
+              seatNumber: currentPlayers.find((p) => p.userId === currentUserId)?.seatNumber,
+              isHost: isHostUser,
+              tableStatus: table.status,
+              sessionId: session?.id,
+              sessionStatus: session?.status,
+              gameType: table.gameType,
+              playersCount: currentPlayers.length,
+              reason: 'SETTLEMENT_MODAL_PLAY_AGAIN',
+              sourceComponent: 'GameContainer.SettlementModal.onPlayAgain',
+            });
+            onPlayAgain();
+          }}
           onBackToTable={() => setShowResults(false)}
           gameType={table.gameType}
           scoreSummary={(() => {

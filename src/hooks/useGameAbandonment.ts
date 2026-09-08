@@ -1,8 +1,12 @@
 import { useCallback, useState } from 'react';
 import { getSupabaseClient } from '../lib/supabase/client';
+import { logTableExitDiagnostic } from '../utils/tableDiagnostics';
 
 export interface UseGameAbandonmentOptions {
   tableId?: string | null;
+  currentUserId?: string | null;
+  seatNumber?: number | null;
+  gameType?: string | null;
   onAbandonSuccess?: () => void;
 }
 
@@ -64,6 +68,19 @@ export const useGameAbandonment = (
       }
 
       if (succeeded) {
+        logTableExitDiagnostic({
+          tableId,
+          currentUserId: typeof options === 'object' ? options?.currentUserId : null,
+          seatNumber: typeof options === 'object' ? options?.seatNumber : null,
+          isHost: null,
+          tableStatus: 'ABANDONED',
+          sessionId,
+          sessionStatus: 'ABANDONED',
+          gameType: typeof options === 'object' ? options?.gameType : null,
+          playersCount: null,
+          reason: 'USER_CONFIRMED_ABANDON',
+          sourceComponent: 'useGameAbandonment.abandonGame',
+        });
         if (onAbandonSuccess) {
           onAbandonSuccess();
         }

@@ -386,11 +386,14 @@ function AppContent() {
       <QuickMatchModal
         isOpen={quickMatchModalOpen}
         onClose={() => setQuickMatchModalOpen(false)}
-        onNavigateToTable={(tableId) => {
+        onNavigateToTable={(tableId, table, players) => {
           setQuickMatchModalOpen(false);
           sessionStorage.setItem('pending_open_table_id', tableId);
+          if (table) {
+            sessionStorage.setItem('pending_open_table_data', JSON.stringify({ table, players }));
+          }
           setCurrentTab('tables');
-          window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
+          window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId, table, players } }));
         }}
       />
 

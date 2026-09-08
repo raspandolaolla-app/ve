@@ -2,13 +2,44 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:38:30 UTC (2026-09-08 09:38:30 -07:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:56:00 UTC (2026-09-08 09:56:00 -07:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
 ESTADO DE DESPLIEGUE GITHUB ACTIONS: PASS (Run #34252138354 en main - commit 2bba000 - Deploy to GitHub Pages SUCCESS)
 ESTADO DE PRODUCCIÓN: PASS (https://raspandolaolla-app.github.io/ve/ accesible, HTTP 200)
 ÚLTIMA MIGRACIÓN INTEGRADA: 154_fix_support_tickets_fk_ambiguity.sql (Total físico: 158 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-0. Corrección Definitiva del Flujo de Entrada del Jugador 2 (Invitado) y Eliminación de Expulsión Prematura al Lobby:
+0. Instrumentación Completa [TABLE_EXIT_DIAGNOSTIC] y Conexión Directa JUEGA YA → GameContainer (Cierre de Fuga al Lobby):
+   - Causa Raíz Detectada:
+     * En `TablesView.tsx` (línea 1712), `QuickMatchModal` invocaba `onNavigateToTable` con una implementación inline que llamaba a `setActiveTable(tbl)` en lugar de transicionar a la partida mediante `handleOpenTableById`. Esto provocaba que el jugador 2 quedara atrapado en el modal de sala de espera en lugar de ingresar a `GameContainer`, derivando en la posterior salida al lobby por descarte o cierre.
+     * En `QuickMatchModal`, la navegación no pasaba los objetos de mesa y jugador ya resueltos por la transacción de unión, requiriendo consultas redundantes que podían sufrir carreras de replicación en red.
+   - Solución Canónica Implementada:
+     1. Propagación de datos precargados (`table`, `players`):
+        * `QuickMatchModal.onNavigateToTable` ahora suministra `table` y `players` a `App.tsx` y `TablesView.tsx`.
+        * Se guarda en `sessionStorage` (`pending_open_table_data`) para recuperarlo ante cualquier re-render o cambio de pestaña.
+        * El evento `open-table` propaga `detail.table` y `detail.players`.
+     2. Conexión de `onNavigateToTable` en `TablesView.tsx`:
+        * Modificado para invocar de inmediato `handleOpenTableById(tableId, table, players)`, garantizando que el flujo siga la misma tubería de entrada que la unión estándar.
+     3. Resiliencia de Hidratación en `handleOpenTableById`:
+        * Reintentos controlados con backoff para `TableRepository.getTableById` y `TableRepository.getTablePlayers`.
+        * Emisión de los eventos canónicos: `[TABLE_OPEN_EVENT]`, `[WAITING_FOR_SESSION]`, `[SESSION_FOUND]`, y entrada a `GameContainer` (`[GAME_ACTIVE]`).
+     4. Espera Activa de Sesión para el Invitado:
+        * Sondeo persistente de hasta 25 intentos (~12.5 segundos) para esperar a que el anfitrión cree o guarde la sesión de juego.
+     5. Instrumentación Diagnóstica Integral `[TABLE_EXIT_DIAGNOSTIC]`:
+        * Creada la utilidad `src/utils/tableDiagnostics.ts` con firma estructurada `logTableExitDiagnostic`.
+        * Conectada en cada punto de salida de la aplicación hacia el lobby:
+          - `QuickMatchModal.handleCancelSearch`
+          - `useGameAbandonment.abandonGame` (global y feature)
+          - `TablesView.subscribeToTable` (cierre por Realtime)
+          - `TablesView.GameContainer.onExit`
+          - `TablesView.GameContainer.onPlayAgain`
+          - `TablesView.ModalCloseButton` (botón X del modal de sala)
+          - `TablesView.CerrarSalaButton`
+          - `TablesView.handleOpenTableById` (fallos por mesa no encontrada, mantenimiento o excepciones)
+          - `GameContainer.onBackClick`
+          - `GameContainer.SettlementModal.onReturnToLobby`
+          - `GameContainer.SettlementModal.onPlayAgain`
+
+0.1. Corrección Definitiva del Flujo de Entrada del Jugador 2 (Invitado) y Eliminación de Expulsión Prematura al Lobby:
    - Diagnóstico de Causa Raíz:
      * Tras el matchmaking exitoso ("JUEGA YA"), el jugador 2 es confirmado en el asiento 2 con retención contable (`join_table_transaction`), emitiéndose el evento `open-table`.
      * Al procesarse `handleOpenTableById` en `TablesView.tsx`, la mesa se encontraba en estado `FULL` y la sesión en base de datos (`game_sessions`) aún estaba siendo creada por el anfitrión (latencia RPC + timeout ~500ms).

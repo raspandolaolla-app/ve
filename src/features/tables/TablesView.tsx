@@ -24,6 +24,7 @@ import { PresenceService } from '../../services/PresenceService';
 import { SUPPORTED_GAMES_METADATA, FINANCIAL_RULES } from '../../utils/constants';
 import { formatBolivares, getGameDisplayName } from '../../utils/formatters';
 import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
+import { logTableExitDiagnostic } from '../../utils/tableDiagnostics';
 import { useBcvRate } from '../../context/BcvContext';
 import { useProtectedGameplay } from '../../context/ProtectedGameplayContext';
 import type { GameTable, TablePlayer } from '../../types/tables';
@@ -154,7 +155,11 @@ export function TablesView() {
   }, []);
 
   // Manejador centralizado y resiliente para abrir mesa por ID
-  const handleOpenTableById = useCallback(async (tableId: string) => {
+  const handleOpenTableById = useCallback(async (
+    tableId: string,
+    preloadedTable?: GameTable,
+    preloadedPlayers?: TablePlayer[]
+  ) => {
     if (!tableId) return;
 
     // Deduplicación e idempotencia: evitar aperturas concurrentes o eventos duplicados
@@ -175,14 +180,48 @@ export function TablesView() {
     openingTableIdRef.current = tableId;
     lastOpenedTableRef.current = { id: tableId, timestamp: now };
 
-    console.info('[TABLE_OPEN_EVENT]', { tableId, timestamp: new Date().toISOString() });
+    console.info('[TABLE_OPEN_EVENT]', {
+      tableId,
+      hasPreloadedTable: Boolean(preloadedTable),
+      hasPreloadedPlayers: Boolean(preloadedPlayers?.length),
+      timestamp: new Date().toISOString(),
+    });
+
     try {
-      const table = await TableRepository.getTableById(tableId);
-      if (!table) return;
+      let table: GameTable | null = preloadedTable || null;
+      if (!table) {
+        table = await TableRepository.getTableById(tableId);
+        if (!table) {
+          for (let att = 0; att < 5; att++) {
+            await new Promise((r) => setTimeout(r, 200));
+            table = await TableRepository.getTableById(tableId);
+            if (table) break;
+          }
+        }
+      }
+
+      if (!table) {
+        logTableExitDiagnostic({
+          tableId,
+          currentUserId: user?.id,
+          reason: 'TABLE_NOT_FOUND_AFTER_RETRIES',
+          sourceComponent: 'TablesView.handleOpenTableById',
+        });
+        setJoinError('No se pudo encontrar o acceder a la mesa especificada.');
+        return;
+      }
 
       // Verificación de disponibilidad centralizada del juego
       if (!isGameEnabled(table.gameType)) {
         const reason = getDisabledReason(table.gameType);
+        logTableExitDiagnostic({
+          tableId: table.id,
+          currentUserId: user?.id,
+          tableStatus: table.status,
+          gameType: table.gameType,
+          reason: `GAME_DISABLED_${reason || 'UNKNOWN'}`,
+          sourceComponent: 'TablesView.handleOpenTableById',
+        });
         console.warn(`[TablesView] Mesa pertenece a juego deshabilitado (${table.gameType}):`, reason);
         setJoinError(`El juego ${table.gameType} se encuentra temporalmente en mantenimiento${reason ? `: "${reason}"` : '.'}`);
         return;
@@ -195,15 +234,26 @@ export function TablesView() {
         name: table.name,
       });
 
-      const freshPlayers = await TableRepository.getTablePlayers(table.id);
+      let freshPlayers = (preloadedPlayers && preloadedPlayers.length > 0)
+        ? preloadedPlayers
+        : await TableRepository.getTablePlayers(table.id);
+
+      // Si la lista vino vacía, reintentar brevemente para hidratación de asientos
+      if (!freshPlayers || freshPlayers.length === 0) {
+        for (let att = 0; att < 5; att++) {
+          await new Promise((r) => setTimeout(r, 200));
+          freshPlayers = await TableRepository.getTablePlayers(table.id);
+          if (freshPlayers && freshPlayers.length > 0) break;
+        }
+      }
       setTablePlayers(freshPlayers);
 
       const currentUserId = (user?.id || '').toLowerCase();
-      const isSeated =
-        !currentUserId ||
-        freshPlayers.some(
-          (p) => (p.userId || '').toLowerCase() === currentUserId && p.status !== 'LEFT'
-        );
+      const currentTablePlayer = freshPlayers.find(
+        (p) => (p.userId || '').toLowerCase() === currentUserId && p.status !== 'LEFT'
+      );
+      const isSeated = !currentUserId || Boolean(currentTablePlayer);
+      const seatNumber = currentTablePlayer?.seatNumber || null;
 
       const isHost =
         (table.hostUserId || '').toLowerCase() === currentUserId ||
@@ -220,28 +270,40 @@ export function TablesView() {
 
       // Si el usuario está sentado y la mesa está lista o completa (2+ jugadores en 1v1):
       if (isSeated && isTableReadyOrFull) {
-        // Canónico: Si es invitado (!isHost) y la sesión aún no aparece,
-        // esperar activamente la creación de sesión del anfitrión con reintentos controlados.
-        if (!activeSess && !isHost) {
-          console.info('[TablesView] Invitado esperando sesión activa del anfitrión...', {
+        // Canónico: Si la sesión aún no aparece, esperar activamente con estado de conexión
+        if (!activeSess) {
+          console.info('[WAITING_FOR_SESSION]', {
             tableId: table.id,
+            isHost,
+            seatNumber,
+            currentUserId,
             playersCount: activePlayers.length,
+            minReq,
           });
-          for (let attempt = 0; attempt < 12; attempt++) {
-            await new Promise((r) => setTimeout(r, 300));
+
+          // Esperar activamente la sesión (hasta 25 intentos = ~12.5s)
+          for (let attempt = 0; attempt < 25; attempt++) {
+            await new Promise((r) => setTimeout(r, 450 + attempt * 20));
             activeSess = await GameRepository.getActiveSession(table.id);
             if (activeSess) {
-              console.info('[TablesView] Sesión de anfitrión resuelta para invitado en intento:', attempt + 1, {
-                sessionId: activeSess.id,
-              });
               break;
             }
           }
         }
 
+        if (activeSess) {
+          console.info('[SESSION_FOUND]', {
+            tableId: table.id,
+            sessionId: activeSess.id,
+            sessionStatus: activeSess.status,
+            roundNumber: activeSess.roundNumber,
+          });
+        }
+
         console.info('[TablesView] Transicionando jugador sentado a GameContainer:', {
           tableId: table.id,
           isHost,
+          seatNumber,
           hasSession: Boolean(activeSess),
           sessionId: activeSess?.id,
           playersCount: freshPlayers.length,
@@ -250,7 +312,7 @@ export function TablesView() {
         setInGameData({
           table: { ...table, status: 'ACTIVE' },
           players: freshPlayers,
-          session: activeSess,
+          session: activeSess || undefined,
         });
         setActiveTable(null);
         return;
@@ -258,6 +320,11 @@ export function TablesView() {
 
       // Si ya hay sesión activa confirmada aunque el status de mesa sea OPEN
       if (activeSess && isSeated) {
+        console.info('[SESSION_FOUND]', {
+          tableId: table.id,
+          sessionId: activeSess.id,
+          sessionStatus: activeSess.status,
+        });
         console.info('[TablesView] Sesión activa confirmada, transicionando directo:', {
           tableId: table.id,
           sessionId: activeSess.id,
@@ -273,6 +340,12 @@ export function TablesView() {
 
       setActiveTable(table);
     } catch (err) {
+      logTableExitDiagnostic({
+        tableId,
+        currentUserId: user?.id,
+        reason: `EXCEPTION_IN_HANDLE_OPEN_TABLE: ${err instanceof Error ? err.message : String(err)}`,
+        sourceComponent: 'TablesView.handleOpenTableById',
+      });
       console.error('[TablesView] Error en handleOpenTableById:', err);
     } finally {
       if (openingTableIdRef.current === tableId) {
@@ -285,18 +358,32 @@ export function TablesView() {
   useEffect(() => {
     const handleOpenTable = (e: any) => {
       const tableId = e.detail?.tableId;
+      const preloadedTable = e.detail?.table;
+      const preloadedPlayers = e.detail?.players;
       if (tableId) {
         sessionStorage.removeItem('pending_open_table_id');
-        handleOpenTableById(tableId);
+        sessionStorage.removeItem('pending_open_table_data');
+        handleOpenTableById(tableId, preloadedTable, preloadedPlayers);
       }
     };
     window.addEventListener('open-table' as any, handleOpenTable);
 
     // Recuperar mesa pendiente si se navegó desde QuickMatch / Lobby
     const pendingTableId = sessionStorage.getItem('pending_open_table_id');
+    const pendingDataRaw = sessionStorage.getItem('pending_open_table_data');
+    let preTable: GameTable | undefined;
+    let prePlayers: TablePlayer[] | undefined;
+    if (pendingDataRaw) {
+      try {
+        const parsed = JSON.parse(pendingDataRaw);
+        preTable = parsed.table;
+        prePlayers = parsed.players;
+      } catch {}
+    }
     if (pendingTableId) {
       sessionStorage.removeItem('pending_open_table_id');
-      handleOpenTableById(pendingTableId);
+      sessionStorage.removeItem('pending_open_table_data');
+      handleOpenTableById(pendingTableId, preTable, prePlayers);
     }
 
     return () => window.removeEventListener('open-table' as any, handleOpenTable);
@@ -778,6 +865,17 @@ export function TablesView() {
           // GameContainer maneja la pantalla de juego y el modal de resultados/liquidación.
           // Solo limpiamos si el usuario aún está en la vista del lobby de la mesa.
           if (tablePayload.new.id === activeTable.id && !inGameDataRef.current) {
+            logTableExitDiagnostic({
+              tableId: activeTable.id,
+              currentUserId: user?.id,
+              seatNumber: tablePlayers.find((p) => p.userId === user?.id)?.seatNumber,
+              isHost: (activeTable.hostUserId || '').toLowerCase() === (user?.id || '').toLowerCase(),
+              tableStatus: newStatus,
+              gameType: activeTable.gameType,
+              playersCount: tablePlayers.length,
+              reason: `REALTIME_TABLE_STATUS_${newStatus}`,
+              sourceComponent: 'TablesView.RealtimeManager.subscribeToTable',
+            });
             setActiveTable(null);
             setInGameData(null);
             setSeatActionFeedback({
@@ -1072,10 +1170,36 @@ export function TablesView() {
         initialSession={inGameData.session}
         currentUserId={user?.id || ''}
         onExit={() => {
+          logTableExitDiagnostic({
+            tableId: inGameData.table.id,
+            currentUserId: user?.id,
+            seatNumber: inGameData.players.find((p) => p.userId === user?.id)?.seatNumber,
+            isHost: (inGameData.table.hostUserId || '').toLowerCase() === (user?.id || '').toLowerCase(),
+            tableStatus: inGameData.table.status,
+            sessionId: inGameData.session?.id,
+            sessionStatus: inGameData.session?.status,
+            gameType: inGameData.table.gameType,
+            playersCount: inGameData.players.length,
+            reason: 'GAME_CONTAINER_ON_EXIT',
+            sourceComponent: 'TablesView.GameContainer.onExit',
+          });
           setInGameData(null);
           clearProtectedGameplay();
         }}
         onPlayAgain={() => {
+          logTableExitDiagnostic({
+            tableId: inGameData.table.id,
+            currentUserId: user?.id,
+            seatNumber: inGameData.players.find((p) => p.userId === user?.id)?.seatNumber,
+            isHost: (inGameData.table.hostUserId || '').toLowerCase() === (user?.id || '').toLowerCase(),
+            tableStatus: inGameData.table.status,
+            sessionId: inGameData.session?.id,
+            sessionStatus: inGameData.session?.status,
+            gameType: inGameData.table.gameType,
+            playersCount: inGameData.players.length,
+            reason: 'GAME_CONTAINER_PLAY_AGAIN',
+            sourceComponent: 'TablesView.GameContainer.onPlayAgain',
+          });
           clearProtectedGameplay();
           const gameType = inGameData.table.gameType;
           const entryFee = inGameData.table.entryFee;
@@ -1358,6 +1482,17 @@ export function TablesView() {
 
               <button
                 onClick={() => {
+                  logTableExitDiagnostic({
+                    tableId: activeTable.id,
+                    currentUserId: user?.id,
+                    seatNumber: tablePlayers.find((p) => p.userId === user?.id)?.seatNumber,
+                    isHost: (activeTable.hostUserId || '').toLowerCase() === (user?.id || '').toLowerCase(),
+                    tableStatus: activeTable.status,
+                    gameType: activeTable.gameType,
+                    playersCount: tablePlayers.length,
+                    reason: 'USER_CLICKED_CLOSE_MODAL_X',
+                    sourceComponent: 'TablesView.ModalCloseButton',
+                  });
                   setActiveTable(null);
                   setSeatActionFeedback(null);
                 }}
@@ -1560,6 +1695,17 @@ export function TablesView() {
                           variant="secondary"
                           size="sm"
                           onClick={() => {
+                            logTableExitDiagnostic({
+                              tableId: activeTable.id,
+                              currentUserId: user?.id,
+                              seatNumber: tablePlayers.find((p) => p.userId === user?.id)?.seatNumber,
+                              isHost: (activeTable.hostUserId || '').toLowerCase() === (user?.id || '').toLowerCase(),
+                              tableStatus: activeTable.status,
+                              gameType: activeTable.gameType,
+                              playersCount: tablePlayers.length,
+                              reason: 'USER_CLICKED_CERRAR_SALA',
+                              sourceComponent: 'TablesView.CerrarSalaButton',
+                            });
                             setActiveTable(null);
                             setSeatActionFeedback(null);
                           }}
@@ -1622,14 +1768,9 @@ export function TablesView() {
         isOpen={showMatchmakingModal}
         onClose={() => setShowMatchmakingModal(false)}
         initialGameType={selectedGameFilter === 'all' ? undefined : selectedGameFilter}
-        onNavigateToTable={async (tableId) => {
+        onNavigateToTable={(tableId, table, players) => {
           setShowMatchmakingModal(false);
-          const tbl = await TableRepository.getTableById(tableId);
-          if (tbl) {
-            setActiveTable(tbl);
-            const plrs = await TableRepository.getTablePlayers(tableId);
-            setTablePlayers(plrs);
-          }
+          handleOpenTableById(tableId, table, players);
         }}
       />
 

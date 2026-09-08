@@ -2,8 +2,10 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:35:00 UTC (2026-09-08 09:35:00 -07:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:38:30 UTC (2026-09-08 09:38:30 -07:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
+ESTADO DE DESPLIEGUE GITHUB ACTIONS: PASS (Run #34252138354 en main - commit 2bba000 - Deploy to GitHub Pages SUCCESS)
+ESTADO DE PRODUCCIÓN: PASS (https://raspandolaolla-app.github.io/ve/ accesible, HTTP 200)
 ÚLTIMA MIGRACIÓN INTEGRADA: 154_fix_support_tickets_fk_ambiguity.sql (Total físico: 158 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
 0. Corrección Definitiva del Flujo de Entrada del Jugador 2 (Invitado) y Eliminación de Expulsión Prematura al Lobby:

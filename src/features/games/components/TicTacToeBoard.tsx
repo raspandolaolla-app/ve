@@ -99,6 +99,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   const playerNames = state?.playerNames || {};
   const scores = state?.scores || {};
   const lives = state?.lives || {};
+  const targetWins = state?.targetWins || 3;
 
   const norm = (id?: string | null) => String(id || '').trim().toLowerCase();
 
@@ -134,8 +135,13 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   // Cuenta regresiva de auto-avance sincronizada entre rondas (4 segundos)
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
 
+  const isMatchWon =
+    status === 'game_won' ||
+    Boolean(state?.winnerUserId) ||
+    Object.values(scores || {}).some((s) => Number(s) >= (targetWins || 3));
+
   useEffect(() => {
-    if (status === 'round_won' || status === 'draw') {
+    if ((status === 'round_won' || status === 'draw') && !isMatchWon) {
       setAutoAdvanceCountdown(4);
       const interval = setInterval(() => {
         setAutoAdvanceCountdown((prev) => {
@@ -151,14 +157,14 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
     } else {
       setAutoAdvanceCountdown(null);
     }
-  }, [status, round]);
+  }, [status, round, isMatchWon]);
 
   useEffect(() => {
-    if (autoAdvanceCountdown === 0 && (status === 'round_won' || status === 'draw') && onNextRound) {
-      console.log('[ROUND_AUTO_ADVANCE]', { round, status });
+    if (autoAdvanceCountdown === 0 && (status === 'round_won' || status === 'draw') && !isMatchWon && onNextRound) {
+      console.log('[ROUND_AUTO_ADVANCE]', { round, status, isMatchWon });
       onNextRound();
     }
-  }, [autoAdvanceCountdown, status, round, onNextRound]);
+  }, [autoAdvanceCountdown, status, round, isMatchWon, onNextRound]);
 
   const handleTimeout = () => {
     if (isMyTurn) {

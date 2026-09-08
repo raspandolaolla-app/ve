@@ -2,10 +2,21 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 12:55:00 -07:00 (UTC 2026-09-08 19:55:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA DE TURNOS Y TIMEOUTS 100% OPERATIVO, SINCRONIZADO Y AUTORITATIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:56:00 -07:00 (UTC 2026-09-08 23:56:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / PROTECCIÓN DE PARTIDAS Y DIAGNÓSTICO UNIFICADO OPERATIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 155_integral_financial_settlement_remediation_and_reconciliation.sql (Remediación Integral de Liquidaciones Financieras, Desacople FINISHED/SETTLED, Motor Universal 90/10, Reembolso por Abandono/Empate, Reembolso de Bingo y Auditoría Forense con Liberación de Retenciones Huérfanas)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) RESOLUCIÓN DE IMPORTACIONES Y BLINDAJE DE COMPILACIÓN (VITE + TS):
+   - Creación de `/src/utils/tableDiagnostics.ts`:
+     * Implementado módulo unificado de diagnóstico `logTableExitDiagnostic` e interfaz `TableExitDiagnosticPayload`.
+     * Resuelve los fallos de resolución de importación en `QuickMatchModal.tsx`, `TablesView.tsx`, `GameContainer.tsx` y `useGameAbandonment.ts`.
+   - Creación de `/src/context/ProtectedGameplayContext.tsx`:
+     * Implementado `ProtectedGameplayProvider` y hook `useProtectedGameplay()`.
+     * Protección móvil contra pull-to-refresh (`touchstart`/`touchmove` no pasivo), prevención de recarga accidental (`beforeunload`), persistencia de partida en `sessionStorage` (`rlo_active_game_session`), y clases dinámicas en el DOM (`gameplay-protected`, `game-mode-active`).
+     * Resuelve los fallos de resolución de importación en `App.tsx`, `AtrapaitoGame.tsx`, `PollaBoard.tsx`, `GameContainer.tsx`, `GameArena.tsx` y `TablesView.tsx`.
+   - Corrección en `/src/features/games/components/TicTacToeBoard.tsx`:
+     * Incorporada la constante `targetWins` desde `state?.targetWins || 3`, solventando el error TS2304 en `tsc --noEmit` (`lint_applet` PASS con 0 errores).
 
 0) RESOLUCIÓN DEFINITIVA Y AUTORITATIVA DEL SISTEMA DE TURNOS Y TIMEOUTS (LA VIEJA / TIC_TAC_TOE):
    - Diagnóstico de Causa Raíz Identificada y Solucionada:

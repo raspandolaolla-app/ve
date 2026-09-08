@@ -50,6 +50,8 @@ export interface GameSession {
   winnerTeamIndex?: number;
   isSettled: boolean;
   settledAt?: string;
+  updatedAt?: string;
+  version?: number;
   currentState?: Record<string, unknown>;
 }
 
@@ -71,6 +73,9 @@ export type TicTacToeSymbol = 'X' | 'O';
 export interface TicTacToeState {
   board: (TicTacToeSymbol | null)[]; // 9 celdas (0-8)
   turnUserId: string;
+  currentTurnUserId?: string;
+  turnExpiresAt?: string;
+  turnDurationSeconds?: number;
   playerSymbols: Record<string, TicTacToeSymbol>; // userId -> 'X' | 'O'
   playerNames: Record<string, string>;
   lives?: Record<string, number>;

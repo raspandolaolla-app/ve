@@ -13,6 +13,8 @@ export interface TurnTimerProps {
   isMyTurn?: boolean;
   activePlayerName?: string;
   status?: string;
+  gameStatus?: string;
+  version?: string | number;
   onTimeout?: () => void;
   onOpponentTimeout?: () => void;
   className?: string;
@@ -22,10 +24,12 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   sessionId,
   currentTurnUserId,
   turnExpiresAt,
-  durationSeconds = 15,
+  durationSeconds = 30,
   isMyTurn = false,
   activePlayerName = 'Rival',
   status,
+  gameStatus,
+  version,
   onTimeout,
   onOpponentTimeout,
   className = '',
@@ -54,7 +58,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   }, [currentTurnUserId]);
 
   // timerKey único conceptual para cancelar y reiniciar ante cualquier cambio de turno o deadline
-  const timerKey = `${sessionId || 'session'}_${currentTurnUserId || 'user'}_${turnExpiresAt || 'expires'}`;
+  const timerKey = `${sessionId || 'session'}_${currentTurnUserId || 'user'}_${turnExpiresAt || 'expires'}_${version || '0'}`;
 
   useEffect(() => {
     timedOutRef.current = false;
@@ -105,10 +109,16 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     const isStaleDeadlineFromPreviousTurn = storedExpiresAt <= now && timeSinceTurnSwitch < 3500;
 
     if (isStaleDeadlineFromPreviousTurn) {
-      console.log('[TURN_TIMER_AWAIT_FRESH_DEADLINE]', {
-        timerKey,
+      console.log('[TURN_CLIENT_STALE_IGNORED]', {
+        sessionId,
         currentTurnUserId,
+        turnExpiresAt,
+        serverNow: new Date().toISOString(),
+        version: version || '0',
+        sessionStatus: status,
+        gameStatus,
         timeSinceTurnSwitch,
+        reason: 'STALE_DEADLINE_TRANSITION',
         fallbackDuration: durationSeconds,
       });
       setRemaining(durationSeconds);
@@ -119,12 +129,17 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     const timeLeft = Math.max(0, Math.ceil((storedExpiresAt - now) / 1000));
     setRemaining(timeLeft);
 
-    console.log('[TURN_TIMER_ARM]', {
-      timerKey,
+    console.log('[TURN_CLIENT_ARM]', {
+      sessionId,
+      currentTurnUserId,
+      turnExpiresAt,
+      serverNow: new Date().toISOString(),
+      version: version || '0',
+      sessionStatus: status,
+      gameStatus,
       isMyTurn,
       timeLeft,
-      turnExpiresAt,
-      currentTurnUserId,
+      timerKey,
     });
 
     // Si ya expiró legítimamente y no ha sido disparado para este timerKey específico
@@ -132,11 +147,20 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       if (!timedOutRef.current && lastFiredExpiresAtRef.current !== timerKey) {
         timedOutRef.current = true;
         lastFiredExpiresAtRef.current = timerKey;
+        console.warn('[TURN_TIMEOUT_REQUEST]', {
+          sessionId,
+          currentTurnUserId,
+          turnExpiresAt,
+          serverNow: new Date().toISOString(),
+          version: version || '0',
+          sessionStatus: status,
+          gameStatus,
+          isMyTurn,
+          action: isMyTurn ? 'TRIGGER_TIMEOUT' : 'WAIT_FOR_OPPONENT_TIMEOUT',
+        });
         if (isMyTurn) {
-          console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
           onTimeoutRef.current?.();
         } else {
-          console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
           onOpponentTimeoutRef.current?.();
         }
       }
@@ -152,21 +176,30 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
         timedOutRef.current = true;
         lastFiredExpiresAtRef.current = timerKey;
         clearInterval(interval);
+        console.warn('[TURN_TIMEOUT_REQUEST]', {
+          sessionId,
+          currentTurnUserId,
+          turnExpiresAt,
+          serverNow: new Date().toISOString(),
+          version: version || '0',
+          sessionStatus: status,
+          gameStatus,
+          isMyTurn,
+          action: isMyTurn ? 'TRIGGER_TIMEOUT' : 'WAIT_FOR_OPPONENT_TIMEOUT',
+        });
         if (isMyTurn) {
-          console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
           onTimeoutRef.current?.();
         } else {
-          console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
           onOpponentTimeoutRef.current?.();
         }
       }
     }, 1000);
 
     return () => {
-      console.log('[TURN_TIMER_CANCEL]', { timerKey });
+      console.log('[TURN_TIMER_CANCEL]', { timerKey, sessionId, currentTurnUserId });
       clearInterval(interval);
     };
-  }, [timerKey, turnExpiresAt, currentTurnUserId, isMyTurn, durationSeconds, status]);
+  }, [timerKey, turnExpiresAt, currentTurnUserId, isMyTurn, durationSeconds, status, gameStatus, version, sessionId]);
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;

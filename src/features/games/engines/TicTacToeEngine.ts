@@ -79,6 +79,8 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     return {
       board: Array(9).fill(null),
       turnUserId: p1UserId,
+      currentTurnUserId: p1UserId,
+      turnDurationSeconds: 30,
       playerSymbols,
       playerNames,
       lives,

@@ -423,6 +423,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
       {/* ===== TIMER ===== */}
       <div className="w-full mb-2.5">
         <TurnTimer
+          sessionId={sessionId}
+          currentTurnUserId={turnUserId}
           turnExpiresAt={turnExpiresAt}
           durationSeconds={30}
           isMyTurn={isMyTurn}

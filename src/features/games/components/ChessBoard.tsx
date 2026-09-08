@@ -356,6 +356,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
             <div className="flex items-center space-x-1.5">
               {turnExpiresAt && (
                 <TurnTimer
+                  sessionId={sessionId}
+                  currentTurnUserId={topPlayer?.userId}
                   turnExpiresAt={turnExpiresAt}
                   durationSeconds={15}
                   isMyTurn={false}
@@ -534,6 +536,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
             <div className="flex items-center space-x-1.5">
               {turnExpiresAt && (
                 <TurnTimer
+                  sessionId={sessionId}
+                  currentTurnUserId={bottomPlayer?.userId}
                   turnExpiresAt={turnExpiresAt}
                   durationSeconds={15}
                   isMyTurn={isMyTurn}

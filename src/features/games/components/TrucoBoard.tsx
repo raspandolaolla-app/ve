@@ -430,6 +430,8 @@ export const TrucoBoard: React.FC<TrucoBoardProps> = ({
       {/* ===== TEMPORIZADOR Y ESTADO DE TURNO ===== */}
       <div className="w-full mb-3 flex flex-col items-center gap-1.5">
         <TurnTimer
+          sessionId={sessionId}
+          currentTurnUserId={turnUserId}
           turnExpiresAt={turnExpiresAt}
           durationSeconds={20}
           isMyTurn={isMyTurn}

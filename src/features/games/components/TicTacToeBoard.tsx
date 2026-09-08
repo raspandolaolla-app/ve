@@ -118,12 +118,6 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           GameRepository.expireTurn(sessionId);
         });
       }
-    } else if (sessionId && turnUserId) {
-      // Si el oponente no jugó y su tiempo expiró (ej. app minimizada o desconectado),
-      // invocar de forma server-authoritative la resolución de turno por timeout
-      GameRepository.executeBotMoveOnTimeout(sessionId, turnUserId).catch(() => {
-        GameRepository.expireTurn(sessionId);
-      });
     }
   };
 
@@ -238,6 +232,8 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
       {/* Temporizador */}
       <div className="w-full mb-3">
         <TurnTimer
+          sessionId={sessionId}
+          currentTurnUserId={turnUserId}
           turnExpiresAt={turnExpiresAt}
           durationSeconds={30}
           isMyTurn={isMyTurn}

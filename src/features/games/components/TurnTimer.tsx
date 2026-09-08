@@ -6,6 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 
 export interface TurnTimerProps {
+  sessionId?: string;
+  currentTurnUserId?: string;
   turnExpiresAt?: string;
   durationSeconds?: number;
   isMyTurn?: boolean;
@@ -16,6 +18,8 @@ export interface TurnTimerProps {
 }
 
 export const TurnTimer: React.FC<TurnTimerProps> = ({
+  sessionId,
+  currentTurnUserId,
   turnExpiresAt,
   durationSeconds = 15,
   isMyTurn = false,
@@ -28,9 +32,12 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   const timedOutRef = useRef(false);
   const lastFiredExpiresAtRef = useRef<string | null>(null);
 
+  // timerKey único conceptual para cancelar y reiniciar ante cualquier cambio de turno o deadline
+  const timerKey = `${sessionId || 'session'}_${currentTurnUserId || 'user'}_${turnExpiresAt || 'expires'}`;
+
   useEffect(() => {
     timedOutRef.current = false;
-  }, [turnExpiresAt]);
+  }, [timerKey]);
 
   useEffect(() => {
     const normalizedStatus = String(status || '').toLowerCase();
@@ -71,13 +78,25 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
     const timeLeft = Math.max(0, Math.ceil((storedExpiresAt - now) / 1000));
     setRemaining(timeLeft);
 
-    // Si ya expiró y no ha sido disparado para este turnExpiresAt específico
+    console.log('[TURN_TIMER_ARM]', {
+      timerKey,
+      isMyTurn,
+      timeLeft,
+      turnExpiresAt,
+      currentTurnUserId,
+    });
+
+    // Si ya expiró y no ha sido disparado para este timerKey específico
     if (timeLeft === 0) {
-      if (!timedOutRef.current && lastFiredExpiresAtRef.current !== turnExpiresAt) {
+      if (!timedOutRef.current && lastFiredExpiresAtRef.current !== timerKey) {
         timedOutRef.current = true;
-        lastFiredExpiresAtRef.current = turnExpiresAt;
-        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
-        onTimeout?.();
+        lastFiredExpiresAtRef.current = timerKey;
+        if (isMyTurn) {
+          console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
+          onTimeout?.();
+        } else {
+          console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
+        }
       }
       return;
     }
@@ -89,15 +108,22 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
       if (left === 0 && !timedOutRef.current) {
         timedOutRef.current = true;
-        lastFiredExpiresAtRef.current = turnExpiresAt;
+        lastFiredExpiresAtRef.current = timerKey;
         clearInterval(interval);
-        console.warn('[TURN_TIMER] Tiempo agotado, disparando timeout');
-        onTimeout?.();
+        if (isMyTurn) {
+          console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
+          onTimeout?.();
+        } else {
+          console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
+        }
       }
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [turnExpiresAt, durationSeconds, status, onTimeout]);
+    return () => {
+      console.log('[TURN_TIMER_CANCEL]', { timerKey });
+      clearInterval(interval);
+    };
+  }, [timerKey, turnExpiresAt, currentTurnUserId, isMyTurn, durationSeconds, status, onTimeout]);
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;

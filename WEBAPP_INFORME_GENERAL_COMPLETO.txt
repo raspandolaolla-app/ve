@@ -2,11 +2,25 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 04:55:00 UTC (2026-09-07 21:55:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / GitHub Actions Run #813 PASS en Build y Deploy a GitHub Pages)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 05:15:00 UTC (2026-09-07 22:15:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
 ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-1. Resolución Forense de Desincronización y Expulsión al Iniciar Partida Multijugador (Prompt Maestro - Incidente Crítico):
+1. Corrección Forense de Desincronización de Temporizadores y Carrera en TIMEOUT Multijugador:
+   - Diagnóstico: Al vencer el contador de turno, `TurnTimer` se reiniciaba visualmente con parpadeos y disparaba `onTimeout` simultáneamente en los navegadores de ambos jugadores, provocando carreras concurrentes en la RPC `execute_bot_move_on_timeout` / `expireTurn` y desincronizaciones en el estado del tablero.
+   - `TurnTimer.tsx`:
+     * Clave Canónica de Turno (`timerKey`): Calculada a partir de `sessionId`, `currentTurnUserId` y `turnExpiresAt`. El temporizador y el flag `hasTriggeredRef` se resetean limpiamente únicamente cuando cambia el turno real.
+     * Prevención de Doble Disparo: Solo se invoca `onTimeout` si `isMyTurn === true`, garantizando que el cliente no-activo no emita eventos redundantes de tiempo fuera.
+   - Tableros Multijugador (`TicTacToeBoard`, `CheckersBoard`, `DominoBoard`, `TrucoBoard`, `ChessBoard`):
+     * Eliminación de invocaciones cruzadas de timeout hacia el oponente en el cliente.
+     * Inyección unificada de `sessionId` y `currentTurnUserId` en cada instancia de `TurnTimer`.
+   - Motores de Juego (`TicTacToeEngine`, `CheckersEngine`, `DominoEngine`, `TrucoEngine`):
+     * En `validateAction`, verificación estricta de que la acción `TIMEOUT` solo sea válida si `action.userId` coincide con el jugador en turno activo.
+     * En `TicTacToeEngine.ts`, rotación automática del turno al oponente si no hay jugada bot disponible.
+   - `GameContainer.tsx`:
+     * Guardia estricta en `handleGameAction` (`TIMEOUT_REJECTED_STALE_TURN`) que rechaza timeouts generados por clientes con estado de turno desfasado.
+     * Corrección de `turnDuration` en la actualización de sesión: respeta `table.config.turnDuration` y defaults canónicos (30s general, 15s ajedrez), eliminando el fallback restrictivo de 10s.
+2. Resolución Forense de Desincronización y Expulsión al Iniciar Partida Multijugador (Prompt Maestro - Incidente Crítico):
    - Causa Raíz Identificada y Corregida:
      * Carrera de Inicialización en `GameContainer.tsx`: Al hacer clic en "Iniciar Partida" el anfitrión invocaba `TableRepository.startGameSession` (RPC `start_game_session`). Al mismo tiempo, el anfitrión y los demás jugadores montaban `GameContainer` donde `initGame()` llamaba a `GameRepository.createOrGetSession()`. Como la RPC estaba ejecutándose o recién finalizada, el cliente no-anfitrión recibía `ONLY_HOST_CAN_START` y tras una comprobación inmediata fallaba en obtener la sesión activa, desconectando al jugador.
      * Re-renders y Desmontes Involuntarios por Dependencias de Efectos: `useEffect` en `GameContainer.tsx` incluía objetos mutables (`table`, `initialPlayers`, `engine`, `currentPlayers`) en su array de dependencias. Cada vez que cambiaba un jugador o presencia, el canal Realtime era removido (`supabase.removeChannel`), causando que los jugadores fuesen expulsados y mostraran `DISCONNECTED`.

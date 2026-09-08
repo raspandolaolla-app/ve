@@ -97,6 +97,9 @@ export class CheckersEngine implements IGameEngine<CheckersState> {
     }
 
     if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      if (action.userId && state.turnUserId && action.userId.toLowerCase() !== state.turnUserId.toLowerCase()) {
+        return { valid: false, reason: 'Solo el jugador en turno puede emitir TIMEOUT.' };
+      }
       return { valid: true };
     }
 

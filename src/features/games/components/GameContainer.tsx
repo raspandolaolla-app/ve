@@ -1115,6 +1115,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         }
       }
 
+      // Guardia estricta: si la acción es TIMEOUT, solo el jugador cuyo turno ha expirado puede solicitarla
+      if (actionType === 'TIMEOUT') {
+        const activeTurnId = (gameState as any)?.currentTurnUserId || (gameState as any)?.turnUserId || session.currentTurnUserId;
+        if (activeTurnId && activeTurnId.toLowerCase() !== currentUserId.toLowerCase()) {
+          console.warn('[TIMEOUT_REJECTED_STALE_TURN]', {
+            sessionId: session.id,
+            requestingUserId: currentUserId,
+            activeTurnUserId: activeTurnId,
+            reason: 'Solo el jugador activo puede ejecutar timeout de su turno',
+          });
+          return;
+        }
+      }
+
       const payload: GameActionPayload = {
         sessionId: session.id,
         userId: currentUserId,
@@ -1201,7 +1215,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         await GameRepository.submitAction(payload);
 
         const nextTurnUserId = (result.newState as any)?.currentTurnUserId || (result.newState as any)?.turnUserId || null;
-        const turnDuration = table.gameType === 'chess' ? 15 : ((result.newState as any)?.turnDurationSeconds || 10);
+        const turnDuration =
+          (table.config?.turnDuration as number) ||
+          (result.newState as any)?.turnDurationSeconds ||
+          (table.gameType === 'chess' ? 15 : 30);
 
         console.log('[TURN_CHANGED]', {
           sessionId: session.id,

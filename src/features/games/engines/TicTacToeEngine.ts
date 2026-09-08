@@ -137,6 +137,10 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      const activeTurn = normalized.turnUserId || (normalized as any).currentTurnUserId;
+      if (activeTurn && action.userId && action.userId.toLowerCase() !== String(activeTurn).toLowerCase()) {
+        return { valid: false, reason: 'Solo el jugador en turno puede emitir TIMEOUT.' };
+      }
       return { valid: true };
     }
 
@@ -184,8 +188,33 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
       if (botMove) {
         return this.applyAction(normalized, botMove);
       }
+
+      // Si no fue posible colocar bot move, rotar el turno al oponente
+      const pSymbols = normalized.playerSymbols || {};
+      const allPlayerIds = Object.keys(pSymbols).map((id) => id.trim());
+      const candidateIds =
+        (normalized as any).playerOrder && Array.isArray((normalized as any).playerOrder) && (normalized as any).playerOrder.length > 0
+          ? (normalized as any).playerOrder.map((id: any) => String(id).trim())
+          : allPlayerIds;
+      const currentIdx = candidateIds.findIndex((id: string) => id.toLowerCase() === action.userId.toLowerCase());
+      let nextTurnUserId = action.userId;
+      if (candidateIds.length > 1) {
+        if (currentIdx !== -1) {
+          nextTurnUserId = candidateIds[(currentIdx + 1) % candidateIds.length];
+        } else {
+          const opponentId = candidateIds.find((id: string) => id.toLowerCase() !== action.userId.toLowerCase());
+          if (opponentId) nextTurnUserId = opponentId;
+        }
+      }
+
+      const updatedState: TicTacToeState = {
+        ...normalized,
+        turnUserId: nextTurnUserId,
+      };
+      (updatedState as any).currentTurnUserId = nextTurnUserId;
+
       return {
-        newState: normalized,
+        newState: updatedState,
         isValid: true,
         isGameOver: false,
         winnerUserId: null,

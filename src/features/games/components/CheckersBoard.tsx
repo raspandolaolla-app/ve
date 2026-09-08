@@ -401,6 +401,8 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
       {/* ===== TEMPORIZADOR ===== */}
       <div className="w-full mb-3">
         <TurnTimer
+          sessionId={sessionId}
+          currentTurnUserId={state.turnUserId}
           turnExpiresAt={turnExpiresAt}
           durationSeconds={30}
           isMyTurn={isMyTurn}

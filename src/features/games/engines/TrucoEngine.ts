@@ -132,11 +132,15 @@ export class TrucoEngine implements IGameEngine<TrucoState> {
       return { valid: false, reason: 'La partida no está activa.' };
     }
 
+    const { pendingCanto } = state.cantoState as any;
+
     if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
+      const activeUser = pendingCanto ? pendingCanto.respondByUserId : state.turnUserId;
+      if (action.userId && activeUser && action.userId.toLowerCase() !== activeUser.toLowerCase()) {
+        return { valid: false, reason: 'Solo el jugador en turno puede emitir TIMEOUT.' };
+      }
       return { valid: true };
     }
-
-    const { pendingCanto } = state.cantoState as any;
 
     // Si hay un canto pendiente de respuesta, el único jugador que puede actuar es el respondByUserId
     if (pendingCanto) {

@@ -508,7 +508,7 @@ export class TableRepository {
 
     return {
       success: true,
-      tablePlayerId: data?.table_player_id,
+      tablePlayerId: data?.player_id || data?.table_player_id,
       seatNumber: data?.seat_number ?? seatNumber,
       message: 'Unión exitosa a la mesa con retención contable registrada',
     };

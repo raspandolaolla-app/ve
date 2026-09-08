@@ -91,6 +91,8 @@ export function TablesView() {
   const [tablePlayers, setTablePlayers] = useState<TablePlayer[]>([]);
   const [joiningSeat, setJoiningSeat] = useState<number | null>(null);
   const [isStartingTable, setIsStartingTable] = useState(false);
+  const isStartingTableRef = useRef(false);
+  isStartingTableRef.current = isStartingTable;
   const [seatActionFeedback, setSeatActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>(PresenceService.getOnlineUserIds());
 
@@ -147,27 +149,77 @@ export function TablesView() {
     return () => window.removeEventListener('open-quick-match', handleOpenQuickMatch);
   }, []);
 
-  // Escuchar evento para abrir mesa específica desde el Lobby (Bingo, etc.)
+  // Manejador centralizado y resiliente para abrir mesa por ID
+  const handleOpenTableById = useCallback(async (tableId: string) => {
+    if (!tableId) return;
+    console.info('[TABLE_OPEN_EVENT]', { tableId, timestamp: new Date().toISOString() });
+    try {
+      const table = await TableRepository.getTableById(tableId);
+      if (!table) return;
+
+      console.info('[TABLE_ACTIVATED]', {
+        tableId: table.id,
+        status: table.status,
+        players: table.currentPlayersCount,
+        name: table.name,
+      });
+
+      const freshPlayers = await TableRepository.getTablePlayers(table.id);
+      setTablePlayers(freshPlayers);
+
+      // Comprobar si ya existe una sesión activa para esta mesa
+      const activeSess = await GameRepository.getActiveSession(table.id);
+      const isPlayable =
+        ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes((table.status || '').toUpperCase()) ||
+        Boolean(activeSess);
+
+      const currentUserId = (user?.id || '').toLowerCase();
+      const isSeated =
+        !currentUserId ||
+        freshPlayers.some(
+          (p) => (p.userId || '').toLowerCase() === currentUserId && p.status !== 'LEFT'
+        );
+
+      if (isPlayable && isSeated) {
+        console.log('[TablesView] Mesa ya activa detectada tras TABLE_OPEN_EVENT, transicionando directo:', {
+          tableId: table.id,
+          hasSession: Boolean(activeSess),
+          playersCount: freshPlayers.length,
+        });
+        setInGameData({
+          table: { ...table, status: 'ACTIVE' },
+          players: freshPlayers,
+          session: activeSess,
+        });
+        setActiveTable(null);
+        return;
+      }
+
+      setActiveTable(table);
+    } catch (err) {
+      console.error('[TablesView] Error en handleOpenTableById:', err);
+    }
+  }, [user?.id]);
+
+  // Escuchar evento para abrir mesa específica desde el Lobby (Bingo, Juega Ya, etc.)
   useEffect(() => {
-    const handleOpenTable = async (e: any) => {
+    const handleOpenTable = (e: any) => {
       const tableId = e.detail?.tableId;
-      console.info('[TABLE_OPEN_EVENT]', { tableId, timestamp: new Date().toISOString() });
       if (tableId) {
-        const table = await TableRepository.getTableById(tableId);
-        if (table) {
-          console.info('[TABLE_ACTIVATED]', {
-            tableId: table.id,
-            status: table.status,
-            players: table.currentPlayersCount,
-            name: table.name,
-          });
-          setActiveTable(table);
-        }
+        handleOpenTableById(tableId);
       }
     };
     window.addEventListener('open-table' as any, handleOpenTable);
+
+    // Recuperar mesa pendiente si se navegó desde QuickMatch / Lobby
+    const pendingTableId = sessionStorage.getItem('pending_open_table_id');
+    if (pendingTableId) {
+      sessionStorage.removeItem('pending_open_table_id');
+      handleOpenTableById(pendingTableId);
+    }
+
     return () => window.removeEventListener('open-table' as any, handleOpenTable);
-  }, []);
+  }, [handleOpenTableById]);
 
   // Escuchar evento para abrir modal de creación de mesa para un juego específico (desde banners, hero, etc.)
   useEffect(() => {
@@ -430,6 +482,159 @@ export function TablesView() {
     }
   }, []);
 
+  // Acción canónica y segura para iniciar la partida como anfitrión (Server-Authoritative e Idempotente)
+  const handleStartGameAsHost = useCallback(
+    async (tableToStart: GameTable, playersList: TablePlayer[]) => {
+      if (isStartingTableRef.current || inGameDataRef.current) return;
+      if (!user?.id) return;
+
+      const isHost =
+        tableToStart.hostUserId === user.id || (tableToStart as any).createdBy === user.id;
+      if (!isHost) return;
+
+      const minRequired = tableToStart.minPlayers || 2;
+      const unique = Array.from(
+        new Map(
+          playersList
+            .filter((p) => p.status !== 'LEFT')
+            .map((p) => [(p.userId || '').toLowerCase(), p])
+        ).values()
+      ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
+
+      if (unique.length < minRequired) return;
+
+      isStartingTableRef.current = true;
+      setIsStartingTable(true);
+
+      try {
+        console.info('[TablesView] Iniciando partida como anfitrión...', {
+          tableId: tableToStart.id,
+          gameType: tableToStart.gameType,
+          playersCount: unique.length,
+        });
+
+        // 1. Idempotencia estricta: Verificar si ya existe sesión activa en DB
+        let activeSess = await GameRepository.getActiveSession(tableToStart.id);
+
+        if (!activeSess) {
+          // 2. Preparar estado canónico según motor del juego
+          let initialEngineState: any = {};
+          if (tableToStart.gameType === 'atrapaito') {
+            const isOnline =
+              !tableToStart.config?.isPractice &&
+              !tableToStart.id.startsWith('practice_') &&
+              tableToStart.entryFee > 0;
+            initialEngineState = {
+              bluePos: { col: 4, row: 14 },
+              redPos: { col: 3, row: 14 },
+              walls: [],
+              blueWalls: 10,
+              redWalls: 10,
+              turn: 'BLUE',
+              action: 'MOVE',
+              wallOrientation: 'HORIZONTAL',
+              pendingWall: null,
+              winner: null,
+              mode: isOnline ? 'ONLINE' : 'VS_AI',
+              isAiThinking: false,
+              consecutiveDraws: 0,
+              blueUserId: unique[0]?.userId || null,
+              redUserId: unique[1]?.userId || null,
+              currentTurnUserId: unique[0]?.userId || null,
+              turnUserId: unique[0]?.userId || null,
+              turnDurationSeconds: 15,
+              boardType: 'CRIOLLO_WALLS',
+            };
+          } else {
+            const engine = getGameEngine(tableToStart.gameType);
+            initialEngineState = engine.initialize(tableToStart, unique);
+          }
+
+          const turnDuration =
+            tableToStart.gameType === 'chess'
+              ? 15
+              : (initialEngineState as any)?.turnDurationSeconds || 30;
+
+          await TableRepository.startGameSession(
+            tableToStart.id,
+            initialEngineState,
+            turnDuration
+          );
+
+          activeSess = await GameRepository.getActiveSession(tableToStart.id);
+        }
+
+        if (inGameDataRef.current) return;
+
+        console.info('[TablesView] Anfitrión transicionando a GameContainer con sesión:', {
+          tableId: tableToStart.id,
+          sessionId: activeSess?.id,
+          playersCount: unique.length,
+        });
+
+        setInGameData({
+          table: { ...tableToStart, status: 'ACTIVE' },
+          players: unique,
+          session: activeSess,
+        });
+        setActiveTable(null);
+      } catch (e: any) {
+        console.error('[TablesView] Error al iniciar sesión en el servidor:', e);
+        const activeSess = await GameRepository.getActiveSession(tableToStart.id);
+        if (activeSess) {
+          setInGameData({
+            table: { ...tableToStart, status: 'ACTIVE' },
+            players: unique,
+            session: activeSess,
+          });
+          setActiveTable(null);
+        } else {
+          setSeatActionFeedback({
+            success: false,
+            message: e?.message || 'Error al conectar con la sala de juego.',
+          });
+        }
+      } finally {
+        isStartingTableRef.current = false;
+        setIsStartingTable(false);
+      }
+    },
+    [user?.id]
+  );
+
+  // Auto-inicio de partida cuando la mesa alcanza los jugadores requeridos (Flujo Juega Ya / Sala)
+  useEffect(() => {
+    if (!activeTable || inGameData || isStartingTable) return;
+    if (!user?.id) return;
+
+    const isHost =
+      activeTable.hostUserId === user.id || (activeTable as any).createdBy === user.id;
+    if (!isHost) return;
+
+    // Bingo y Polla tienen flujos de venta y salas independientes
+    if (activeTable.gameType === 'bingo' || (activeTable.gameType as string) === 'polla' || activeTable.gameType === 'polla_venezolana') return;
+
+    const minReq = activeTable.minPlayers || 2;
+    const unique = Array.from(
+      new Map(
+        tablePlayers
+          .filter((p) => p.status !== 'LEFT')
+          .map((p) => [(p.userId || '').toLowerCase(), p])
+      ).values()
+    );
+
+    if (unique.length >= minReq) {
+      console.log('[TablesView] Mesa lista con jugadores completos, auto-iniciando partida...', {
+        tableId: activeTable.id,
+        playersCount: unique.length,
+      });
+      const timer = setTimeout(() => {
+        handleStartGameAsHost(activeTable, tablePlayers);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTable, tablePlayers, inGameData, isStartingTable, user?.id, handleStartGameAsHost]);
+
   useEffect(() => {
     if (!activeTable) return;
 
@@ -453,8 +658,8 @@ export function TablesView() {
           if (!effectiveSession) {
             effectiveSession = await GameRepository.getActiveSession(targetTable.id);
             if (!effectiveSession) {
-              for (let att = 0; att < 3; att++) {
-                await new Promise((r) => setTimeout(r, 250));
+              for (let att = 0; att < 8; att++) {
+                await new Promise((r) => setTimeout(r, 250 + att * 100));
                 if (!isMounted || inGameDataRef.current) return;
                 effectiveSession = await GameRepository.getActiveSession(targetTable.id);
                 if (effectiveSession) break;
@@ -489,7 +694,7 @@ export function TablesView() {
           // Si el jugador está jugando dentro de GameContainer (inGameData activo),
           // GameContainer maneja la pantalla de juego y el modal de resultados/liquidación.
           // Solo limpiamos si el usuario aún está en la vista del lobby de la mesa.
-          if (!inGameDataRef.current) {
+          if (tablePayload.new.id === activeTable.id && !inGameDataRef.current) {
             setActiveTable(null);
             setInGameData(null);
             setSeatActionFeedback({
@@ -500,6 +705,10 @@ export function TablesView() {
         } else {
           const updatedTable = { ...activeTable, ...tablePayload.new };
           setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
+
+          if (newStatus === 'FULL') {
+            loadTablePlayers(activeTable.id);
+          }
 
           const isPlayable = ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(newStatus);
           if (isPlayable && !inGameDataRef.current) {
@@ -1211,76 +1420,9 @@ export function TablesView() {
                             size="sm"
                             leftIcon={<Play className="w-4 h-4 fill-current" />}
                             disabled={!canStart || isStartingTable}
-                            onClick={async () => {
+                            onClick={() => {
                               if (!user || !canStart || isStartingTable) return;
-                              try {
-                                setIsStartingTable(true);
-                                let initialEngineState: any = {};
-                                if (activeTable.gameType === 'atrapaito') {
-                                  const isOnline = !activeTable.config?.isPractice && !activeTable.id.startsWith('practice_') && activeTable.entryFee > 0;
-                                  initialEngineState = {
-                                    bluePos: { col: 4, row: 14 },
-                                    redPos: { col: 3, row: 14 },
-                                    walls: [],
-                                    blueWalls: 10,
-                                    redWalls: 10,
-                                    turn: 'BLUE',
-                                    action: 'MOVE',
-                                    wallOrientation: 'HORIZONTAL',
-                                    pendingWall: null,
-                                    winner: null,
-                                    mode: isOnline ? 'ONLINE' : 'VS_AI',
-                                    isAiThinking: false,
-                                    consecutiveDraws: 0,
-                                    blueUserId: uniquePlayers[0]?.userId || null,
-                                    redUserId: uniquePlayers[1]?.userId || null,
-                                    currentTurnUserId: uniquePlayers[0]?.userId || null,
-                                    turnUserId: uniquePlayers[0]?.userId || null,
-                                    turnDurationSeconds: 15,
-                                    boardType: 'CRIOLLO_WALLS',
-                                  };
-                                } else {
-                                  const engine = getGameEngine(activeTable.gameType);
-                                  initialEngineState = engine.initialize(activeTable, uniquePlayers);
-                                }
-                                const turnDuration =
-                                  activeTable.gameType === 'chess'
-                                    ? 15
-                                    : (initialEngineState as any)?.turnDurationSeconds || 30;
-
-                                await TableRepository.startGameSession(
-                                  activeTable.id,
-                                  initialEngineState,
-                                  turnDuration
-                                );
-
-                                const activeSess = await GameRepository.getActiveSession(activeTable.id);
-
-                                setInGameData({
-                                  table: { ...activeTable, status: 'ACTIVE' },
-                                  players: uniquePlayers,
-                                  session: activeSess,
-                                });
-                                setActiveTable(null);
-                              } catch (e: any) {
-                                console.error('[TablesView] Error al iniciar sesión en el servidor:', e);
-                                const activeSess = await GameRepository.getActiveSession(activeTable.id);
-                                if (activeSess) {
-                                  setInGameData({
-                                    table: { ...activeTable, status: 'ACTIVE' },
-                                    players: uniquePlayers,
-                                    session: activeSess,
-                                  });
-                                  setActiveTable(null);
-                                } else {
-                                  alert(
-                                    e?.message ||
-                                      'No se pudo iniciar la partida en el servidor. Por favor verifica tu conexión e intenta nuevamente.'
-                                  );
-                                }
-                              } finally {
-                                setIsStartingTable(false);
-                              }
+                              handleStartGameAsHost(activeTable, uniquePlayers);
                             }}
                           >
                             {isStartingTable

@@ -259,6 +259,7 @@ function AppContent() {
             onOpenRules={handleOpenGameRules}
             onOpenSupport={() => setSupportModalOpen(true)}
             onSelectBingoVariant={(_variant, tableId) => {
+              sessionStorage.setItem('pending_open_table_id', tableId);
               setCurrentTab('tables');
               setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));
@@ -389,6 +390,7 @@ function AppContent() {
         onClose={() => setQuickMatchModalOpen(false)}
         onNavigateToTable={(tableId) => {
           setQuickMatchModalOpen(false);
+          sessionStorage.setItem('pending_open_table_id', tableId);
           setCurrentTab('tables');
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId } }));

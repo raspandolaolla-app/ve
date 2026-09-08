@@ -238,6 +238,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           onClose();
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'joined' });
+            sessionStorage.setItem('pending_open_table_id', res.table.id);
             if (onNavigateToTable) onNavigateToTable(res.table.id);
             window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
           }
@@ -250,6 +251,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           onClose();
           if (res.table?.id) {
             console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'created' });
+            sessionStorage.setItem('pending_open_table_id', res.table.id);
             if (onNavigateToTable) onNavigateToTable(res.table.id);
             window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
           }

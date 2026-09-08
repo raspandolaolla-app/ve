@@ -47,6 +47,12 @@ export class RealtimeManager {
     if (!supabase) return () => {};
 
     const channelName = `table_${tableId}`;
+    // Limpiar canal previo si ya existía para evitar listeners duplicados
+    const existing = supabase.getChannels().find((ch) => ch.topic === `realtime:${channelName}`);
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+
     const channel: RealtimeChannel = supabase
       .channel(channelName)
       .on(

@@ -2,11 +2,29 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 15:16:00 UTC (2026-09-08 08:16:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / GitHub Actions Run #817 PASS en Build y Deploy a GitHub Pages)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 15:35:00 UTC (2026-09-08 08:35:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS)
 ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-1. Estabilización y Reparación Definitiva de Conexión a Mesas, "Juega Ya" y Activación Multijugador:
+1. Estabilización Definitiva del Flujo Post-Matchmaking: JUEGA YA → MESA → PARTIDA (GameContainer):
+   - Mapeo de Identificador de Jugador en Unión por Código:
+     * En `TableRepository.joinTableByCode`, se corrigió la extracción de `tablePlayerId` para evaluar `data?.player_id || data?.table_player_id || data?.id`, asegurando que los consumidores del flujo reciban un identificador válido y no queden en estado indefinido.
+   - Prevención de Canales Duplicados en Realtime:
+     * En `RealtimeManager.subscribeToTable`, se incorporó la limpieza preventiva del canal antes de crear una nueva suscripción (`supabase.removeChannel`), evitando colisiones de eventos y fugas de memoria en cambios rápidos de estado.
+   - Persistencia y Recuperación Resiliente de Navegación (`pending_open_table_id`):
+     * En `App.tsx` y `QuickMatchModal.tsx`, se respalda el `tableId` en `sessionStorage` (`pending_open_table_id`) antes de disparar el evento de navegación.
+     * En `TablesView.tsx`, se procesa tanto el evento en vivo `open-table` como cualquier identificador pendiente almacenado en `sessionStorage` al montar, eliminando cualquier condición de carrera donde el evento de apertura se disparase antes de que el componente receptor estuviese completamente montado.
+   - Detección y Transición Directa a Partida en Vivo:
+     * En `TablesView.tsx` (`handleOpenTableById`), si la mesa ya se encuentra en estado jugable (`ACTIVE`, `READY`, `SALES`, `DRAWING`) o ya cuenta con una sesión activa en base de datos, el cliente transiciona directamente a `inGameData` y `GameContainer` sin detenerse en la vista intermedia del lobby.
+   - Inicio Canónico e Idempotente del Anfitrión (`handleStartGameAsHost`):
+     * Implementación centralizada e idempotente del arranque de partida como anfitrión. Antes de invocar la RPC de inicio, verifica `getActiveSession`; si la sesión ya existe, la reutiliza evitando duplicaciones.
+     * Vinculación del botón "INICIAR PARTIDA" a este método unificado, eliminando lógica dispersa.
+     * Incorporación de un efecto de auto-inicio en `TablesView.tsx` para mesas estándar (Trancaíto, Ajedrez, Tres en Raya, etc.) que dispara el arranque del anfitrión tan pronto como se completa el cupo mínimo requerido de jugadores.
+   - Resolución Robusta de Sesión para Jugadores Invitados en `GameContainer`:
+     * Se ampliaron los reintentos de resolución de sesión en `GameContainer.tsx` a 12 intentos con retroceso exponencial progresivo (hasta ~10 segundos).
+     * En caso de retardo extremo del anfitrión, el cliente invitado cuenta con un fallback autoritativo vía `GameRepository.createOrGetSession`, garantizando que ningún jugador quede atrapado en pantallas de espera o de error.
+
+2. Estabilización y Reparación Definitiva de Conexión a Mesas, "Juega Ya" y Activación Multijugador:
    - Diagnóstico y Prevención de HTTP 400 en `game_tables`:
      * Verificación del esquema físico de `game_tables` frente a consultas de `TableRepository`.
      * Las consultas de mesas públicas (`getPublicTables`, `getRecentTables`, `findOrCreateMatchmakingTable`) operan sobre columnas validadas en el esquema PostgreSQL (`status`, `visibility`, `entry_fee`, `is_private`, `is_password_protected`, etc.).

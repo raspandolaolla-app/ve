@@ -358,7 +358,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             );
           } else {
             console.log('[GameContainer] Jugador invitado esperando sesión activa del anfitrión...', { tableId: table.id });
-            for (let attempt = 0; attempt < 8; attempt++) {
+            for (let attempt = 0; attempt < 12; attempt++) {
               activeSession = await GameRepository.getActiveSession(table.id);
               if (activeSession) {
                 console.log('[GAME_CONTAINER_GUEST_RESOLVED_SESSION]', {
@@ -368,7 +368,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 });
                 break;
               }
-              await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+              await new Promise((r) => setTimeout(r, 250 + attempt * 100));
+            }
+
+            // Respaldo resiliente: si el anfitrión aún no inició pero ambos jugadores están en sala
+            if (!activeSession && !isPractice) {
+              console.warn('[GameContainer] Sesión no encontrada tras sondeo de espera, resolviendo de respaldo...', { tableId: table.id });
+              activeSession = await GameRepository.createOrGetSession(
+                table.id,
+                table.gameType,
+                initialEngineState,
+                canonicalInitialTurnId
+              );
             }
           }
         }

@@ -349,13 +349,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               isSettled: false,
               currentState: initialEngineState,
             };
-          } else {
+          } else if (isHostUser) {
             activeSession = await GameRepository.createOrGetSession(
               table.id,
               table.gameType,
               initialEngineState,
               canonicalInitialTurnId
             );
+          } else {
+            console.log('[GameContainer] Jugador invitado esperando sesión activa del anfitrión...', { tableId: table.id });
+            for (let attempt = 0; attempt < 8; attempt++) {
+              activeSession = await GameRepository.getActiveSession(table.id);
+              if (activeSession) {
+                console.log('[GAME_CONTAINER_GUEST_RESOLVED_SESSION]', {
+                  sessionId: activeSession.id,
+                  tableId: table.id,
+                  attempt: attempt + 1,
+                });
+                break;
+              }
+              await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+            }
           }
         }
 
@@ -637,18 +651,34 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           if (payload.eventType === 'DELETE') return;
           const updated = payload.new as any;
           if (updated) {
-            setSession((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    currentTurnUserId: updated.current_turn_user_id || prev.currentTurnUserId,
-                    turnExpiresAt: updated.turn_deadline_at || prev.turnExpiresAt,
-                    currentState: updated.current_state || prev.currentState,
-                    status: updated.status || prev.status,
-                    winnerUserId: updated.winner_user_id || prev.winnerUserId,
-                  }
-                : prev
-            );
+            setSession((prev) => {
+              if (!prev) {
+                return {
+                  id: updated.id,
+                  tableId: updated.table_id,
+                  gameType: updated.game_type,
+                  roundNumber: updated.session_number || 1,
+                  currentTurnUserId: updated.current_turn_user_id || undefined,
+                  turnExpiresAt: updated.turn_deadline_at || updated.turn_expires_at || undefined,
+                  status: updated.status,
+                  grossPool: updated.gross_pool || 0,
+                  winnerPrizeAmount: updated.prize_pool || 0,
+                  serviceFeeAmount: updated.platform_fee || 0,
+                  isSettled: updated.status === 'SETTLED' || Boolean(updated.is_settled),
+                  winnerUserId: updated.winner_user_id || undefined,
+                  currentState: updated.current_state || {},
+                };
+              }
+              return {
+                ...prev,
+                currentTurnUserId: updated.current_turn_user_id || prev.currentTurnUserId,
+                turnExpiresAt: updated.turn_deadline_at || updated.turn_expires_at || prev.turnExpiresAt,
+                currentState: updated.current_state || prev.currentState,
+                status: updated.status || prev.status,
+                winnerUserId: updated.winner_user_id || prev.winnerUserId,
+              };
+            });
+            setErrorMsg(null);
           }
 
           if (updated?.current_state) {

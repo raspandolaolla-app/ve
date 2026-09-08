@@ -2,11 +2,51 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 05:15:00 UTC (2026-09-07 22:15:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / GitHub Actions Run #815 PASS en Build y Deploy a GitHub Pages)
-ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 15:00:00 UTC (2026-09-08 08:00:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
+ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-1. Corrección Forense de Desincronización de Temporizadores y Carrera en TIMEOUT Multijugador:
+1. Estabilización y Reparación Definitiva de Conexión a Mesas, "Juega Ya" y Activación Multijugador:
+   - Diagnóstico y Prevención de HTTP 400 en `game_tables`:
+     * Verificación del esquema físico de `game_tables` frente a consultas de `TableRepository`.
+     * Las consultas de mesas públicas (`getPublicTables`, `getRecentTables`, `findOrCreateMatchmakingTable`) operan sobre columnas validadas en el esquema PostgreSQL (`status`, `visibility`, `entry_fee`, `is_private`, `is_password_protected`, etc.).
+   - Asignación Atómica de Puestos en Matchmaking ("Juega Ya"):
+     * En `TableRepository.findOrCreateMatchmakingTable`, se corrigió la unión a mesas compatibles para no calcular el asiento en el cliente (`seatNumber = null`).
+     * `join_table_transaction` en PostgreSQL asigna atómicamente el primer puesto libre bajo bloqueo `FOR UPDATE`, eliminando por completo colisiones y carreras en el frontend.
+   - Separación Canónica Host vs Invitado en el Arranque de Partida:
+     * El anfitrión es el único autorizado para invocar `TableRepository.startGameSession` / `start_game_session_secure`.
+     * Los invitados esperan la sesión activa mediante Supabase Realtime (`game_sessions`) o la consultan con `getActiveSession()` con retroceso progresivo.
+     * En `GameRepository.executeCreateOrGetSession`, los errores semánticos (`ONLY_HOST_CAN_START`, `GAME_DISABLED`, `NOT_AUTHORIZED`, `NO_AUTORIZADO`, `JUGADORES_INSUFICIENTES`) se identifican de inmediato y NO disparan bucles de reintento inútiles; el cliente verifica inmediatamente si la sesión ya fue creada por el host.
+   - Estabilización del Temporizador de Turno (`TurnTimer.tsx`):
+     * Se desacopló `onTimeout` del array de dependencias del efecto del temporizador utilizando `useRef`, evitando parpadeos, reinicios o cancelaciones de intervalos causados por re-renders del componente padre.
+   - Transición de Vista en `TablesView.tsx`:
+     * El botón "ENTRAR A LA PARTIDA" para jugadores invitados ahora resuelve activamente la sesión activa del servidor (`getActiveSession`) antes de navegar a `GameContainer`, asegurando que `inGameData` contenga la sesión autoritativa y los turnos iniciales sincronizados.
+   - Blindaje contra Abandonos Involuntarios:
+     * Confirmación de que `useGameAbandonment` solo se ejecuta ante confirmación manual del usuario en el modal y nunca en hooks de desmontaje o transiciones de ruta.
+
+2. Estabilización Definitiva del Flujo Multijugador "JUGAR YA" e Inicio de Partida (Host y Non-Host):
+   - Flujo de Resolución de Sesión No-Host:
+     * Los jugadores no-host ya NO invocan `createOrGetSession` ni `start_game_session_secure` en `GameContainer.tsx`.
+     * El jugador invitado ahora consulta `GameRepository.getActiveSession` con reintentos progresivos y retroceso exponencial (hasta 8 intentos espaciados en 250ms), esperando que la sesión creada por el anfitrión esté disponible.
+     * Prevención de Errores PostgREST: Se añadió `.limit(1)` a la consulta `getActiveSession` en `GameRepository.ts` antes de `.maybeSingle()` para prevenir excepciones PGRST116 en caso de múltiples registros históricos.
+   - Sincronización Realtime e Inicialización de Sesión:
+     * En `GameContainer.tsx`, se corrigió la función `setSession` dentro del listener de cambios de `game_sessions`. Anteriormente, si `prev` era nulo al montar el componente, `setSession((prev) => prev ? { ... } : prev)` conservaba el estado en `null`, dejando al jugador no-host bloqueado permanentemente en la pantalla de espera. Ahora se inicializa correctamente la instancia completa de `GameSession`.
+   - Transición Fluida en `TablesView.tsx`:
+     * En `checkAndEnterGame`, si `sessionData` no está disponible en el evento de cambio de mesa (`tablePayload`), se consulta activamente `getActiveSession` con reintentos antes de montar `inGameData`, garantizando que ambos jugadores ingresen a `GameContainer` con la sesión y los turnos sincronizados de forma autoritativa.
+     * Mapeo canónico exacto de columnas de base de datos (`session_number`, `turn_deadline_at`, `prize_pool`, `is_settled`).
+   - Trazabilidad y Telemetría:
+     * Instrumentación de logs de diagnóstico (`[JUGAR_YA_CLICK]`, `[MATCHMAKING_START]`, `[MATCHMAKING_SEARCHING]`, `[MATCHMAKING_COMPATIBLE_FOUND]`, `[MATCHMAKING_JOINING]`, `[GAME_CONTAINER_GUEST_RESOLVED_SESSION]`).
+   - Causa Raíz Identificada y Corregida: En la base de datos de producción (`public.game_configurations`), 8 de los 10 juegos estaban deshabilitados con flags `enabled = false` e `is_active = false` (motivos '123' y 'PRUEBA'). Esto provocaba que las RPCs `create_game_table_secure` y `join_table_transaction` abortaran inmediatamente con la excepción `GAME_DISABLED`, y que `get_public_available_tables` devolviera listas vacías, rompiendo por completo el flujo de creación y unión a mesas.
+   - Corrección de Configuración: Se re-habilitaron el 100% de los juegos en `public.game_configurations` (`enabled = true`, `is_active = true`, `maintenance_mode = false`), restableciendo la disponibilidad operativa del catálogo.
+   - Instrumentación Completa de Trazabilidad y Telemetría en el Flujo "JUGAR YA":
+     * `src/components/layout/BottomNavigation.tsx`: Etiqueta `[JUGAR_YA_CLICK]` en el botón central.
+     * `src/App.tsx`: Etiqueta `[JUGAR_YA_CLICK]` en el listener global `open-quick-match`.
+     * `src/features/tables/TablesView.tsx`: Etiquetas `[JUGAR_YA_CLICK]`, `[TABLE_OPEN_EVENT]` y `[TABLE_ACTIVATED]`.
+     * `src/components/common/QuickMatchModal.tsx`: Etiquetas diagnósticas `[MATCHMAKING_START]`, `[MATCHMAKING_COMPLETE]`, `[MATCHMAKING_NAVIGATING_TABLE]` y `[MATCHMAKING_ERROR]`.
+     * `src/services/repositories/TableRepository.ts`: Etiquetas `[JOIN_TABLE_DIAGNOSTIC]`, `[JOIN_TABLE_RESULT]`, `[CREATE_TABLE_DIAGNOSTIC]`, `[CREATE_TABLE_RESULT]`, `[MATCHMAKING_SEARCHING]`, `[MATCHMAKING_COMPATIBLE_FOUND]`, `[MATCHMAKING_JOINING]`, `[MATCHMAKING_JOIN_RESULT]`, y `[MATCHMAKING_CREATING_NEW]`.
+   - Verificación de Integridad: Compilación y linter validados (`tsc --noEmit` y `npm run build` PASS, 0 errores).
+
+2. Corrección Forense de Desincronización de Temporizadores y Carrera en TIMEOUT Multijugador:
    - Diagnóstico: Al vencer el contador de turno, `TurnTimer` se reiniciaba visualmente con parpadeos y disparaba `onTimeout` simultáneamente en los navegadores de ambos jugadores, provocando carreras concurrentes en la RPC `execute_bot_move_on_timeout` / `expireTurn` y desincronizaciones en el estado del tablero.
    - `TurnTimer.tsx`:
      * Clave Canónica de Turno (`timerKey`): Calculada a partir de `sessionId`, `currentTurnUserId` y `turnExpiresAt`. El temporizador y el flag `hasTriggeredRef` se resetean limpiamente únicamente cuando cambia el turno real.

@@ -157,6 +157,15 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
 
   // Iniciar Emparejamiento Real (Server-Authoritative)
   const handleStartMatchmaking = async () => {
+    console.info('[MATCHMAKING_START]', {
+      gameId: selectedGameMeta?.id,
+      gameName: selectedGameMeta?.name,
+      fee: selectedFee,
+      isAuthenticated,
+      availableBalance,
+      timestamp: new Date().toISOString(),
+    });
+
     if (!selectedGameMeta) {
       setError('Por favor selecciona un juego válido.');
       return;
@@ -199,6 +208,13 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
         userAvatarUrl,
       });
 
+      console.info('[MATCHMAKING_COMPLETE]', {
+        action: res.action,
+        tableId: res.table?.id,
+        tableName: res.table?.name,
+        message: res.message,
+      });
+
       if (isCancelledRef.current) {
         return;
       }
@@ -210,6 +226,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           setIsSearching(false);
           onClose();
           if (res.table?.id && onNavigateToTable) {
+            console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'practice' });
             onNavigateToTable(res.table.id);
           }
         }, 400);
@@ -220,6 +237,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           setIsSearching(false);
           onClose();
           if (res.table?.id) {
+            console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'joined' });
             if (onNavigateToTable) onNavigateToTable(res.table.id);
             window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
           }
@@ -231,6 +249,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
           setIsSearching(false);
           onClose();
           if (res.table?.id) {
+            console.info('[MATCHMAKING_NAVIGATING_TABLE]', { tableId: res.table.id, action: 'created' });
             if (onNavigateToTable) onNavigateToTable(res.table.id);
             window.dispatchEvent(new CustomEvent('open-table', { detail: { tableId: res.table.id } }));
           }
@@ -238,6 +257,7 @@ export const QuickMatchModal: React.FC<QuickMatchModalProps> = ({
       }
     } catch (err: any) {
       if (isCancelledRef.current) return;
+      console.error('[MATCHMAKING_ERROR]', err);
       console.error('[QuickMatchModal] Error en emparejamiento:', err);
       setIsSearching(false);
       setError(sanitizeUserErrorMessage(err, 'No fue posible completar el emparejamiento. Intenta de nuevo.'));

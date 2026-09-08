@@ -140,6 +140,7 @@ export function TablesView() {
   // Exponer control del modal de Partida Rápida al padre
   useEffect(() => {
     const handleOpenQuickMatch = () => {
+      console.info('[JUGAR_YA_CLICK]', { source: 'open-quick-match_event', timestamp: new Date().toISOString() });
       setShowMatchmakingModal(true);
     };
     window.addEventListener('open-quick-match', handleOpenQuickMatch);
@@ -150,9 +151,16 @@ export function TablesView() {
   useEffect(() => {
     const handleOpenTable = async (e: any) => {
       const tableId = e.detail?.tableId;
+      console.info('[TABLE_OPEN_EVENT]', { tableId, timestamp: new Date().toISOString() });
       if (tableId) {
         const table = await TableRepository.getTableById(tableId);
         if (table) {
+          console.info('[TABLE_ACTIVATED]', {
+            tableId: table.id,
+            status: table.status,
+            players: table.currentPlayersCount,
+            name: table.name,
+          });
           setActiveTable(table);
         }
       }
@@ -437,13 +445,33 @@ export function TablesView() {
         if (!freshPlayers || freshPlayers.length === 0) {
           freshPlayers = tablePlayers;
         }
-        if (!isMounted) return;
-        const isSeated = freshPlayers.some((p) => (p.userId || '').toLowerCase() === (user?.id || '').toLowerCase() && p.status !== 'LEFT');
+        if (!isMounted || inGameDataRef.current) return;
+        const currentUserId = (user?.id || '').toLowerCase();
+        const isSeated = !currentUserId || freshPlayers.some((p) => (p.userId || '').toLowerCase() === currentUserId && p.status !== 'LEFT');
         if (isSeated) {
+          let effectiveSession = sessionData;
+          if (!effectiveSession) {
+            effectiveSession = await GameRepository.getActiveSession(targetTable.id);
+            if (!effectiveSession) {
+              for (let att = 0; att < 3; att++) {
+                await new Promise((r) => setTimeout(r, 250));
+                if (!isMounted || inGameDataRef.current) return;
+                effectiveSession = await GameRepository.getActiveSession(targetTable.id);
+                if (effectiveSession) break;
+              }
+            }
+          }
+          if (inGameDataRef.current) return;
+          console.log('[TablesView] Transicionando a GameContainer:', {
+            tableId: targetTable.id,
+            playersCount: freshPlayers.length,
+            hasSession: Boolean(effectiveSession),
+            sessionId: effectiveSession?.id,
+          });
           setInGameData({
-            table: targetTable,
+            table: { ...targetTable, status: 'ACTIVE' },
             players: freshPlayers,
-            session: sessionData,
+            session: effectiveSession,
           });
           setActiveTable(null);
         }
@@ -497,14 +525,14 @@ export function TablesView() {
             id: raw.id,
             tableId: raw.table_id,
             gameType: raw.game_type,
-            roundNumber: raw.round_number || 1,
+            roundNumber: raw.session_number || raw.round_number || 1,
             currentTurnUserId: raw.current_turn_user_id || undefined,
-            turnExpiresAt: raw.turn_expires_at || raw.turn_deadline_at || undefined,
+            turnExpiresAt: raw.turn_deadline_at || raw.turn_expires_at || undefined,
             status: raw.status,
             grossPool: raw.gross_pool || 0,
-            winnerPrizeAmount: raw.winner_prize_amount || 0,
-            serviceFeeAmount: raw.service_fee_amount || 0,
-            isSettled: raw.is_settled || false,
+            winnerPrizeAmount: raw.prize_pool || raw.winner_prize_amount || 0,
+            serviceFeeAmount: raw.platform_fee || raw.service_fee_amount || 0,
+            isSettled: raw.status === 'SETTLED' || Boolean(raw.is_settled),
             winnerUserId: raw.winner_user_id || undefined,
             currentState: raw.current_state || {},
           };
@@ -801,6 +829,7 @@ export function TablesView() {
             variant="secondary"
             size="sm"
             onClick={() => {
+              console.info('[JUGAR_YA_CLICK]', { source: 'tables_view_header', timestamp: new Date().toISOString() });
               setShowMatchmakingModal(true);
             }}
             leftIcon={<Zap className="w-4 h-4 text-amber-400" />}
@@ -1276,11 +1305,13 @@ export function TablesView() {
                               !userAlreadySeated ||
                               !['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
                             }
-                            onClick={() => {
+                            onClick={async () => {
                               if (!user) return;
+                              const activeSess = await GameRepository.getActiveSession(activeTable.id);
                               setInGameData({
-                                table: activeTable,
+                                table: { ...activeTable, status: 'ACTIVE' },
                                 players: uniquePlayers,
+                                session: activeSess || undefined,
                               });
                               setActiveTable(null);
                             }}

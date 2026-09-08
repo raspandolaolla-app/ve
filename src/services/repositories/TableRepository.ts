@@ -483,10 +483,22 @@ export class TableRepository {
       return { success: false, error: 'El servicio no está disponible temporalmente' };
     }
 
+    console.info('[JOIN_TABLE_DIAGNOSTIC]', {
+      tableId,
+      seatNumber,
+      idempotencyKey,
+    });
+
     const { data, error } = await supabase.rpc('join_table_transaction', {
       p_table_id: tableId,
       p_seat_number: seatNumber,
       p_idempotency_key: idempotencyKey,
+    });
+
+    console.info('[JOIN_TABLE_RESULT]', {
+      success: !error,
+      data,
+      error: error?.message,
     });
 
     if (error) {
@@ -979,8 +991,21 @@ export class TableRepository {
       },
     };
 
+    console.info('[CREATE_TABLE_DIAGNOSTIC]', {
+      dbGameType,
+      tableName,
+      entryFeeNum,
+      rpcPayload,
+    });
+
     // Invocar exclusivamente la RPC segura create_game_table_secure con soporte de Self-Healing
     let { data: rpcData, error: rpcError } = await supabase.rpc('create_game_table_secure', rpcPayload);
+
+    console.info('[CREATE_TABLE_RESULT]', {
+      success: !rpcError,
+      tableId: rpcData?.table_id || rpcData?.id,
+      error: rpcError?.message,
+    });
 
     // Si detecta bloqueo por participación previa o registros huérfanos, aplicar auto-limpieza
     if (rpcError && (
@@ -1266,6 +1291,14 @@ export class TableRepository {
 
     // Partida Real: Buscar mesas públicas abiertas compatibles
     try {
+      console.info('[MATCHMAKING_SEARCHING]', {
+        gameType,
+        entryFee,
+        maxPlayers,
+        mode,
+        currentUserId,
+      });
+
       const availableTables = await TableRepository.getPublicTables(gameType);
       const compatibleTable = availableTables.find((t) => {
         if (t.gameType !== gameType) return false;
@@ -1277,20 +1310,40 @@ export class TableRepository {
       });
 
       if (compatibleTable) {
-        const nextSeat = compatibleTable.currentPlayersCount + 1;
+        console.info('[MATCHMAKING_COMPATIBLE_FOUND]', {
+          tableId: compatibleTable.id,
+          name: compatibleTable.name,
+          currentPlayers: compatibleTable.currentPlayersCount,
+          maxPlayers: compatibleTable.maxPlayers,
+        });
+
         const idempotencyKey = `mm_join_${compatibleTable.id}_${currentUserId}_${Date.now()}`;
-        const joinRes = await TableRepository.joinTable(compatibleTable.id, nextSeat, idempotencyKey);
+
+        console.info('[MATCHMAKING_JOINING]', {
+          tableId: compatibleTable.id,
+          seatNumber: null, // Asignación atómica en PostgreSQL por join_table_transaction
+          idempotencyKey,
+        });
+
+        // Pasar null para que join_table_transaction asigne el asiento libre atómicamente en PostgreSQL
+        const joinRes = await TableRepository.joinTable(compatibleTable.id, null, idempotencyKey);
+        console.info('[MATCHMAKING_JOIN_RESULT]', joinRes);
 
         if (joinRes.success) {
           const updatedPlayers = await TableRepository.getTablePlayers(compatibleTable.id);
+          const assignedSeat =
+            joinRes.seatNumber ||
+            updatedPlayers.find((p) => p.userId === currentUserId)?.seatNumber ||
+            2;
           return {
             table: {
               ...compatibleTable,
-              currentPlayersCount: compatibleTable.currentPlayersCount + 1,
+              currentPlayersCount:
+                updatedPlayers.length || (compatibleTable.currentPlayersCount + 1),
             },
             players: updatedPlayers,
             action: 'joined',
-            message: `¡Emparejado con éxito en la mesa "${compatibleTable.name}"!`,
+            message: `¡Emparejado con éxito en la mesa "${compatibleTable.name}" (Asiento ${assignedSeat})!`,
           };
         }
       }
@@ -1300,6 +1353,12 @@ export class TableRepository {
 
     // Si no se encontró o falló la unión, crear nueva mesa
     const effectiveMode = mode || (maxPlayers === 4 ? '2v2' : '1v1');
+    console.info('[MATCHMAKING_CREATING_NEW]', {
+      gameType,
+      entryFee,
+      maxPlayers,
+      effectiveMode,
+    });
     const newTable = await TableRepository.createTable({
       gameType,
       name: `Mesa Rápida de ${getGameDisplayName(gameType)}`,

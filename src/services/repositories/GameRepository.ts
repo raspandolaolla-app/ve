@@ -87,6 +87,7 @@ export class GameRepository {
       .eq('table_id', tableId)
       .in('status', ['WAITING', 'READY', 'ACTIVE', 'SALES', 'DRAWING'])
       .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) {
@@ -211,25 +212,32 @@ export class GameRepository {
       });
 
       if (rpcError) {
-        if (rpcError.code === 'PGRST202') {
-          console.error('[GAME_START_RPC_NOT_FOUND]', {
-            code: rpcError.code,
-            message: rpcError.message,
-            tableId,
-            gameType,
-          });
-        } else if (
+        const isSemanticError =
           rpcError.code === '42501' ||
+          rpcError.code === 'PGRST202' ||
           rpcError.message?.includes('permission') ||
           rpcError.message?.includes('AUTH_REQUIRED') ||
-          rpcError.message?.includes('ONLY_HOST_CAN_START')
-        ) {
-          console.error('[GAME_START_RPC_PERMISSION_ERROR]', {
+          rpcError.message?.includes('ONLY_HOST_CAN_START') ||
+          rpcError.message?.includes('GAME_DISABLED') ||
+          rpcError.message?.includes('INVALID_TABLE') ||
+          rpcError.message?.includes('NOT_AUTHORIZED') ||
+          rpcError.message?.includes('NO_AUTORIZADO') ||
+          rpcError.message?.includes('JUGADORES_INSUFICIENTES');
+
+        if (isSemanticError) {
+          console.error('[GAME_START_RPC_SEMANTIC_ERROR]', {
             code: rpcError.code,
             message: rpcError.message,
             tableId,
             gameType,
           });
+          // Para errores semánticos, comprobar si ya existe sesión autoritativa creada concurrentemente
+          const immediateCheck = await this.getActiveSession(tableId);
+          if (immediateCheck) {
+            return immediateCheck;
+          }
+          // No reintentar ante errores semánticos como ONLY_HOST_CAN_START o GAME_DISABLED
+          return null;
         } else {
           console.error('[GAME_START_RPC_ERROR]', {
             code: rpcError.code,
@@ -239,8 +247,8 @@ export class GameRepository {
           });
         }
 
-        // Si falló por concurrencia, permisos de host o ya existía, comprobar de nuevo la base de datos con reintentos progresivos
-        for (let attempt = 0; attempt < 5; attempt++) {
+        // Si falló por error transitorio o concurrencia de red, comprobar con reintentos progresivos
+        for (let attempt = 0; attempt < 4; attempt++) {
           const doubleCheck = await this.getActiveSession(tableId);
           if (doubleCheck) {
             console.log('[GAME_START_RPC_SUCCESS]', {
@@ -251,7 +259,7 @@ export class GameRepository {
             });
             return doubleCheck;
           }
-          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
         }
 
         // CASO C: Error crítico de RPC/infraestructura -> PROHIBIDO insertar o fabricar sesión cliente

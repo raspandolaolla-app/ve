@@ -88,6 +88,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             <button
               id="bottom-nav-quick-match"
               onClick={() => {
+                console.info('[JUGAR_YA_CLICK]', {
+                  source: 'bottom_navigation',
+                  timestamp: new Date().toISOString(),
+                });
                 if (onOpenQuickMatch) {
                   onOpenQuickMatch();
                 } else {

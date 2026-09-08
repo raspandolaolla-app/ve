@@ -31,6 +31,11 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   const [remaining, setRemaining] = useState<number>(durationSeconds);
   const timedOutRef = useRef(false);
   const lastFiredExpiresAtRef = useRef<string | null>(null);
+  const onTimeoutRef = useRef(onTimeout);
+
+  useEffect(() => {
+    onTimeoutRef.current = onTimeout;
+  }, [onTimeout]);
 
   // timerKey único conceptual para cancelar y reiniciar ante cualquier cambio de turno o deadline
   const timerKey = `${sessionId || 'session'}_${currentTurnUserId || 'user'}_${turnExpiresAt || 'expires'}`;
@@ -93,7 +98,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
         lastFiredExpiresAtRef.current = timerKey;
         if (isMyTurn) {
           console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
-          onTimeout?.();
+          onTimeoutRef.current?.();
         } else {
           console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
         }
@@ -112,7 +117,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
         clearInterval(interval);
         if (isMyTurn) {
           console.warn('[TURN_TIMER_FIRE]', { timerKey, action: 'TRIGGER_TIMEOUT' });
-          onTimeout?.();
+          onTimeoutRef.current?.();
         } else {
           console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
         }
@@ -123,7 +128,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       console.log('[TURN_TIMER_CANCEL]', { timerKey });
       clearInterval(interval);
     };
-  }, [timerKey, turnExpiresAt, currentTurnUserId, isMyTurn, durationSeconds, status, onTimeout]);
+  }, [timerKey, turnExpiresAt, currentTurnUserId, isMyTurn, durationSeconds, status]);
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;

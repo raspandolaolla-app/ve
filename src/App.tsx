@@ -154,6 +154,7 @@ function AppContent() {
       if (tab) setCurrentTab(tab);
     };
     const handleOpenQuickMatchEvent = () => {
+      console.info('[JUGAR_YA_CLICK]', { source: 'app_quick_match_event', timestamp: new Date().toISOString() });
       setQuickMatchModalOpen(true);
     };
 

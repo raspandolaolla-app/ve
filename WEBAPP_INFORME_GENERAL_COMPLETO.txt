@@ -3,7 +3,7 @@ INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
 FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 05:15:00 UTC (2026-09-07 22:15:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / GitHub Actions Run #815 PASS en Build y Deploy a GitHub Pages)
 ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
 1. Corrección Forense de Desincronización de Temporizadores y Carrera en TIMEOUT Multijugador:

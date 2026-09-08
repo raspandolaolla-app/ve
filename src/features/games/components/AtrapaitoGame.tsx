@@ -984,7 +984,7 @@ export const AtrapaitoGame: React.FC<AtrapaitoGameProps> = ({
         statusMsg: isAbandonWin
           ? '¡Tu rival ha abandonado la partida! Has ganado.'
           : (isWinner
-            ? '¡Ganaste la partida! Pozo neto 90% acreditado.'
+            ? '¡Ganaste la partida! Liquidando resultado oficial...'
             : 'Partida finalizada. Tu rival ha ganado la partida.'),
         winReason: isAbandonWin
           ? '¡Victoria por abandono del rival!'

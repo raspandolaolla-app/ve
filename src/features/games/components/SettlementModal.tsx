@@ -4,7 +4,7 @@
 
 import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, XCircle, ShieldCheck, ArrowRight, RotateCcw, Eye, Home } from 'lucide-react';
+import { Trophy, XCircle, ShieldCheck, RotateCcw, Eye, Home, AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatBolivares } from '../../../utils/formatters';
 import { AdPlacementContainer } from '../../../components/advertising/AdPlacementContainer';
 
@@ -13,6 +13,10 @@ interface SettlementModalProps {
   winnerName: string;
   isWinner: boolean;
   isDraw?: boolean;
+  isSuccess?: boolean;
+  settlementError?: string | null;
+  isSettling?: boolean;
+  onRetry?: () => void;
   grossPool: number;
   prizePool: number;
   platformFee: number;
@@ -28,6 +32,10 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
   winnerName,
   isWinner,
   isDraw = false,
+  isSuccess,
+  settlementError,
+  isSettling = false,
+  onRetry,
   grossPool,
   prizePool,
   platformFee,
@@ -44,23 +52,34 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
         winnerName,
         isWinner,
         isDraw,
+        isSuccess,
         grossPool,
         prizePool,
         scoreSummary,
       });
     }
-  }, [isOpen, gameType, winnerName, isWinner, isDraw, grossPool, prizePool, scoreSummary]);
+  }, [isOpen, gameType, winnerName, isWinner, isDraw, isSuccess, grossPool, prizePool, scoreSummary]);
 
   if (!isOpen) return null;
 
-  // Determinar los textos e indicadores canónicos
-  const titleText = isDraw 
+  const isFailedSettlement = isSuccess === false;
+
+  // Determinar los textos e indicadores canónicos sin inventar estados
+  const titleText = isFailedSettlement
+    ? isDraw
+      ? '🤝 ¡Partida Empatada!'
+      : isWinner
+      ? '🏆 ¡Victoria en el Tablero!'
+      : '❌ Partida Finalizada'
+    : isDraw 
     ? '🤝 ¡Empate!' 
     : isWinner 
     ? '🏆 ¡Ganador!' 
     : '❌ Perdiste';
 
-  const subtitleText = isDraw
+  const subtitleText = isFailedSettlement
+    ? (settlementError || 'No fue posible completar la liquidación de inmediato. Tu saldo permanece protegido por el sistema.')
+    : isDraw
     ? 'Ningún jugador logró la victoria de la mesa. Reembolso del pozo completo acreditado.'
     : isWinner
     ? '🎉 ¡Felicitaciones! Has superado al oponente y asegurado el pozo de la mesa.'
@@ -81,14 +100,18 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
         <div className="flex flex-col items-center text-center mb-5">
           <div
             className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3.5 shadow-xl border ${
-              isDraw
+              isFailedSettlement
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 ring-2 ring-amber-500/20'
+                : isDraw
                 ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
                 : isWinner
                 ? 'bg-gradient-to-tr from-amber-500 to-yellow-400 text-neutral-950 border-amber-400 ring-4 ring-amber-400/20 animate-bounce'
                 : 'bg-red-500/10 text-red-400 border-red-500/30 ring-2 ring-red-500/20'
             }`}
           >
-            {isDraw ? (
+            {isFailedSettlement ? (
+              <AlertTriangle className="w-8 h-8" />
+            ) : isDraw ? (
               <ShieldCheck className="w-8 h-8" />
             ) : isWinner ? (
               <Trophy className="w-8 h-8" />
@@ -100,7 +123,9 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
           <h3 
             id="settlement-modal-title"
             className={`text-2xl sm:text-3xl font-black tracking-tight uppercase ${
-              isDraw 
+              isFailedSettlement
+                ? 'text-amber-400'
+                : isDraw 
                 ? 'text-blue-400' 
                 : isWinner 
                 ? 'text-amber-400' 
@@ -168,14 +193,25 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
           </div>
 
           <div className="mt-2 pt-2 border-t border-neutral-800/40 flex items-start space-x-2 text-[10px] text-neutral-400 leading-relaxed">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-            <span>
-              {isDraw
-                ? 'Reembolso íntegro acreditado inmediatamente en tu billetera.'
-                : isWinner
-                ? 'Premio de victoria acreditado en tu disponible bajo contrato 90/10.'
-                : 'Liquidación oficial autoritativa completada por el sistema.'}
-            </span>
+            {isFailedSettlement ? (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span className="text-amber-300 font-medium">
+                  {settlementError || 'Liquidación financiera en proceso de verificación. Tu saldo retenido está protegido.'}
+                </span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <span>
+                  {isDraw
+                    ? 'Reembolso íntegro acreditado inmediatamente en tu billetera.'
+                    : isWinner
+                    ? 'Premio de victoria acreditado en tu disponible bajo contrato 90/10.'
+                    : 'Liquidación oficial autoritativa completada por el sistema.'}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -189,6 +225,18 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
 
         {/* Botones de Acción Canónicos */}
         <div className="flex flex-col gap-2">
+          {isFailedSettlement && onRetry && (
+            <button
+              id="settlement-btn-retry"
+              onClick={onRetry}
+              disabled={isSettling}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-neutral-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-amber-500/20 transition-all uppercase tracking-wider cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 shrink-0 ${isSettling ? 'animate-spin' : ''}`} />
+              <span>{isSettling ? 'Sincronizando billetera...' : '🔄 Reintentar liquidación'}</span>
+            </button>
+          )}
+
           {onPlayAgain && (
             <button
               id="settlement-btn-play-again"

@@ -10,6 +10,7 @@
 
 import { getSupabaseClient } from '../../../lib/supabase/client';
 import { logger } from '../../../utils/logger';
+import { sanitizeUserErrorMessage } from '../../../utils/errorSanitizer';
 import { AdminAuditRepository } from './AdminAuditRepository';
 import type {
   AdminDepositItem,
@@ -507,6 +508,58 @@ export class AdminFinancialRepository {
       }));
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Ejecuta la reconciliación forense de partidas concluidas no liquidadas.
+   */
+  public static async auditAndReconcileUnsettledSessions(
+    dryRun: boolean = true
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('audit_and_reconcile_unsettled_game_sessions', {
+        p_dry_run: dryRun,
+      });
+
+      if (error) {
+        logger.error('[AdminFinancialRepository] Error en auditoría de sesiones:', error.message);
+        return { success: false, error: sanitizeUserErrorMessage(error, 'Error al auditar sesiones') };
+      }
+
+      return { success: true, data };
+    } catch (err: unknown) {
+      logger.error('[AdminFinancialRepository] Excepción en auditoría de sesiones:', err);
+      return { success: false, error: 'Excepción de red al ejecutar auditoría forense' };
+    }
+  }
+
+  /**
+   * Ejecuta la reconciliación forense y liberación de retenciones huérfanas en wallets.
+   */
+  public static async auditAndReconcileOrphanTableHolds(
+    dryRun: boolean = true
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+
+    try {
+      const { data, error } = await supabase.rpc('audit_and_reconcile_orphan_table_holds', {
+        p_dry_run: dryRun,
+      });
+
+      if (error) {
+        logger.error('[AdminFinancialRepository] Error en auditoría de retenciones:', error.message);
+        return { success: false, error: sanitizeUserErrorMessage(error, 'Error al auditar retenciones') };
+      }
+
+      return { success: true, data };
+    } catch (err: unknown) {
+      logger.error('[AdminFinancialRepository] Excepción en auditoría de retenciones:', err);
+      return { success: false, error: 'Excepción de red al auditar retenciones huérfanas' };
     }
   }
 }

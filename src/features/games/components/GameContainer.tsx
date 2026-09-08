@@ -111,6 +111,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     setSettlementResult,
     isSettledRef,
     handleSettleGame,
+    retrySettlement,
   } = useGameSettlement({
     table,
     session,
@@ -789,8 +790,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 (updated.current_state as any)?.abandoned;
               if (isAbandonWin) {
                 setAbandonNotice('🏆 ¡Tu rival ha abandonado la partida! Has ganado.');
-              } else {
+              } else if (statusUpper === 'SETTLED') {
                 setAbandonNotice(`🏆 ¡Victoria declarada! Premio acreditado.`);
+              } else {
+                setAbandonNotice(`🏆 ¡Victoria declarada! Liquidando resultado oficial...`);
               }
             }
           }
@@ -1752,13 +1755,31 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         >
           <div className="flex items-center space-x-2.5 truncate">
             <span className="text-base shrink-0">
-              {settlementResult.isWinner ? '🏆' : settlementResult.isDraw ? '🤝' : '❌'}
+              {settlementResult.isSuccess === false
+                ? '⚠️'
+                : settlementResult.isWinner
+                ? '🏆'
+                : settlementResult.isDraw
+                ? '🤝'
+                : '❌'}
             </span>
             <div className="truncate">
               <span className={`text-xs font-black uppercase tracking-wider ${
-                settlementResult.isWinner ? 'text-amber-400' : settlementResult.isDraw ? 'text-blue-400' : 'text-red-400'
+                settlementResult.isSuccess === false
+                  ? 'text-amber-400'
+                  : settlementResult.isWinner
+                  ? 'text-amber-400'
+                  : settlementResult.isDraw
+                  ? 'text-blue-400'
+                  : 'text-red-400'
               }`}>
-                {settlementResult.isWinner ? '¡Ganaste la Partida!' : settlementResult.isDraw ? '¡Partida Empatada!' : 'Partida Finalizada — Perdiste'}
+                {settlementResult.isSuccess === false
+                  ? 'Partida Concluida — Liquidación en Verificación'
+                  : settlementResult.isWinner
+                  ? '¡Ganaste la Partida!'
+                  : settlementResult.isDraw
+                  ? '¡Partida Empatada!'
+                  : 'Partida Finalizada — Perdiste'}
               </span>
               <span className="hidden sm:inline text-neutral-400 text-xs ml-2">
                 (Ganador: <strong className="text-white">{settlementResult.winnerName}</strong>)
@@ -1793,6 +1814,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           winnerName={settlementResult.winnerName}
           isWinner={settlementResult.isWinner}
           isDraw={settlementResult.isDraw}
+          isSuccess={settlementResult.isSuccess}
+          settlementError={settlementResult.settlementError}
+          isSettling={isSettling}
+          onRetry={retrySettlement}
           grossPool={settlementResult.grossPool}
           prizePool={settlementResult.prizePool}
           platformFee={settlementResult.platformFee}

@@ -307,6 +307,39 @@ export class TableRepository {
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar salida de la mesa') };
     }
 
+    if (data && data.success === false) {
+      console.warn('[TableRepository] RPC abandon_game_table_secure retornó fallo:', data.error);
+      return { success: false, error: sanitizeUserErrorMessage(data.error, 'No fue posible completar la salida de la mesa') };
+    }
+
+    return { success: true, data };
+  }
+
+  /**
+   * Reembolsa íntegramente las compras de cartones para salas de Bingo canceladas o expiradas.
+   */
+  public static async refundBingoTable(
+    tableId: string,
+    reason?: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Conexión a base de datos no disponible' };
+
+    const { data, error } = await supabase.rpc('refund_bingo_table_secure', {
+      p_table_id: tableId,
+      p_reason: reason || 'Cancelación de sala de bingo',
+    });
+
+    if (error) {
+      console.error('[TableRepository] Error reembolsando mesa de bingo:', error.message);
+      return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar reembolso de bingo') };
+    }
+
+    if (data && data.success === false) {
+      console.warn('[TableRepository] RPC refund_bingo_table_secure retornó fallo:', data.error);
+      return { success: false, error: sanitizeUserErrorMessage(data.error, 'Error al procesar reembolso de bingo') };
+    }
+
     return { success: true, data };
   }
 

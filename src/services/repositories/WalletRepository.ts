@@ -104,6 +104,11 @@ export class WalletRepository {
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al solicitar retiro.') };
     }
 
+    if (data && data.success === false) {
+      console.warn('[WalletRepository] RPC request_withdrawal_locked retornó fallo:', data.error);
+      return { success: false, error: sanitizeUserErrorMessage(data.error, 'No fue posible procesar la solicitud de retiro.') };
+    }
+
     return {
       success: true,
       withdrawalId: data?.withdrawal_id,

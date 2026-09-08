@@ -750,6 +750,14 @@ export class GameRepository {
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al liquidar partida.') };
     }
 
+    if (data && data.success === false) {
+      console.error('[GameRepository] RPC universal_settle_game_session retornó fallo:', data.error);
+      return {
+        success: false,
+        error: sanitizeUserErrorMessage(data.error, 'No fue posible completar la liquidación de la partida.'),
+      };
+    }
+
     return {
       success: true,
       grossPool: Number(data?.gross_pool || 0),
@@ -784,6 +792,14 @@ export class GameRepository {
     if (error) {
       console.error('[GameRepository] Error reembolsando partida:', error.message);
       return { success: false, error: sanitizeUserErrorMessage(error, 'Error al procesar reembolso de partida.') };
+    }
+
+    if (data && data.success === false) {
+      console.error('[GameRepository] RPC refund_game_session retornó fallo:', data.error);
+      return {
+        success: false,
+        error: sanitizeUserErrorMessage(data.error, 'Error al procesar reembolso de partida.'),
+      };
     }
 
     return {

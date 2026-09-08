@@ -2,136 +2,49 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 11:40:00 -07:00 (UTC 2026-09-08 18:40:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / RESOLUCIÓN DEFINITIVA FIN DE PARTIDA PC-PWA COMPLETA)
-ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 12:30:00 -07:00 (UTC 2026-09-08 19:30:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / REMEDIACIÓN FINANCIERA INTEGRAL, SETTLEMENT 90/10, LIBERACIÓN DE FONDOS RETENIDOS Y RECONCILIACIÓN FORENSE 100% OPERATIVO)
+ÚLTIMA MIGRACIÓN INTEGRADA: 155_integral_financial_settlement_remediation_and_reconciliation.sql (Remediación Integral de Liquidaciones Financieras, Desacople FINISHED/SETTLED, Motor Universal 90/10, Reembolso por Abandono/Empate, Reembolso de Bingo y Auditoría Forense con Liberación de Retenciones Huérfanas)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-0.000) RESOLUCIÓN DEFINITIVA — DETERMINACIÓN DE GANADOR DE PARTIDA, PROPAGACIÓN REALTIME Y RESULTADO PC-PWA:
-   - 1. Determinación de Ganador por Victorias Objetivo (`TicTacToeEngine.ts`):
-     * Cómputo robusto e insensible a mayúsculas/espacios en las claves del objeto `scores`.
-     * Comparación estricta de condición de victoria de la partida completa contra `targetWins` (3 victorias por defecto).
-     * Reducción atómica de vidas del oponente (`lives`) en el estado del motor.
-     * Emisión de logs diagnósticos estructurados:
-       - `[GAME_ROUND_RESULT]`: `{ round, roundWinnerUserId, scores, isMatchWon, targetWins }`
-       - `[GAME_OVER_DETECTED]`: `{ winnerUserId, finalScores, reason: 'FIRST_TO_3_WINS' }`
-   - 2. Protección Inviolable de Partidas Concluidas (`NEXT_ROUND`):
-     * Rechazo categórico de acciones `NEXT_ROUND` si la partida ya tiene estado `game_won`, `winnerUserId` definido o si algún jugador alcanzó las `targetWins`. Jamás se sobreescribe ni revive una partida terminada.
-     * En rondas intermedias válidas, alternancia determinística del jugador inicial para la siguiente ronda según `round % candidateIds.length`.
-   - 3. Pausa del Temporizador de Turno (`TurnTimer.tsx`):
-     * Se integraron los estados `'round_won'`, `'game_won'` y `'draw'` a la lista de estados inactivos/pausados del temporizador, evitando que se disparen timeouts automáticos (`WAIT_FOR_OPPONENT_TIMEOUT` o `TRIGGER_TIMEOUT`) mientras los jugadores contemplan el resultado de una ronda o el desenlace del juego.
-   - 4. Tablero de Juego y Auto-Avance Sincronizado (`TicTacToeBoard.tsx`):
-     * Normalización estricta de IDs de usuario (`norm(id)`) para la detección del turno y la asociación precisa de fichas (`X` para jugador 1, `O` para jugador 2).
-     * Cuenta regresiva visual de auto-avance sincronizada entre rondas (4 segundos) con botón de avance inmediato `Siguiente Ronda Ahora`, emitiendo `[ROUND_AUTO_ADVANCE]`.
-   - 5. Reconciliación Activa y Eliminación de Discrepancia PC vs PWA (`GameContainer.tsx`):
-     * El listener Realtime de `game_sessions` ahora detecta terminación no solo por columnas globales (`FINISHED`, `SETTLED`), sino también si `current_state.status === 'game_won'` o si existe `winnerUserId`.
-     * Emisión de log diagnóstico estructurado: `[REALTIME_GAME_OVER_RECEIVED]`.
-     * En `handleGameAction`, al detectar `result.isGameOver`: se dispara inmediatamente `handleSettleGame` y `setShowResults(true)` junto con los logs `[SESSION_FINALIZE_START]` y `[SESSION_FINALIZE_SUCCESS]`.
-     * En el sondeo de reconciliación en segundo plano, se integraron listeners de `window.focus` y `document.visibilitychange` para que cualquier cambio de pestaña o ventana en navegadores PC de escritorio actualice inmediatamente el estado sin sufrir el throttling de intervalos del navegador.
-     * Reconciliación de estado intermedio si se reciben rondas o jugadas del oponente mientras se juega en PC.
-   - 6. Modal de Liquidación y Resultados (`SettlementModal.tsx` & `useGameSettlement.ts`):
-     * Inclusión de cálculo de respaldo seguro para visualización en el bloque `catch` de `useGameSettlement.ts`: si la RPC de liquidación arroja un error (por ejemplo, porque el oponente ya liquidó concurrentemente la partida), el modal se presenta garantizado con el pozo y el ganador sin bloquear la UI.
-     * Emisión de log diagnóstico: `[UI_RESULT_RENDERED]` al renderizar el modal con los datos del pozo y ganador.
-   - 7. Verificación Cruzada en otros Motores (`RockPaperScissorsEngine.ts`):
-     * Protección análoga en `RockPaperScissorsEngine.ts` ante `NEXT_ROUND` para evitar resetear estados de partidas finalizadas (`MATCH_ENDED`).
-
-0.00) AUDITORÍA FORENSE DE SEGUNDA PASADA (WALLET, LEDGER, SETTLEMENT, ASIENTOS, ABANDONO Y MOTOR DE JUEGOS):
-   - 1. Wallet + Ledger (Ciclo Estricto HOLD -> RELEASE -> CAPTURE):
-     * Diagnóstico: `join_table_transaction` registraba la retención con `BET_PLACED` en lugar del valor canónico de enum `TABLE_ENTRY_HOLD`, y no almacenaba `entry_held_entry_id` en `game_table_players`. Por su parte, `universal_settle_game_session` y `refund_game_session` no asociaban las capturas con `TABLE_ENTRY_HOLD`.
-     * Solución (Migración 153):
-       - `join_table_transaction` ahora emite de forma obligatoria `TABLE_ENTRY_HOLD` (`DEBIT` con retención en `held_balance`), guarda el `v_ledger_id` en `game_table_players.entry_held_entry_id` y valida `is_game_enabled`.
-       - En `universal_settle_game_session`: Captura atómica de fondos retenidos (`TABLE_ENTRY_CAPTURE`) cuando hay ganador, o liberación total a saldo disponible (`TABLE_ENTRY_REFUND`) en caso de empate.
-       - Auditoría completa de idempotencia basada en claves hash `settle_{session_id}` y `refund_{session_id}`.
-   - 2. Settlement 90/10 y Auditoría de Receptores (`game_settlement_recipients`):
-     * Diagnóstico: La tabla `game_settlement_recipients` no estaba siendo poblada en `universal_settle_game_session`.
-     * Solución (Migración 153):
-       - Se implementó la inserción automática y atómica de cada ganador en `public.game_settlement_recipients`, registrando `settlement_id`, `user_id`, `team_number`, `payout_amount`, `ledger_entry_id`, `payout_status = 'COMPLETED'` y timestamp.
-       - Cálculo estricto del pozo: 90% para el/los ganador(es) y 10% de comisión de plataforma (`settlement_rules` con fallback 90/10).
-   - 3. Concurrencia de Asientos y Prevención de Asientos Duplicados:
-     * Diagnóstico: El constraint `uq_game_table_players_seat` en `game_table_players(table_id, seat_number)` impedía que un nuevo jugador utilizara el número de asiento de un jugador previo que hubiese salido (`status = 'LEFT'`).
-     * Solución (Migración 153):
-       - Se implementó la técnica de Row-Level Seat Reclaim en `join_table_transaction`: antes de que un nuevo jugador ingrese en un asiento libre, cualquier registro inactivo previo con `status = 'LEFT'` en dicho asiento es liberado atómicamente a nivel de fila (`FOR UPDATE`), previniendo colisiones de índice único sin requerir bloqueos DDL de tabla completa.
-   - 4. Abandono Multijugador y por Equipos (`abandon_game_secure`):
-     * Diagnóstico: La función de abandono asumía partidas 1v1 y no resolvía victorias automáticas para equipos completos (ej. Dominó 2v2 o Truco 2v2).
-     * Solución (Migración 153):
-       - Si el jugador que abandona pertenece a un equipo (`team_number IS NOT NULL`), se identifica automáticamente a todos los jugadores del equipo rival activo (`ARRAY_AGG(user_id)`) y se liquida la partida otorgando la victoria y el premio a dicho equipo.
-       - Si es 1v1 o individual, el premio se asigna a los oponentes activos restantes. Si no queda ningún oponente activo, se reembolsa la entrada vía `refund_game_session`.
-   - 5. Juegos Bloqueados por Administrador (Enforcement Total):
-     * Se verificó y reforzó el bloqueo en todas las vías de entrada: `create_game_table_secure`, `join_table_transaction`, `join_table_by_code_secure`, `start_game_session_secure` y `create_quick_match_table` (migración 153).
-   - 6. Auditoría de Archivos Huérfanos / Basura:
-     * Se detectó el archivo de respaldo obsoleto `src/services/repositories/AdminRepository.backup.ts` (2,809 líneas) sin referencias en el proyecto. Fue eliminado de forma permanente.
-   - 7. Análisis Forense de Migraciones 001–098:
-     * Migraciones 001–014: Esquema fundacional inmutable (tablas base, enums y relaciones esenciales).
-     * Migraciones 015–098: Evolución histórica iterativa. Sus procedimientos almacenados (RPCs) tempranos fueron formalmente reemplazados por las versiones canónicas de las migraciones 140–153.
-     * Migraciones 140–153: Autoridad canónica activa en producción de toda la lógica de negocio, financiera y de motor de juegos.
-
-0.0) REDISEÑO Y CORRECCIÓN INTEGRAL DE "JUEGA YA" + EMPAREJAMIENTO + JUEGOS BLOQUEADOS + CÓDIGOS DE MESA:
-   - Corrección Canónica de Backend (Migración 152):
-     * RPC `public.join_table_by_code_secure(p_invite_code, p_user_id)`:
-       - Normalización server-side estricta: `UPPER(TRIM(COALESCE(p_invite_code, '')))` evitando fallos por espacios en blanco o minúsculas.
-       - Validación en tiempo real de disponibilidad del juego contra `game_configurations`: si el juego tiene `is_enabled = false`, aborta inmediatamente con código y mensaje `GAME_MAINTENANCE: El juego se encuentra temporalmente en mantenimiento`.
-       - Sanitización estricta de seguridad: el retorno JSON jamás expone wallets, balances, emails ni información privada de otros jugadores. Retorna únicamente metadatos públicos de la mesa (`id, code, name, gameType, game_variant, status, entryFee, currentPlayers, maxPlayers, hostUserId, minPlayers`).
-       - Detección de reingreso idéntico sin deducción repetida de saldo: si el jugador ya está en la mesa, retorna `alreadyJoined: true` y asiento asignado.
-       - Validación atómica de asientos disponibles (`TABLE_FULL: La mesa está llena`), estado de la mesa (`TABLE_CLOSED: La mesa ya no está disponible`) y verificación de expiración (`TABLE_NOT_OPEN: El código pertenece a una mesa que ya finalizó o fue cancelada`).
-     * RPC `public.get_public_available_tables()`:
-       - Incorpora verificación cruzada con `game_configurations gc` (`gc.is_enabled IS TRUE`), impidiendo que mesas de juegos deshabilitados aparezcan en listados públicos.
-   - Centralización y Bloqueo Absoluto en Frontend:
-     * `GameAvailabilityContext.tsx`:
-       - Nuevo método `getAvailableMatchmakingGames()` que filtra estrictamente juegos con `is_enabled = true` y excluye juegos que no aplican a emparejamiento por partidas (ej. `polla_venezolana`).
-     * `QuickMatchModal.tsx` (Rediseño Integral de "Juega Ya"):
-       - Exclusiva presentación de juegos habilitados dinámicamente según la base de datos de producción.
-       - Flujo 100% server-authoritative conectando directamente con `TableRepository.findOrCreateMatchmakingTable`.
-       - Eliminación total de temporizadores ficticios y bots simulados en partidas con dinero real.
-       - Cronómetro en vivo de búsqueda de rivales con opción de cancelación limpia (`isCancelledRef`).
-       - Detección previa y en vivo de saldo en billetera (`availableBalance`), avisando con antelación si se requiere recargar.
-       - Soporte directo para Modo Práctica (0 Bs) en desktop y mobile.
-     * `TableFilters.tsx` y `TablesView.tsx`:
-       - Sincronización en tiempo real: los filtros de juegos solo muestran juegos activos.
-       - `visiblePublicTables` y `loadPublicTables` descartan proactivamente cualquier mesa de un juego deshabilitado.
-       - Si el usuario tenía seleccionado un filtro de un juego que el administrador bloquea, el filtro se reinicia de inmediato a 'all'.
-       - Entrada de código privado Trancaíto normalizada con `.trim().toUpperCase()`, feedback específico de errores sanitizados mediante `errorSanitizer.ts`.
-       - Eliminación de modales de emparejamiento duplicados y reemplazo por el modal maestro unificado `QuickMatchModal`.
-     * `BottomNavigation.tsx`:
-       - Actualización formal del botón central a "JUEGA YA" con aria-label y feedback táctil optimizado para mobile y PWA.
-
-0) RESOLUCIÓN FORENSE DEFINITIVA DEL ERROR "column p.full_name does not exist" EN start_game_session_secure:
-   - Diagnóstico Forense en Base de Datos Real:
-     * La RPC `public.start_game_session_secure` ejecutaba una consulta `LEFT JOIN public.profiles p ON p.user_id = gtp.user_id` donde proyectaba `p.full_name`.
-     * Se auditó `information_schema.columns` de la tabla `public.profiles` en producción, constatando que posee las columnas: `id, user_id, first_name, last_name, display_name, avatar_url, cedula_hash, cedula_last4, phone_number, state_venezuela, birth_date, account_status, kyc_status, created_at, updated_at, is_online, last_seen_at, email, is_mfa_enabled, has_claimed_test_bonus, cedula, telefono, nombre_real, fecha_nacimiento, estado_residencia, is_profile_locked`.
-     * No existe la columna `full_name` en `public.profiles`. Por ende, al llamar a `start_game_session_secure`, PostgreSQL abortaba la transacción con error `HTTP 400 Bad Request: column p.full_name does not exist`.
-   - Solución Canónica Implementada (Migración 151):
-     * Se reconstruyó la RPC `public.start_game_session_secure` para componer el nombre del jugador mediante:
-       `COALESCE(p.display_name, p.nombre_real, NULLIF(TRIM(p.first_name || ' ' || p.last_name), ''), 'Jugador ' || gtp.seat_number)`
-       garantizando compatibilidad universal con todos los perfiles de usuario sin depender de `p.full_name`.
-     * Retorno dual en formato estructurado (camelCase y snake_case): `tableId`/`table_id`, `sessionId`/`session_id`, `gameState`/`game_state`, `turnUserId`/`turn_user_id`, `turnDeadline`/`turnDeadlineAt`, y array de jugadores con `user_id, seat_number, name, username, avatar_url, score, status`.
-     * Idempotencia estricta: Si ya existe una sesión activa para la mesa, se devuelve la sesión existente sin duplicar registros ni alterar el estado.
-   - Verificación Forense en Entorno Real (`scripts/test_start_game_session_rpc.ts`):
-     * Ejecución exitosa con usuario anfitrión real Francisco Morales y jugador secundario real.
-     * Retorno verificado: `status: "ACTIVE"`, `success: true`, jugadores formateados con avatares reales de Google y nombres correctos, `sessionId` asignado y mesa actualizada a `ACTIVE`.
-     * Transacción ejecutada con ROLLBACK al finalizar la prueba para preservar saldos y estado limpio en producción.
-
-0.1) RESOLUCIÓN DEFINITIVA DE PUBLIC_MATCH_HISTORY (HTTP 404 RESUELTO):
-   - Diagnóstico: El frontend intentaba consultar `public_match_history`, la cual no existía en el esquema o no estaba expuesta a PostgREST debido a caché desincronizada o falta de permisos RLS.
-   - Solución: Se creó la tabla `public.public_match_history` con permisos `SELECT` otorgados a `anon`, `authenticated` y `service_role`, con RLS permisiva `p_public_match_history_select`. Se ejecutó `NOTIFY pgrst, 'reload schema'`.
-   - Verificación: Consulta HTTP directa a `https://tncxgwycinbnkjbfwojt.supabase.co/rest/v1/public_match_history?select=*&limit=1` responde con código `HTTP 200 OK`.
-
-0.2) RESOLUCIÓN DEFINITIVA DE GET_ACTIVE_TOURNAMENTS (HTTP 400 RESUELTO):
-   - Diagnóstico: La RPC `public.get_active_tournaments()` requería validación de permisos de ejecución para roles públicos y autenticados.
-   - Solución: Se otorgó explícitamente `GRANT EXECUTE ON FUNCTION public.get_active_tournaments() TO anon, authenticated, service_role;` y se verificó que no requiera parámetros.
-   - Verificación: Llamada POST directa a `https://tncxgwycinbnkjbfwojt.supabase.co/rest/v1/rpc/get_active_tournaments` con payload `{}` responde con código `HTTP 200 OK` y payload `{"success": true, "tournaments": []}`.
-
-0.3) MATRIZ DE VALIDACIÓN DE JUEGOS (10/10 PASS):
-   - Validación integral ejecutada en base de datos de producción con `scripts/test_all_games_matrix.ts`:
-     1. Tres en Raya (`tic_tac_toe`): PASS
-     2. Dominó Venezolano (`domino`): PASS
-     3. Truco Venezolano (`truco`): PASS
-     4. Piedra, Papel o Tijera (`rock_paper_scissors`): PASS
-     5. Damas Españolas (`damas`): PASS
-     6. Ajedrez Criollo (`chess`): PASS
-     7. Atrapaíto (`atrapaito`): PASS
-     8. Una Olla Card (`una_olla`): PASS
-     9. Bingo Criollo (`bingo`): PASS
-     10. Polla Venezolana (`polla_venezolana`): PASS
+0) REMEDIACIÓN FINANCIERA INTEGRAL Y AUDITORÍA FORENSE AUTORITATIVA (MIGRACIONES 152 A 155):
+   - Motor Canónico de Liquidación (universal_settle_game_session):
+     * Desacople estricto entre finalización de juego (`FINISHED`) y asentamiento contable (`SETTLED`).
+     * Protección contra ejecuciones concurrentes con bloqueo de fila `FOR UPDATE` en `game_sessions` y en las billeteras de todos los participantes.
+     * Garantía de idempotencia: si la sesión ya posee registro en `game_settlements`, retorna inmediatamente el resultado previo sin duplicar asientos contables ni movimientos de saldo.
+     * Liquidación 90/10 Universal y Transparente:
+       - Captura atómica de fondos retenidos (`held_balance`) de todos los participantes.
+       - Acreditación del pozo neto (90%) al ganador único en `available_balance`.
+       - Registro del 10% de comisión de plataforma (Rake) en la cuenta institucional.
+       - Registro inmutable en `public.ledger_entries` de cada movimiento (`SETTLEMENT_ENTRY_CAPTURE`, `SETTLEMENT_PRIZE_CREDIT`, `SETTLEMENT_COMMISSION_CREDIT`).
+     * Manejo de Empate (`is_draw = true`):
+       - Reembolso íntegro y sin comisiones del 100% de la entrada (`held_balance` -> `available_balance`) a todos los jugadores participantes vía `SETTLEMENT_DRAW_REFUND`.
+     * Manejo de Abandono (`abandon_game_secure`):
+       - Si la partida está en curso (`ACTIVE`), el jugador que abandona pierde su entrada y el rival restante es declarado ganador oficial con derecho al pozo neto (90%), liquidado autoritativamente por el backend.
+       - Si la partida aún no ha iniciado (`OPEN` o `WAITING`), la entrada retenida se devuelve de inmediato y de forma íntegra a su saldo disponible vía `TABLE_LEAVE_REFUND`.
+     * Bingo Multi-Jugador Autorizado (`rpc_claim_bingo_secure` y `refund_bingo_table_secure`):
+       - Verificación matemática del cartón en backend antes de conceder cualquier premio.
+       - Reparto proporcional y exacto del pozo acumulado entre múltiples ganadores si completan bingo en la misma bola.
+       - Reembolso automatizado y seguro para mesas de Bingo canceladas o expiradas.
+   - Resiliencia Frontend y Manejo de Errores Financieros:
+     * `GameRepository.ts`: Actualizada la validación de respuestas RPC para detectar `{ success: false }` y no asumir éxito solo por ausencia de error de red.
+     * `TableRepository.ts`: Integrado `refundBingoTable` y validación estricta de salida/abandono de mesa.
+     * `WalletRepository.ts`: Blindada la solicitud de retiro contra respuestas denegadas por la base de datos.
+     * `useGameSettlement.ts`:
+       - Prevención de banderas falsas de "premio acreditado" cuando la liquidación falle o esté pendiente.
+       - Agregada capacidad de reintento (`retrySettlement`) guardando la última configuración de liquidación.
+       - Estado granular `{ isSuccess, settlementError }` reflejado fielmente en el UI.
+     * `SettlementModal.tsx`:
+       - Visualización clara y transparente de estados de error de red o liquidación en proceso.
+       - Botón interactivo "Reintentar Liquidación" con indicador animado y soporte para contactar a soporte si el error persiste.
+     * `GameContainer.tsx`:
+       - Banner de inspección final y modal de liquidación sincronizados con el resultado real emitido por el backend.
+       - Notificaciones de victoria condicionadas al estado `SETTLED` oficial.
+     * `AtrapaitoGame.tsx`:
+       - Eliminado anuncio prematuro de acreditación de fondos previo al asentamiento contable.
+   - Auditoría y Reconciliación Forense Administrativa:
+     * Añadidos métodos `auditAndReconcileUnsettledSessions` y `auditAndReconcileOrphanTableHolds` en `AdminFinancialRepository.ts` y `AdminRepository.ts`.
+     * Integrado nuevo panel interactivo en `AdminAccountingTab.tsx` para ejecutar diagnósticos en simulación (`Dry Run`) o aplicar liberaciones reales con visualización de logs JSON formateados en tiempo real.
 
 0) VALIDACIÓN REAL EN PRODUCCIÓN + RESOLUCIÓN DEFINITIVA DE ERRORES 42703 Y 22P02 (MIGRACIÓN 150 APLICADA):
    - Diagnóstico en Vivo contra Supabase Producción:

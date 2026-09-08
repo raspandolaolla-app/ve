@@ -82,6 +82,8 @@ export class AdminRepository {
   public static getAccountingOverview = AdminFinancialRepository.getAccountingOverview;
   public static getFinancialMetrics = AdminFinancialRepository.getFinancialMetrics;
   public static getLedgerEntries = AdminFinancialRepository.getLedgerEntries;
+  public static auditAndReconcileUnsettledSessions = AdminFinancialRepository.auditAndReconcileUnsettledSessions;
+  public static auditAndReconcileOrphanTableHolds = AdminFinancialRepository.auditAndReconcileOrphanTableHolds;
 
   // ============================================================================
   // DOMINIO 5: GESTIÓN DE MESAS Y CICLO DE VIDA DE PARTIDAS

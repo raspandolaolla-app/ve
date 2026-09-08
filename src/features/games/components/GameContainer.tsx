@@ -371,15 +371,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               await new Promise((r) => setTimeout(r, 250 + attempt * 100));
             }
 
-            // Respaldo resiliente: si el anfitrión aún no inició pero ambos jugadores están en sala
+            // Canónico: el invitado NO debe llamar createOrGetSession (solo el anfitrión inicia la partida).
+            // El invitado espera la sesión del anfitrión vía Realtime y sondeo de fondo.
             if (!activeSession && !isPractice) {
-              console.warn('[GameContainer] Sesión no encontrada tras sondeo de espera, resolviendo de respaldo...', { tableId: table.id });
-              activeSession = await GameRepository.createOrGetSession(
-                table.id,
-                table.gameType,
-                initialEngineState,
-                canonicalInitialTurnId
-              );
+              console.info('[GameContainer] Sesión aún no creada por el anfitrión. El invitado esperará vía Realtime y sondeo de fondo.', { tableId: table.id });
             }
           }
         }
@@ -940,7 +935,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       )
       .subscribe();
 
-    // Sondeo ligero de respaldo (Polling cada 6s)
+    // Sondeo ligero de respaldo (Polling cada 1.5s mientras no haya sesión activa cargada)
     // Resuelve desconexiones o latencias de WebSockets en dispositivos móviles
     const pollInterval = setInterval(async () => {
       if (!isMounted || document.hidden) return;
@@ -958,7 +953,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       } catch (err) {
         // Sondeo silencioso
       }
-    }, 6000);
+    }, 1500);
 
     return () => {
       isMounted = false;

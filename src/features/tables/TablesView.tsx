@@ -198,12 +198,6 @@ export function TablesView() {
       const freshPlayers = await TableRepository.getTablePlayers(table.id);
       setTablePlayers(freshPlayers);
 
-      // Comprobar si ya existe una sesión activa para esta mesa
-      const activeSess = await GameRepository.getActiveSession(table.id);
-      const isPlayable =
-        ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes((table.status || '').toUpperCase()) ||
-        Boolean(activeSess);
-
       const currentUserId = (user?.id || '').toLowerCase();
       const isSeated =
         !currentUserId ||
@@ -211,11 +205,62 @@ export function TablesView() {
           (p) => (p.userId || '').toLowerCase() === currentUserId && p.status !== 'LEFT'
         );
 
-      if (isPlayable && isSeated) {
-        console.log('[TablesView] Mesa ya activa detectada tras TABLE_OPEN_EVENT, transicionando directo:', {
+      const isHost =
+        (table.hostUserId || '').toLowerCase() === currentUserId ||
+        ((table as any).createdBy || '').toLowerCase() === currentUserId;
+
+      const minReq = table.minPlayers || 2;
+      const activePlayers = freshPlayers.filter((p) => p.status !== 'LEFT');
+      const isTableReadyOrFull =
+        ['ACTIVE', 'READY', 'SALES', 'DRAWING', 'FULL'].includes((table.status || '').toUpperCase()) ||
+        activePlayers.length >= minReq;
+
+      // Comprobar si ya existe una sesión activa para esta mesa
+      let activeSess = await GameRepository.getActiveSession(table.id);
+
+      // Si el usuario está sentado y la mesa está lista o completa (2+ jugadores en 1v1):
+      if (isSeated && isTableReadyOrFull) {
+        // Canónico: Si es invitado (!isHost) y la sesión aún no aparece,
+        // esperar activamente la creación de sesión del anfitrión con reintentos controlados.
+        if (!activeSess && !isHost) {
+          console.info('[TablesView] Invitado esperando sesión activa del anfitrión...', {
+            tableId: table.id,
+            playersCount: activePlayers.length,
+          });
+          for (let attempt = 0; attempt < 12; attempt++) {
+            await new Promise((r) => setTimeout(r, 300));
+            activeSess = await GameRepository.getActiveSession(table.id);
+            if (activeSess) {
+              console.info('[TablesView] Sesión de anfitrión resuelta para invitado en intento:', attempt + 1, {
+                sessionId: activeSess.id,
+              });
+              break;
+            }
+          }
+        }
+
+        console.info('[TablesView] Transicionando jugador sentado a GameContainer:', {
           tableId: table.id,
+          isHost,
           hasSession: Boolean(activeSess),
+          sessionId: activeSess?.id,
           playersCount: freshPlayers.length,
+        });
+
+        setInGameData({
+          table: { ...table, status: 'ACTIVE' },
+          players: freshPlayers,
+          session: activeSess,
+        });
+        setActiveTable(null);
+        return;
+      }
+
+      // Si ya hay sesión activa confirmada aunque el status de mesa sea OPEN
+      if (activeSess && isSeated) {
+        console.info('[TablesView] Sesión activa confirmada, transicionando directo:', {
+          tableId: table.id,
+          sessionId: activeSess.id,
         });
         setInGameData({
           table: { ...table, status: 'ACTIVE' },
@@ -308,7 +353,7 @@ export function TablesView() {
         const table = await TableRepository.getTableById(persisted.tableId);
         if (!table || !isMounted) return;
 
-        const isPlayable = ['OPEN', 'WAITING', 'SALES', 'ACTIVE', 'READY', 'DRAWING'].includes(table.status);
+        const isPlayable = ['OPEN', 'WAITING', 'SALES', 'ACTIVE', 'READY', 'DRAWING', 'FULL'].includes(table.status);
         if (!isPlayable) {
           clearProtectedGameplay();
           return;
@@ -320,8 +365,10 @@ export function TablesView() {
         const isSeated = freshPlayers.some((p) => p.userId === user.id && p.status !== 'LEFT');
         if (isSeated) {
           console.log('[TablesView] Sesión protegida previa reanudada con éxito:', table.id);
-          if (['ACTIVE', 'READY', 'DRAWING', 'SALES'].includes(table.status)) {
-            setInGameData({ table, players: freshPlayers });
+          if (['ACTIVE', 'READY', 'DRAWING', 'SALES', 'FULL'].includes(table.status)) {
+            const activeSess = await GameRepository.getActiveSession(table.id);
+            setInGameData({ table, players: freshPlayers, session: activeSess || undefined });
+            setActiveTable(null);
           } else {
             setActiveTable(table);
             setTablePlayers(freshPlayers);
@@ -746,7 +793,7 @@ export function TablesView() {
             loadTablePlayers(activeTable.id);
           }
 
-          const isPlayable = ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(newStatus);
+          const isPlayable = ['ACTIVE', 'READY', 'SALES', 'DRAWING', 'FULL'].includes(newStatus);
           if (isPlayable && !inGameDataRef.current) {
             checkAndEnterGame(updatedTable);
           }
@@ -786,7 +833,7 @@ export function TablesView() {
       }
     );
 
-    // Sondeo de Respaldo Anti-Desconexión (Fallback ligero cada 7s)
+    // Sondeo de Respaldo Anti-Desconexión (Fallback rápido cada 1.5s)
     // Garantiza que jugadores en dispositivos móviles o con pérdida temporal de WebSockets no se queden atascados
     const pollInterval = setInterval(async () => {
       if (!isMounted || !activeTable?.id || document.hidden || inGameDataRef.current) return;
@@ -810,14 +857,14 @@ export function TablesView() {
         if (!isMounted || inGameDataRef.current) return;
         if (freshTable) {
           const tStatus = (freshTable.status || '').toUpperCase();
-          if (['ACTIVE', 'SALES', 'DRAWING'].includes(tStatus)) {
+          if (['ACTIVE', 'SALES', 'DRAWING', 'FULL', 'READY'].includes(tStatus)) {
             await checkAndEnterGame(freshTable);
           }
         }
       } catch (err) {
         // Sondeo en segundo plano silencioso
       }
-    }, 7000);
+    }, 1500);
 
     return () => {
       isMounted = false;
@@ -1473,7 +1520,7 @@ export function TablesView() {
                             variant="primary"
                             size="sm"
                             leftIcon={
-                              ['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status) ? (
+                              ['ACTIVE', 'SALES', 'DRAWING', 'READY', 'FULL'].includes(activeTable.status) ? (
                                 <Play className="w-4 h-4 fill-current" />
                               ) : (
                                 <Clock className="w-4 h-4 animate-pulse" />
@@ -1481,11 +1528,18 @@ export function TablesView() {
                             }
                             disabled={
                               !userAlreadySeated ||
-                              !['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
+                              (!['ACTIVE', 'SALES', 'DRAWING', 'READY', 'FULL'].includes(activeTable.status) && !canStart)
                             }
                             onClick={async () => {
                               if (!user) return;
-                              const activeSess = await GameRepository.getActiveSession(activeTable.id);
+                              let activeSess = await GameRepository.getActiveSession(activeTable.id);
+                              if (!activeSess) {
+                                for (let att = 0; att < 6; att++) {
+                                  await new Promise((r) => setTimeout(r, 250));
+                                  activeSess = await GameRepository.getActiveSession(activeTable.id);
+                                  if (activeSess) break;
+                                }
+                              }
                               setInGameData({
                                 table: { ...activeTable, status: 'ACTIVE' },
                                 players: uniquePlayers,
@@ -1496,10 +1550,8 @@ export function TablesView() {
                           >
                             {!userAlreadySeated
                               ? 'Ocupa un puesto para jugar'
-                              : ['ACTIVE', 'SALES', 'DRAWING', 'READY'].includes(activeTable.status)
+                              : ['ACTIVE', 'SALES', 'DRAWING', 'READY', 'FULL'].includes(activeTable.status) || canStart
                               ? 'ENTRAR A LA PARTIDA'
-                              : canStart
-                              ? 'Esperando inicio del anfitrión...'
                               : `Esperando Jugadores (${uniquePlayers.length}/${minRequired})`}
                           </Button>
                         )}

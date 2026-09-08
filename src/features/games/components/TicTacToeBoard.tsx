@@ -18,6 +18,7 @@ interface TicTacToeBoardProps {
   onPlaceSymbol: (cellIndex: number) => void;
   onNextRound?: () => void;
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
 }
 
 // Componente X SVG bien diseñado
@@ -92,6 +93,7 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
   onPlaceSymbol,
   onNextRound,
   onTimeout,
+  onOpponentTimeout,
 }) => {
   const playerSymbols = state?.playerSymbols || {};
   const playerNames = state?.playerNames || {};
@@ -167,6 +169,17 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
           console.warn('[TicTacToeBoard] Error ejecutando bot move timeout:', err);
           GameRepository.expireTurn(sessionId);
         });
+      }
+    }
+  };
+
+  const handleOpponentTimeout = () => {
+    if (!isMyTurn && sessionId) {
+      console.log('[TicTacToeBoard] Expirando turno de oponente vía servidor:', { sessionId, turnUserId });
+      if (onOpponentTimeout) {
+        onOpponentTimeout();
+      } else {
+        GameRepository.expireTurn(sessionId);
       }
     }
   };
@@ -284,12 +297,13 @@ export const TicTacToeBoard: React.FC<TicTacToeBoardProps> = ({
         <TurnTimer
           sessionId={sessionId}
           currentTurnUserId={turnUserId}
-          turnExpiresAt={turnExpiresAt}
+          turnExpiresAt={(state as any)?.turnExpiresAt || turnExpiresAt}
           durationSeconds={30}
           isMyTurn={isMyTurn}
           activePlayerName={activeTurnName}
           status={state.status}
           onTimeout={handleTimeout}
+          onOpponentTimeout={handleOpponentTimeout}
         />
       </div>
 

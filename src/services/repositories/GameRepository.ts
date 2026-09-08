@@ -495,10 +495,17 @@ export class GameRepository {
     const supabase = getSupabaseClient();
     if (!supabase) return false;
 
-    const seconds = turnDurationSeconds || 10;
+    const seconds = (turnDurationSeconds && turnDurationSeconds > 0) ? turnDurationSeconds : 30;
+    const deadlineIso = new Date(Date.now() + seconds * 1000).toISOString();
+    const enrichedState = {
+      ...newState,
+      turnExpiresAt: deadlineIso,
+      turnDeadlineAt: deadlineIso,
+    };
     const updatePayload: Record<string, unknown> = {
-      current_state: newState,
-      turn_deadline_at: new Date(Date.now() + seconds * 1000).toISOString(),
+      current_state: enrichedState,
+      turn_deadline_at: deadlineIso,
+      turn_expires_at: deadlineIso,
     };
 
     if (currentTurnUserId !== undefined) {

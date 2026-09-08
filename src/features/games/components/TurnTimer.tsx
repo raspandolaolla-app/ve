@@ -14,6 +14,7 @@ export interface TurnTimerProps {
   activePlayerName?: string;
   status?: string;
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
   className?: string;
 }
 
@@ -26,16 +27,31 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
   activePlayerName = 'Rival',
   status,
   onTimeout,
+  onOpponentTimeout,
   className = '',
 }) => {
   const [remaining, setRemaining] = useState<number>(durationSeconds);
   const timedOutRef = useRef(false);
   const lastFiredExpiresAtRef = useRef<string | null>(null);
   const onTimeoutRef = useRef(onTimeout);
+  const onOpponentTimeoutRef = useRef(onOpponentTimeout);
+  const lastTurnUserIdRef = useRef<string | null>(null);
+  const turnSwitchTimestampRef = useRef<number>(Date.now());
 
   useEffect(() => {
     onTimeoutRef.current = onTimeout;
   }, [onTimeout]);
+
+  useEffect(() => {
+    onOpponentTimeoutRef.current = onOpponentTimeout;
+  }, [onOpponentTimeout]);
+
+  useEffect(() => {
+    if (currentTurnUserId && currentTurnUserId !== lastTurnUserIdRef.current) {
+      lastTurnUserIdRef.current = currentTurnUserId;
+      turnSwitchTimestampRef.current = Date.now();
+    }
+  }, [currentTurnUserId]);
 
   // timerKey único conceptual para cancelar y reiniciar ante cualquier cambio de turno o deadline
   const timerKey = `${sessionId || 'session'}_${currentTurnUserId || 'user'}_${turnExpiresAt || 'expires'}`;
@@ -82,6 +98,23 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       return;
     }
 
+    // Comprobar si el deadline es un remanente del turno anterior
+    // Si el turno cambió hace menos de 3.5 segundos y el deadline ya venció,
+    // se trata de una desincronización transitoria entre la rotación de turno y la llegada del nuevo deadline.
+    const timeSinceTurnSwitch = now - turnSwitchTimestampRef.current;
+    const isStaleDeadlineFromPreviousTurn = storedExpiresAt <= now && timeSinceTurnSwitch < 3500;
+
+    if (isStaleDeadlineFromPreviousTurn) {
+      console.log('[TURN_TIMER_AWAIT_FRESH_DEADLINE]', {
+        timerKey,
+        currentTurnUserId,
+        timeSinceTurnSwitch,
+        fallbackDuration: durationSeconds,
+      });
+      setRemaining(durationSeconds);
+      return;
+    }
+
     // Calcular segundos restantes reales basados en el timestamp autoritativo del servidor
     const timeLeft = Math.max(0, Math.ceil((storedExpiresAt - now) / 1000));
     setRemaining(timeLeft);
@@ -94,7 +127,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       currentTurnUserId,
     });
 
-    // Si ya expiró y no ha sido disparado para este timerKey específico
+    // Si ya expiró legítimamente y no ha sido disparado para este timerKey específico
     if (timeLeft === 0) {
       if (!timedOutRef.current && lastFiredExpiresAtRef.current !== timerKey) {
         timedOutRef.current = true;
@@ -104,6 +137,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
           onTimeoutRef.current?.();
         } else {
           console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
+          onOpponentTimeoutRef.current?.();
         }
       }
       return;
@@ -123,6 +157,7 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
           onTimeoutRef.current?.();
         } else {
           console.log('[TURN_TIMER_FIRE]', { timerKey, action: 'WAIT_FOR_OPPONENT_TIMEOUT' });
+          onOpponentTimeoutRef.current?.();
         }
       }
     }, 1000);

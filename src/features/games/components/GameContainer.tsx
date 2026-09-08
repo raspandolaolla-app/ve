@@ -813,6 +813,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             if (actionRow.action_type === 'BOT_MOVE' || actionRow.payload?.executedByBot) {
               setBotNotice('⏱️ Turno expirado - BOT realizó movimiento automático');
               setTimeout(() => setBotNotice(null), 5000);
+            } else if (actionRow.action_type === 'TURN_EXPIRED') {
+              setBotNotice('⏱️ Turno expirado por inactividad');
+              setTimeout(() => setBotNotice(null), 5000);
             }
             const actionType = actionRow.action_type;
             const actionData = actionRow.action_data || actionRow.payload || {};
@@ -854,6 +857,31 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 };
                 const result = engine.applyAction(prev, actionPayload);
                 if (result.isValid) {
+                  const turnDuration =
+                    (table.config?.turnDuration as number) ||
+                    (result.newState as any)?.turnDurationSeconds ||
+                    (table.gameType === 'chess' ? 15 : 30);
+                  const nextDeadlineIso =
+                    actionData?.turnExpiresAt ||
+                    new Date(Date.now() + turnDuration * 1000).toISOString();
+                  const nextTurnUserId =
+                    (result.newState as any)?.currentTurnUserId ||
+                    (result.newState as any)?.turnUserId;
+
+                  (result.newState as any).turnExpiresAt = nextDeadlineIso;
+
+                  // Actualizar sesión sincronizadamente para que el TurnTimer arme inmediatamente el nuevo tiempo
+                  setSession((prevSession) =>
+                    prevSession
+                      ? {
+                          ...prevSession,
+                          currentTurnUserId: nextTurnUserId || prevSession.currentTurnUserId,
+                          turnExpiresAt: nextDeadlineIso,
+                          currentState: result.newState,
+                        }
+                      : prevSession
+                  );
+
                   // Si el movimiento del oponente concluyó la partida según el motor:
                   if (result.isGameOver && !isSettledRef.current) {
                     isSettledRef.current = true;
@@ -1374,11 +1402,28 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       setIsSubmittingAction(true);
 
+      const nextTurnUserId = (result.newState as any)?.currentTurnUserId || (result.newState as any)?.turnUserId || null;
+      const turnDuration =
+        (table.config?.turnDuration as number) ||
+        (result.newState as any)?.turnDurationSeconds ||
+        (table.gameType === 'chess' ? 15 : 30);
+      const nextDeadlineIso = new Date(Date.now() + turnDuration * 1000).toISOString();
+      (result.newState as any).turnExpiresAt = nextDeadlineIso;
+      (finalActionData as any).turnExpiresAt = nextDeadlineIso;
+
       // 2. Actualizar estado optimista
       const sanitizedNext = engine.getSanitizedStateForPlayer
         ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
         : result.newState;
       setGameState(sanitizedNext);
+
+      // Sincronizar de inmediato la sesión local con el nuevo turno y deadline
+      setSession((prev) => prev ? {
+        ...prev,
+        currentTurnUserId: nextTurnUserId || prev.currentTurnUserId,
+        turnExpiresAt: nextDeadlineIso,
+        currentState: result.newState,
+      } : prev);
 
       // Si es Modo Práctica, resolver localmente sin invocar Supabase ni ledger
       const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
@@ -1489,6 +1534,16 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     [gameState, session, currentUserId, engine, currentPlayers, table, isSubmittingAction, handleSettleGame]
   );
 
+  const handleOpponentTimeout = useCallback(async () => {
+    if (!session?.id || session.status === 'completed' || session.status === 'abandoned' || isSettledRef.current) return;
+    console.log('[HANDLE_OPPONENT_TIMEOUT]', { sessionId: session.id, activeTurnUserId: session.currentTurnUserId });
+    try {
+      await GameRepository.expireTurn(session.id);
+    } catch (err) {
+      console.warn('[HANDLE_OPPONENT_TIMEOUT_ERROR]', err);
+    }
+  }, [session?.id, session?.status, session?.currentTurnUserId]);
+
   // Renderizar el tablero específico según el juego
   const renderBoard = () => {
     if (!gameState) {
@@ -1511,6 +1566,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onPlaceSymbol={(cellIndex) => handleGameAction('PLACE_SYMBOL', { cellIndex })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
             onTimeout={() => handleGameAction('TIMEOUT', {})}
+            onOpponentTimeout={handleOpponentTimeout}
           />
         );
 

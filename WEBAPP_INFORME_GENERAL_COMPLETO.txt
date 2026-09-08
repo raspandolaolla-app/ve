@@ -2,10 +2,29 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 12:30:00 -07:00 (UTC 2026-09-08 19:30:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / REMEDIACIÓN FINANCIERA INTEGRAL, SETTLEMENT 90/10, LIBERACIÓN DE FONDOS RETENIDOS Y RECONCILIACIÓN FORENSE 100% OPERATIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 12:55:00 -07:00 (UTC 2026-09-08 19:55:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA DE TURNOS Y TIMEOUTS 100% OPERATIVO, SINCRONIZADO Y AUTORITATIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 155_integral_financial_settlement_remediation_and_reconciliation.sql (Remediación Integral de Liquidaciones Financieras, Desacople FINISHED/SETTLED, Motor Universal 90/10, Reembolso por Abandono/Empate, Reembolso de Bingo y Auditoría Forense con Liberación de Retenciones Huérfanas)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) RESOLUCIÓN DEFINITIVA Y AUTORITATIVA DEL SISTEMA DE TURNOS Y TIMEOUTS (LA VIEJA / TIC_TAC_TOE):
+   - Diagnóstico de Causa Raíz Identificada y Solucionada:
+     * Tras un movimiento válido (`PLACE_SYMBOL`), el estado local rotaba el turno (`turnUserId` / `currentTurnUserId`) de inmediato, pero el deadline (`turnExpiresAt` / `turnDeadlineAt`) permanecía transitoriamente con el valor previo proveniente del servidor hasta que llegara la respuesta de red o el evento Realtime.
+     * Al recibir un nuevo `turnUserId` pero conservar el `turnExpiresAt` viejo ya vencido, `TurnTimer` calculaba `timeLeft = 0` instantáneamente y gatillaba `WAIT_FOR_OPPONENT_TIMEOUT` prematuramente, provocando discordancias de temporizador y bloqueos en la experiencia de juego.
+   - Sincronización Inmediata y Atómica en Frontend (`GameContainer.tsx`):
+     * Al procesar una jugada optimista (`handleGameAction`), se calcula el nuevo deadline (`Date.now() + turnDuration * 1000`) y se sincroniza simultáneamente tanto en `setGameState` como en `setSession({ currentTurnUserId, turnExpiresAt, currentState })`.
+     * Se adjunta el `turnExpiresAt` dentro del `actionData` transmitido a `game_actions`.
+     * En el receptor Realtime de `game_actions` INSERT, al aplicar la jugada del oponente, se actualiza atómicamente la sesión con el nuevo `currentTurnUserId` y el `turnExpiresAt` sincronizado.
+   - Detección Defensiva de Deadlines Residuales (`TurnTimer.tsx`):
+     * Incorporado control de tiempo desde el último cambio de turno (`turnSwitchTimestampRef`).
+     * Si el turno cambió hace menos de 3.5 segundos y el timestamp del deadline almacenado es menor o igual a la hora actual, se detecta de forma determinista la desincronización transitoria y se mantiene la visualización del tiempo completo (`durationSeconds`) hasta recibir el deadline fresco del servidor, impidiendo falsos disparos de timeout a 0s.
+     * Incorporado callback `onOpponentTimeout`: cuando el temporizador de 30 segundos del oponente llega a cero de forma legítima, el cliente no-activo solicita la expiración oficial autoritativa.
+   - Resolución Autoritativa de Inactividad en Servidor (`TicTacToeBoard.tsx` y `GameContainer.tsx`):
+     * Se implementó `handleOpponentTimeout` conectando el evento de inactividad con la RPC `GameRepository.expireTurn(sessionId)`.
+     * La base de datos (`expire_game_turn_secure`) aplica bloqueo `FOR UPDATE SKIP LOCKED`, verifica si el turno realmente expiró, descuenta vidas o rota el turno, y si las vidas llegan a 0 liquida la partida con el modelo 90/10 oficial.
+     * Incorporado aviso visual no invasivo (`⏱️ Turno expirado por inactividad`) cuando el servidor emite la acción `TURN_EXPIRED`.
+   - Normalización de Sincronización en Repositorio (`GameRepository.ts`):
+     * En `updateSessionState`, se garantiza que `turn_deadline_at`, `turn_expires_at` y el estado embebido se sincronicen exactamente a la misma fecha ISO, con una duración mínima predeterminada de 30 segundos para partidas secuenciales.
 
 0) REMEDIACIÓN FINANCIERA INTEGRAL Y AUDITORÍA FORENSE AUTORITATIVA (MIGRACIONES 152 A 155):
    - Motor Canónico de Liquidación (universal_settle_game_session):

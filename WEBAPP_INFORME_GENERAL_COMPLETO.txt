@@ -2,15 +2,32 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 09:43:00 UTC (2026-09-07 02:43:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso en 10.36s / 0 vulnerabilidades npm audit)
-ÚLTIMA MIGRACIÓN INTEGRADA: 153_forensic_audit_hardening_wallet_ledger_settlement_seats.sql (Total físico: 156 archivos en supabase/migrations/)
-MEJORA TÉCNICA RECIENTE: 
-1. Resolución Forense de CI/CD para GitHub Actions #785 y #776:
-   - RUN #785 (`npm ci EUSAGE`): Reparado mediante regeneración determinista de `package-lock.json` con `npm install --package-lock-only`, sincronizando las dependencias de Express 5 y paquetes directos (Google GenAI, Turnstile, Playwright, Chess.js, OTPAuth, QR Code).
-   - RUN #776 (Cancelación post-build `The operation was canceled`): Diagnóstico y mitigación de concurrencia. La cancelación ocurría por: (1) `concurrency.cancel-in-progress: true` que abortaba ejecuciones en curso al recibirse nuevos pushes; (2) Disparos simultáneos y colisiones entre `main.yml` y `deploy.yml` compitiendo por el entorno `github-pages`.
-   - Solución de Concurrencia: Se estandarizó `concurrency.group: "pages"` con `concurrency.cancel-in-progress: false` en `main.yml` (canónico) y `deploy.yml` (manual fallback). `deploy.yml` se desvinculó de `push` y se restringió estrictamente a `workflow_dispatch`, impidiendo carreras de despliegue dual.
-   - Verificación de Pipeline: `npm ci` (PASS, código 0), `npm run typecheck` (PASS, 0 errores), `npm run lint` (PASS, 0 errores), `npm run build` (PASS, 0 errores, generación de artefacto `dist/` con base path `/ve/` y fallback SPA `dist/404.html`).
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-07 15:50:00 UTC (2026-09-07 08:50:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso / 0 vulnerabilidades npm audit)
+ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
+MEJORAS TÉCNICAS RECIENTES: 
+1. Diagnóstico Forense y Corrección de Deadlock en Timeout de Turno y Abandono de Mesa (`TableRepository` / PostgreSQL):
+   - Diagnóstico: Se identificó la causa exacta del error recurrente en producción `canceling statement due to statement timeout` (20-22 segundos de bloqueo) al vencer el turno o procesar salida de mesa. Se trataba de un DEADLOCK MUTUO por inversión en el orden canónico de adquisición de candados (`FOR UPDATE`):
+     * `abandon_game_table_secure` bloqueaba primero `game_tables` y luego `game_sessions`.
+     * `universal_settle_game_session` y `expire_game_turn_secure` bloqueaban primero `game_sessions` y luego `game_tables`.
+     * Al expirar el temporizador del turno e intentar resolver/expirar/liquidar la sesión mientras al mismo tiempo se procesaba un abandono o salida concurrente, ambas transacciones quedaban mutuamente bloqueadas esperando el candado de la otra hasta ser canceladas por el `statement_timeout` de PostgreSQL.
+   - Migración 146 (`146_fix_turn_timeout_deadlock_and_table_lifecycle.sql`):
+     * Unificación del orden canónico de bloqueo estricto en toda la base de datos: 1º `game_sessions` (FOR UPDATE), 2º `game_tables` (FOR UPDATE), 3º `game_table_players` (FOR UPDATE).
+     * Uso de `FOR UPDATE SKIP LOCKED` en `execute_bot_move_on_timeout` y `expire_game_turn_secure` para evitar que peticiones concurrentes queden bloqueadas o colisionen.
+     * Idempotencia inmediata en `abandon_game_table_secure`: si el jugador ya se encuentra en estado `LEFT` o la sesión ya finalizó, retorna de inmediato (`already_left: true`) sin intentar adquirir locks exclusivos prolongados.
+2. Reconciliación del Ciclo de Vida de la Mesa en Turn Timeout (No Cierre Prematuro):
+   - Diagnóstico: `expire_game_turn_secure` forzaba `UPDATE game_tables SET status = 'CLOSED'` tan pronto como se agotaban las vidas por timeout, lo cual disparaba el evento Realtime en `TablesView.tsx` y desmontaba `GameContainer` (`setInGameData(null)`), expulsando a los jugadores y haciendo que la mesa "desapareciera" de la vista sin mostrar la liquidación ni el modal de resultados.
+   - Solución: En la migración 146, al agotarse las vidas por timeout la sesión se liquida formalmente (`SETTLED`), y la mesa se actualiza a `FINISHED` (NO `CLOSED`), preservando la sala activa en el frontend para que ambos jugadores vean el resultado final, premios y botón de salida voluntaria.
+3. Unificación y Sobrecarga de RPC `execute_bot_move_on_timeout`:
+   - Se resolvió la discrepancia entre las firmas de migración 045 (`p_bot_action JSONB`) y migración 102 (`p_action_type TEXT`).
+   - La nueva versión en la migración 146 acepta tanto `p_bot_action JSONB DEFAULT NULL` como `p_action_type TEXT DEFAULT 'PASS_TURN'`, ejecutando el movimiento automático del bot autoritativamente (en Tic Tac Toe colocando símbolo en casilla libre y rotando turno de 30s) sin bloquear la base de datos.
+4. Sincronización Autoritativa y Prevención de Bucles en `TurnTimer.tsx`:
+   - Se eliminó la extensión optimista desincronizada (`effectiveExpiresAt = storedExpiresAt < now ? now + durationSeconds * 1000 : storedExpiresAt`) que provocaba que el cliente local se retrasara 30 segundos respecto al servidor y re-disparara advertencias de timeout en bucle infinito.
+   - Se incorporó un ref de idempotencia (`lastFiredExpiresAtRef`) para garantizar que `onTimeout` se dispare exactamente una sola vez por cada fecha límite (`turnExpiresAt`) única provista por el servidor.
+5. Manejo Autoritativo de Timeout en `TicTacToeBoard.tsx`:
+   - El tablero ahora no solo gestiona el timeout del jugador local (`isMyTurn`), sino que también maneja de forma server-authoritative el caso donde el oponente no responde o se desconecta (`!isMyTurn` y tiempo expirado), solicitando al servidor `GameRepository.executeBotMoveOnTimeout(sessionId, turnUserId)` o `GameRepository.expireTurn(sessionId)`.
+6. Protección de `inGameData` en `TablesView.tsx`:
+   - Se implementó `inGameDataRef` para evitar que `subscribeToTable` desmonte bruscamente `GameContainer` ante eventos de estado en segundo plano mientras el usuario se encuentra activamente en el contenedor del juego.
 ================================================================================
 
 --------------------------------------------------------------------------------

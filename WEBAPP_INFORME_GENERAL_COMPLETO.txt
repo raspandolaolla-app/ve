@@ -2,13 +2,43 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 17:03:00 UTC (2026-09-08 10:03:00 -07:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 18:20:00 UTC (2026-09-08 11:20:00 -07:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / compile_applet PASS)
-ESTADO DE DESPLIEGUE GITHUB ACTIONS: PASS (Run #824 / ID 34254494049 en main - commit f61c176 - Deploy to GitHub Pages SUCCESS)
-ESTADO DE PRODUCCIÓN: PASS (https://raspandolaolla-app.github.io/ve/ accesible, HTTP 200, bundle verificado con TABLE_EXIT_DIAGNOSTIC)
+ESTADO DE DESPLIEGUE GITHUB ACTIONS: PASS (Compilación local validada y lista para Push a main)
+ESTADO DE PRODUCCIÓN: PASS (Flujo de emparejamiento JUEGA YA y liquidación autoritativa 90/10 operativos)
 ÚLTIMA MIGRACIÓN INTEGRADA: 154_fix_support_tickets_fk_ambiguity.sql (Total físico: 158 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-0. Instrumentación Completa [TABLE_EXIT_DIAGNOSTIC] y Conexión Directa JUEGA YA → GameContainer (Cierre de Fuga al Lobby):
+0. Corrección Definitiva del Flujo y UI de Final de Partida (Sincronización Ganador/Perdedor, PC y Móvil):
+   - Diagnóstico Forense de Causa Raíz:
+     * El anfitrión o jugador ganador realizaba la jugada de cierre y su cliente ejecutaba `handleSettleGame()`, reflejando la victoria localmente.
+     * El oponente (perdedor) recibía la jugada por `game_actions` y ejecutaba `engine.applyAction()`, pero el retorno omitía procesar `result.isGameOver`.
+     * En PC y navegadores de escritorio, las suscripciones WebSocket a `game_sessions` a menudo sufrían retrasos o bloqueos por multiplexado y cambios de pestaña, y no existía sondeo activo de respaldo para la sesión una vez creada (`if (session?.id) return;` en el sondeo previo).
+     * La comparación de IDs de usuario en frontend era vulnerable a discrepancias de formato entre strings (`winnerId === currentUserId`).
+     * Al liquidarse la partida, la RPC colocaba a los jugadores en estado `LEFT` en `game_table_players`, lo que disparaba en el perdedor un aviso falso de que el rival había abandonado la partida (`⚠️ [Rival] abandonó la partida`), solapando o entorpeciendo el flujo de fin de juego.
+     * El modal de liquidación carecía de un estado explícito de derrota ("❌ Perdiste") y de los botones canónicos requeridos por el usuario ("🔄 Jugar de nuevo", "🏠 Regresar al lobby", "👁️ Ver tablero final").
+   - Soluciones Implementadas:
+     1. Métodos Autoritativos en `GameRepository.ts`:
+        * Implementados `GameRepository.getSessionById(sessionId)` y `GameRepository.getLatestSession(tableId)` para recuperar el registro íntegro de la sesión sin filtrar por estados activos.
+     2. Detección Dual e Inmediata de Fin de Partida en `GameContainer.tsx`:
+        * Cuando llega un `game_actions` del rival, si `result.isGameOver` es `true`, el cliente activa de inmediato la liquidación/pantalla de fin de juego sin esperar la ronda de confirmación de base de datos.
+        * Implementada función normalizadora de IDs `normId(id)` para evitar errores de mayúsculas o espacios.
+     3. Sondeo de Respaldo y Reconciliación Activa para PC/Desktop:
+        * Añadido `useEffect` que sondea cada 2000 ms la sesión activa vía `GameRepository.getSessionById(session.id)`. Si la base de datos ya marca `FINISHED`, `SETTLED`, `CANCELLED` o `ABANDONED`, se reconcilia el estado visual del tablero y se muestra de inmediato el modal de resultados al perdedor y ganador por igual.
+     4. Supresión de Falso Abandono Post-Liquidación:
+        * Si la partida ya fue liquidada (`isSettledRef.current` o `settlementResult`), los cambios en `game_table_players` no emiten alertas de abandono.
+     5. Rediseño Completo de `SettlementModal.tsx`:
+        * Indicador claro y visualmente diferenciado:
+          - 🏆 ¡Ganador! (para quien ganó, con premio 90% y felicitaciones).
+          - ❌ Perdiste (para quien perdió, reconociendo claramente la derrota e identificando al ganador).
+          - 🤝 ¡Empate! (en caso de tablas o cancelación, con reembolso del 100%).
+        * Tarjeta destacada de Ganador de la Mesa con icono y nombre exacto.
+        * Tres botones canónicos requeridos:
+          - 🔄 Jugar de nuevo (`onPlayAgain`).
+          - 👁️ Ver tablero final (`onBackToTable`).
+          - 🏠 Regresar al lobby (`onReturnToLobby`).
+     6. Inspección de Tablero Final con Retorno Garantizado:
+        * Banner superior permanente (`#board-inspection-banner`) sobre el tablero con indicación del resultado y botón "🏆 Ver Resultados".
+        * Botón flotante inferior reforzado con `z-50` (`#btn-reopen-results-floating`) para reabrir los resultados en cualquier momento.
    - Causa Raíz Detectada:
      * En `TablesView.tsx` (línea 1712), `QuickMatchModal` invocaba `onNavigateToTable` con una implementación inline que llamaba a `setActiveTable(tbl)` en lugar de transicionar a la partida mediante `handleOpenTableById`. Esto provocaba que el jugador 2 quedara atrapado en el modal de sala de espera en lugar de ingresar a `GameContainer`, derivando en la posterior salida al lobby por descarte o cierre.
      * En `QuickMatchModal`, la navegación no pasaba los objetos de mesa y jugador ya resueltos por la transacción de unión, requiriendo consultas redundantes que podían sufrir carreras de replicación en red.

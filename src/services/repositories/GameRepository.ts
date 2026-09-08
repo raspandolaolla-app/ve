@@ -133,6 +133,139 @@ export class GameRepository {
   }
 
   /**
+   * Obtiene una sesión de juego por su ID único sin filtrar por status.
+   * Crucial para reconciliación server-authoritative del final de partida y liquidación.
+   */
+  public static async getSessionById(sessionId: string): Promise<GameSession | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase || !sessionId) return null;
+
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select(`
+        id,
+        table_id,
+        game_type,
+        session_number,
+        current_turn_user_id,
+        turn_deadline_at,
+        turn_expires_at,
+        status,
+        gross_pool,
+        prize_pool,
+        platform_fee,
+        winner_user_id,
+        winner_team,
+        is_settled,
+        ended_at,
+        settled_at,
+        current_state,
+        started_at,
+        created_at,
+        updated_at
+      `)
+      .eq('id', sessionId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      tableId: data.table_id,
+      gameType: this.mapDbEnumToGameType(data.game_type),
+      roundNumber: Number(data.session_number) || 1,
+      currentTurnUserId: data.current_turn_user_id || undefined,
+      turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
+      status: (data.status === 'SALES' || data.status === 'DRAWING'
+        ? data.status
+        : data.status === 'ACTIVE' || data.status === 'READY' || data.status === 'WAITING'
+        ? (data.status === 'WAITING' || data.status === 'READY' ? data.status : 'in_progress')
+        : data.status === 'FINISHED' || data.status === 'SETTLED'
+        ? 'completed'
+        : data.status === 'CANCELLED' || data.status === 'ABANDONED'
+        ? 'abandoned'
+        : 'in_progress') as any,
+      grossPool: Number(data.gross_pool || 0),
+      winnerPrizeAmount: Number(data.prize_pool || 0),
+      serviceFeeAmount: Number(data.platform_fee || 0),
+      winnerUserId: data.winner_user_id || undefined,
+      winnerTeamIndex: data.winner_team !== null && data.winner_team !== undefined ? Number(data.winner_team) : undefined,
+      isSettled: data.status === 'SETTLED' || Boolean(data.is_settled),
+      settledAt: data.ended_at || data.settled_at || undefined,
+      currentState: (data.current_state as Record<string, unknown>) || {},
+    };
+  }
+
+  /**
+   * Obtiene la sesión más reciente de una mesa sin filtrar por status.
+   */
+  public static async getLatestSession(tableId: string): Promise<GameSession | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase || !tableId) return null;
+
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select(`
+        id,
+        table_id,
+        game_type,
+        session_number,
+        current_turn_user_id,
+        turn_deadline_at,
+        turn_expires_at,
+        status,
+        gross_pool,
+        prize_pool,
+        platform_fee,
+        winner_user_id,
+        winner_team,
+        is_settled,
+        ended_at,
+        settled_at,
+        current_state,
+        started_at,
+        created_at,
+        updated_at
+      `)
+      .eq('table_id', tableId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      tableId: data.table_id,
+      gameType: this.mapDbEnumToGameType(data.game_type),
+      roundNumber: Number(data.session_number) || 1,
+      currentTurnUserId: data.current_turn_user_id || undefined,
+      turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
+      status: (data.status === 'SALES' || data.status === 'DRAWING'
+        ? data.status
+        : data.status === 'ACTIVE' || data.status === 'READY' || data.status === 'WAITING'
+        ? (data.status === 'WAITING' || data.status === 'READY' ? data.status : 'in_progress')
+        : data.status === 'FINISHED' || data.status === 'SETTLED'
+        ? 'completed'
+        : data.status === 'CANCELLED' || data.status === 'ABANDONED'
+        ? 'abandoned'
+        : 'in_progress') as any,
+      grossPool: Number(data.gross_pool || 0),
+      winnerPrizeAmount: Number(data.prize_pool || 0),
+      serviceFeeAmount: Number(data.platform_fee || 0),
+      winnerUserId: data.winner_user_id || undefined,
+      winnerTeamIndex: data.winner_team !== null && data.winner_team !== undefined ? Number(data.winner_team) : undefined,
+      isSettled: data.status === 'SETTLED' || Boolean(data.is_settled),
+      settledAt: data.ended_at || data.settled_at || undefined,
+      currentState: (data.current_state as Record<string, unknown>) || {},
+    };
+  }
+
+  /**
    * Crea o recupera la sesión de juego para una mesa de forma server-authoritative.
    * Prohíbe terminantemente la fabricación cliente de estados ACTIVE si la RPC falla.
    */

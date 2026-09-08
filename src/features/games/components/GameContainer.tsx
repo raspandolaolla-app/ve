@@ -615,6 +615,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         (payload) => {
           const newRow = payload.new as any;
           if (newRow && newRow.status === 'LEFT') {
+            // No emitir falso abandono si la partida ya fue liquidada o concluida normalmente
+            if (isSettledRef.current || settlementResult) return;
             const playerLeft = currentPlayers.find((p) => p.userId === newRow.user_id);
             const playerName = playerLeft?.displayName || 'Un jugador';
             if (newRow.user_id !== currentUserId) {
@@ -630,7 +632,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       supabase.removeChannel(playersChannel);
     };
-  }, [table.id, refreshPlayers]);
+  }, [table.id, refreshPlayers, settlementResult]);
 
   // Suscripción Realtime a cambios en la sesión de juego y presencia
   useEffect(() => {
@@ -638,6 +640,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
     const supabase = getSupabaseClient();
     if (!supabase) return;
+
+    const normId = (id?: string | null) => String(id || '').trim().toLowerCase();
 
     const channel = supabase.channel(`game_session_${session.id}`, {
       config: { presence: { key: currentUserId } },
@@ -725,26 +729,47 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           const isTerminated =
             (statusUpper === 'SETTLED' ||
              statusUpper === 'FINISHED' ||
-             statusUpper === 'ABANDONED') &&
+             statusUpper === 'ABANDONED' ||
+             statusUpper === 'CANCELLED' ||
+             statusUpper === 'COMPLETED' ||
+             Boolean(updated?.is_settled)) &&
             !isSettledRef.current;
 
           if (isTerminated) {
             isSettledRef.current = true;
-            const winnerId = updated.winner_user_id || updated.winnerUserId || (updated.current_state as any)?.winnerUserId;
-            const winnerPlayer = currentPlayers.find((p) => p.userId === winnerId);
-            const isWinner = winnerId === currentUserId;
-            const winnerDisplayName = isWinner ? '¡Tú obtuviste la victoria!' : winnerPlayer?.displayName || 'Ganador';
+            const winnerId =
+              updated.winner_user_id ||
+              updated.winnerUserId ||
+              (updated.current_state as any)?.winnerUserId ||
+              (updated.current_state as any)?.winner;
+
+            const isDraw =
+              statusUpper === 'CANCELLED' ||
+              Boolean((updated.current_state as any)?.isDraw) ||
+              (updated.current_state as any)?.winner === 'DRAW' ||
+              (!winnerId && (statusUpper === 'FINISHED' || statusUpper === 'SETTLED'));
+
+            const isWinner = Boolean(!isDraw && winnerId && normId(winnerId) === normId(currentUserId));
+            const winnerPlayer = currentPlayers.find((p) => normId(p.userId) === normId(winnerId));
+            const winnerDisplayName = isDraw
+              ? 'Empate Técnico'
+              : isWinner
+              ? '¡Tú obtuviste la victoria!'
+              : winnerPlayer?.displayName || 'Rival Ganador';
+
             const grossPool = Number(updated.gross_pool) || (table.entryFee * (currentPlayers.length || 2));
             const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
 
             setSettlementResult({
               grossPool,
-              prizePool: Number(updated.prize_pool) || poolBreakdown.prizePool,
-              platformFee: Number(updated.platform_fee) || poolBreakdown.platformFee,
+              prizePool: Number(updated.prize_pool) || (isDraw ? 0 : poolBreakdown.prizePool),
+              platformFee: Number(updated.platform_fee) || (isDraw ? 0 : poolBreakdown.platformFee),
               winnerName: winnerDisplayName,
               isWinner,
-              isDraw: false,
+              isDraw,
             });
+            setShowResults(true);
+            setAbandonNotice(null);
 
             if (isWinner) {
               const isAbandonWin =
@@ -756,17 +781,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 setAbandonNotice(`🏆 ¡Victoria declarada! Premio acreditado.`);
               }
             }
-          } else if (statusUpper === 'CANCELLED' && !isSettledRef.current) {
-            isSettledRef.current = true;
-            const grossPool = table.entryFee * (currentPlayers.length || 2);
-            setSettlementResult({
-              grossPool,
-              prizePool: 0,
-              platformFee: 0,
-              winnerName: 'Empate / Reembolso',
-              isWinner: false,
-              isDraw: true,
-            });
           }
         }
       )
@@ -789,7 +803,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             const actionData = actionRow.action_data || actionRow.payload || {};
 
             // ✅ PASO 2: "Oído" de Bingo Realtime en el frontend.
-            // Si el servidor o cron canta una balota, actualiza el estado local de inmediato SIN llamadas DB.
             if (
               table.gameType === 'bingo' &&
               (actionType === 'DRAW_BALL' || actionType === 'AUTO_DRAW_BALL' || actionType === 'SERVER_AUTO_DRAW')
@@ -826,6 +839,28 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 };
                 const result = engine.applyAction(prev, actionPayload);
                 if (result.isValid) {
+                  // Si el movimiento del oponente concluyó la partida según el motor:
+                  if (result.isGameOver && !isSettledRef.current) {
+                    isSettledRef.current = true;
+                    const wId = result.winnerUserId || (result.newState as any)?.winnerUserId;
+                    const isDraw = Boolean(result.isDraw || (result.newState as any)?.isDraw || !wId);
+                    const isWin = Boolean(!isDraw && wId && normId(wId) === normId(currentUserId));
+                    const winPlayer = currentPlayers.find((p) => normId(p.userId) === normId(wId));
+                    const gross = Number(session.grossPool) || (table.entryFee * (currentPlayers.length || 2));
+                    const poolBreakdown = FinancialRepository.calculatePoolBreakdown(gross);
+
+                    setSettlementResult({
+                      grossPool: gross,
+                      prizePool: isDraw ? 0 : poolBreakdown.prizePool,
+                      platformFee: isDraw ? 0 : poolBreakdown.platformFee,
+                      winnerName: isDraw ? 'Empate Técnico' : isWin ? '¡Tú obtuviste la victoria!' : winPlayer?.displayName || 'Rival Ganador',
+                      isWinner: isWin,
+                      isDraw,
+                    });
+                    setShowResults(true);
+                    setAbandonNotice(null);
+                  }
+
                   return engine.getSanitizedStateForPlayer
                     ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
                     : result.newState;
@@ -851,7 +886,88 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.id, currentUserId]);
+  }, [session?.id, currentUserId, currentPlayers, table.entryFee, table.gameType]);
+
+  // Sondeo y Reconciliación Activa de Sesión en Segundo Plano (Garantía para PC y Navegadores Desktop)
+  useEffect(() => {
+    if (!session?.id || isSettledRef.current || settlementResult) return;
+
+    let isMounted = true;
+    const pollInterval = setInterval(async () => {
+      if (!isMounted || isSettledRef.current) return;
+      try {
+        const freshSession = await GameRepository.getSessionById(session.id);
+        if (!freshSession || !isMounted) return;
+
+        const st = String(freshSession.status || '').toUpperCase();
+        const isSessionDone =
+          st === 'FINISHED' ||
+          st === 'SETTLED' ||
+          st === 'CANCELLED' ||
+          st === 'ABANDONED' ||
+          st === 'COMPLETED' ||
+          Boolean(freshSession.isSettled);
+
+        if (isSessionDone && !isSettledRef.current) {
+          isSettledRef.current = true;
+          const normId = (id?: string | null) => String(id || '').trim().toLowerCase();
+          const winnerId =
+            freshSession.winnerUserId ||
+            (freshSession.currentState as any)?.winnerUserId ||
+            (freshSession.currentState as any)?.winner;
+
+          const isDraw =
+            st === 'CANCELLED' ||
+            Boolean((freshSession.currentState as any)?.isDraw) ||
+            (freshSession.currentState as any)?.winner === 'DRAW' ||
+            (!winnerId && (st === 'FINISHED' || st === 'SETTLED'));
+
+          const isWinner = Boolean(!isDraw && winnerId && normId(winnerId) === normId(currentUserId));
+          const winnerPlayer = currentPlayers.find((p) => normId(p.userId) === normId(winnerId));
+          const winnerDisplayName = isDraw
+            ? 'Empate Técnico'
+            : isWinner
+            ? '¡Tú obtuviste la victoria!'
+            : winnerPlayer?.displayName || 'Rival Ganador';
+
+          const grossPool = Number(freshSession.grossPool) || (table.entryFee * (currentPlayers.length || 2));
+          const poolBreakdown = FinancialRepository.calculatePoolBreakdown(grossPool);
+
+          // Sincronizar estado final del tablero
+          if (freshSession.currentState) {
+            const normalized = normalizeGameStateByType(
+              table.gameType,
+              freshSession.currentState,
+              gameState,
+              currentPlayers
+            );
+            const sanitized = engine.getSanitizedStateForPlayer
+              ? engine.getSanitizedStateForPlayer(normalized.state, currentUserId)
+              : normalized.state;
+            setGameState(sanitized);
+          }
+
+          setSettlementResult({
+            grossPool,
+            prizePool: Number(freshSession.winnerPrizeAmount) || (isDraw ? 0 : poolBreakdown.prizePool),
+            platformFee: Number(freshSession.serviceFeeAmount) || (isDraw ? 0 : poolBreakdown.platformFee),
+            winnerName: winnerDisplayName,
+            isWinner,
+            isDraw,
+          });
+          setShowResults(true);
+          setAbandonNotice(null);
+        }
+      } catch (err) {
+        console.warn('[GameContainer] Error en sondeo de reconciliación de sesión:', err);
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [session?.id, settlementResult, table.gameType, table.entryFee, currentPlayers, currentUserId]);
 
   // Suscripción Realtime y Sondeo de Respaldo para detectar cuando el anfitrión crea/inicia la sesión en la mesa
   useEffect(() => {
@@ -1565,6 +1681,37 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         botNotice={botNotice}
       />
 
+      {/* Banner de Inspección del Tablero Final */}
+      {settlementResult && !showResults && (
+        <div 
+          id="board-inspection-banner"
+          className="w-full bg-neutral-900/95 border-b border-amber-500/40 px-4 py-2.5 flex items-center justify-between shadow-lg z-30 shrink-0 backdrop-blur-sm"
+        >
+          <div className="flex items-center space-x-2.5 truncate">
+            <span className="text-base shrink-0">
+              {settlementResult.isWinner ? '🏆' : settlementResult.isDraw ? '🤝' : '❌'}
+            </span>
+            <div className="truncate">
+              <span className={`text-xs font-black uppercase tracking-wider ${
+                settlementResult.isWinner ? 'text-amber-400' : settlementResult.isDraw ? 'text-blue-400' : 'text-red-400'
+              }`}>
+                {settlementResult.isWinner ? '¡Ganaste la Partida!' : settlementResult.isDraw ? '¡Partida Empatada!' : 'Partida Finalizada — Perdiste'}
+              </span>
+              <span className="hidden sm:inline text-neutral-400 text-xs ml-2">
+                (Ganador: <strong className="text-white">{settlementResult.winnerName}</strong>)
+              </span>
+            </div>
+          </div>
+          <button
+            id="btn-reopen-results-banner"
+            onClick={() => setShowResults(true)}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 cursor-pointer shrink-0 ml-3"
+          >
+            🏆 Ver Resultados
+          </button>
+        </div>
+      )}
+
       {/* Tablero Principal */}
       <main
         className={`flex-1 flex items-center justify-center overflow-y-auto overflow-x-hidden w-full max-w-full ${
@@ -1638,12 +1785,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
       {/* Botón flotante para reabrir resultados */}
       {settlementResult && !showResults && (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-6 right-6 z-50">
           <button
+            id="btn-reopen-results-floating"
             onClick={() => setShowResults(true)}
-            className="flex items-center space-x-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs shadow-2xl transition-all border border-amber-400/40 animate-pulse uppercase tracking-wider"
+            className="flex items-center space-x-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-neutral-950 font-black text-xs shadow-2xl transition-all border border-amber-300 ring-4 ring-amber-500/20 active:scale-95 cursor-pointer uppercase tracking-wider"
           >
-            <Trophy className="w-4 h-4" />
+            <Trophy className="w-4 h-4 shrink-0" />
             <span>Ver Resultados</span>
           </button>
         </div>

@@ -41,6 +41,10 @@ export function useGameEngine({
 
   const seqNumRef = useRef(1);
   const isSettlingRef = useRef(false);
+  const playersRef = useRef(players);
+  playersRef.current = players;
+  const initialStateRef = useRef(initialState);
+  initialStateRef.current = initialState;
 
   const isHost = currentUserId === table.hostUserId;
   const isMyTurn = currentTurnUserId === currentUserId;
@@ -49,19 +53,18 @@ export function useGameEngine({
   const initSession = useCallback(async () => {
     setLoading(true);
     try {
+      const currentRawPlayers = playersRef.current || [];
       const uniquePlayers = Array.from(
         new Map(
-          players.map((player) => [
+          currentRawPlayers.map((player) => [
             (player as any).user_id || player.userId,
             player,
           ])
         ).values()
       );
 
-      if (players.length !== uniquePlayers.length) {
-        console.error('[useGameEngine] Error: Un jugador no puede ocupar dos puestos en la misma mesa');
-        setLoading(false);
-        return;
+      if (currentRawPlayers.length !== uniquePlayers.length) {
+        console.warn('[useGameEngine] Asientos duplicados detectados en players; usando lista única sanitizada.');
       }
 
       const defaultTurnUser = uniquePlayers[0]?.userId || table.hostUserId;
@@ -69,7 +72,7 @@ export function useGameEngine({
         table.id,
         table.gameType,
         defaultTurnUser,
-        initialState
+        initialStateRef.current
       );
 
       if (active) {
@@ -90,7 +93,10 @@ export function useGameEngine({
     } finally {
       setLoading(false);
     }
-  }, [table.id, table.gameType, table.hostUserId, players, initialState]);
+  }, [table.id, table.gameType, table.hostUserId]);
+
+  const initSessionRef = useRef(initSession);
+  initSessionRef.current = initSession;
 
   useEffect(() => {
     initSession();
@@ -100,11 +106,11 @@ export function useGameEngine({
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        initSession();
+        initSessionRef.current();
       }
     };
     const handleOnline = () => {
-      initSession();
+      initSessionRef.current();
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
@@ -114,7 +120,7 @@ export function useGameEngine({
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('online', handleOnline);
     };
-  }, [initSession]);
+  }, []);
 
   // 2. Suscribirse a Realtime
   useEffect(() => {
@@ -144,7 +150,7 @@ export function useGameEngine({
 
           // Si un turno expiró o se ejecutó movimiento de bot, recargar estado actualizado
           if (action.action_type === 'TURN_EXPIRED' || action.action_type === 'BOT_MOVE') {
-            initSession();
+            initSessionRef.current();
           }
         }
       }
@@ -153,7 +159,7 @@ export function useGameEngine({
     return () => {
       unsubscribe();
     };
-  }, [session?.id, initSession]);
+  }, [session?.id]);
 
   // 3. Finalizar y Liquidar la partida (90% ganador / 10% tesorería o 100% reembolso en empate)
   const settleGame = useCallback(

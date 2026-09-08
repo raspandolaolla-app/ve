@@ -27,7 +27,7 @@ import { sanitizeUserErrorMessage } from '../../utils/errorSanitizer';
 import { useBcvRate } from '../../context/BcvContext';
 import { useProtectedGameplay } from '../../context/ProtectedGameplayContext';
 import type { GameTable, TablePlayer } from '../../types/tables';
-import type { GameType, GameMode } from '../../types/games';
+import type { GameType, GameMode, GameSession } from '../../types/games';
 import { GameContainer } from '../games/components/GameContainer';
 import { GameRulesModal } from '../games/GameRulesModal';
 import { getGameEngine } from '../games/engines';
@@ -102,7 +102,7 @@ export function TablesView() {
   }, []);
 
   // Partida en Vivo Activa
-  const [inGameData, setInGameData] = useState<{ table: GameTable; players: TablePlayer[] } | null>(null);
+  const [inGameData, setInGameData] = useState<{ table: GameTable; players: TablePlayer[]; session?: GameSession | null } | null>(null);
   const inGameDataRef = useRef(inGameData);
   inGameDataRef.current = inGameData;
 
@@ -428,17 +428,22 @@ export function TablesView() {
     let isMounted = true;
     loadTablePlayers(activeTable.id);
 
-    const checkAndEnterGame = async (tableData?: GameTable) => {
+    const checkAndEnterGame = async (tableData?: GameTable, sessionData?: GameSession | null) => {
       if (!isMounted || !activeTable?.id) return;
+      if (inGameDataRef.current) return;
       try {
         const targetTable = tableData || activeTable;
-        const freshPlayers = await TableRepository.getTablePlayers(targetTable.id);
+        let freshPlayers = await TableRepository.getTablePlayers(targetTable.id);
+        if (!freshPlayers || freshPlayers.length === 0) {
+          freshPlayers = tablePlayers;
+        }
         if (!isMounted) return;
-        const isSeated = freshPlayers.some((p) => p.userId === user?.id && p.status !== 'LEFT');
+        const isSeated = freshPlayers.some((p) => (p.userId || '').toLowerCase() === (user?.id || '').toLowerCase() && p.status !== 'LEFT');
         if (isSeated) {
           setInGameData({
             table: targetTable,
             players: freshPlayers,
+            session: sessionData,
           });
           setActiveTable(null);
         }
@@ -469,7 +474,7 @@ export function TablesView() {
           setActiveTable((prev) => (prev ? { ...prev, ...tablePayload.new } : null));
 
           const isPlayable = ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(newStatus);
-          if (isPlayable) {
+          if (isPlayable && !inGameDataRef.current) {
             checkAndEnterGame(updatedTable);
           }
         }
@@ -480,14 +485,30 @@ export function TablesView() {
         }
       },
       (sessionPayload) => {
-        if (!isMounted || !sessionPayload.new) return;
+        if (!isMounted || !sessionPayload.new || inGameDataRef.current) return;
         const sessStatus = (sessionPayload.new.status || '').toUpperCase();
         const isSessionActive =
           ['ACTIVE', 'READY', 'SALES', 'DRAWING'].includes(sessStatus) ||
           (sessStatus === 'WAITING' && activeTable.gameType === 'bingo');
 
         if (isSessionActive) {
-          checkAndEnterGame(activeTable);
+          const raw = sessionPayload.new;
+          const mappedSession: GameSession = {
+            id: raw.id,
+            tableId: raw.table_id,
+            gameType: raw.game_type,
+            roundNumber: raw.round_number || 1,
+            currentTurnUserId: raw.current_turn_user_id || undefined,
+            turnExpiresAt: raw.turn_expires_at || raw.turn_deadline_at || undefined,
+            status: raw.status,
+            grossPool: raw.gross_pool || 0,
+            winnerPrizeAmount: raw.winner_prize_amount || 0,
+            serviceFeeAmount: raw.service_fee_amount || 0,
+            isSettled: raw.is_settled || false,
+            winnerUserId: raw.winner_user_id || undefined,
+            currentState: raw.current_state || {},
+          };
+          checkAndEnterGame(activeTable, mappedSession);
         }
       }
     );
@@ -495,10 +516,10 @@ export function TablesView() {
     // Sondeo de Respaldo Anti-Desconexión (Fallback ligero cada 7s)
     // Garantiza que jugadores en dispositivos móviles o con pérdida temporal de WebSockets no se queden atascados
     const pollInterval = setInterval(async () => {
-      if (!isMounted || !activeTable?.id || document.hidden) return;
+      if (!isMounted || !activeTable?.id || document.hidden || inGameDataRef.current) return;
       try {
         const activeSess = await GameRepository.getActiveSession(activeTable.id);
-        if (!isMounted) return;
+        if (!isMounted || inGameDataRef.current) return;
         if (activeSess) {
           const sStatus = (activeSess.status || '').toUpperCase();
           const isPlayableSession =
@@ -506,14 +527,14 @@ export function TablesView() {
             (sStatus === 'WAITING' && activeTable.gameType === 'bingo');
 
           if (isPlayableSession) {
-            await checkAndEnterGame(activeTable);
+            await checkAndEnterGame(activeTable, activeSess);
             return;
           }
         }
 
         // Comprobación secundaria en game_tables
         const freshTable = await TableRepository.getTableById(activeTable.id);
-        if (!isMounted) return;
+        if (!isMounted || inGameDataRef.current) return;
         if (freshTable) {
           const tStatus = (freshTable.status || '').toUpperCase();
           if (['ACTIVE', 'SALES', 'DRAWING'].includes(tStatus)) {
@@ -728,6 +749,7 @@ export function TablesView() {
       <GameContainer
         table={inGameData.table}
         players={inGameData.players}
+        initialSession={inGameData.session}
         currentUserId={user?.id || ''}
         onExit={() => {
           setInGameData(null);
@@ -1203,9 +1225,12 @@ export function TablesView() {
                                   turnDuration
                                 );
 
+                                const activeSess = await GameRepository.getActiveSession(activeTable.id);
+
                                 setInGameData({
-                                  table: activeTable,
+                                  table: { ...activeTable, status: 'ACTIVE' },
                                   players: uniquePlayers,
+                                  session: activeSess,
                                 });
                                 setActiveTable(null);
                               } catch (e: any) {
@@ -1213,8 +1238,9 @@ export function TablesView() {
                                 const activeSess = await GameRepository.getActiveSession(activeTable.id);
                                 if (activeSess) {
                                   setInGameData({
-                                    table: activeTable,
+                                    table: { ...activeTable, status: 'ACTIVE' },
                                     players: uniquePlayers,
+                                    session: activeSess,
                                   });
                                   setActiveTable(null);
                                 } else {

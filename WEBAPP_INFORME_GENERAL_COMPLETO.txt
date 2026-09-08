@@ -2,11 +2,30 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 03:48:00 UTC (2026-09-07 20:48:00 -07:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm ci PASS / Build exitoso / GitHub Actions Run #811 PASS en Build y Deploy)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 04:45:00 UTC (2026-09-07 21:45:00 -07:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores TypeScript / 0 errores Linter / npm run build PASS / 2308 módulos transformados)
 ÚLTIMA MIGRACIÓN INTEGRADA: 146_fix_turn_timeout_deadlock_and_table_lifecycle.sql (Total físico: 157 archivos en supabase/migrations/)
 MEJORAS TÉCNICAS RECIENTES: 
-1. Resolución y Despliegue Exitoso en GitHub Actions CI/CD (Run #811 - PASS VERDE):
+1. Resolución Forense de Desincronización y Expulsión al Iniciar Partida Multijugador (Prompt Maestro - Incidente Crítico):
+   - Causa Raíz Identificada y Corregida:
+     * Carrera de Inicialización en `GameContainer.tsx`: Al hacer clic en "Iniciar Partida" el anfitrión invocaba `TableRepository.startGameSession` (RPC `start_game_session`). Al mismo tiempo, el anfitrión y los demás jugadores montaban `GameContainer` donde `initGame()` llamaba a `GameRepository.createOrGetSession()`. Como la RPC estaba ejecutándose o recién finalizada, el cliente no-anfitrión recibía `ONLY_HOST_CAN_START` y tras una comprobación inmediata fallaba en obtener la sesión activa, desconectando al jugador.
+     * Re-renders y Desmontes Involuntarios por Dependencias de Efectos: `useEffect` en `GameContainer.tsx` incluía objetos mutables (`table`, `initialPlayers`, `engine`, `currentPlayers`) en su array de dependencias. Cada vez que cambiaba un jugador o presencia, el canal Realtime era removido (`supabase.removeChannel`), causando que los jugadores fuesen expulsados y mostraran `DISCONNECTED`.
+     * `useProtectedGameplay` Cleanup Cascade: La dependencia `session?.id` en el efecto de blindaje provocaba que al resolverse la sesión se ejecutara la función de limpieza (`protectGameplay(false); exitGameMode()`), desactivando `isPlayingGame` en `App.tsx` y provocando parpadeo del Header/Footer y reinicio de la vista.
+     * Falso Positivo por Duplicados en `rawPlayersList`: Si Supabase devolvía duplicados transitorios de un jugador, `GameContainer` y `useGameEngine` abortaban con error `'Un jugador no puede ocupar dos puestos en la misma mesa'` en lugar de deduplicar automáticamente por `user_id`.
+   - Correcciones Implementadas:
+     * `GameRepository.executeCreateOrGetSession`: Se implementó un bucle de reintentos progresivos (5 intentos con retroceso exponencial de 200ms a 1200ms) en caso de que la RPC falle por concurrencia o permisos de anfitrión. Esto garantiza que el segundo jugador recupere la sesión recién creada por el anfitrión sin errores.
+     * `TablesView.tsx` y `GameContainer.tsx`: `GameContainer` ahora acepta `initialSession` como prop. `TablesView` pasa directamente el objeto de sesión obtenido tras `startGameSession` o recibido vía Realtime (`onSessionChange`), eliminando llamadas redundantes a `createOrGetSession`.
+     * Sondeo en `TablesView.tsx`: El polling de 7s y los callbacks de Realtime validan `inGameDataRef.current` para silenciar comprobaciones redundantes y evitar desmontes mientras el usuario está dentro de la partida.
+     * Estabilización de Efectos y Canales Realtime: Se estabilizaron las dependencias de los efectos en `GameContainer.tsx` y `useGameEngine.ts` utilizando referencias (`playersRef`, `tableRef`, `initialStateRef`), asegurando que las suscripciones a WebSockets no se destruyan con re-renders locales.
+     * Sanitización Silenciosa de Jugadores: Se transformó el rechazo por duplicados en una sanitización por `Map(userId -> player)`, garantizando que listas con asientos transitorios duplicados se limpien sin expulsar al usuario.
+2. Adopción Integral del Prompt Maestro V2 (36 Directivas de Mantenimiento y Control):
+   - Formalización del marco operativo autónomo para RASPANDO LA OLLA 🇻🇪 / PulsoPLAY.
+   - Inspect Before Modify: Inspección previa y obligatoria de árboles físicos, Git y Supabase antes de cualquier edición.
+   - Fuente de Verdad: Jerarquía estricta (GitHub main > Git tree > Workspace > package.json > Supabase).
+   - Zona de Máxima Protección: Blindaje de las 157 migraciones de Supabase y de los balances/ledger de Wallet server-authoritative.
+   - Transversalidad en Juegos y Orden de Locks canónico (1. game_sessions, 2. game_tables, 3. game_table_players).
+   - Protocolo estricto de reporte estructurado (Sección 33) y principio de honestidad absoluta en CI/Deploy.
+2. Resolución y Despliegue Exitoso en GitHub Actions CI/CD (Run #811 - PASS VERDE):
    - Causa raíz resuelta: Se restauró la carpeta canónica `src/services/` (39 archivos de repositories, RNG, realtime, audio, presencia, publicidad, etc.) directamente en GitHub `main` en el commit `1187340` ("fix(services): restore canonical services and repositories directory").
    - Resultado GitHub Actions Run #811 (Job ID 34184531416):
      * Setup Node.js: SUCCESS

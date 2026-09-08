@@ -239,10 +239,19 @@ export class GameRepository {
           });
         }
 
-        // Si falló por concurrencia o ya existía, comprobar de nuevo la base de datos (CASO B)
-        const doubleCheck = await this.getActiveSession(tableId);
-        if (doubleCheck) {
-          return doubleCheck;
+        // Si falló por concurrencia, permisos de host o ya existía, comprobar de nuevo la base de datos con reintentos progresivos
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const doubleCheck = await this.getActiveSession(tableId);
+          if (doubleCheck) {
+            console.log('[GAME_START_RPC_SUCCESS]', {
+              sessionId: doubleCheck.id,
+              tableId,
+              alreadyActive: true,
+              source: `retry_attempt_${attempt + 1}`,
+            });
+            return doubleCheck;
+          }
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
         }
 
         // CASO C: Error crítico de RPC/infraestructura -> PROHIBIDO insertar o fabricar sesión cliente

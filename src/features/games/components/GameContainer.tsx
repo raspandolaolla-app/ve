@@ -62,6 +62,7 @@ interface GameContainerProps {
   table: GameTable;
   players: TablePlayer[];
   currentUserId: string;
+  initialSession?: GameSession | null;
   onExit: () => void;
   onPlayAgain?: () => void;
 }
@@ -70,11 +71,12 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   table,
   players: initialPlayers,
   currentUserId,
+  initialSession,
   onExit,
   onPlayAgain,
 }) => {
-  const [session, setSession] = useState<GameSession | null>(null);
-  const [gameState, setGameState] = useState<any>(null);
+  const [session, setSession] = useState<GameSession | null>(initialSession || null);
+  const [gameState, setGameState] = useState<any>(initialSession?.currentState || null);
   const [showResults, setShowResults] = useState(true);
   const [currentPlayers, setCurrentPlayers] = useState<TablePlayer[]>(initialPlayers);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
@@ -152,7 +154,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       protectGameplay(false);
       exitGameMode();
     };
-  }, [table.gameType, table.id, session?.id, table.name, enterGameMode, exitGameMode, protectGameplay]);
+  }, [table.gameType, table.id, table.name, enterGameMode, exitGameMode, protectGameplay]);
 
   // Detección de orientación y soporte Fullscreen API
   useEffect(() => {
@@ -274,10 +276,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
         if (rawPlayersList.length !== uniquePlayers.length) {
-          logger.error('[GameContainer] Error: Asientos duplicados detectados en la mesa.');
-          setErrorMsg('Un jugador no puede ocupar dos puestos en la misma mesa');
-          setRealtimeStatus('DISCONNECTED');
-          return;
+          logger.warn('[GameContainer] Asientos duplicados detectados en rawPlayersList; usando lista deduplicada y sanitizada.');
         }
 
         if (isMounted) {
@@ -334,28 +333,30 @@ export const GameContainer: React.FC<GameContainerProps> = ({
              (initialEngineState as any)?.playerWhiteUserId ||
              uniquePlayers[0]?.userId);
 
-        let activeSession: GameSession | null = null;
-        if (isPractice) {
-          activeSession = {
-            id: table.id,
-            tableId: table.id,
-            gameType: table.gameType,
-            roundNumber: 1,
-            currentTurnUserId: isSimultaneousGame ? null : canonicalInitialTurnId,
-            status: 'in_progress',
-            grossPool: 0,
-            winnerPrizeAmount: 0,
-            serviceFeeAmount: 0,
-            isSettled: false,
-            currentState: initialEngineState,
-          };
-        } else {
-          activeSession = await GameRepository.createOrGetSession(
-            table.id,
-            table.gameType,
-            initialEngineState,
-            canonicalInitialTurnId
-          );
+        let activeSession: GameSession | null = initialSession || null;
+        if (!activeSession) {
+          if (isPractice) {
+            activeSession = {
+              id: table.id,
+              tableId: table.id,
+              gameType: table.gameType,
+              roundNumber: 1,
+              currentTurnUserId: isSimultaneousGame ? null : canonicalInitialTurnId,
+              status: 'in_progress',
+              grossPool: 0,
+              winnerPrizeAmount: 0,
+              serviceFeeAmount: 0,
+              isSettled: false,
+              currentState: initialEngineState,
+            };
+          } else {
+            activeSession = await GameRepository.createOrGetSession(
+              table.id,
+              table.gameType,
+              initialEngineState,
+              canonicalInitialTurnId
+            );
+          }
         }
 
         console.log('[DEBUG_GAME] uniquePlayers:', uniquePlayers);
@@ -564,7 +565,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [table, initialPlayers, engine, currentUserId]);
+  }, [table.id, currentUserId, initialSession?.id]);
 
   // Suscripción Realtime a cambios en game_table_players (Nombres, Entradas y Abandonos)
   useEffect(() => {
@@ -804,7 +805,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.id, currentUserId, engine, currentPlayers, table]);
+  }, [session?.id, currentUserId]);
 
   // Suscripción Realtime y Sondeo de Respaldo para detectar cuando el anfitrión crea/inicia la sesión en la mesa
   useEffect(() => {
@@ -923,7 +924,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
       clearInterval(pollInterval);
       supabase.removeChannel(tableSessionChannel);
     };
-  }, [session?.id, table, engine, currentPlayers, currentUserId]);
+  }, [session?.id, table.id, currentUserId]);
 
   // Ejecución automática de turnos para Bots en Modo Práctica
   useEffect(() => {

@@ -167,9 +167,7 @@ export class TableRepository {
         id,
         game_type,
         name,
-        mode,
         entry_fee,
-        currency,
         min_players,
         max_players,
         current_players_count,
@@ -177,41 +175,26 @@ export class TableRepository {
         host_user_id,
         created_by,
         visibility,
-        is_private,
         invite_code,
-        join_code,
-        share_token,
         created_at,
         started_at,
         closed_at,
-        finished_at,
+        updated_at,
+        expires_at,
+        game_variant,
         config
       `)
-      .or(`invite_code.eq.${normalizedCode},join_code.eq.${normalizedCode}`)
+      .eq('invite_code', normalizedCode)
       .maybeSingle();
 
-    if (error || !data) return null;
+    if (error) {
+      console.error('[TableRepository] Error al buscar mesa por código:', error);
+      return null;
+    }
 
-    return {
-      id: data.id,
-      gameType: GameRepository.mapDbEnumToGameType(data.game_type),
-      name: data.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(data.game_type))}`,
-      mode: (data.mode as any) || (data.max_players === 4 ? '2v2' : '1v1'),
-      entryFee: Number(data.entry_fee || 0),
-      currency: data.currency || 'VES',
-      minPlayers: data.min_players,
-      maxPlayers: data.max_players,
-      currentPlayersCount: data.current_players_count || 0,
-      status: data.status,
-      hostUserId: data.host_user_id || data.created_by,
-      isPrivate: data.visibility === 'PRIVATE' || Boolean(data.is_private),
-      joinCode: data.invite_code || data.join_code,
-      shareToken: data.share_token || data.invite_code,
-      createdAt: data.created_at,
-      startedAt: data.started_at,
-      finishedAt: data.closed_at || data.finished_at,
-      config: data.config || {},
-    };
+    if (!data) return null;
+
+    return TableRepository.mapDbTableToGameTable(data);
   }
 
   /**
@@ -429,9 +412,7 @@ export class TableRepository {
           id,
           game_type,
           name,
-          mode,
           entry_fee,
-          currency,
           min_players,
           max_players,
           current_players_count,
@@ -439,40 +420,25 @@ export class TableRepository {
           host_user_id,
           created_by,
           visibility,
-          is_private,
           invite_code,
-          join_code,
-          share_token,
           created_at,
           started_at,
           closed_at,
-          finished_at,
+          updated_at,
+          expires_at,
+          game_variant,
           config
         `)
         .eq('id', tableId)
         .maybeSingle();
 
-      if (!error && data) {
-        return {
-          id: data.id,
-          gameType: GameRepository.mapDbEnumToGameType(data.game_type),
-          name: data.name || `Mesa de ${getGameDisplayName(GameRepository.mapDbEnumToGameType(data.game_type))}`,
-          mode: (data.mode as any) || (data.max_players === 4 ? '2v2' : '1v1'),
-          entryFee: Number(data.entry_fee || 0),
-          currency: data.currency || 'VES',
-          minPlayers: data.min_players,
-          maxPlayers: data.max_players,
-          currentPlayersCount: data.current_players_count || 0,
-          status: data.status,
-          hostUserId: data.host_user_id || data.created_by,
-          isPrivate: data.visibility === 'PRIVATE' || Boolean(data.is_private),
-          joinCode: data.invite_code || data.join_code || 'BNG-AUTO',
-          shareToken: data.share_token || data.invite_code || 'BNG-AUTO',
-          createdAt: data.created_at,
-          startedAt: data.started_at,
-          finishedAt: data.closed_at || data.finished_at,
-          config: data.config || {},
-        };
+      if (error) {
+        console.error('[TableRepository] Error al obtener mesa por ID:', error);
+        return null;
+      }
+
+      if (data) {
+        return TableRepository.mapDbTableToGameTable(data);
       }
     } catch (err) {
       console.warn('[TableRepository] Error al obtener mesa por ID:', err);

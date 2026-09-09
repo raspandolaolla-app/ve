@@ -21,6 +21,7 @@ interface CheckersBoardProps {
   sessionId?: string;
   onMovePiece: (move: CheckersMove) => void;
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -196,6 +197,7 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
   sessionId,
   onMovePiece,
   onTimeout,
+  onOpponentTimeout,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
 
@@ -409,6 +411,7 @@ export const CheckersBoard: React.FC<CheckersBoardProps> = ({
           activePlayerName={activeTurnPlayer?.name || 'OPONENTE'}
           status={state.status}
           onTimeout={handleTimeout}
+          onOpponentTimeout={onOpponentTimeout}
         />
       </div>
 

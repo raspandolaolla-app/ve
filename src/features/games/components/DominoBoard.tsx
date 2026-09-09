@@ -22,6 +22,7 @@ interface DominoBoardProps {
   onPassTurn: () => void;
   onDrawTile?: () => void; // Opcional: solo si el motor soporta ROBAR (DRAW_TILE)
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -175,6 +176,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   onPassTurn,
   onDrawTile,
   onTimeout,
+  onOpponentTimeout,
 }) => {
   const s: any = state || {};
 
@@ -431,6 +433,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           activePlayerName={(players.find((p: any) => p.userId === turnUserId)?.name || 'OPONENTE')}
           status={status}
           onTimeout={handleTimeout}
+          onOpponentTimeout={onOpponentTimeout}
         />
       </div>
 

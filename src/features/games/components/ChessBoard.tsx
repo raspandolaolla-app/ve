@@ -95,6 +95,7 @@ interface ChessBoardProps {
   onOfferDraw?: () => void;
   onAcceptDraw?: () => void;
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
 }
 
 export const ChessBoard: React.FC<ChessBoardProps> = ({
@@ -108,6 +109,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   onOfferDraw,
   onAcceptDraw,
   onTimeout,
+  onOpponentTimeout,
 }) => {
   const fen = state?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -362,6 +364,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                   durationSeconds={15}
                   isMyTurn={false}
                   activePlayerName={topPlayer?.displayName || 'Oponente'}
+                  onOpponentTimeout={onOpponentTimeout}
                 />
               )}
               <div className="flex items-center space-x-1 text-xs text-amber-400 font-mono font-bold bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/40">
@@ -548,6 +551,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                       else handleTimeout();
                     }
                   }}
+                  onOpponentTimeout={!isMyTurn ? onOpponentTimeout : undefined}
                 />
               )}
               <div className="flex items-center space-x-1 text-xs text-amber-400 font-mono font-bold bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/40">

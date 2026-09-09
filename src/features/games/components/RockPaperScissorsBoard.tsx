@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Trophy, Loader } from 'lucide-react';
+import { Heart, Trophy, Loader, Clock, AlertTriangle } from 'lucide-react';
 import type { RPSChoice, RPSState } from '../engines/RockPaperScissorsEngine';
 
 export interface RockPaperScissorsBoardProps {
@@ -25,8 +25,50 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   onSubmitChoice,
   onNextRound,
   onAction,
+  turnExpiresAt,
+  onTimeout,
+  onTurnTimeout,
 }) => {
   const [showResult, setShowResult] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const timeoutTriggeredRef = useRef(false);
+
+  // Sincronización del temporizador de ronda (15s autoritativos)
+  useEffect(() => {
+    const isSelecting = (state.status === 'ROUND_COMMIT' || state.phase === 'selecting') && !state.matchWinner;
+    if (!isSelecting || !turnExpiresAt) {
+      setTimeLeft(null);
+      timeoutTriggeredRef.current = false;
+      return;
+    }
+
+    const calculateRemaining = () => {
+      const expires = new Date(turnExpiresAt).getTime();
+      if (isNaN(expires)) return null;
+      return Math.max(0, Math.ceil((expires - Date.now()) / 1000));
+    };
+
+    const initialLeft = calculateRemaining();
+    setTimeLeft(initialLeft);
+    timeoutTriggeredRef.current = false;
+
+    const interval = setInterval(() => {
+      const remaining = calculateRemaining();
+      setTimeLeft(remaining);
+
+      if (remaining === 0 && !timeoutTriggeredRef.current) {
+        timeoutTriggeredRef.current = true;
+        clearInterval(interval);
+        if (onTimeout) {
+          onTimeout();
+        } else if (onTurnTimeout) {
+          onTurnTimeout();
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [turnExpiresAt, state.status, state.phase, state.matchWinner, onTimeout, onTurnTimeout]);
 
   // Auto-avanzar a la siguiente ronda después de mostrar el resultado
   useEffect(() => {
@@ -178,6 +220,30 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
       {/* Botones de selección y estado */}
       {(state.status === 'ROUND_COMMIT' || state.phase === 'selecting') && !isGameOver && (
         <>
+          {/* Temporizador de Ronda Autoritativo */}
+          {timeLeft !== null && (
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <div
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg border font-mono text-xs font-bold ${
+                  timeLeft <= 5
+                    ? 'bg-red-950 border-red-600 text-red-400 animate-pulse'
+                    : 'bg-neutral-900 border-neutral-800 text-amber-400'
+                }`}
+              >
+                {timeLeft <= 5 ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {timeLeft === 0
+                    ? 'TIEMPO AGOTADO'
+                    : `00:${String(timeLeft).padStart(2, '0')}`}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-4 mb-4">
             {(['rock', 'paper', 'scissors'] as const).map((choice) => (
               <button

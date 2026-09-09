@@ -12,6 +12,7 @@ import { TrucoEngine } from './TrucoEngine';
 import { BingoEngine } from './BingoEngine';
 import { PollaEngine } from './PollaEngine';
 import { AtrapaitoEngine } from './AtrapaitoEngine';
+import { ParchisEngine } from './ParchisEngine';
 import { UnaOllaEngine } from './UnaOllaEngine';
 import { ChessEngine } from './ChessEngine';
 
@@ -24,6 +25,7 @@ export * from './TrucoEngine';
 export * from './BingoEngine';
 export * from './PollaEngine';
 export * from './AtrapaitoEngine';
+export * from './ParchisEngine';
 export * from './UnaOllaEngine';
 export * from './ChessEngine';
 
@@ -50,6 +52,10 @@ export function getGameEngine(gameType: GameType | string): IGameEngine<any> {
       return new PollaEngine();
     case 'atrapaito':
       return new AtrapaitoEngine();
+    case 'parchis':
+    case 'parchis_venezolano':
+    case 'ludo':
+      return new ParchisEngine();
     case 'chess':
     case 'ajedrez':
       return new ChessEngine();

@@ -47,6 +47,7 @@ import { TrucoBoard } from './TrucoBoard';
 import { BingoBoard } from './BingoBoard';
 import { PollaBoard } from './PollaBoard';
 import { AtrapaitoBoard } from './AtrapaitoBoard';
+import { ParchisBoard } from './ParchisBoard';
 import { AtrapaitoGame } from './AtrapaitoGame';
 import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
@@ -1628,6 +1629,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             hasPlayerChosen={hasChosen}
             onSubmitChoice={(choice) => handleGameAction('CHOOSE', { choice })}
             onNextRound={() => handleGameAction('NEXT_ROUND', {})}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
+            onTimeout={handleOpponentTimeout}
           />
         );
       }
@@ -1641,6 +1645,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             sessionId={session?.id}
             onMovePiece={(move) => handleGameAction('MOVE_PIECE', { move })}
             onTimeout={() => handleGameAction('TIMEOUT', {})}
+            onOpponentTimeout={handleOpponentTimeout}
           />
         );
 
@@ -1654,6 +1659,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onPlayTile={(tile, side) => handleGameAction('PLAY_TILE', { tile, side })}
             onPassTurn={() => handleGameAction('PASS_TURN', {})}
             onTimeout={() => handleGameAction('TIMEOUT', {})}
+            onOpponentTimeout={handleOpponentTimeout}
           />
         );
 
@@ -1673,6 +1679,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
               }
             }}
             onTimeout={() => handleGameAction('TIMEOUT', {})}
+            onOpponentTimeout={handleOpponentTimeout}
           />
         );
 
@@ -1705,25 +1712,6 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         );
 
       case 'atrapaito': {
-        const isClassicVariant =
-          table.config?.variant === 'clasico' ||
-          table.config?.atrapaitoMode === 'PARCHIS' ||
-          table.config?.variant === 'parchis';
-
-        if (isClassicVariant) {
-          return (
-            <AtrapaitoBoard
-              state={gameState}
-              currentUserId={currentUserId}
-              turnExpiresAt={session?.turnExpiresAt}
-              sessionId={session?.id}
-              onRollDice={() => handleGameAction('ROLL_DICE', {})}
-              onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
-              players={currentPlayers}
-            />
-          );
-        }
-
         const isPlayerBlue = currentPlayers[0]?.userId === currentUserId;
         const assignedColor: 'BLUE' | 'RED' = isPlayerBlue ? 'BLUE' : 'RED';
         const isOnlineSession = Boolean(
@@ -1746,6 +1734,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           />
         );
       }
+
+      case 'parchis':
+        return (
+          <ParchisBoard
+            state={gameState}
+            currentUserId={currentUserId}
+            turnExpiresAt={session?.turnExpiresAt}
+            sessionId={session?.id}
+            onRollDice={() => handleGameAction('ROLL_DICE', {})}
+            onMovePiece={(pieceId) => handleGameAction('MOVE_PIECE', { pieceId })}
+            players={currentPlayers}
+            onTimeout={() => handleGameAction('TIMEOUT_AUTO_MOVE', {})}
+            onOpponentTimeout={handleOpponentTimeout}
+          />
+        );
 
       case 'una_olla':
         return (
@@ -1772,6 +1775,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             onOfferDraw={() => handleGameAction('OFFER_DRAW', {})}
             onAcceptDraw={() => handleGameAction('ACCEPT_DRAW', {})}
             onTimeout={() => handleGameAction('TIMEOUT', {})}
+            onOpponentTimeout={handleOpponentTimeout}
           />
         );
 

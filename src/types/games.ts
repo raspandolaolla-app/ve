@@ -10,7 +10,8 @@ export type GameType =
   | 'truco_venezolano' // Truco Venezolano
   | 'bingo'            // Bingo Online
   | 'polla_venezolana' // Polla Venezolana
-  | 'atrapaito'        // Atrapaíto
+  | 'atrapaito'        // Atrapaíto Criollo (Muros y Canicas)
+  | 'parchis'          // Parchís / Ludo
   | 'una_olla'         // UNA-OLLA
   | 'chess';           // AJEDREZ
 
@@ -374,33 +375,75 @@ export interface PollaState {
 }
 
 // ------------------------------------------------------------------------------
-// 8. ATRAPAÍTO (PARCHÍS / LUDO VENEZOLANO MULTIJUGADOR)
+// 8. ATRAPAÍTO CRIOLLO (ESTRATEGIA VENEZOLANA DE MUROS Y CANICAS)
 // ------------------------------------------------------------------------------
-export type AtrapaitoMode = 'INDIVIDUAL_4' | 'PAIRS_4' | 'ONE_VS_ONE' | 'SIX_PIECES' | 'THREE_VS_THREE';
-export type AtrapaitoColor = 'yellow' | 'red' | 'blue' | 'green' | 'orange' | 'cyan';
-export type AtrapaitoPieceState = 'HOME' | 'ON_BOARD' | 'SAFE' | 'FINAL_PATH' | 'FINISHED' | 'CAPTURED';
+export interface AtrapaitoPosition {
+  col: number;
+  row: number;
+}
 
-export interface AtrapaitoPiece {
+export interface AtrapaitoWall {
+  col: number;
+  row: number;
+  isHorizontal: boolean;
+  placedBy: 'BLUE' | 'RED';
+}
+
+export interface AtrapaitoCriolloState {
+  bluePos: AtrapaitoPosition;
+  redPos: AtrapaitoPosition;
+  walls: AtrapaitoWall[];
+  blueWalls: number;
+  redWalls: number;
+  turn: 'BLUE' | 'RED';
+  action: 'MOVE' | 'WALL';
+  wallOrientation: 'HORIZONTAL' | 'VERTICAL';
+  pendingWall: AtrapaitoWall | null;
+  winner: 'BLUE' | 'RED' | 'DRAW' | null;
+  mode: 'VS_AI' | 'PASS_PLAY' | 'ONLINE';
+  isAiThinking: boolean;
+  consecutiveDraws: number;
+  blueUserId?: string | null;
+  redUserId?: string | null;
+  currentTurnUserId?: string | null;
+  turnUserId?: string | null;
+  turnDurationSeconds?: number;
+  turnExpiresAt?: string | null;
+  turnDeadlineAt?: string | null;
+  boardType?: 'CRIOLLO_WALLS';
+  status?: string;
+  lives?: Record<string, number>;
+  turnStartedAt?: number;
+}
+
+// ------------------------------------------------------------------------------
+// 8B. PARCHÍS / LUDO MULTIJUGADOR (JUEGO DE FICHAS Y DADOS - DISTINTO DE ATRAPAÍTO)
+// ------------------------------------------------------------------------------
+export type ParchisMode = 'INDIVIDUAL_4' | 'PAIRS_4' | 'ONE_VS_ONE' | 'SIX_PIECES' | 'THREE_VS_THREE';
+export type ParchisColor = 'yellow' | 'red' | 'blue' | 'green' | 'orange' | 'cyan';
+export type ParchisPieceState = 'HOME' | 'ON_BOARD' | 'SAFE' | 'FINAL_PATH' | 'FINISHED' | 'CAPTURED';
+
+export interface ParchisPiece {
   id: string;
-  color: AtrapaitoColor;
+  color: ParchisColor;
   pieceNumber: number;
-  state: AtrapaitoPieceState;
+  state: ParchisPieceState;
   position: number;
   pathProgress: number;
 }
 
-export interface AtrapaitoPlayer {
+export interface ParchisPlayer {
   userId: string;
   name: string;
   avatarUrl?: string;
-  colors: AtrapaitoColor[];
+  colors: ParchisColor[];
   team: 'A' | 'B' | null;
   seat: number;
   lives: number;
   status: 'active' | 'eliminated' | 'disconnected';
 }
 
-export interface AtrapaitoLegalMove {
+export interface ParchisLegalMove {
   pieceId: string;
   fromPosition: number;
   toPosition: number;
@@ -410,20 +453,20 @@ export interface AtrapaitoLegalMove {
   isGoalEntry?: boolean;
 }
 
-export interface AtrapaitoState {
-  mode: AtrapaitoMode;
+export interface ParchisState {
+  mode: ParchisMode;
   boardType: '4_COLORS' | '6_COLORS';
-  pieces: Record<string, AtrapaitoPiece>;
-  players: Record<string, AtrapaitoPlayer>;
+  pieces: Record<string, ParchisPiece>;
+  players: Record<string, ParchisPlayer>;
   playerOrder: string[];
   currentTurnUserId: string;
-  activeColor: AtrapaitoColor;
+  activeColor: ParchisColor;
   turnPhase: 'ROLL_DICE' | 'SELECT_PIECE' | 'BONUS_MOVE' | 'TURN_ENDED';
   diceValue: number | null;
   consecutiveSixes: number;
   lastMovedPieceId: string | null;
-  pendingBonus: { type: 'CAPTURE_20' | 'GOAL_10'; bonusSteps: number; color: AtrapaitoColor } | null;
-  legalMoves: AtrapaitoLegalMove[];
+  pendingBonus: { type: 'CAPTURE_20' | 'GOAL_10'; bonusSteps: number; color: ParchisColor } | null;
+  legalMoves: ParchisLegalMove[];
   status: 'initializing' | 'playing' | 'game_won' | 'cancelled';
   winnerUserId: string | null;
   winnerTeam: 'A' | 'B' | null;
@@ -434,6 +477,15 @@ export interface AtrapaitoState {
   turnStartedAt: number;
   turnDeadlineAt: number;
 }
+
+// Aliases de compatibilidad transitoria para código previo que llamaba Atrapaito a Parchís
+export type AtrapaitoMode = ParchisMode;
+export type AtrapaitoColor = ParchisColor;
+export type AtrapaitoPieceState = ParchisPieceState;
+export type AtrapaitoPiece = ParchisPiece;
+export type AtrapaitoPlayer = ParchisPlayer;
+export type AtrapaitoLegalMove = ParchisLegalMove;
+export type AtrapaitoState = ParchisState;
 
 // ------------------------------------------------------------------------------
 // 9. UNA-OLLA (JUEGO DE CARTAS MULTIJUGADOR)

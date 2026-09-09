@@ -23,6 +23,7 @@ export class GameRepository {
       bingo: 'BINGO',
       polla_venezolana: 'POLLA_VENEZOLANA',
       atrapaito: 'ATRAPAITO',
+      parchis: 'PARCHIS',
       una_olla: 'UNA_OLLA',
       chess: 'CHESS',
     };
@@ -43,10 +44,29 @@ export class GameRepository {
       BINGO: 'bingo',
       POLLA_VENEZOLANA: 'polla_venezolana',
       ATRAPAITO: 'atrapaito',
+      PARCHIS: 'parchis',
       UNA_OLLA: 'una_olla',
       CHESS: 'chess',
     };
     return map[dbType] || (dbType.toLowerCase() as GameType);
+  }
+
+  /**
+   * Determina si un juego es de ejecución simultánea (sin rotación secuencial de turnos).
+   */
+  public static isSimultaneousGame(gameType?: string | null): boolean {
+    if (!gameType) return false;
+    const gt = String(gameType).toLowerCase();
+    return [
+      'rock_paper_scissors',
+      'rps',
+      'piedra_papel_tijera',
+      'bingo',
+      'bingo_75',
+      'bingo_90',
+      'polla',
+      'polla_venezolana',
+    ].includes(gt);
   }
 
   // Mutex para evitar invocaciones RPC duplicadas y concurrentes por la misma mesa
@@ -105,12 +125,15 @@ export class GameRepository {
 
     if (!data) return null;
 
+    const mappedGameType = this.mapDbEnumToGameType(data.game_type);
+    const isSimultaneous = this.isSimultaneousGame(mappedGameType);
+
     return {
       id: data.id,
       tableId: data.table_id,
-      gameType: this.mapDbEnumToGameType(data.game_type),
+      gameType: mappedGameType,
       roundNumber: Number(data.session_number) || 1,
-      currentTurnUserId: data.current_turn_user_id || undefined,
+      currentTurnUserId: isSimultaneous ? undefined : (data.current_turn_user_id || undefined),
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
       status: (data.status === 'SALES' || data.status === 'DRAWING'
         ? data.status
@@ -171,12 +194,15 @@ export class GameRepository {
       return null;
     }
 
+    const mappedGameType = this.mapDbEnumToGameType(data.game_type);
+    const isSimultaneous = this.isSimultaneousGame(mappedGameType);
+
     return {
       id: data.id,
       tableId: data.table_id,
-      gameType: this.mapDbEnumToGameType(data.game_type),
+      gameType: mappedGameType,
       roundNumber: Number(data.session_number) || 1,
-      currentTurnUserId: data.current_turn_user_id || undefined,
+      currentTurnUserId: isSimultaneous ? undefined : (data.current_turn_user_id || undefined),
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
       status: (data.status === 'SALES' || data.status === 'DRAWING'
         ? data.status
@@ -238,12 +264,15 @@ export class GameRepository {
       return null;
     }
 
+    const mappedGameType = this.mapDbEnumToGameType(data.game_type);
+    const isSimultaneous = this.isSimultaneousGame(mappedGameType);
+
     return {
       id: data.id,
       tableId: data.table_id,
-      gameType: this.mapDbEnumToGameType(data.game_type),
+      gameType: mappedGameType,
       roundNumber: Number(data.session_number) || 1,
-      currentTurnUserId: data.current_turn_user_id || undefined,
+      currentTurnUserId: isSimultaneous ? undefined : (data.current_turn_user_id || undefined),
       turnExpiresAt: data.turn_deadline_at || data.turn_expires_at || undefined,
       status: (data.status === 'SALES' || data.status === 'DRAWING'
         ? data.status
@@ -406,7 +435,7 @@ export class GameRepository {
           sessionId: resolvedSessionId,
           tableId,
           alreadyActive: Boolean(rpcData.already_active ?? rpcData.alreadyActive),
-          currentTurnUserId: rpcData.current_turn_user_id || rpcData.currentTurnUserId,
+          currentTurnUserId: isSimultaneous ? null : (rpcData.current_turn_user_id || rpcData.currentTurnUserId || null),
         });
         const activeDbSession = await this.getActiveSession(tableId);
         if (activeDbSession) {
@@ -420,7 +449,7 @@ export class GameRepository {
           tableId,
           gameType,
           roundNumber: 1,
-          currentTurnUserId: rpcData.current_turn_user_id || rpcData.currentTurnUserId || canonicalTurnUserId || undefined,
+          currentTurnUserId: isSimultaneous ? undefined : (rpcData.current_turn_user_id || rpcData.currentTurnUserId || canonicalTurnUserId || undefined),
           turnExpiresAt: rpcData.turn_deadline_at || rpcData.turnDeadlineAt || rpcData.turnDeadline || undefined,
           status: 'in_progress',
           grossPool: 0,

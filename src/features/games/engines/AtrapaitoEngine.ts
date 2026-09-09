@@ -1,71 +1,31 @@
 // ==============================================================================
-// RASPANDO LA OLLA — MOTOR DE JUEGO: ATRAPAÍTO (PARCHÍS / LUDO VENEZOLANO)
+// RASPANDO LA OLLA — MOTOR DE JUEGO: ATRAPAÍTO CRIOLLO
 // ==============================================================================
-// Motor determinista y autorizado por servidor para las 5 modalidades de Atrapaíto:
-// 1. Individual a 4 (4 jugadores, 4 colores, 4 fichas/color)
-// 2. Parejas a 4 (2v2: Amarillo+Rojo vs Azul+Verde)
-// 3. 1 contra 1 (2 jugadores, 2 colores/jugador)
-// 4. 6 Fichas (2 jugadores, 6 fichas/color, 3 salen en casillas seguras)
-// 5. 3 contra 3 (6 jugadores, 6 colores, 2 equipos)
+// Motor determinista y autorizado por servidor para Atrapaíto Criollo tradicional:
+// Tablero de 15 filas x 8 columnas, 10 muros por jugador, canicas Azul y Roja.
+// El objetivo es llegar a la fila 0 (meta) bloqueando al rival con muros tácticos
+// sin encerrar completamente a ningún jugador (siempre debe existir camino a la meta).
+//
+// NOTA CRÍTICA: Atrapaíto Criollo NO ES Parchís ni Ludo. Son juegos completamente distintos.
 // ==============================================================================
 
-import { RngService } from '../../../services/rng/RngService';
 import type { IGameEngine, ActionResult } from './GameEngine';
 import type {
-  AtrapaitoState,
-  AtrapaitoMode,
-  AtrapaitoColor,
-  AtrapaitoPiece,
-  AtrapaitoPlayer,
-  AtrapaitoLegalMove,
+  AtrapaitoCriolloState,
+  AtrapaitoPosition,
+  AtrapaitoWall,
   GameActionPayload,
 } from '../../../types/games';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 
-export const BOARD_CONFIG_4 = {
-  totalTrackSquares: 68,
-  exitSquares: {
-    yellow: 5,
-    blue: 22,
-    red: 39,
-    green: 56,
-  } as Record<AtrapaitoColor, number>,
-  finalEntrySquares: {
-    yellow: 68,
-    blue: 17,
-    red: 34,
-    green: 51,
-  } as Record<AtrapaitoColor, number>,
-  safeSquares: [5, 12, 17, 22, 29, 34, 39, 46, 51, 56, 63, 68],
-  finalPathLength: 8,
-};
+export const COLS = 8;
+export const ROWS = 15;
+export const INITIAL_WALLS = 10;
 
-export const BOARD_CONFIG_6 = {
-  totalTrackSquares: 102,
-  exitSquares: {
-    yellow: 5,
-    red: 22,
-    orange: 39,
-    blue: 56,
-    green: 73,
-    cyan: 90,
-  } as Record<AtrapaitoColor, number>,
-  finalEntrySquares: {
-    yellow: 102,
-    red: 17,
-    orange: 34,
-    blue: 51,
-    green: 68,
-    cyan: 85,
-  } as Record<AtrapaitoColor, number>,
-  safeSquares: [5, 12, 17, 22, 29, 34, 39, 46, 51, 56, 63, 68, 73, 80, 85, 90, 97, 102],
-  finalPathLength: 8,
-};
-
-export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
+export class AtrapaitoEngine implements IGameEngine<AtrapaitoCriolloState> {
   public readonly gameType = 'atrapaito';
 
-  public initialize(table: GameTable, players: TablePlayer[]): AtrapaitoState {
+  public initialize(table: GameTable, players: TablePlayer[]): AtrapaitoCriolloState {
     const uniquePlayers = Array.from(
       new Map(
         players.map((player) => [
@@ -75,171 +35,44 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
       ).values()
     ).sort((a, b) => (a.seatNumber ?? 1) - (b.seatNumber ?? 1));
 
-    if (players.length !== uniquePlayers.length) {
-      throw new Error('Un jugador no puede ocupar dos puestos en la misma mesa');
-    }
-
-    const cfg = (table.config || {}) as Record<string, any>;
-    const isClassicParchis = cfg.variant === 'parchis' || cfg.atrapaitoMode === 'PARCHIS' || (table as any).gameType === 'parchis' || (table as any).gameType === 'atrapaito_clasico';
-
-    if ((table as any).gameType === 'atrapaito' && !isClassicParchis) {
-      const isOnline = !cfg.isPractice && !table.id.startsWith('practice_') && (table.entryFee ?? 0) > 0;
-      const bluePlayer = uniquePlayers[0];
-      const redPlayer = uniquePlayers[1];
-      return {
-        bluePos: { col: 4, row: 14 },
-        redPos: { col: 3, row: 14 },
-        walls: [],
-        blueWalls: 10,
-        redWalls: 10,
-        turn: 'BLUE',
-        action: 'MOVE',
-        wallOrientation: 'HORIZONTAL',
-        pendingWall: null,
-        winner: null,
-        mode: isOnline ? 'ONLINE' : 'VS_AI',
-        isAiThinking: false,
-        consecutiveDraws: 0,
-        blueUserId: bluePlayer?.userId || null,
-        redUserId: redPlayer?.userId || null,
-        currentTurnUserId: bluePlayer?.userId || null,
-        turnUserId: bluePlayer?.userId || null,
-        turnDurationSeconds: 15,
-        boardType: 'CRIOLLO_WALLS',
-      } as any;
-    }
-
-    const rawMode = (cfg.atrapaitoMode || cfg.mode || table.mode || 'INDIVIDUAL_4') as string;
-    let mode: AtrapaitoMode = 'INDIVIDUAL_4';
-
-    if (uniquePlayers.length === 6) {
-      mode = 'THREE_VS_THREE';
-    } else if (uniquePlayers.length === 2) {
-      mode = rawMode === 'SIX_PIECES' ? 'SIX_PIECES' : 'ONE_VS_ONE';
-    } else if (uniquePlayers.length === 4) {
-      mode = rawMode === 'PAIRS_4' ? 'PAIRS_4' : 'INDIVIDUAL_4';
-    }
-
-    const boardType = mode === 'THREE_VS_THREE' ? '6_COLORS' : '4_COLORS';
-    const config = boardType === '6_COLORS' ? BOARD_CONFIG_6 : BOARD_CONFIG_4;
-
-    const playerMap: Record<string, AtrapaitoPlayer> = {};
-    const playerNames: Record<string, string> = {};
-    const livesMap: Record<string, number> = {};
-    const playerOrder: string[] = uniquePlayers.map((p) => p.userId);
-
-    const colorsAssigned: Record<string, AtrapaitoColor[]> = {};
-    const teamsAssigned: Record<string, 'A' | 'B' | null> = {};
-
-    if (mode === 'INDIVIDUAL_4') {
-      const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green'];
-      uniquePlayers.forEach((p, idx) => {
-        colorsAssigned[p.userId] = [colors[idx % 4]];
-        teamsAssigned[p.userId] = null;
-      });
-    } else if (mode === 'PAIRS_4') {
-      const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green'];
-      uniquePlayers.forEach((p, idx) => {
-        colorsAssigned[p.userId] = [colors[idx % 4]];
-        teamsAssigned[p.userId] = idx % 2 === 0 ? 'A' : 'B';
-      });
-    } else if (mode === 'ONE_VS_ONE' || mode === 'SIX_PIECES') {
-      if (uniquePlayers.length >= 2) {
-        colorsAssigned[uniquePlayers[0].userId] = ['yellow', 'red'];
-        teamsAssigned[uniquePlayers[0].userId] = 'A';
-        colorsAssigned[uniquePlayers[1].userId] = ['blue', 'green'];
-        teamsAssigned[uniquePlayers[1].userId] = 'B';
-      }
-    } else if (mode === 'THREE_VS_THREE') {
-      const colors: AtrapaitoColor[] = ['yellow', 'blue', 'red', 'green', 'orange', 'cyan'];
-      uniquePlayers.forEach((p, idx) => {
-        colorsAssigned[p.userId] = [colors[idx % 6]];
-        teamsAssigned[p.userId] = idx % 2 === 0 ? 'A' : 'B';
-      });
-    }
-
-    uniquePlayers.forEach((p, idx) => {
-      const pName = p.displayName?.trim() || `Jugador ${idx + 1}`;
-      playerNames[p.userId] = pName;
-      livesMap[p.userId] = 3;
-
-      playerMap[p.userId] = {
-        userId: p.userId,
-        name: pName,
-        avatarUrl: p.avatarUrl,
-        colors: colorsAssigned[p.userId] || ['yellow'],
-        team: teamsAssigned[p.userId] || null,
-        seat: p.seatNumber || idx + 1,
-        lives: 3,
-        status: 'active',
-      };
-    });
-
-    const piecesMap: Record<string, AtrapaitoPiece> = {};
-    const activeColors: AtrapaitoColor[] =
-      boardType === '6_COLORS'
-        ? ['yellow', 'blue', 'red', 'green', 'orange', 'cyan']
-        : ['yellow', 'blue', 'red', 'green'];
-
-    const piecesPerColor = mode === 'SIX_PIECES' ? 6 : 4;
-
-    activeColors.forEach((color) => {
-      for (let i = 1; i <= piecesPerColor; i++) {
-        const pieceId = `${color}_${i}`;
-        let pieceState: AtrapaitoPiece['state'] = 'HOME';
-        let position = 0;
-        let pathProgress = 0;
-
-        if (mode === 'SIX_PIECES' && i > 3) {
-          pieceState = 'ON_BOARD';
-          const exitSquare = config.exitSquares[color] || 5;
-          position = (exitSquare + (i - 4) * 2) % config.totalTrackSquares || config.totalTrackSquares;
-          pathProgress = (i - 4) * 2 + 1;
-        }
-
-        piecesMap[pieceId] = {
-          id: pieceId,
-          color,
-          pieceNumber: i,
-          state: pieceState,
-          position,
-          pathProgress,
-        };
-      }
-    });
-
-    const firstUserId = playerOrder[0] || '';
-    const firstColor = playerMap[firstUserId]?.colors[0] || 'yellow';
+    const blueUserId = uniquePlayers[0]?.userId || null;
+    const redUserId = uniquePlayers[1]?.userId || null;
     const now = Date.now();
 
+    const livesMap: Record<string, number> = {};
+    if (blueUserId) livesMap[blueUserId] = 3;
+    if (redUserId) livesMap[redUserId] = 3;
+
     return {
-      mode,
-      boardType,
-      pieces: piecesMap,
-      players: playerMap,
-      playerOrder,
-      currentTurnUserId: firstUserId,
-      turnUserId: firstUserId,
-      activeColor: firstColor,
-      turnPhase: 'ROLL_DICE',
-      diceValue: null,
-      consecutiveSixes: 0,
-      lastMovedPieceId: null,
-      pendingBonus: null,
-      legalMoves: [],
+      bluePos: { col: 4, row: 14 },
+      redPos: { col: 3, row: 14 },
+      walls: [],
+      blueWalls: INITIAL_WALLS,
+      redWalls: INITIAL_WALLS,
+      turn: 'BLUE',
+      action: 'MOVE',
+      wallOrientation: 'HORIZONTAL',
+      pendingWall: null,
+      winner: null,
+      mode: 'ONLINE',
+      isAiThinking: false,
+      consecutiveDraws: 0,
+      blueUserId,
+      redUserId,
+      currentTurnUserId: blueUserId,
+      turnUserId: blueUserId,
+      turnDurationSeconds: 15,
+      turnStartedAt: now as any,
+      turnDeadlineAt: (now + 15000) as any,
+      turnExpiresAt: new Date(now + 15000).toISOString(),
+      boardType: 'CRIOLLO_WALLS',
       status: 'playing',
-      winnerUserId: null,
-      winnerTeam: null,
-      lastActionDescription: 'Partida iniciada. ¡Lanza el dado para comenzar!',
       lives: livesMap,
-      playerNames,
-      turnStartedAt: now,
-      turnDeadlineAt: now + 30000,
     };
   }
 
-  public validateAction(state: AtrapaitoState, action: GameActionPayload): { valid: boolean; reason?: string } {
-    if (state.status === 'game_won' || state.status === 'cancelled') {
+  public validateAction(state: AtrapaitoCriolloState, action: GameActionPayload): { valid: boolean; reason?: string } {
+    if (state.winner !== null || state.status === 'game_won' || state.status === 'cancelled') {
       return { valid: false, reason: 'La partida ya ha finalizado.' };
     }
 
@@ -247,33 +80,61 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
       return { valid: true };
     }
 
-    if (action.userId !== state.currentTurnUserId) {
+    // Validar turno de usuario
+    if (state.currentTurnUserId && action.userId !== state.currentTurnUserId) {
       return { valid: false, reason: 'No es tu turno de jugar.' };
     }
 
-    if (action.actionType === 'ROLL_DICE') {
-      if (state.turnPhase !== 'ROLL_DICE') {
-        return { valid: false, reason: 'Ya has lanzado el dado en este turno.' };
-      }
-      return { valid: true };
-    }
+    const currentPos = state.turn === 'BLUE' ? state.bluePos : state.redPos;
+    const opponentPos = state.turn === 'BLUE' ? state.redPos : state.bluePos;
+    const wallsAvailable = state.turn === 'BLUE' ? state.blueWalls : state.redWalls;
 
-    if (action.actionType === 'MOVE_PIECE' || action.actionType === 'SELECT_PIECE') {
-      if (state.turnPhase !== 'SELECT_PIECE' && state.turnPhase !== 'BONUS_MOVE') {
-        return { valid: false, reason: 'Debes lanzar el dado antes de mover una ficha.' };
+    if (action.actionType === 'MOVE_MARBLE' || action.actionType === 'MOVE') {
+      const targetCol = action.actionData?.col ?? action.actionData?.toCol;
+      const targetRow = action.actionData?.row ?? action.actionData?.toRow;
+      if (typeof targetCol !== 'number' || typeof targetRow !== 'number') {
+        return { valid: false, reason: 'Coordenadas de movimiento inválidas.' };
       }
-      const pieceId = (action.actionData.pieceId || action.actionData.cardId) as string;
-      const isLegal = state.legalMoves.some((m) => m.pieceId === pieceId);
+
+      const validMoves = this.getValidMoves(currentPos, opponentPos, state.walls);
+      const isLegal = validMoves.some((m) => m.col === targetCol && m.row === targetRow);
       if (!isLegal) {
-        return { valid: false, reason: 'Esa ficha no tiene un movimiento legal disponible.' };
+        return { valid: false, reason: 'Movimiento no permitido según las reglas de Atrapaíto Criollo.' };
       }
       return { valid: true };
     }
 
-    return { valid: false, reason: `Acción desconocida: ${action.actionType}` };
+    if (action.actionType === 'PLACE_WALL' || action.actionType === 'WALL') {
+      if (wallsAvailable <= 0) {
+        return { valid: false, reason: 'No te quedan muros disponibles.' };
+      }
+
+      const col = action.actionData?.col;
+      const row = action.actionData?.row;
+      const isHorizontal = !!action.actionData?.isHorizontal;
+
+      if (typeof col !== 'number' || typeof row !== 'number') {
+        return { valid: false, reason: 'Coordenadas de muro inválidas.' };
+      }
+
+      const candidate: AtrapaitoWall = {
+        col,
+        row,
+        isHorizontal,
+        placedBy: state.turn,
+      };
+
+      if (!this.isValidWall(candidate, state.walls, state.bluePos, state.redPos)) {
+        return { valid: false, reason: 'La colocación del muro bloquea el camino completo o se superpone a otro muro.' };
+      }
+
+      return { valid: true };
+    }
+
+    return { valid: false, reason: `Acción desconocida para Atrapaíto: ${action.actionType}` };
   }
 
-  public applyAction(state: AtrapaitoState, action: GameActionPayload): ActionResult<AtrapaitoState> {
+  public applyAction(state: AtrapaitoCriolloState, action: GameActionPayload): ActionResult<AtrapaitoCriolloState> {
     const validation = this.validateAction(state, action);
     if (!validation.valid) {
       return {
@@ -288,108 +149,64 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
     }
 
     const now = Date.now();
+    const duration = (state.turnDurationSeconds || 15) * 1000;
+    const nextDeadlineIso = new Date(now + duration).toISOString();
 
     if (action.actionType === 'TIMEOUT_AUTO_MOVE' || action.actionType === 'PLAYER_TIMEOUT') {
       return this.handleTimeout(state);
     }
 
-    if (action.actionType === 'ROLL_DICE') {
-      const dice = (action.actionData.diceValue as number) || RngService.getRandomIntSecure(1, 6);
-      const consecutiveSixes = dice === 6 ? state.consecutiveSixes + 1 : 0;
+    if (action.actionType === 'MOVE_MARBLE' || action.actionType === 'MOVE') {
+      const targetCol = Number(action.actionData?.col ?? action.actionData?.toCol ?? 0);
+      const targetRow = Number(action.actionData?.row ?? action.actionData?.toRow ?? 0);
+      const newPos: AtrapaitoPosition = { col: targetCol, row: targetRow };
 
-      if (consecutiveSixes === 3) {
-        const updatedPieces = { ...state.pieces };
-        let desc = '¡Tres 6 consecutivos! La última ficha movida vuelve a casa.';
+      const isBlue = state.turn === 'BLUE';
+      const updatedBluePos = isBlue ? newPos : state.bluePos;
+      const updatedRedPos = !isBlue ? newPos : state.redPos;
 
-        if (state.lastMovedPieceId && updatedPieces[state.lastMovedPieceId]) {
-          const piece = updatedPieces[state.lastMovedPieceId];
-          if (piece.state !== 'FINAL_PATH' && piece.state !== 'FINISHED') {
-            updatedPieces[state.lastMovedPieceId] = {
-              ...piece,
-              state: 'HOME',
-              position: 0,
-              pathProgress: 0,
-            };
-          } else {
-            desc = '¡Tres 6 consecutivos! La ficha estaba a salvo en el pasillo final y no regresa.';
-          }
-        }
-
-        const nextState = this.advanceToNextTurn({
-          ...state,
-          pieces: updatedPieces,
-          consecutiveSixes: 0,
-          diceValue: 6,
-          turnPhase: 'TURN_ENDED',
-          lastActionDescription: desc,
-        });
+      // Verificar si llegó a la meta (fila 0)
+      if (newPos.row === 0) {
+        const winnerColor = state.turn;
+        const winnerUserId = isBlue ? state.blueUserId : state.redUserId;
 
         return {
-          newState: nextState,
-          isValid: true,
-          isGameOver: nextState.status === 'game_won',
-          winnerUserId: nextState.winnerUserId,
-          winnerTeamIndex: nextState.winnerTeam === 'A' ? 0 : nextState.winnerTeam === 'B' ? 1 : null,
-          isDraw: false,
-        };
-      }
-
-      const legalMoves = this.calculateLegalMoves(state, dice, state.activeColor, false);
-
-      if (legalMoves.length === 0) {
-        if (dice === 6 && consecutiveSixes < 3) {
-          const updatedState: AtrapaitoState = {
+          newState: {
             ...state,
-            diceValue: 6,
-            consecutiveSixes,
-            turnPhase: 'ROLL_DICE',
-            legalMoves: [],
-            lastActionDescription: 'Sacaste 6 sin movimientos posibles. ¡Vuelves a lanzar el dado!',
-            turnStartedAt: now,
-            turnDeadlineAt: now + 30000,
-          };
-          return {
-            newState: updatedState,
-            isValid: true,
-            isGameOver: false,
-            winnerUserId: null,
-            winnerTeamIndex: null,
-            isDraw: false,
-          };
-        }
-
-        const nextState = this.advanceToNextTurn({
-          ...state,
-          diceValue: dice,
-          consecutiveSixes: 0,
-          turnPhase: 'TURN_ENDED',
-          legalMoves: [],
-          lastActionDescription: `Sacaste un ${dice}. Sin movimientos legales disponibles.`,
-        });
-
-        return {
-          newState: nextState,
+            bluePos: updatedBluePos,
+            redPos: updatedRedPos,
+            winner: winnerColor,
+            status: 'game_won',
+            action: 'MOVE',
+            turnDeadlineAt: null as any,
+            turnExpiresAt: null,
+          },
           isValid: true,
-          isGameOver: nextState.status === 'game_won',
-          winnerUserId: nextState.winnerUserId,
-          winnerTeamIndex: nextState.winnerTeam === 'A' ? 0 : nextState.winnerTeam === 'B' ? 1 : null,
+          isGameOver: true,
+          winnerUserId,
+          winnerTeamIndex: isBlue ? 0 : 1,
           isDraw: false,
         };
       }
 
-      const updatedState: AtrapaitoState = {
-        ...state,
-        diceValue: dice,
-        consecutiveSixes,
-        turnPhase: 'SELECT_PIECE',
-        legalMoves,
-        lastActionDescription: `Sacaste un ${dice}. ${legalMoves.length} movimiento(s) disponible(s).`,
-        turnStartedAt: now,
-        turnDeadlineAt: now + 30000,
-      };
+      // Rotar turno
+      const nextTurn = isBlue ? 'RED' : 'BLUE';
+      const nextUserId = isBlue ? state.redUserId : state.blueUserId;
 
       return {
-        newState: updatedState,
+        newState: {
+          ...state,
+          bluePos: updatedBluePos,
+          redPos: updatedRedPos,
+          turn: nextTurn,
+          currentTurnUserId: nextUserId,
+          turnUserId: nextUserId,
+          action: 'MOVE',
+          pendingWall: null,
+          turnStartedAt: now as any,
+          turnDeadlineAt: (now + duration) as any,
+          turnExpiresAt: nextDeadlineIso,
+        },
         isValid: true,
         isGameOver: false,
         winnerUserId: null,
@@ -398,29 +215,53 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
       };
     }
 
-    if (action.actionType === 'MOVE_PIECE' || action.actionType === 'SELECT_PIECE') {
-      const pieceId = (action.actionData.pieceId || action.actionData.cardId) as string;
-      const move = state.legalMoves.find((m) => m.pieceId === pieceId);
+    if (action.actionType === 'PLACE_WALL' || action.actionType === 'WALL') {
+      const col = Number(action.actionData?.col ?? 0);
+      const row = Number(action.actionData?.row ?? 0);
+      const isHorizontal = !!action.actionData?.isHorizontal;
 
-      if (!move) {
-        return {
-          newState: state,
-          isValid: false,
-          errorMessage: 'Movimiento no válido.',
-          isGameOver: false,
-          winnerUserId: null,
-          winnerTeamIndex: null,
-          isDraw: false,
-        };
-      }
+      const isBlue = state.turn === 'BLUE';
+      const candidate: AtrapaitoWall = {
+        col,
+        row,
+        isHorizontal,
+        placedBy: state.turn,
+      };
 
-      return this.executePieceMove(state, move);
+      const updatedWalls = [...state.walls, candidate];
+      const updatedBlueWalls = isBlue ? state.blueWalls - 1 : state.blueWalls;
+      const updatedRedWalls = !isBlue ? state.redWalls - 1 : state.redWalls;
+
+      const nextTurn = isBlue ? 'RED' : 'BLUE';
+      const nextUserId = isBlue ? state.redUserId : state.blueUserId;
+
+      return {
+        newState: {
+          ...state,
+          walls: updatedWalls,
+          blueWalls: updatedBlueWalls,
+          redWalls: updatedRedWalls,
+          turn: nextTurn,
+          currentTurnUserId: nextUserId,
+          turnUserId: nextUserId,
+          action: 'MOVE',
+          pendingWall: null,
+          turnStartedAt: now as any,
+          turnDeadlineAt: (now + duration) as any,
+          turnExpiresAt: nextDeadlineIso,
+        },
+        isValid: true,
+        isGameOver: false,
+        winnerUserId: null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
     }
 
     return {
       newState: state,
       isValid: false,
-      errorMessage: 'Acción no soportada',
+      errorMessage: 'Acción no reconocida.',
       isGameOver: false,
       winnerUserId: null,
       winnerTeamIndex: null,
@@ -428,377 +269,220 @@ export class AtrapaitoEngine implements IGameEngine<AtrapaitoState> {
     };
   }
 
-  private executePieceMove(state: AtrapaitoState, move: AtrapaitoLegalMove): ActionResult<AtrapaitoState> {
-    const config = state.boardType === '6_COLORS' ? BOARD_CONFIG_6 : BOARD_CONFIG_4;
-    const pieces = { ...state.pieces };
-    const movingPiece = { ...pieces[move.pieceId] };
-    const player = state.players[state.currentTurnUserId];
+  public getValidMoves(cur: AtrapaitoPosition, opp: AtrapaitoPosition, walls: AtrapaitoWall[]): AtrapaitoPosition[] {
+    const valid: AtrapaitoPosition[] = [];
+    const dirs = [
+      [0, -1], // Norte
+      [0, 1],  // Sur
+      [-1, 0], // Oeste
+      [1, 0],  // Este
+    ];
 
-    let lastDesc = '';
-    let bonusType: 'CAPTURE_20' | 'GOAL_10' | null = null;
-    let bonusSteps = 0;
+    for (const [dc, dr] of dirs) {
+      const nc = cur.col + dc;
+      const nr = cur.row + dr;
 
-    movingPiece.position = move.toPosition;
-    movingPiece.pathProgress += move.steps;
+      if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
 
-    if (move.isExitMove) {
-      movingPiece.state = 'ON_BOARD';
-      lastDesc = `¡Ficha de ${movingPiece.color} salió a la casilla de salida!`;
-    } else if (move.isGoalEntry) {
-      movingPiece.state = 'FINISHED';
-      movingPiece.position = 999;
-      lastDesc = `¡Ficha de ${movingPiece.color} ha llegado a la META! (+10 pasos de bonus)`;
-      bonusType = 'GOAL_10';
-      bonusSteps = 10;
-    } else {
-      const isFinalPath = move.toPosition >= 101 && move.toPosition <= 108;
-      movingPiece.state = isFinalPath
-        ? 'FINAL_PATH'
-        : config.safeSquares.includes(move.toPosition)
-        ? 'SAFE'
-        : 'ON_BOARD';
+      const target = { col: nc, row: nr };
 
-      lastDesc = `Avanzó ${move.steps} casilla(s) con ficha ${movingPiece.color}.`;
-    }
-
-    pieces[move.pieceId] = movingPiece;
-
-    if (
-      !move.isExitMove &&
-      !move.isGoalEntry &&
-      movingPiece.position <= config.totalTrackSquares &&
-      !config.safeSquares.includes(movingPiece.position)
-    ) {
-      Object.keys(pieces).forEach((otherId) => {
-        if (otherId === move.pieceId) return;
-        const other = pieces[otherId];
-        if (other.position === movingPiece.position && other.state !== 'HOME' && other.state !== 'FINISHED') {
-          const isEnemy = !player.colors.includes(other.color);
-          if (isEnemy) {
-            pieces[otherId] = {
-              ...other,
-              state: 'HOME',
-              position: 0,
-              pathProgress: 0,
-            };
-            bonusType = 'CAPTURE_20';
-            bonusSteps = 20;
-            lastDesc = `¡CAPTURÓ una ficha enemiga en la casilla ${movingPiece.position}! (+20 pasos de bonus)`;
-          }
-        }
-      });
-    }
-
-    const isWin = this.checkWinCondition(state, pieces);
-    if (isWin) {
-      const winnerUserId = state.currentTurnUserId;
-      const winnerTeam = player.team;
-      const nextState: AtrapaitoState = {
-        ...state,
-        pieces,
-        status: 'game_won',
-        winnerUserId,
-        winnerTeam,
-        lastActionDescription: `¡VICTORIA! ${player.name} ha ganado la partida de Atrapaíto.`,
-      };
-
-      return {
-        newState: nextState,
-        isValid: true,
-        isGameOver: true,
-        winnerUserId,
-        winnerTeamIndex: winnerTeam === 'A' ? 0 : winnerTeam === 'B' ? 1 : null,
-        isDraw: false,
-      };
-    }
-
-    if (bonusType) {
-      const bonusColor = movingPiece.color;
-      const bonusLegalMoves = this.calculateLegalMoves(
-        { ...state, pieces },
-        bonusSteps,
-        bonusColor,
-        true
-      );
-
-      if (bonusLegalMoves.length > 0) {
-        const nextState: AtrapaitoState = {
-          ...state,
-          pieces,
-          turnPhase: 'BONUS_MOVE',
-          lastMovedPieceId: movingPiece.id,
-          pendingBonus: { type: bonusType, bonusSteps, color: bonusColor },
-          legalMoves: bonusLegalMoves,
-          lastActionDescription: `${lastDesc} Selecciona una ficha para aplicar el bonus +${bonusSteps}.`,
-        };
-        return {
-          newState: nextState,
-          isValid: true,
-          isGameOver: false,
-          winnerUserId: null,
-          winnerTeamIndex: null,
-          isDraw: false,
-        };
-      }
-    }
-
-    if (state.diceValue === 6 && state.consecutiveSixes < 3) {
-      const nextState: AtrapaitoState = {
-        ...state,
-        pieces,
-        turnPhase: 'ROLL_DICE',
-        lastMovedPieceId: movingPiece.id,
-        pendingBonus: null,
-        legalMoves: [],
-        lastActionDescription: `${lastDesc} ¡Sacaste un 6, vuelve a lanzar el dado!`,
-        turnStartedAt: Date.now(),
-        turnDeadlineAt: Date.now() + 30000,
-      };
-      return {
-        newState: nextState,
-        isValid: true,
-        isGameOver: false,
-        winnerUserId: null,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
-    }
-
-    const nextState = this.advanceToNextTurn({
-      ...state,
-      pieces,
-      lastMovedPieceId: movingPiece.id,
-      pendingBonus: null,
-      lastActionDescription: lastDesc,
-    });
-
-    return {
-      newState: nextState,
-      isValid: true,
-      isGameOver: false,
-      winnerUserId: null,
-      winnerTeamIndex: null,
-      isDraw: false,
-    };
-  }
-
-  private calculateLegalMoves(
-    state: AtrapaitoState,
-    steps: number,
-    color: AtrapaitoColor,
-    isBonus: boolean
-  ): AtrapaitoLegalMove[] {
-    const config = state.boardType === '6_COLORS' ? BOARD_CONFIG_6 : BOARD_CONFIG_4;
-    const legalMoves: AtrapaitoLegalMove[] = [];
-    const player = state.players[state.currentTurnUserId];
-
-    const allowedColors: AtrapaitoColor[] = [color];
-
-    if (state.mode === 'PAIRS_4' || state.mode === 'THREE_VS_THREE') {
-      const ownColors = player.colors;
-      const ownPiecesOut = Object.values(state.pieces).filter(
-        (p) => ownColors.includes(p.color) && p.state !== 'FINISHED'
-      );
-      if (ownPiecesOut.length === 0) {
-        Object.values(state.players).forEach((otherP) => {
-          if (otherP.team === player.team) {
-            allowedColors.push(...otherP.colors);
-          }
-        });
-      }
-    }
-
-    allowedColors.forEach((c) => {
-      const pieces = Object.values(state.pieces).filter((p) => p.color === c && p.state !== 'FINISHED');
-
-      pieces.forEach((piece) => {
-        if (piece.state === 'HOME') {
-          if (steps === 5 && !isBonus) {
-            const exitPos = config.exitSquares[c];
-            const piecesOnExit = Object.values(state.pieces).filter(
-              (p) => p.position === exitPos && p.state !== 'HOME' && p.state !== 'FINISHED'
-            );
-            const ownBarrier = piecesOnExit.filter((p) => p.color === c).length >= 2;
-
-            if (!ownBarrier) {
-              legalMoves.push({
-                pieceId: piece.id,
-                fromPosition: 0,
-                toPosition: exitPos,
-                steps: 5,
-                isExitMove: true,
-              });
+      if (!this.isMoveBlocked(cur, target, walls)) {
+        if (target.col === opp.col && target.row === opp.row) {
+          // Intento de salto sobre el rival
+          const jc = target.col + dc;
+          const jr = target.row + dr;
+          if (jc >= 0 && jc < COLS && jr >= 0 && jr < ROWS) {
+            const jumpTarget = { col: jc, row: jr };
+            if (!this.isMoveBlocked(target, jumpTarget, walls)) {
+              valid.push(jumpTarget);
+              continue;
             }
           }
-          return;
-        }
-
-        let moveSteps = steps;
-        if (steps === 6 && !isBonus) {
-          const allOut = Object.values(state.pieces)
-            .filter((p) => p.color === c)
-            .every((p) => p.state !== 'HOME');
-          if (allOut) {
-            moveSteps = 7;
+          // Si el salto frontal está bloqueado, saltos diagonales
+          const diagDirs = dc === 0 ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]];
+          for (const [ddc, ddr] of diagDirs) {
+            const dnc = target.col + ddc;
+            const dnr = target.row + ddr;
+            if (dnc >= 0 && dnc < COLS && dnr >= 0 && dnr < ROWS) {
+              const diagTarget = { col: dnc, row: dnr };
+              if (!this.isMoveBlocked(target, diagTarget, walls)) {
+                valid.push(diagTarget);
+              }
+            }
           }
-        }
-
-        const maxPath = config.totalTrackSquares + config.finalPathLength + 1;
-        const targetProgress = piece.pathProgress + moveSteps;
-
-        if (targetProgress > maxPath) return;
-
-        let targetPos = 0;
-        let isGoalEntry = false;
-
-        if (targetProgress === maxPath) {
-          targetPos = 999;
-          isGoalEntry = true;
-        } else if (targetProgress > config.totalTrackSquares) {
-          const finalOffset = targetProgress - config.totalTrackSquares;
-          targetPos = 100 + finalOffset;
         } else {
-          const exitSquare = config.exitSquares[c];
-          targetPos = ((exitSquare - 1 + targetProgress - 1) % config.totalTrackSquares) + 1;
+          valid.push(target);
         }
-
-        const hasBarrier = this.checkBarrierOnPath(state, targetPos);
-        if (!hasBarrier) {
-          legalMoves.push({
-            pieceId: piece.id,
-            fromPosition: piece.position,
-            toPosition: targetPos,
-            steps: moveSteps,
-            isGoalEntry,
-          });
-        }
-      });
-    });
-
-    return legalMoves;
-  }
-
-  private checkBarrierOnPath(state: AtrapaitoState, targetPos: number): boolean {
-    const config = state.boardType === '6_COLORS' ? BOARD_CONFIG_6 : BOARD_CONFIG_4;
-
-    if (targetPos <= config.totalTrackSquares) {
-      const piecesOnTarget = Object.values(state.pieces).filter(
-        (p) => p.position === targetPos && p.state !== 'HOME' && p.state !== 'FINISHED'
-      );
-      if (piecesOnTarget.length >= 2) return true;
+      }
     }
 
+    return valid;
+  }
+
+  public isMoveBlocked(p1: AtrapaitoPosition, p2: AtrapaitoPosition, walls: AtrapaitoWall[]): boolean {
+    const minC = Math.min(p1.col, p2.col);
+    const maxC = Math.max(p1.col, p2.col);
+    const minR = Math.min(p1.row, p2.row);
+    const maxR = Math.max(p1.row, p2.row);
+
+    if (p1.col === p2.col) {
+      // Movimiento vertical
+      for (const w of walls) {
+        if (w.isHorizontal && w.row === minR) {
+          if (w.col === minC || w.col === minC - 1) return true;
+        }
+      }
+    } else if (p1.row === p2.row) {
+      // Movimiento horizontal
+      for (const w of walls) {
+        if (!w.isHorizontal && w.col === minC) {
+          if (w.row === minR || w.row === minR - 1) return true;
+        }
+      }
+    }
     return false;
   }
 
-  private advanceToNextTurn(state: AtrapaitoState): AtrapaitoState {
-    const playerOrder = state.playerOrder;
-    const currentIdx = playerOrder.indexOf(state.currentTurnUserId);
-    const nextIdx = (currentIdx + 1) % playerOrder.length;
-    const nextUserId = playerOrder[nextIdx];
-    const nextPlayer = state.players[nextUserId];
-    const nextColor = nextPlayer?.colors[0] || 'yellow';
-    const now = Date.now();
+  public canReachFinish(start: AtrapaitoPosition, walls: AtrapaitoWall[]): boolean {
+    const queue: AtrapaitoPosition[] = [start];
+    const visited: boolean[][] = Array.from({ length: COLS }, () => Array(ROWS).fill(false));
+    visited[start.col][start.row] = true;
 
-    return {
-      ...state,
-      currentTurnUserId: nextUserId,
-      turnUserId: nextUserId,
-      activeColor: nextColor,
-      turnPhase: 'ROLL_DICE',
-      diceValue: null,
-      consecutiveSixes: 0,
-      pendingBonus: null,
-      legalMoves: [],
-      turnStartedAt: now,
-      turnDeadlineAt: now + 30000,
-    };
+    const dirs = [
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0],
+    ];
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (curr.row === 0) return true;
+
+      for (const [dc, dr] of dirs) {
+        const nc = curr.col + dc;
+        const nr = curr.row + dr;
+        if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+        if (visited[nc][nr]) continue;
+
+        const next = { col: nc, row: nr };
+        if (!this.isMoveBlocked(curr, next, walls)) {
+          visited[nc][nr] = true;
+          queue.push(next);
+        }
+      }
+    }
+    return false;
   }
 
-  private handleTimeout(state: AtrapaitoState): ActionResult<AtrapaitoState> {
-    const currentUserId = state.currentTurnUserId;
-    const livesMap = { ...state.lives };
-    const currentLives = (livesMap[currentUserId] ?? 3) - 1;
-    livesMap[currentUserId] = Math.max(0, currentLives);
+  public isValidWall(
+    candidate: AtrapaitoWall,
+    currentWalls: AtrapaitoWall[],
+    bluePos: AtrapaitoPosition,
+    redPos: AtrapaitoPosition
+  ): boolean {
+    if (candidate.col < 0 || candidate.col >= COLS - 1 || candidate.row < 0 || candidate.row >= ROWS - 1) {
+      return false;
+    }
 
-    const playersMap = { ...state.players };
-    if (playersMap[currentUserId]) {
-      playersMap[currentUserId] = {
-        ...playersMap[currentUserId],
-        lives: livesMap[currentUserId],
-        status: currentLives <= 0 ? 'eliminated' : 'active',
+    for (const w of currentWalls) {
+      if (w.isHorizontal === candidate.isHorizontal) {
+        if (candidate.isHorizontal && w.row === candidate.row) {
+          if (w.col === candidate.col || w.col === candidate.col - 1 || w.col === candidate.col + 1) return false;
+        } else if (!candidate.isHorizontal && w.col === candidate.col) {
+          if (w.row === candidate.row || w.row === candidate.row - 1 || w.row === candidate.row + 1) return false;
+        }
+      } else {
+        if (w.col === candidate.col && w.row === candidate.row) return false;
+      }
+    }
+
+    const simulated = [...currentWalls, candidate];
+    if (!this.canReachFinish(bluePos, simulated)) return false;
+    if (!this.canReachFinish(redPos, simulated)) return false;
+
+    return true;
+  }
+
+  private handleTimeout(state: AtrapaitoCriolloState): ActionResult<AtrapaitoCriolloState> {
+    const isBlue = state.turn === 'BLUE';
+    const currentUserId = isBlue ? state.blueUserId : state.redUserId;
+    const opponentUserId = isBlue ? state.redUserId : state.blueUserId;
+
+    const updatedLives = { ...(state.lives || {}) };
+    const currentLives = ((currentUserId ? updatedLives[currentUserId] : 3) ?? 3) - 1;
+    if (currentUserId) {
+      updatedLives[currentUserId] = Math.max(0, currentLives);
+    }
+
+    if (currentLives <= 0) {
+      const winnerColor = isBlue ? 'RED' : 'BLUE';
+      return {
+        newState: {
+          ...state,
+          status: 'game_won',
+          lives: updatedLives,
+          winner: winnerColor,
+          currentTurnUserId: null,
+          turnUserId: null,
+        },
+        isValid: true,
+        isGameOver: true,
+        winnerUserId: opponentUserId,
+        winnerTeamIndex: isBlue ? 1 : 0,
+        isDraw: false,
       };
     }
 
-    let nextState: AtrapaitoState = {
-      ...state,
-      lives: livesMap,
-      players: playersMap,
-      lastActionDescription: `¡Tiempo agotado para ${state.playerNames[currentUserId]}! Pierde 1 vida (Restantes: ${currentLives}).`,
-    };
-
-    if (state.legalMoves.length > 0) {
-      const autoMove = state.legalMoves[0];
-      return this.executePieceMove(nextState, autoMove);
-    }
-
-    nextState = this.advanceToNextTurn(nextState);
+    const nextTurn = isBlue ? 'RED' : 'BLUE';
+    const nextUserId = opponentUserId;
+    const now = Date.now();
+    const duration = (state.turnDurationSeconds || 15) * 1000;
+    const nextDeadlineIso = new Date(now + duration).toISOString();
 
     return {
-      newState: nextState,
+      newState: {
+        ...state,
+        lives: updatedLives,
+        turn: nextTurn,
+        currentTurnUserId: nextUserId,
+        turnUserId: nextUserId,
+        action: 'MOVE',
+        pendingWall: null,
+        turnStartedAt: now as any,
+        turnDeadlineAt: (now + duration) as any,
+        turnExpiresAt: nextDeadlineIso,
+      },
       isValid: true,
-      isGameOver: nextState.status === 'game_won',
-      winnerUserId: nextState.winnerUserId,
-      winnerTeamIndex: nextState.winnerTeam === 'A' ? 0 : nextState.winnerTeam === 'B' ? 1 : null,
+      isGameOver: false,
+      winnerUserId: null,
+      winnerTeamIndex: null,
       isDraw: false,
     };
   }
 
-  private checkWinCondition(state: AtrapaitoState, pieces: Record<string, AtrapaitoPiece>): boolean {
-    const mode = state.mode;
-
-    if (mode === 'SIX_PIECES') {
-      const colors: AtrapaitoColor[] = ['yellow', 'red', 'blue', 'green'];
-      for (const col of colors) {
-        const finishedCount = Object.values(pieces).filter(
-          (p) => p.color === col && p.state === 'FINISHED'
-        ).length;
-        if (finishedCount >= 6) return true;
-      }
-      return false;
-    }
-
-    const activePlayer = state.players[state.currentTurnUserId];
-    const playerColors = activePlayer.colors;
-
-    const allFinished = Object.values(pieces)
-      .filter((p) => playerColors.includes(p.color))
-      .every((p) => p.state === 'FINISHED');
-
-    return allFinished;
-  }
-
-  public getSanitizedStateForPlayer(state: AtrapaitoState, _userId: string): AtrapaitoState {
+  public getSanitizedStateForPlayer(state: AtrapaitoCriolloState, _userId: string): AtrapaitoCriolloState {
     return state;
   }
 
-  public getBotMove(state: AtrapaitoState, userId: string): GameActionPayload | null {
-    if (state.currentTurnUserId !== userId || state.status !== 'playing') return null;
-    if (state.turnPhase === 'ROLL_DICE' || state.diceValue === null) {
+  public getBotMove(state: AtrapaitoCriolloState, userId: string): GameActionPayload | null {
+    if (state.currentTurnUserId !== userId || state.winner !== null) return null;
+    const currentPos = state.turn === 'BLUE' ? state.bluePos : state.redPos;
+    const opponentPos = state.turn === 'BLUE' ? state.redPos : state.bluePos;
+    const moves = this.getValidMoves(currentPos, opponentPos, state.walls);
+
+    if (moves.length > 0) {
+      // Mover hacia la meta (menor fila)
+      moves.sort((a, b) => a.row - b.row);
+      const chosen = moves[0];
       return {
         sessionId: '',
         userId,
-        actionType: 'ROLL_DICE',
-        actionData: {},
+        actionType: 'MOVE_MARBLE',
+        actionData: { col: chosen.col, row: chosen.row },
         clientTimestamp: Date.now(),
       };
     }
-    return {
-      sessionId: '',
-      userId,
-      actionType: 'PASS_TURN',
-      actionData: {},
-      clientTimestamp: Date.now(),
-    };
+    return null;
   }
 }

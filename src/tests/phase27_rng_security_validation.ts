@@ -3,7 +3,7 @@
 // ==============================================================================
 
 import { RngService } from '../services/rng/RngService';
-import { AtrapaitoEngine } from '../features/games/engines/AtrapaitoEngine';
+import { ParchisEngine } from '../features/games/engines/ParchisEngine';
 import { BingoEngine } from '../features/games/engines/BingoEngine';
 import { TrucoEngine } from '../features/games/engines/TrucoEngine';
 import { DominoEngine } from '../features/games/engines/DominoEngine';
@@ -26,18 +26,18 @@ export function runRngSecurityValidationSuite() {
   }
   console.log('✅ RngService genera valores en rango 1..6 correctamente.');
 
-  // 2. Verificar AtrapaitoEngine con RNG autoritativo
-  console.log('\n[2] Probando AtrapaitoEngine ROLL_DICE con Server RNG...');
-  const atrapaito = new AtrapaitoEngine();
+  // 2. Verificar ParchisEngine con RNG autoritativo
+  console.log('\n[2] Probando ParchisEngine ROLL_DICE con Server RNG...');
+  const parchis = new ParchisEngine();
   const mockTable: any = { id: 'tbl_1', mode: 'INDIVIDUAL', entryFee: 25, config: {} };
   const mockPlayers: any = [
     { userId: 'u1', seatNumber: 1, team: 'RED', displayName: 'Jugador 1' },
     { userId: 'u2', seatNumber: 2, team: 'BLUE', displayName: 'Jugador 2' },
   ];
-  let state = atrapaito.initialize(mockTable, mockPlayers);
+  let state = parchis.initialize(mockTable, mockPlayers);
   
   // Probar lanzamiento con dado suministrado por servidor
-  const actionRes = atrapaito.applyAction(state, {
+  const actionRes = parchis.applyAction(state, {
     sessionId: 'sess_1',
     userId: 'u1',
     actionType: 'ROLL_DICE',
@@ -45,9 +45,9 @@ export function runRngSecurityValidationSuite() {
     clientTimestamp: Date.now(),
   });
   if (!actionRes.isValid || actionRes.newState.diceValue !== 5) {
-    throw new Error('❌ AtrapaitoEngine no aceptó correctamente el dado autoritativo del servidor.');
+    throw new Error('❌ ParchisEngine no aceptó correctamente el dado autoritativo del servidor.');
   }
-  console.log('✅ AtrapaitoEngine respeta el dado autoritativo del servidor (5).');
+  console.log('✅ ParchisEngine respeta el dado autoritativo del servidor (5).');
 
   // 3. Verificar BingoEngine con balota autoritativa del servidor
   console.log('\n[3] Probando BingoEngine DRAW_BALL con Server RNG...');

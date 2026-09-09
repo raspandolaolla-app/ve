@@ -22,6 +22,7 @@ interface TrucoBoardProps {
   onPlayCard: (cardId: string) => void;
   onCanto: (cantoType: string) => void;
   onTimeout?: () => void;
+  onOpponentTimeout?: () => void;
 }
 
 // ==============================================================================
@@ -272,6 +273,7 @@ export const TrucoBoard: React.FC<TrucoBoardProps> = ({
   onPlayCard,
   onCanto,
   onTimeout,
+  onOpponentTimeout,
 }) => {
   const s: any = state || {};
 
@@ -438,6 +440,7 @@ export const TrucoBoard: React.FC<TrucoBoardProps> = ({
           activePlayerName={players.find((p: any) => p.userId === turnUserId)?.displayName || 'RIVAL'}
           status={status}
           onTimeout={handleTimeout}
+          onOpponentTimeout={onOpponentTimeout}
         />
         <div>
           {isMyTurn ? (

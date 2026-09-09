@@ -2,10 +2,19 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 17:36:00 -07:00 (UTC 2026-09-09 00:36:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA AUTORITATIVO DE TURNOS, TIMEOUTS Y MIGRACIÓN 156 OPERATIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 18:10:00 -07:00 (UTC 2026-09-09 01:10:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 156_DEFINITIVE_TURN_TIMER_TIMEOUT_AND_TICTACTOE_RESOLUTION.sql (Sincronización Autoritativa de Deadlines de Turno, Trigger fn_refresh_turn_expires_at, RPC expire_game_turn_secure con Resolución Round-Loss en La Vieja / TicTacToe, Motor Canónico 90/10 en Partida Completada y Bucle Cron No-Bloqueante)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) BLINDAJE DE CONCURRENCIA EN INICIO DE SESIÓN Y TRAZABILIDAD ESTRUCTURADA:
+   - Mutex Atómico en `TableRepository.startGameSession`:
+     * Incorporado `startSessionPromises` Map para evitar invocaciones concurrentes y duplicadas de inicio de sesión sobre la misma mesa (`tableId`).
+     * Las llamadas concurrentes comparten la misma promesa en curso, erradicando carreras de red y creaciones duplicadas de sesiones de juego.
+   - Protección contra Bucles de Reintento en `TablesView.tsx`:
+     * Incorporado `startFailureCooldownRef` con cooldown de 8 segundos y límite de 3 reintentos automáticos en caso de fallo del backend al iniciar partida, requiriendo acción manual del anfitrión y evitando saturación del servidor.
+   - Extensión Canónica de `tableDiagnostics.ts`:
+     * Módulo tipado con integración al logger estructurado (`logger.info`), conservando compatibilidad retroactiva completa con `TableExitDiagnosticPayload` y exportando `TableExitDiagnosticParams`.
 
 0) MIGRACIÓN 156 — ARQUITECTURA AUTORITATIVA DE TEMPORIZACIÓN DE TURNOS Y TIMEOUTS (TIC TAC TOE / LA VIEJA):
    - Corrección de Compatibilidad de Enum en PostgreSQL (`game_type_enum`):

@@ -15,6 +15,9 @@ import type { GameTable, TablePlayer, CreateTablePayload, JoinTableResult } from
 import type { GameType, GameMode } from '../../types/games';
 
 export class TableRepository {
+  // Mutex para evitar invocaciones concurrentes y duplicadas de inicio de partida para la misma mesa
+  private static startSessionPromises = new Map<string, Promise<string | null>>();
+
   /**
    * Transforma un registro de base de datos a la interfaz GameTable.
    */
@@ -1163,6 +1166,26 @@ export class TableRepository {
    * Persiste atómicamente el estado inicial canónico completo y el turno asignado.
    */
   public static async startGameSession(
+    tableId: string,
+    initialState?: Record<string, unknown>,
+    turnDurationSeconds?: number
+  ): Promise<string | null> {
+    const existing = this.startSessionPromises.get(tableId);
+    if (existing) {
+      return await existing;
+    }
+
+    const startPromise = this.executeStartGameSession(tableId, initialState, turnDurationSeconds);
+    this.startSessionPromises.set(tableId, startPromise);
+
+    try {
+      return await startPromise;
+    } finally {
+      this.startSessionPromises.delete(tableId);
+    }
+  }
+
+  private static async executeStartGameSession(
     tableId: string,
     initialState?: Record<string, unknown>,
     turnDurationSeconds?: number

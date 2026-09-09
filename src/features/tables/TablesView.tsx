@@ -94,6 +94,7 @@ export function TablesView() {
   const [isStartingTable, setIsStartingTable] = useState(false);
   const isStartingTableRef = useRef(false);
   isStartingTableRef.current = isStartingTable;
+  const startFailureCooldownRef = useRef<{ tableId: string; failedAt: number; count: number } | null>(null);
   const [seatActionFeedback, setSeatActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>(PresenceService.getOnlineUserIds());
 
@@ -742,6 +743,7 @@ export function TablesView() {
           playersCount: unique.length,
         });
 
+        startFailureCooldownRef.current = null;
         setInGameData({
           table: { ...tableToStart, status: 'ACTIVE' },
           players: unique,
@@ -750,8 +752,18 @@ export function TablesView() {
         setActiveTable(null);
       } catch (e: any) {
         console.error('[TablesView] Error al iniciar sesión en el servidor:', e);
+        // Registrar intento fallido con cooldown para prevenir bucles infinitos de reintento
+        const prevCooldown = startFailureCooldownRef.current;
+        const newCount = (prevCooldown?.tableId === tableToStart.id) ? prevCooldown.count + 1 : 1;
+        startFailureCooldownRef.current = {
+          tableId: tableToStart.id,
+          failedAt: Date.now(),
+          count: newCount,
+        };
+
         const activeSess = await GameRepository.getActiveSession(tableToStart.id);
         if (activeSess) {
+          startFailureCooldownRef.current = null;
           setInGameData({
             table: { ...tableToStart, status: 'ACTIVE' },
             players: unique,
@@ -783,6 +795,19 @@ export function TablesView() {
 
     // Bingo y Polla tienen flujos de venta y salas independientes
     if (activeTable.gameType === 'bingo' || (activeTable.gameType as string) === 'polla' || activeTable.gameType === 'polla_venezolana') return;
+
+    // Protección contra bucles infinitos de reintento en caso de fallo en el servidor
+    const failureCooldown = startFailureCooldownRef.current;
+    if (failureCooldown && failureCooldown.tableId === activeTable.id) {
+      // Cooldown de 8 segundos tras fallo de inicio
+      if (Date.now() - failureCooldown.failedAt < 8000) {
+        return;
+      }
+      // Detener reintentos automáticos tras 3 fallos consecutivos (espera acción manual del anfitrión)
+      if (failureCooldown.count >= 3) {
+        return;
+      }
+    }
 
     const minReq = activeTable.minPlayers || 2;
     const unique = Array.from(

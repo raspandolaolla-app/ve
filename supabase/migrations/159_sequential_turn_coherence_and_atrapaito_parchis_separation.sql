@@ -2,13 +2,16 @@
 -- RASPANDO LA OLLA 🇻🇪 / PulsoPLAY — MIGRACIÓN 159
 -- DESACOPLAMIENTO DEFINITIVO ATRAPAÍTO VS PARCHÍS & COHERENCIA DE TURNOS SECUENCIALES
 -- ==============================================================================
--- 1. Agrega el tipo de juego canónico 'PARCHIS' a game_type_enum.
--- 2. Actualiza fn_normalize_game_type_enum para reconocer 'parchis' y 'ludo'.
+-- 1. Agrega el tipo de juego canónico 'PARCHIS' a game_type_enum si no existe.
+-- 2. Actualiza fn_normalize_game_type_enum conservando la firma (p_game_str TEXT)
+--    y normalizando PARCHIS y ATRAPAITO por separado.
 -- 3. Actualiza expire_game_turn_secure(p_session_id uuid) con coherencia estricta:
---    - En Atrapaíto Criollo: alterna el color 'turn' ('BLUE' <-> 'RED') y 'currentTurn'.
---    - En Parchís: rota 'currentTurnUserId', 'turnUserId' y 'turnDeadlineAt'.
---    - En Dominó, Truco, Ajedrez y Damas: rota 'currentTurnUserId', sincroniza
---      turn_deadline_at / turn_expires_at e inserta registro en game_actions.
+--    - Exclusión explícita de juegos no secuenciales (Bingo, Polla).
+--    - En Piedra Papel Tijera (RPS): lógica simultánea de commit / timeout / liquidación.
+--    - En Atrapaíto Criollo: alterna color ('BLUE' <-> 'RED') y rota al oponente.
+--    - En Parchís: rota respetando playerOrder / asientos multijugador (2-4 jugadores).
+--    - En Dominó, Truco, Ajedrez, Damas y Una Olla: rota al siguiente jugador.
+--    - Clave de idempotencia determinística y segura (< 100 chars para varchar(100)).
 -- ==============================================================================
 
 -- 1. SOPORTE DE ENUM PARA PARCHÍS
@@ -21,56 +24,69 @@ BEGIN
   ) THEN
     ALTER TYPE public.game_type_enum ADD VALUE 'PARCHIS';
   END IF;
-EXCEPTION WHEN OTHERS THEN
-  NULL;
-END;
-$$;
+END $$;
 
--- 2. NORMALIZACIÓN DE TIPOS DE JUEGO
-CREATE OR REPLACE FUNCTION public.fn_normalize_game_type_enum(p_input TEXT)
-RETURNS game_type_enum
+-- 2. NORMALIZACIÓN DE TIPOS DE JUEGO (Conservando nombre canónico de parámetro p_game_str TEXT)
+CREATE OR REPLACE FUNCTION public.fn_normalize_game_type_enum(p_game_str TEXT)
+RETURNS public.game_type_enum
 LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  v_clean TEXT;
+  v_normalized TEXT;
 BEGIN
-  IF p_input IS NULL THEN
+  IF p_game_str IS NULL THEN
     RAISE EXCEPTION 'INVALID_GAME_TYPE: El tipo de juego no puede ser nulo';
   END IF;
 
-  v_clean := lower(trim(p_input));
+  v_normalized := UPPER(TRIM(p_game_str));
+  v_normalized := REPLACE(v_normalized, '-', '_');
 
-  CASE v_clean
-    WHEN 'domino_venezolano', 'domino', 'dominoes' THEN
-      RETURN 'DOMINO_VENEZOLANO'::game_type_enum;
-    WHEN 'truco_venezolano', 'truco' THEN
-      RETURN 'TRUCO_VENEZOLANO'::game_type_enum;
-    WHEN 'tic_tac_toe', 'tres_en_raya', '3_en_raya', 'tictactoe' THEN
-      RETURN 'TRES_EN_RAYA'::game_type_enum;
-    WHEN 'rock_paper_scissors', 'piedra_papel_tijera', 'ppt', 'rps' THEN
-      RETURN 'PIEDRA_PAPEL_TIJERA'::game_type_enum;
-    WHEN 'checkers', 'damas' THEN
-      RETURN 'DAMAS'::game_type_enum;
-    WHEN 'bingo', 'bingo_online' THEN
-      RETURN 'BINGO'::game_type_enum;
-    WHEN 'polla_venezolana', 'polla', 'quiniela' THEN
-      RETURN 'POLLA_VENEZOLANA'::game_type_enum;
-    WHEN 'atrapaito', 'atrapaito_criollo', 'atrapa_al_ladron' THEN
-      RETURN 'ATRAPAITO'::game_type_enum;
-    WHEN 'parchis', 'parchis_venezolano', 'ludo' THEN
-      RETURN 'PARCHIS'::game_type_enum;
+  CASE v_normalized
+    WHEN 'DOMINO', 'DOMINO_VENEZOLANO', 'DOMINÓ', 'DOMINOES' THEN
+      RETURN 'DOMINO_VENEZOLANO'::public.game_type_enum;
+
+    WHEN 'TRUCO', 'TRUCO_VENEZOLANO' THEN
+      RETURN 'TRUCO_VENEZOLANO'::public.game_type_enum;
+
+    WHEN 'TIC_TAC_TOE', 'TRES_EN_RAYA', 'LA_VIEJA', 'VIEJA', 'TICTACTOE', '3_EN_RAYA' THEN
+      RETURN 'TRES_EN_RAYA'::public.game_type_enum;
+
+    WHEN 'ROCK_PAPER_SCISSORS', 'PIEDRA_PAPEL_TIJERA', 'PIEDRA_PAPEL_O_TIJERA', 'PPT', 'RPS' THEN
+      RETURN 'PIEDRA_PAPEL_TIJERA'::public.game_type_enum;
+
+    WHEN 'CHECKERS', 'DAMAS', 'DAMAS_VENEZOLANAS', 'DAMAS_ESPANOLAS', 'DAMAS_INTERNACIONALES' THEN
+      RETURN 'DAMAS'::public.game_type_enum;
+
+    WHEN 'BINGO', 'BINGO_ONLINE', 'BINGO_75', 'BINGO_90', 'BINGO_LATINO' THEN
+      RETURN 'BINGO'::public.game_type_enum;
+
+    WHEN 'POLLA', 'POLLA_VENEZOLANA', 'QUINIELA', 'POLLA_FUTBOL', 'POLLA_DEPORTIVA' THEN
+      RETURN 'POLLA_VENEZOLANA'::public.game_type_enum;
+
+    WHEN 'ATRAPAITO', 'ATRAPAITO_CRIOLLO', 'ATRAPA_AL_LADRON', 'ATRAPA_AL_MILLON', 'TRIVIA_ATRAPAITO', 'ATRAPA' THEN
+      RETURN 'ATRAPAITO'::public.game_type_enum;
+
+    WHEN 'PARCHIS', 'PARCHIS_VENEZOLANO', 'PARCHÍS', 'LUDO', 'LUDO_VENEZOLANO' THEN
+      RETURN 'PARCHIS'::public.game_type_enum;
+
+    WHEN 'CHESS', 'AJEDREZ' THEN
+      RETURN 'CHESS'::public.game_type_enum;
+
+    WHEN 'UNA_OLLA', 'UNA_OLLA_CARD_GAME', 'OLLA', 'RASPANDO_LA_OLLA', 'RASPANDO' THEN
+      RETURN 'UNA_OLLA'::public.game_type_enum;
+
     ELSE
       BEGIN
-        RETURN upper(trim(p_input))::game_type_enum;
+        RETURN v_normalized::public.game_type_enum;
       EXCEPTION WHEN OTHERS THEN
-        RAISE EXCEPTION 'INVALID_GAME_TYPE: Tipo de juego desconocido o no soportado: %', p_input;
+        RAISE EXCEPTION 'INVALID_GAME_TYPE: Tipo de juego desconocido o no soportado: %', p_game_str;
       END;
   END CASE;
 END;
 $$;
 
--- 3. EXPIRE_GAME_TURN_SECURE CON COHERENCIA MULTIJUGADOR Y DESACOPLAMIENTO ATRAPAÍTO / PARCHÍS
+-- 3. EXPIRE_GAME_TURN_SECURE CON COHERENCIA MULTIJUGADOR Y DESACOPLAMIENTO DEFINITIVO
 CREATE OR REPLACE FUNCTION public.expire_game_turn_secure(p_session_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -82,7 +98,7 @@ DECLARE
   v_state JSONB;
   v_game_type_str TEXT;
   v_turn_user_id UUID;
-  v_opponent_id UUID := NULL;
+  v_next_turn_user_id UUID := NULL;
   v_player_order JSONB;
   v_player_count INT := 0;
   v_scores JSONB;
@@ -108,6 +124,12 @@ DECLARE
   -- Variables para Atrapaíto Criollo
   v_curr_color TEXT;
   v_next_color TEXT;
+  -- Variables para Parchís
+  v_parchis_order JSONB;
+  v_parchis_len INT := 0;
+  v_parchis_idx INT := -1;
+  v_parchis_players JSONB;
+  v_parchis_next_color TEXT;
 BEGIN
   IF p_session_id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'SESSION_ID_REQUIRED');
@@ -146,7 +168,19 @@ BEGIN
   v_game_type_str := UPPER(COALESCE(v_session.game_type::TEXT, ''));
 
   -- =========================================================================
-  -- CASO ESPECIAL: PIEDRA, PAPEL O TIJERA (Juego simultáneo Commit-Reveal)
+  -- CASO 1: JUEGOS NO SECUENCIALES (BINGO, POLLA VENEZOLANA)
+  -- =========================================================================
+  IF v_game_type_str IN ('BINGO', 'POLLA_VENEZOLANA', 'POLLA') THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'action', 'GAME_TYPE_NOT_HANDLED_BY_SEQUENTIAL_TIMEOUT',
+      'gameType', v_game_type_str,
+      'message', 'Bingo y Polla no operan bajo rotación secuencial individual de turnos.'
+    );
+  END IF;
+
+  -- =========================================================================
+  -- CASO 2: PIEDRA, PAPEL O TIJERA (Juego simultáneo Commit-Reveal)
   -- =========================================================================
   IF v_game_type_str IN ('ROCK_PAPER_SCISSORS', 'RPS', 'PIEDRA_PAPEL_TIJERA') THEN
     IF COALESCE(v_state->>'status', '') NOT IN ('ROUND_COMMIT', 'selecting') AND
@@ -155,7 +189,7 @@ BEGIN
     END IF;
 
     v_curr_round := COALESCE((v_state->>'roundNumber')::int, (v_state->>'round')::int, 1);
-    v_idempotency_key := 'rps_timeout_' || p_session_id::text || '_rnd_' || v_curr_round::text;
+    v_idempotency_key := 'rps_timeout_' || substr(p_session_id::text, 1, 8) || '_rnd_' || v_curr_round::text;
 
     v_p1_id := NULLIF(TRIM(v_state->>'player1Id'), '')::uuid;
     v_p2_id := NULLIF(TRIM(v_state->>'player2Id'), '')::uuid;
@@ -174,6 +208,7 @@ BEGIN
     v_p1_committed := (v_secret_choices ? v_p1_id::text) AND (v_secret_choices->v_p1_id::text IS NOT NULL);
     v_p2_committed := (v_secret_choices ? v_p2_id::text) AND (v_secret_choices->v_p2_id::text IS NOT NULL);
 
+    -- Si ambos se demoraron sin jugar: reseteo de la ronda
     IF (NOT v_p1_committed) AND (NOT v_p2_committed) THEN
       v_duration := COALESCE(v_session.turn_duration_seconds, 15);
       v_new_deadline := NOW() + (v_duration || ' seconds')::INTERVAL;
@@ -203,6 +238,7 @@ BEGIN
       );
     END IF;
 
+    -- Uno sí jugó y el otro expiró
     IF v_p1_committed AND (NOT v_p2_committed) THEN
       v_winner_id := v_p1_id;
       v_loser_id := v_p2_id;
@@ -286,8 +322,25 @@ BEGIN
   END IF;
 
   -- =========================================================================
-  -- JUEGOS SECUENCIALES TRADICIONALES
+  -- CASO 3: VALIDACIÓN DE JUEGOS SECUENCIALES AUTORIZADOS
   -- =========================================================================
+  IF v_game_type_str NOT IN (
+    'TRES_EN_RAYA', 'TIC_TAC_TOE', 'TICTACTOE', 'LA_VIEJA',
+    'ATRAPAITO', 'ATRAPAITO_CRIOLLO',
+    'PARCHIS', 'PARCHIS_VENEZOLANO', 'LUDO',
+    'DOMINO_VENEZOLANO', 'DOMINO',
+    'TRUCO_VENEZOLANO', 'TRUCO',
+    'CHESS', 'AJEDREZ',
+    'DAMAS',
+    'UNA_OLLA'
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'action', 'GAME_TYPE_NOT_HANDLED_BY_SEQUENTIAL_TIMEOUT',
+      'gameType', v_game_type_str
+    );
+  END IF;
+
   v_turn_user_id := COALESCE(
     v_session.current_turn_user_id,
     (v_state->>'turnUserId')::UUID,
@@ -299,30 +352,45 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'NO_ACTIVE_TURN');
   END IF;
 
-  IF v_game_type_str = '' THEN
-    v_game_type_str := 'GENERIC';
-  END IF;
-
-  -- Resolver lista ordenada de jugadores desde game_table_players
-  SELECT jsonb_agg(user_id ORDER BY seat_number ASC, joined_at ASC)
-  INTO v_player_order
-  FROM public.game_table_players
-  WHERE table_id = v_session.table_id
-    AND status::text NOT IN ('LEFT', 'CANCELLED', 'REPLACED');
-
-  v_player_count := COALESCE(jsonb_array_length(v_player_order), 0);
-
-  IF v_player_count >= 2 THEN
-    FOR v_i IN 0..(v_player_count - 1) LOOP
-      IF (v_player_order->>v_i)::UUID = v_turn_user_id THEN
-        v_opponent_id := (v_player_order->>((v_i + 1) % v_player_count))::UUID;
+  -- =========================================================================
+  -- RESOLUCIÓN ORDENADA DEL SIGUIENTE TURNO (v_next_turn_user_id)
+  -- =========================================================================
+  -- Si el juego es Parchís y el estado incluye playerOrder explícito
+  v_parchis_order := v_state->'playerOrder';
+  IF v_game_type_str IN ('PARCHIS', 'PARCHIS_VENEZOLANO', 'LUDO') AND
+     jsonb_typeof(v_parchis_order) = 'array' AND jsonb_array_length(v_parchis_order) >= 2 THEN
+    v_parchis_len := jsonb_array_length(v_parchis_order);
+    FOR v_i IN 0..(v_parchis_len - 1) LOOP
+      IF (v_parchis_order->>v_i)::UUID = v_turn_user_id THEN
+        v_next_turn_user_id := (v_parchis_order->>((v_i + 1) % v_parchis_len))::UUID;
         EXIT;
       END IF;
     END LOOP;
   END IF;
 
-  IF v_opponent_id IS NULL THEN
-    SELECT user_id INTO v_opponent_id
+  -- Fallback o estándar para demás juegos multijugador: consultar game_table_players
+  IF v_next_turn_user_id IS NULL THEN
+    SELECT jsonb_agg(user_id ORDER BY seat_number ASC, joined_at ASC)
+    INTO v_player_order
+    FROM public.game_table_players
+    WHERE table_id = v_session.table_id
+      AND status::text NOT IN ('LEFT', 'CANCELLED', 'REPLACED');
+
+    v_player_count := COALESCE(jsonb_array_length(v_player_order), 0);
+
+    IF v_player_count >= 2 THEN
+      FOR v_i IN 0..(v_player_count - 1) LOOP
+        IF (v_player_order->>v_i)::UUID = v_turn_user_id THEN
+          v_next_turn_user_id := (v_player_order->>((v_i + 1) % v_player_count))::UUID;
+          EXIT;
+        END IF;
+      END LOOP;
+    END IF;
+  END IF;
+
+  -- Fallback de seguridad: cualquier otro jugador activo en la mesa
+  IF v_next_turn_user_id IS NULL THEN
+    SELECT user_id INTO v_next_turn_user_id
     FROM public.game_table_players
     WHERE table_id = v_session.table_id
       AND user_id != v_turn_user_id
@@ -333,32 +401,37 @@ BEGIN
 
   v_scores := COALESCE(v_state->'scores', jsonb_build_object(
     v_turn_user_id::TEXT, 0,
-    COALESCE(v_opponent_id::TEXT, 'opp'), 0
+    COALESCE(v_next_turn_user_id::TEXT, 'opp'), 0
   ));
-  v_opp_score := COALESCE((v_scores->>v_opponent_id::TEXT)::INT, 0);
+  v_opp_score := COALESCE((v_scores->>v_next_turn_user_id::TEXT)::INT, 0);
   v_target_wins := COALESCE((v_state->>'targetWins')::INT, 3);
   v_curr_round := COALESCE((v_state->>'round')::INT, 1);
   v_duration := COALESCE(v_session.turn_duration_seconds, 30);
   v_new_deadline := NOW() + (v_duration || ' seconds')::INTERVAL;
 
-  -- 1. TIC TAC TOE / LA VIEJA
+  -- Clave de idempotencia determinística (< 100 caracteres para el check uq_game_actions_idempotency)
+  v_idempotency_key := 'to_' || substr(p_session_id::TEXT, 1, 8) || '_' || substr(v_turn_user_id::TEXT, 1, 8) || '_' || md5(p_session_id::TEXT || '_' || v_turn_user_id::TEXT || '_' || COALESCE(v_session.turn_deadline_at::TEXT, '0'));
+
+  -- -------------------------------------------------------------------------
+  -- SUB-RAMA A: TIC TAC TOE / LA VIEJA (Conteo de vidas y penalización)
+  -- -------------------------------------------------------------------------
   IF v_game_type_str IN ('TIC_TAC_TOE', 'TICTACTOE', 'LA_VIEJA', 'TRES_EN_RAYA') THEN
     v_lives := COALESCE(v_state->'lives', jsonb_build_object(
       v_turn_user_id::TEXT, 3,
-      COALESCE(v_opponent_id::TEXT, 'opp'), 3
+      COALESCE(v_next_turn_user_id::TEXT, 'opp'), 3
     ));
     v_curr_lives := GREATEST(0, COALESCE((v_lives->>v_turn_user_id::TEXT)::INT, 3) - 1);
     v_lives := jsonb_set(v_lives, ARRAY[v_turn_user_id::TEXT], to_jsonb(v_curr_lives));
 
-    IF v_curr_lives <= 0 AND v_opponent_id IS NOT NULL THEN
+    IF v_curr_lives <= 0 AND v_next_turn_user_id IS NOT NULL THEN
       v_opp_score := v_target_wins;
-      v_scores := jsonb_set(v_scores, ARRAY[v_opponent_id::TEXT], to_jsonb(v_opp_score));
+      v_scores := jsonb_set(v_scores, ARRAY[v_next_turn_user_id::TEXT], to_jsonb(v_opp_score));
 
       v_state := v_state || jsonb_build_object(
         'status', 'FINISHED',
         'phase', 'match_ended',
         'isGameOver', true,
-        'winnerUserId', v_opponent_id,
+        'winnerUserId', v_next_turn_user_id,
         'scores', v_scores,
         'lives', v_lives,
         'abandonedBy', v_turn_user_id,
@@ -368,7 +441,7 @@ BEGIN
       UPDATE public.game_sessions
       SET current_state = v_state,
           status = 'FINISHED'::session_status_enum,
-          winner_user_id = v_opponent_id,
+          winner_user_id = v_next_turn_user_id,
           turn_deadline_at = NULL,
           turn_expires_at = NULL,
           ended_at = NOW(),
@@ -377,22 +450,22 @@ BEGIN
 
       SELECT public.universal_settle_game_session(
         p_session_id,
-        ARRAY[v_opponent_id],
+        ARRAY[v_next_turn_user_id],
         NULL::INT,
-        'timeout_ttt_loss_' || p_session_id::TEXT || '_' || v_turn_user_id::TEXT
+        'ttt_to_' || substr(p_session_id::TEXT, 1, 8) || '_' || substr(v_turn_user_id::TEXT, 1, 8)
       ) INTO v_settle_result;
 
       RETURN jsonb_build_object(
         'success', true,
         'action', 'MATCH_CONCLUDED_TIMEOUT',
-        'winnerUserId', v_opponent_id,
+        'winnerUserId', v_next_turn_user_id,
         'timeoutUserId', v_turn_user_id,
         'settlement', v_settle_result
       );
     ELSE
       v_state := v_state || jsonb_build_object(
-        'currentTurnUserId', v_opponent_id,
-        'turnUserId', v_opponent_id,
+        'currentTurnUserId', v_next_turn_user_id,
+        'turnUserId', v_next_turn_user_id,
         'turnDeadline', v_new_deadline,
         'lives', v_lives,
         'timeoutUserId', v_turn_user_id
@@ -400,7 +473,7 @@ BEGIN
 
       UPDATE public.game_sessions
       SET current_state = v_state,
-          current_turn_user_id = v_opponent_id,
+          current_turn_user_id = v_next_turn_user_id,
           turn_deadline_at = v_new_deadline,
           turn_expires_at = v_new_deadline,
           updated_at = NOW()
@@ -422,27 +495,30 @@ BEGIN
         'TURN_EXPIRED',
         jsonb_build_object(
           'expiredUserId', v_turn_user_id,
-          'nextTurnUserId', v_opponent_id,
+          'nextTurnUserId', v_next_turn_user_id,
           'remainingLives', v_curr_lives,
           'turnDeadline', v_new_deadline
         ),
         true,
         md5(v_state::TEXT),
-        'turn_expired_' || p_session_id::TEXT || '_' || v_turn_user_id::TEXT || '_' || EXTRACT(EPOCH FROM NOW())::TEXT
-      );
+        v_idempotency_key
+      )
+      ON CONFLICT (idempotency_key) DO NOTHING;
 
       RETURN jsonb_build_object(
         'success', true,
         'action', 'TURN_ROTATED_PENALTY',
         'expiredUserId', v_turn_user_id,
-        'nextTurnUserId', v_opponent_id,
+        'nextTurnUserId', v_next_turn_user_id,
         'remainingLives', v_curr_lives,
         'turnDeadlineAt', v_new_deadline
       );
     END IF;
   END IF;
 
-  -- 2. ATRAPAÍTO CRIOLLO (Canicas, Muros, Tablero 15x8)
+  -- -------------------------------------------------------------------------
+  -- SUB-RAMA B: ATRAPAÍTO CRIOLLO (Canicas, Paredes de Bloqueo, 2 Jugadores BLUE/RED)
+  -- -------------------------------------------------------------------------
   IF v_game_type_str IN ('ATRAPAITO', 'ATRAPAITO_CRIOLLO') THEN
     v_curr_color := UPPER(COALESCE(v_state->>'turn', 'BLUE'));
     IF v_curr_color = 'BLUE' THEN
@@ -452,17 +528,19 @@ BEGIN
     END IF;
 
     v_state := v_state || jsonb_build_object(
-      'currentTurnUserId', v_opponent_id,
-      'turnUserId', v_opponent_id,
-      'currentTurn', v_opponent_id,
+      'currentTurnUserId', v_next_turn_user_id,
+      'turnUserId', v_next_turn_user_id,
+      'currentTurn', v_next_turn_user_id,
       'turn', v_next_color,
+      'action', 'MOVE',
+      'pendingWall', NULL,
       'turnDeadline', v_new_deadline,
       'turnDeadlineAt', EXTRACT(EPOCH FROM v_new_deadline) * 1000
     );
 
     UPDATE public.game_sessions
     SET current_state = v_state,
-        current_turn_user_id = v_opponent_id,
+        current_turn_user_id = v_next_turn_user_id,
         turn_deadline_at = v_new_deadline,
         turn_expires_at = v_new_deadline,
         updated_at = NOW()
@@ -484,37 +562,52 @@ BEGIN
       'TURN_EXPIRED',
       jsonb_build_object(
         'expiredUserId', v_turn_user_id,
-        'nextTurnUserId', v_opponent_id,
+        'nextTurnUserId', v_next_turn_user_id,
         'nextColor', v_next_color,
         'turnDeadline', v_new_deadline
       ),
       true,
       md5(v_state::TEXT),
-      'turn_expired_atrapaito_' || p_session_id::TEXT || '_' || v_turn_user_id::TEXT || '_' || EXTRACT(EPOCH FROM NOW())::TEXT
-    );
+      v_idempotency_key
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING;
 
     RETURN jsonb_build_object(
       'success', true,
       'action', 'TURN_ROTATED_ATRAPAITO',
       'expiredUserId', v_turn_user_id,
-      'nextTurnUserId', v_opponent_id,
+      'nextTurnUserId', v_next_turn_user_id,
       'nextColor', v_next_color,
       'turnDeadlineAt', v_new_deadline
     );
   END IF;
 
-  -- 3. PARCHÍS / LUDO VENEZOLANO
+  -- -------------------------------------------------------------------------
+  -- SUB-RAMA C: PARCHÍS / LUDO (Tablero Circular, Dados, 2 a 4 Jugadores)
+  -- -------------------------------------------------------------------------
   IF v_game_type_str IN ('PARCHIS', 'PARCHIS_VENEZOLANO', 'LUDO') THEN
+    v_parchis_players := v_state->'players';
+    IF v_parchis_players IS NOT NULL AND (v_parchis_players->v_next_turn_user_id::TEXT) IS NOT NULL THEN
+      v_parchis_next_color := v_parchis_players->v_next_turn_user_id::TEXT->'colors'->>0;
+    END IF;
+
     v_state := v_state || jsonb_build_object(
-      'currentTurnUserId', v_opponent_id,
-      'turnUserId', v_opponent_id,
+      'currentTurnUserId', v_next_turn_user_id,
+      'turnUserId', v_next_turn_user_id,
+      'turnPhase', 'ROLL_DICE',
+      'diceValue', NULL,
+      'consecutiveSixes', 0,
       'turnDeadline', v_new_deadline,
       'turnDeadlineAt', EXTRACT(EPOCH FROM v_new_deadline) * 1000
     );
 
+    IF v_parchis_next_color IS NOT NULL THEN
+      v_state := jsonb_set(v_state, '{activeColor}', to_jsonb(v_parchis_next_color));
+    END IF;
+
     UPDATE public.game_sessions
     SET current_state = v_state,
-        current_turn_user_id = v_opponent_id,
+        current_turn_user_id = v_next_turn_user_id,
         turn_deadline_at = v_new_deadline,
         turn_expires_at = v_new_deadline,
         updated_at = NOW()
@@ -536,34 +629,39 @@ BEGIN
       'TURN_EXPIRED',
       jsonb_build_object(
         'expiredUserId', v_turn_user_id,
-        'nextTurnUserId', v_opponent_id,
+        'nextTurnUserId', v_next_turn_user_id,
+        'activeColor', v_parchis_next_color,
         'turnDeadline', v_new_deadline
       ),
       true,
       md5(v_state::TEXT),
-      'turn_expired_parchis_' || p_session_id::TEXT || '_' || v_turn_user_id::TEXT || '_' || EXTRACT(EPOCH FROM NOW())::TEXT
-    );
+      v_idempotency_key
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING;
 
     RETURN jsonb_build_object(
       'success', true,
       'action', 'TURN_ROTATED_PARCHIS',
       'expiredUserId', v_turn_user_id,
-      'nextTurnUserId', v_opponent_id,
+      'nextTurnUserId', v_next_turn_user_id,
+      'activeColor', v_parchis_next_color,
       'turnDeadlineAt', v_new_deadline
     );
   END IF;
 
-  -- 4. DEMÁS JUEGOS SECUENCIALES (DOMINO_VENEZOLANO, TRUCO_VENEZOLANO, DAMAS, CHESS, ETC.)
+  -- -------------------------------------------------------------------------
+  -- SUB-RAMA D: DEMÁS JUEGOS SECUENCIALES (DOMINÓ, TRUCO, AJEDREZ, DAMAS, UNA OLLA)
+  -- -------------------------------------------------------------------------
   v_state := v_state || jsonb_build_object(
-    'currentTurnUserId', v_opponent_id,
-    'turnUserId', v_opponent_id,
+    'currentTurnUserId', v_next_turn_user_id,
+    'turnUserId', v_next_turn_user_id,
     'turnDeadline', v_new_deadline,
     'turnDeadlineAt', EXTRACT(EPOCH FROM v_new_deadline) * 1000
   );
 
   UPDATE public.game_sessions
   SET current_state = v_state,
-      current_turn_user_id = v_opponent_id,
+      current_turn_user_id = v_next_turn_user_id,
       turn_deadline_at = v_new_deadline,
       turn_expires_at = v_new_deadline,
       updated_at = NOW()
@@ -585,19 +683,20 @@ BEGIN
     'TURN_EXPIRED',
     jsonb_build_object(
       'expiredUserId', v_turn_user_id,
-      'nextTurnUserId', v_opponent_id,
+      'nextTurnUserId', v_next_turn_user_id,
       'turnDeadline', v_new_deadline
     ),
     true,
     md5(v_state::TEXT),
-    'turn_expired_seq_' || p_session_id::TEXT || '_' || v_turn_user_id::TEXT || '_' || EXTRACT(EPOCH FROM NOW())::TEXT
-  );
+    v_idempotency_key
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING;
 
   RETURN jsonb_build_object(
     'success', true,
     'action', 'TURN_ROTATED',
     'expiredUserId', v_turn_user_id,
-    'nextTurnUserId', v_opponent_id,
+    'nextTurnUserId', v_next_turn_user_id,
     'turnDeadlineAt', v_new_deadline
   );
 END;

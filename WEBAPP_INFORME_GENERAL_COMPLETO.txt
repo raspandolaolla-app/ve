@@ -2,29 +2,30 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 13:52:00 -07:00 (UTC 2026-09-09 20:52:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MIGRACIONES 157, 158 Y 159 OPERATIVAS)
-ÚLTIMA MIGRACIÓN INTEGRADA: 159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql (Desacoplamiento Canónico Atrapaíto Criollo vs Parchís / Ludo, Normalización de game_type_enum, Soporte de Rotación Secuencial de Turnos y Coherencia Autoritativa en expire_game_turn_secure)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 14:03:00 -07:00 (UTC 2026-09-09 21:03:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MIGRACIÓN 159 BLINDADA Y OPERATIVA)
+ÚLTIMA MIGRACIÓN INTEGRADA: 159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql (Resolución 42P13 con parámetro canónico p_game_str, Verificación Idempotente de Enum pg_enum, Desacoplamiento Canónico Atrapaíto Criollo vs Parchís / Ludo, Exclusión Explícita de Juegos No Secuenciales, Idempotencia Determinística Acotada < 100 caracteres en game_actions y Coherencia Autoritativa en expire_game_turn_secure)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-0) MIGRACIÓN 159 — DESACOPLAMIENTO DEFINITIVO ATRAPAÍTO VS PARCHÍS & COHERENCIA DE TURNOS SECUENCIALES:
+0) MIGRACIÓN 159 (BLINDAJE Y RESOLUCIÓN 42P13) — DESACOPLAMIENTO DEFINITIVO ATRAPAÍTO VS PARCHÍS & COHERENCIA DE TURNOS SECUENCIALES:
+   - Corrección de Firma de Función en PostgreSQL (Error 42P13):
+     * PostgreSQL rechaza cambiar el nombre de parámetros existentes (`cannot change name of input parameter "p_game_str"`).
+     * Firma canónica preservada estrictamente como `CREATE OR REPLACE FUNCTION public.fn_normalize_game_type_enum(p_game_str TEXT)`.
+     * Manejo limpio e inmutable para todos los tipos de juegos y alias reconocidos.
+   - Registro de Enum Limpio en Catálogo:
+     * Reemplazado el bloque permisivo `EXCEPTION WHEN OTHERS THEN NULL;` por verificación idempotente explícita sobre `pg_enum`:
+       `IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid = 'public.game_type_enum'::regtype AND enumlabel = 'PARCHIS') THEN ALTER TYPE public.game_type_enum ADD VALUE 'PARCHIS'; END IF;`
+   - Exclusión Explícita de Juegos No Secuenciales:
+     * Bingo y Polla Venezolana excluidos de forma inmediata y explícita de la rotación secuencial individual de turnos.
+     * Lista blanca rigurosa de juegos secuenciales autorizados: `TRES_EN_RAYA`, `ATRAPAITO`, `PARCHIS`, `DOMINO_VENEZOLANO`, `TRUCO_VENEZOLANO`, `CHESS`, `DAMAS`, `UNA_OLLA`.
+   - Idempotencia Determinística y Segura en Historial (`public.game_actions`):
+     * Eliminado el anti-patrón de `NOW()` en la clave de idempotencia.
+     * Formato determinístico acotado: `'to_' || substr(p_session_id::TEXT, 1, 8) || '_' || substr(v_turn_user_id::TEXT, 1, 8) || '_' || md5(...)`. Longitud de 53 caracteres, garantizando estricto cumplimiento del límite `VARCHAR(100)` de `uq_game_actions_idempotency`.
+     * Inserción con `ON CONFLICT (idempotency_key) DO NOTHING` para prevenir fallos por carreras concurrentes.
    - Desacoplamiento Ontológico y Arquitectónico Estricto:
-     * Atrapaíto Criollo: Variante venezolana de tablero de 15x8 con paredes/muros y bolitas/canicas.
-     * Parchís / Ludo: Juego tradicional de tablero con 4 colores, dados, fichas, salidas y casillas de meta.
-     * Motores y Componentes Frontend Separados:
-       - `src/features/games/engines/ParchisEngine.ts` y `src/features/games/components/ParchisBoard.tsx` creados como módulos independientes y canónicos.
-       - `src/features/games/engines/AtrapaitoEngine.ts` y `src/features/games/components/AtrapaitoBoard.tsx` refactorizados exclusivamente para la variante Criolla auténtica.
-       - `src/features/games/components/GameContainer.tsx` adaptado para enrutar el juego `parchis` al nuevo componente `ParchisBoard`.
-       - Registro en catálogo y tipado formal en `src/types/games.ts`.
-   - Soporte de Base de Datos y Enums (`public.game_type_enum`):
-     * Agregado valor `'PARCHIS'` a `public.game_type_enum`.
-     * Actualizada la función `public.fn_normalize_game_type_enum` para reconocer `'parchis'` y `'ludo'`.
-   - Coherencia Autoritativa en `public.expire_game_turn_secure`:
-     * En Atrapaíto Criollo: alternancia autoritativa de turno por color (`BLUE` <-> `RED`) y `currentTurn`.
-     * En Parchís: rotación de `currentTurnUserId`, `turnUserId` y `turnDeadlineAt`.
-     * En Dominó, Truco, Ajedrez y Damas: rotación de `currentTurnUserId`, sincronización de `turn_deadline_at` / `turn_expires_at` e inserción autoritativa en `public.game_actions`.
-   - Soporte de Delegación de Timeout en Tableros:
-     * Incorporado `onOpponentTimeout` en `CheckersBoard.tsx`, `ChessBoard.tsx`, `DominoBoard.tsx` y `TrucoBoard.tsx`.
+     * Atrapaíto Criollo: Tablero criollo de 15x8 con paredes/muros y canicas, alternancia de turno BLUE / RED y vidas.
+     * Parchís / Ludo: Tablero de 4 colores, rotación sobre `playerOrder` (2-4 jugadores), actualización de `activeColor` y dados.
+     * Motores y componentes frontend completamente independientes (`ParchisEngine.ts`, `ParchisBoard.tsx` vs `AtrapaitoEngine.ts`, `AtrapaitoBoard.tsx`).
 
 0) MIGRACIÓN 158 — COHERENCIA DE TURNOS EN JUEGOS SIMULTÁNEOS (RPS) Y DELEGACIÓN DE TIMEOUT:
    - Coherencia de Turnos en Protocolo Commit-Reveal:

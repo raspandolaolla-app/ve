@@ -2,10 +2,37 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 16:56:00 -07:00 (UTC 2026-09-08 23:56:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / PROTECCIÓN DE PARTIDAS Y DIAGNÓSTICO UNIFICADO OPERATIVO)
-ÚLTIMA MIGRACIÓN INTEGRADA: 155_integral_financial_settlement_remediation_and_reconciliation.sql (Remediación Integral de Liquidaciones Financieras, Desacople FINISHED/SETTLED, Motor Universal 90/10, Reembolso por Abandono/Empate, Reembolso de Bingo y Auditoría Forense con Liberación de Retenciones Huérfanas)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-08 17:36:00 -07:00 (UTC 2026-09-09 00:36:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA AUTORITATIVO DE TURNOS, TIMEOUTS Y MIGRACIÓN 156 OPERATIVO)
+ÚLTIMA MIGRACIÓN INTEGRADA: 156_DEFINITIVE_TURN_TIMER_TIMEOUT_AND_TICTACTOE_RESOLUTION.sql (Sincronización Autoritativa de Deadlines de Turno, Trigger fn_refresh_turn_expires_at, RPC expire_game_turn_secure con Resolución Round-Loss en La Vieja / TicTacToe, Motor Canónico 90/10 en Partida Completada y Bucle Cron No-Bloqueante)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) MIGRACIÓN 156 — ARQUITECTURA AUTORITATIVA DE TEMPORIZACIÓN DE TURNOS Y TIMEOUTS (TIC TAC TOE / LA VIEJA):
+   - Corrección de Compatibilidad de Enum en PostgreSQL (`game_type_enum`):
+     * Inspección en catálogo `pg_enum` de los valores canónicos reales del esquema (`TRUCO_VENEZOLANO`, `DOMINO_VENEZOLANO`, `TRES_EN_RAYA`, `PIEDRA_PAPEL_TIJERA`, `ATRAPAITO`, `DAMAS`, `CHESS`, `UNA_OLLA`, `POLLA_FUTBOLERA`, `BINGO_TRADICIONAL`).
+     * Eliminado el error 22P02 `invalid input value for enum game_type_enum: "chess"` mapeando a tipos nativos válidos y comparando de forma agnóstica como texto en PL/pgSQL.
+   - Trigger Autoritativo Único de Servidor (`public.fn_refresh_turn_expires_at`):
+     * Instalado en `BEFORE INSERT OR UPDATE` sobre `public.game_sessions`.
+     * Convierte al backend en la ÚNICA fuente de verdad del deadline de juego (`turn_deadline_at` y `turn_expires_at`).
+     * Asigna con precisión 15 segundos para partidas rápidas (`CHESS`) y 30 segundos estándar para los demás juegos por turnos.
+     * Si el turno no ha cambiado, preserva de forma estricta el deadline existente del servidor, bloqueando cualquier intento de manipulación o reinicio del temporizador desde el frontend.
+     * Al entrar en estados terminales (`FINISHED`, `SETTLED`, `CANCELLED`, `ABANDONED`), limpia inmediatamente los deadlines a `NULL`.
+   - RPC Atómica e Idempotente de Expiración (`public.expire_game_turn_secure`):
+     * Aplica bloqueo de fila `FOR UPDATE SKIP LOCKED` sobre `game_sessions` para eliminar condiciones de carrera entre llamadas de clientes y cron.
+     * Verifica autoritativamente que `turn_deadline_at <= NOW()`. Si el tiempo aún no ha vencido, retorna `{ action: 'TURN_NOT_EXPIRED' }` sin modificar el estado.
+     * En TicTacToe / La Vieja: el jugador que agota su tiempo pierde la ronda actual; la victoria de la ronda se acredita al oponente (`v_opp_score = v_opp_score + 1`).
+     * Comprobación de meta de victorias (`targetWins = 3`):
+       - Si el oponente alcanza 3 victorias: la partida finaliza definitivamente (`MATCH_ENDED_BY_TIMEOUT`), el estado pasa a `FINISHED` con `winner_user_id = oponente`, y se invoca atómicamente `universal_settle_game_session` ejecutando el reparto contable 90/10 oficial y liquidando la sesión a `SETTLED`.
+       - Si aún no alcanza 3 victorias: el tablero se limpia para la siguiente ronda (`ROUND_WON_BY_TIMEOUT`), se avanza `round = round + 1`, el turno pasa al rival y el trigger asigna un nuevo deadline autoritativo de 30 segundos.
+     * Búsqueda defensiva del oponente con fallbacks en cascada desde `game_table_players`, `playerSymbols`, `playerNames` y `scores`. Si la sesión queda huérfana de jugadores, se cancela y reembolsa limpiamente.
+   - Refactorización del Bucle Cron (`public.cron_expire_turns_loop`):
+     * Eliminado el bucle infinito con `pg_sleep` que provocaba bloqueos de transacciones (PID 1498583).
+     * Implementada función de paso único no-bloqueante diseñada para ejecución segura y periódica.
+   - Sincronización en Motores y Componentes Frontend:
+     * `TicTacToeEngine.ts`: Incorporado manejo de la acción canónica `TIMEOUT`. Otorga el punto de la ronda al rival, reinicia el tablero 3x3 si la serie continúa, o declara `isGameOver: true` con ganador definitivo si se alcanza la meta de victorias.
+     * `GameContainer.tsx`: Eliminada la fabricación de deadlines sintéticos desde el cliente en `handleGameAction` y recepción de jugadas en tiempo real. Incorporado `timeoutInFlightRef` con clave única por sesión, turno y deadline para deduplicar llamadas simultáneas de timeout. Blindado el receptor `postgres_changes` con `[SESSION_TERMINAL_GUARD]` para descartar transiciones revertidas a estados activos en sesiones ya liquidadas o concluidas.
+     * `TurnTimer.tsx`: Verificación conjunta de `status` y `gameStatus` contra estados de pausa o resultado de ronda (`round_reveal`, `round_result`, `round_won`, `game_won`), evitando disparos espurios de inactividad mientras se muestran animaciones de ronda.
+     * `GameRepository.ts`: Actualizado `updateSessionState` para no sobreescribir `turn_deadline_at` ni `turn_expires_at` en el cliente, respetando la autoridad absoluta del trigger de PostgreSQL.
 
 0) RESOLUCIÓN DE IMPORTACIONES Y BLINDAJE DE COMPILACIÓN (VITE + TS):
    - Creación de `/src/utils/tableDiagnostics.ts`:

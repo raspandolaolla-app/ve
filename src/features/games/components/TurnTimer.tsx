@@ -66,9 +66,10 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
 
   useEffect(() => {
     const normalizedStatus = String(status || '').toLowerCase();
+    const normalizedGameStatus = String(gameStatus || '').toLowerCase();
     
     // Solo ejecutar o pausar el temporizador según el estado jugable
-    const isPausedOrInactive = [
+    const terminalOrPausedStates = [
       'starting',
       'ready',
       'waiting',
@@ -83,7 +84,11 @@ export const TurnTimer: React.FC<TurnTimerProps> = ({
       'round_won',
       'game_won',
       'draw',
-    ].includes(normalizedStatus);
+    ];
+
+    const isPausedOrInactive =
+      terminalOrPausedStates.includes(normalizedStatus) ||
+      terminalOrPausedStates.includes(normalizedGameStatus);
 
     if (isPausedOrInactive) {
       setRemaining(durationSeconds);

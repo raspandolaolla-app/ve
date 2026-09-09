@@ -122,6 +122,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
   const { enterGameMode, exitGameMode } = useGameMode();
   const { protectGameplay } = useProtectedGameplay();
+  const timeoutInFlightRef = useRef<string | null>(null);
 
   // Hook universal de pantalla completa inmersiva
   const gameContainerRef = useGameFullscreen(true);
@@ -672,15 +673,35 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           if (payload.eventType === 'DELETE') return;
           const updated = payload.new as any;
           if (updated) {
+            const incomingStatusUpper = String(updated.status || '').toUpperCase();
+            const isTerminalStatus = ['FINISHED', 'SETTLED', 'CANCELLED', 'ABANDONED'].includes(incomingStatusUpper);
+
             setSession((prev) => {
+              const currentStatusUpper = String(prev?.status || session?.status || '').toUpperCase();
+              const isCurrentTerminal = isSettledRef.current || ['FINISHED', 'SETTLED', 'CANCELLED', 'ABANDONED'].includes(currentStatusUpper);
+              const isNonTerminalIncoming = ['ACTIVE', 'PLAYING', 'WAITING', 'READY'].includes(incomingStatusUpper);
+
+              if (isCurrentTerminal && isNonTerminalIncoming) {
+                console.warn('[SESSION_TERMINAL_GUARD]', {
+                  sessionId: session.id,
+                  currentStatus: currentStatusUpper,
+                  incomingStatus: updated.status,
+                  reason: 'REJECTED_ACTIVE_STATE_TRANSITION_ON_TERMINAL_SESSION',
+                });
+                return prev;
+              }
+
+              const nextExpiresAt = isTerminalStatus ? undefined : (updated.turn_deadline_at || updated.turn_expires_at || undefined);
+              const nextTurnUser = isTerminalStatus ? undefined : (updated.current_turn_user_id || undefined);
+
               if (!prev) {
                 return {
                   id: updated.id,
                   tableId: updated.table_id,
                   gameType: updated.game_type,
                   roundNumber: updated.session_number || 1,
-                  currentTurnUserId: updated.current_turn_user_id || undefined,
-                  turnExpiresAt: updated.turn_deadline_at || updated.turn_expires_at || undefined,
+                  currentTurnUserId: nextTurnUser,
+                  turnExpiresAt: nextExpiresAt,
                   status: updated.status,
                   grossPool: updated.gross_pool || 0,
                   winnerPrizeAmount: updated.prize_pool || 0,
@@ -690,10 +711,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                   currentState: updated.current_state || {},
                 };
               }
+
               return {
                 ...prev,
-                currentTurnUserId: updated.current_turn_user_id || prev.currentTurnUserId,
-                turnExpiresAt: updated.turn_deadline_at || updated.turn_expires_at || prev.turnExpiresAt,
+                currentTurnUserId: isTerminalStatus ? undefined : (updated.current_turn_user_id || prev.currentTurnUserId),
+                turnExpiresAt: nextExpiresAt,
                 currentState: updated.current_state || prev.currentState,
                 status: updated.status || prev.status,
                 winnerUserId: updated.winner_user_id || prev.winnerUserId,
@@ -857,26 +879,21 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 };
                 const result = engine.applyAction(prev, actionPayload);
                 if (result.isValid) {
-                  const turnDuration =
-                    (table.config?.turnDuration as number) ||
-                    (result.newState as any)?.turnDurationSeconds ||
-                    (table.gameType === 'chess' ? 15 : 30);
-                  const nextDeadlineIso =
-                    actionData?.turnExpiresAt ||
-                    new Date(Date.now() + turnDuration * 1000).toISOString();
                   const nextTurnUserId =
                     (result.newState as any)?.currentTurnUserId ||
                     (result.newState as any)?.turnUserId;
 
-                  (result.newState as any).turnExpiresAt = nextDeadlineIso;
+                  if (result.isGameOver) {
+                    (result.newState as any).turnExpiresAt = null;
+                    (result.newState as any).turnDeadlineAt = null;
+                  }
 
-                  // Actualizar sesión sincronizadamente para que el TurnTimer arme inmediatamente el nuevo tiempo
                   setSession((prevSession) =>
                     prevSession
                       ? {
                           ...prevSession,
-                          currentTurnUserId: nextTurnUserId || prevSession.currentTurnUserId,
-                          turnExpiresAt: nextDeadlineIso,
+                          currentTurnUserId: result.isGameOver ? undefined : (nextTurnUserId || prevSession.currentTurnUserId),
+                          turnExpiresAt: result.isGameOver ? undefined : prevSession.turnExpiresAt,
                           currentState: result.newState,
                         }
                       : prevSession
@@ -1535,14 +1552,32 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   );
 
   const handleOpponentTimeout = useCallback(async () => {
-    if (!session?.id || session.status === 'completed' || session.status === 'abandoned' || isSettledRef.current) return;
-    console.log('[HANDLE_OPPONENT_TIMEOUT]', { sessionId: session.id, activeTurnUserId: session.currentTurnUserId });
+    const statusUpper = String(session?.status || '').toUpperCase();
+    if (
+      !session?.id ||
+      ['COMPLETED', 'FINISHED', 'SETTLED', 'ABANDONED', 'CANCELLED'].includes(statusUpper) ||
+      isSettledRef.current
+    ) {
+      return;
+    }
+
+    const timeoutLockKey = `${session.id}_${session.currentTurnUserId || 'unknown'}_${session.turnExpiresAt || '0'}`;
+    if (timeoutInFlightRef.current === timeoutLockKey) {
+      return;
+    }
+    timeoutInFlightRef.current = timeoutLockKey;
+
+    console.log('[HANDLE_OPPONENT_TIMEOUT]', {
+      sessionId: session.id,
+      activeTurnUserId: session.currentTurnUserId,
+      expiresAt: session.turnExpiresAt,
+    });
     try {
       await GameRepository.expireTurn(session.id);
     } catch (err) {
       console.warn('[HANDLE_OPPONENT_TIMEOUT_ERROR]', err);
     }
-  }, [session?.id, session?.status, session?.currentTurnUserId]);
+  }, [session?.id, session?.status, session?.currentTurnUserId, session?.turnExpiresAt]);
 
   // Renderizar el tablero específico según el juego
   const renderBoard = () => {

@@ -195,43 +195,91 @@ export class TicTacToeEngine implements IGameEngine<TicTacToeState> {
     }
 
     if (action.actionType === 'TIMEOUT' || (action as any).type === 'TIMEOUT') {
-      const botMove = this.getBotMove(normalized, action.userId);
-      if (botMove) {
-        return this.applyAction(normalized, botMove);
-      }
-
-      // Si no fue posible colocar bot move, rotar el turno al oponente
-      const pSymbols = normalized.playerSymbols || {};
-      const allPlayerIds = Object.keys(pSymbols).map((id) => id.trim());
+      // Regla canónica: El jugador cuyo turno expiró pierde la ronda; el oponente gana la ronda
+      const timedOutUserId = action.userId;
+      const allPlayerIds = Object.keys(normalized.playerSymbols || {}).map((id) => id.trim());
       const candidateIds =
         (normalized as any).playerOrder && Array.isArray((normalized as any).playerOrder) && (normalized as any).playerOrder.length > 0
           ? (normalized as any).playerOrder.map((id: any) => String(id).trim())
           : allPlayerIds;
-      const currentIdx = candidateIds.findIndex((id: string) => id.toLowerCase() === action.userId.toLowerCase());
-      let nextTurnUserId = action.userId;
-      if (candidateIds.length > 1) {
-        if (currentIdx !== -1) {
-          nextTurnUserId = candidateIds[(currentIdx + 1) % candidateIds.length];
-        } else {
-          const opponentId = candidateIds.find((id: string) => id.toLowerCase() !== action.userId.toLowerCase());
-          if (opponentId) nextTurnUserId = opponentId;
-        }
+
+      const opponentId = candidateIds.find((id: string) => id.toLowerCase() !== timedOutUserId.toLowerCase()) ||
+        candidateIds[0] || action.userId;
+
+      const rawScores = normalized.scores || {};
+      const oppScoreKey = Object.keys(rawScores).find(
+        (k) => k.trim().toLowerCase() === opponentId.toLowerCase()
+      ) || opponentId;
+
+      const currentScore = Number(rawScores[oppScoreKey]) || 0;
+      const newScore = currentScore + 1;
+      const newScores = {
+        ...rawScores,
+        [oppScoreKey]: newScore,
+      };
+
+      const targetWins = typeof normalized.targetWins === 'number' && normalized.targetWins > 0 ? normalized.targetWins : 3;
+      const isMatchWon = newScore >= targetWins;
+
+      if (isMatchWon) {
+        console.log('[GAME_OVER_DETECTED]', {
+          winnerUserId: opponentId,
+          finalScores: newScores,
+          reason: `TIMEOUT_FIRST_TO_${targetWins}_WINS`,
+        });
+
+        const finishedState: TicTacToeState = {
+          ...normalized,
+          scores: newScores,
+          status: 'game_won',
+          winnerUserId: opponentId,
+          roundWinnerUserId: opponentId,
+          winningLine: null,
+          turnUserId: opponentId,
+        };
+        (finishedState as any).currentTurnUserId = null;
+        (finishedState as any).turnExpiresAt = null;
+        (finishedState as any).turnDeadlineAt = null;
+
+        return {
+          newState: finishedState,
+          isValid: true,
+          isGameOver: true,
+          winnerUserId: opponentId,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
+      } else {
+        // Avanzar de ronda y limpiar tablero inmediatamente con nuevo turno
+        console.log('[GAME_ROUND_RESULT_TIMEOUT]', {
+          round: normalized.round,
+          roundWinnerUserId: opponentId,
+          scores: newScores,
+          nextRound: normalized.round + 1,
+        });
+
+        const nextRoundState: TicTacToeState = {
+          ...normalized,
+          round: normalized.round + 1,
+          board: Array(9).fill(null),
+          scores: newScores,
+          status: 'playing',
+          winningLine: null,
+          roundWinnerUserId: opponentId,
+          moveHistory: [],
+          turnUserId: opponentId,
+        };
+        (nextRoundState as any).currentTurnUserId = opponentId;
+
+        return {
+          newState: nextRoundState,
+          isValid: true,
+          isGameOver: false,
+          winnerUserId: null,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
       }
-
-      const updatedState: TicTacToeState = {
-        ...normalized,
-        turnUserId: nextTurnUserId,
-      };
-      (updatedState as any).currentTurnUserId = nextTurnUserId;
-
-      return {
-        newState: updatedState,
-        isValid: true,
-        isGameOver: false,
-        winnerUserId: null,
-        winnerTeamIndex: null,
-        isDraw: false,
-      };
     }
 
     if (action.actionType === 'PLACE_SYMBOL' || action.actionType === 'MAKE_MOVE') {

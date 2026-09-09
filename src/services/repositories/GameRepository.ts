@@ -496,24 +496,10 @@ export class GameRepository {
     if (!supabase) return false;
 
     const seconds = (turnDurationSeconds && turnDurationSeconds > 0) ? turnDurationSeconds : 30;
-    const deadlineIso = new Date(Date.now() + seconds * 1000).toISOString();
-    const enrichedState = {
-      ...newState,
-      turnExpiresAt: deadlineIso,
-      turnDeadlineAt: deadlineIso,
-    };
-    const updatePayload: Record<string, unknown> = {
-      current_state: enrichedState,
-      turn_deadline_at: deadlineIso,
-      turn_expires_at: deadlineIso,
-    };
 
-    if (currentTurnUserId !== undefined) {
-      updatePayload.current_turn_user_id = currentTurnUserId;
-    }
-
+    // Normalizar status para determinar si es estado terminal
+    let normalizedStatus: string | undefined = undefined;
     if (status) {
-      // Mapeo seguro a valores estrictos de session_status_enum
       const normalizedStatusMap: Record<string, string> = {
         COMPLETED: 'FINISHED',
         completed: 'FINISHED',
@@ -531,7 +517,33 @@ export class GameRepository {
         SALES: 'SALES',
         DRAWING: 'DRAWING',
       };
-      updatePayload.status = normalizedStatusMap[status] || 'ACTIVE';
+      normalizedStatus = normalizedStatusMap[status] || 'ACTIVE';
+    }
+
+    const isTerminal = normalizedStatus && ['FINISHED', 'SETTLED', 'CANCELLED', 'ABANDONED'].includes(normalizedStatus);
+
+    const enrichedState = {
+      ...newState,
+      ...(isTerminal ? { turnExpiresAt: null, turnDeadlineAt: null, currentTurnUserId: null, turnUserId: null } : {}),
+    };
+
+    const updatePayload: Record<string, unknown> = {
+      current_state: enrichedState,
+      turn_duration_seconds: seconds,
+    };
+
+    if (isTerminal) {
+      updatePayload.turn_deadline_at = null;
+      updatePayload.turn_expires_at = null;
+      updatePayload.current_turn_user_id = null;
+    }
+
+    if (currentTurnUserId !== undefined && !isTerminal) {
+      updatePayload.current_turn_user_id = currentTurnUserId;
+    }
+
+    if (normalizedStatus) {
+      updatePayload.status = normalizedStatus;
     }
 
     if (winnerUserId !== undefined) {

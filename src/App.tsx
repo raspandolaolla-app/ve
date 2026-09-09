@@ -345,6 +345,7 @@ function AppContent() {
         onNavigateTab={setCurrentTab}
         onOpenSupport={() => setSupportModalOpen(true)}
         onOpenRules={handleOpenGameRules}
+        onOpenNotifications={() => setNotificationsModalOpen(true)}
       />
 
       {/* Menú Desplegable / Modal de Perfil */}

@@ -2,10 +2,35 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 14:15:00 -07:00 (UTC 2026-09-09 21:15:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / HTTP 400 RESUELTO / AUDITORÍA ALREADY_IN_ACTIVE_TABLE COMPLETADA)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 14:30:00 -07:00 (UTC 2026-09-09 21:30:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / CABECERA MÓVIL Y MENÚ LATERAL DE PERFIL EN EXPLORE DRAWER TOTALMENTE INTEGRADOS)
 ÚLTIMA MIGRACIÓN INTEGRADA: 159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql (Resolución 42P13 con parámetro canónico p_game_str, Verificación Idempotente de Enum pg_enum, Desacoplamiento Canónico Atrapaíto Criollo vs Parchís / Ludo, Exclusión Explícita de Juegos No Secuenciales, Idempotencia Determinística Acotada < 100 caracteres en game_actions y Coherencia Autoritativa en expire_game_turn_secure)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) REDISEÑO RESPONSIVE DE CABECERA Y CONSOLIDACIÓN LATERAL DEL MENÚ DE USUARIO Y PERFIL EN EXPLORE DRAWER:
+   - Diagnóstico de la Vista Móvil / PWA:
+     * En pantallas de dispositivos móviles estrechas (< 400px), el contenedor de marca `brand-logo` y el contenedor derecho de acciones de la cabecera contaban con la clase `shrink-0`. La suma de anchos superaba el ancho disponible de pantalla en modo PWA o standalone, desplazando el botón de perfil de usuario fuera del margen derecho del viewport.
+   - Corrección Quirúrgica de Cabecera (`Header.tsx`):
+     * Contenedor de marca `brand-logo` optimizado con flexibilidad responsive (`shrink min-w-0 sm:shrink-0`), isotipo adaptativo y escalas tipográficas diseñadas para móviles (`min-[360px]`).
+     * Subtítulo "Juegos & Sorteos en Vivo" configurado como `hidden sm:flex` para liberar espacio horizontal vital en cabeceras de smartphones.
+     * Píldora de balance monetario y botón de perfil (`header-user-profile-btn`) configurados con `shrink-0` y paddings compactos, asegurando que todos los botones superiores (Campana de Notificaciones, Saldo Disponible, Ojo de visibilidad, Avatar de perfil y/o Botón Ingresar) queden 100% visibles sin corte lateral ni desbordamiento horizontal.
+   - Integración Canónica de Perfil y Menú de Usuario en `ExploreDrawer.tsx`:
+     * Incorporada tarjeta de perfil de usuario en la cabecera del drawer lateral: avatar con foto o inicial, aro dorado con resplandor, indicador de conexión en línea verde, nombre completo, verificación KYC/Cédula (`ShieldCheck`), badge rojo de `ADMIN` (si aplica), visualización de saldo disponible formateado en Bolívares y botones rápidos de acción directa "Abonar" y "Retirar".
+     * En caso de visitantes no autenticados, se presenta un banner estilizado de bienvenida con botón de acción prioritario "INGRESAR / INICIAR SESIÓN".
+     * Incorporado selector de pestañas dentro del Drawer Lateral: `[ 🎮 Juegos & Salas ]` y `[ 👤 Mi Menú ]`.
+     * Menú de usuario completo de navegación lateral:
+       1. Mi Perfil & Datos Personales (Cédula, apodo y verificación KYC).
+       2. Billetera & Saldo (Recargas, abonos y cuentas bancarias).
+       3. Botones directos de Abonar Saldo y Retirar Fondos.
+       4. Notificaciones del Sistema (con llamada directa a modal de notificaciones).
+       5. Programa de Referidos (invitaciones y comisiones).
+       6. Salón de la Fama & Logros (ranking nacional de campeones).
+       7. Seguridad 2FA & Verificación de Cuenta.
+       8. Panel de Administración (exclusivo para usuarios con rol `ADMIN` / `SUPER_ADMIN`).
+       9. Centro de Soporte & Chat en Vivo (atención 24/7 en línea).
+       10. Buzón de Sugerencias & Feedback.
+       11. Cerrar Sesión seguro con limpieza de sesión y cierre del drawer.
+     * `App.tsx` enlazado pasando `onOpenNotifications` a `ExploreDrawer`.
 
 0) RESOLUCIÓN DEFINITIVA DE ERROR HTTP 400 EN POSTGREST (game_tables) Y AUDITORÍA ALREADY_IN_ACTIVE_TABLE:
    - Diagnóstico y Causa Raíz de HTTP 400:

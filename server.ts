@@ -24,8 +24,7 @@ app.post("/api/verify-captcha", async (req, res) => {
     return res.status(400).json({ success: false, message: "Token no proporcionado" });
   }
 
-  const secretKey =
-    process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || "0x4AAAAAAEoI4kjQ9CTICyN_0kv3dq_Jymg";
+  const secretKey = (process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secretKey) {
     console.error("[CAPTCHA] Falta CLOUDFLARE_TURNSTILE_SECRET_KEY en el backend");
@@ -68,22 +67,22 @@ app.post("/api/verify-captcha", async (req, res) => {
   }
 });
 
-// Configurar cliente administrativo y de servidor de Supabase
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://tncxgwycinbnkjbfwojt.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_vlxeHnnl_FxJ1ziNqUsytQ_S95ZGawj";
+// Configurar cliente administrativo de Supabase (Privilegiado)
+// REGLA ABSOLUTA: SUPABASE_SERVICE_ROLE_KEY es obligatoria para operaciones administrativas.
+// NUNCA degradar a anon key ni usar fallbacks hardcodeados.
+const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
 if (!supabaseServiceKey) {
-  console.info('ℹ️ [SEGURIDAD] SUPABASE_SERVICE_ROLE_KEY no está configurada en el servidor. El cliente administrativo completo permanecerá desactivado.');
+  console.info('ℹ️ [SEGURIDAD] SUPABASE_SERVICE_ROLE_KEY no está configurada en el servidor. El cliente administrativo de fondo permanecerá desactivado de forma segura.');
 }
 
 export const supabaseAdmin = (supabaseUrl && supabaseServiceKey)
   ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : null;
 
-export const supabaseServerClient = (supabaseUrl && (supabaseServiceKey || supabaseAnonKey))
-  ? createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, { auth: { persistSession: false } })
-  : null;
+// Alias de retrocompatibilidad estricto: apunta ÚNICAMENTE al cliente administrativo seguro
+export const supabaseServerClient = supabaseAdmin;
 
 // Configurar pool de conexión a PostgreSQL
 let connectionString = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();

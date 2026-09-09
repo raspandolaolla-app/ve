@@ -2,10 +2,40 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-05 21:44:00 -07:00 (UTC 2026-09-06 04:44:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso)
-ÚLTIMA MIGRACIÓN INTEGRADA: 139_fix_turn_expires_at_refresh.sql (Trigger automático trg_refresh_turn_expires_at para actualización de turn_expires_at)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 10:45:00 -07:00 (UTC 2026-09-09 17:45:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / AUDITORÍA FORENSE, ENDURECIMIENTO DE SEGURIDAD Y PROTECCIÓN DE SECRETOS COMPLETADA)
+ÚLTIMA MIGRACIÓN INTEGRADA: 157_FIX_START_GAME_SESSION_PROFILES_COLUMN.sql (Resolución de perfiles y tipos enum en inicialización autoritativa)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) AUDITORÍA FORENSE DE SEGURIDAD, ENDURECIMIENTO DE PRODUCCIÓN Y SANEAMIENTO DE SECRETOS (PROMPT MAESTRO):
+   - Saneamiento y Protección Absoluta de Cloudflare Turnstile:
+     * Eliminación definitiva de claves secretas hardcodeadas en server.ts. El endpoint /api/verify-captcha ahora requiere estrictamente process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY configurado en el servidor; si falta, emite un registro seguro y responde HTTP 500 controlado sin inventar credenciales.
+     * Sanitización de documentación pública: las referencias en reportes que contenían la secret key han sido sustituidas por marcadores no secretos [SECRETO_CONFIGURADO_EN_ENV_DEL_SERVIDOR].
+     * Frontend verificado: CloudflareCaptcha.tsx, WithdrawalModal / WalletView.tsx y LoginModal.tsx utilizan únicamente la clave pública del sitio VITE_CLOUDFLARE_TURNSTILE_SITE_KEY. Ninguna clave secreta se lee, almacena ni expone en el cliente (src/).
+   - Saneamiento del Cliente Supabase en Backend (server.ts):
+     * Eliminación de cualquier degradación a clave anónima (SUPABASE_SERVICE_ROLE_KEY || VITE_SUPABASE_ANON_KEY o serviceRoleKey ?? anonKey).
+     * supabaseAdmin se inicializa ÚNICAMENTE si SUPABASE_SERVICE_ROLE_KEY está configurada en el servidor. Si falta la clave de servicio, las tareas administrativas de fondo permanecen deshabilitadas de forma segura emitiendo un aviso controlado y sin comprometer la consistencia contable ni ejecutar llamadas RPC privilegiadas con una clave anónima.
+     * Eliminación de URLs y claves anónimas hardcodeadas en server.ts.
+   - Saneamiento del Cliente Supabase en Frontend (src/lib/supabase/client.ts):
+     * Eliminación de los fallbacks hardcodeados (CANONICAL_SUPABASE_URL y CANONICAL_SUPABASE_ANON_KEY).
+     * Las credenciales se obtienen estrictamente de las variables de entorno públicas VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.
+     * Si faltan las variables de entorno, se emite una advertencia segura y controlada sin inventar credenciales ni intentar conectarse a proyectos arbitrarios.
+     * Se mantiene la prohibición absoluta de leer SUPABASE_SERVICE_ROLE_KEY en el bundle cliente.
+   - Eliminación de bun.lock y Unificación de Herramientas de Construcción:
+     * Se eliminó el archivo bun.lock de la raíz del proyecto para evitar conflictos de gestores de paquetes. El proyecto opera de forma estándar y canónica con npm, package.json, package-lock.json y los workflows de CI/CD (npm ci, npm run typecheck, npm run build).
+   - Auditoría Financiera, Contable y Regla 90/10:
+     * Verificación de FinancialRepository.ts y migraciones: el modelo inmutable 90/10 (90% al ganador, 10% comisión de plataforma) rige de forma autoritativa.
+     * En caso de empate, cancelación o anulación, se aplica 100% de reembolso a available_balance sin comisión.
+     * Ningún componente frontend interactúa ni modifica wallets o ledger_entries de forma directa; todas las transacciones se efectúan a través de RPCs server-authoritative (universal_settle_game_session, request_withdrawal_locked, claim_test_bonus).
+     * Bloqueos pesimistas a nivel de fila (FOR UPDATE) en sesiones, mesas y billeteras previenen liquidaciones concurrentes y condiciones de carrera.
+   - Auditoría de Realtime, PWA y Publicidad:
+     * RealtimeManager.ts remueve canales huérfanos antes de suscribir y asegura la desuscripción al desmontar componentes.
+     * public/sw.js excluye explícitamente peticiones dinámicas, tokens de autenticación, /api, Supabase y módulos financieros del almacenamiento en caché.
+     * AdService.ts opera con aislamiento estricto y fallbacks locales en /public/ads/, garantizando que ningún fallo publicitario bloquee el motor de juego o la interfaz.
+   - Verificaciones de Integridad:
+     * npm run typecheck: PASS (0 errores de TypeScript).
+     * npm run lint: PASS (0 errores de linter).
+     * npm run build / compile_applet: PASS (compilación exitosa).
 
 0) VERIFICACIÓN DE ESTADO, LIMPIEZA Y REINICIO DEL SERVIDOR DE DESARROLLO:
    - Diagnóstico y Acciones Realizadas:
@@ -437,7 +467,7 @@ ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / co
    - Sincronización del esquema de variables de entorno en `.env.example`:
      * `VITE_SUPABASE_URL` / `SUPABASE_URL` configurado con la URL oficial del proyecto Supabase: `https://tncxgwycinbnkjbfwojt.supabase.co`.
      * `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY`: `0x4AAAAAAEoI4ipaJrT8oCLk`.
-     * `CLOUDFLARE_TURNSTILE_SECRET_KEY`: `0x4AAAAAAEoI4kjQ9CTICyN_0kv3dq_Jymg`.
+     * `CLOUDFLARE_TURNSTILE_SECRET_KEY`: `[SECRETO_CONFIGURADO_EN_ENV_DEL_SERVIDOR]`.
    - Seguridad y Sanitización en Backend (`server.ts`):
      * Manejo resiliente de `DATABASE_URL` con detección y eliminación automática de corchetes en contraseñas generadas por plantillas (`postgres:[password]@` -> `postgres:password@`).
      * Soporte dual de cliente Supabase tanto en modo servicio (`SUPABASE_SERVICE_ROLE_KEY`) como fallback autenticado por token.

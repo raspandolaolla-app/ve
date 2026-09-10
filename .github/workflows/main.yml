@@ -50,6 +50,9 @@ jobs:
           [ -n "$VITE_APP_BASE_PATH" ] && echo "VITE_APP_BASE_PATH = PRESENT" || echo "VITE_APP_BASE_PATH = MISSING"
           echo "==============================================="
 
+      - name: Run Protected Games Guard Audit
+        run: npm run audit:protected
+
       - name: Run TypeScript typecheck
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://tncxgwycinbnkjbfwojt.supabase.co' }}

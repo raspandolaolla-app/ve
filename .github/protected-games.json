@@ -1,0 +1,976 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Registro Central de Juegos Protegidos / Módulos Certificados",
+  "version": "1.0.0",
+  "description": "Configuración canónica de módulos protegidos y bloqueo de regresiones para RASPANDO LA OLLA 🇻🇪 / PulsoPLAY",
+  "updated_at": "2026-09-10T15:35:00Z",
+  "default_policy": "STRICT_PROTECTION",
+  "allowed_states": [
+    "ACTIVE",
+    "CAUTION",
+    "STABLE",
+    "LOCKED",
+    "HARD_LOCKED",
+    "UNDER_REPAIR"
+  ],
+  "shared_infrastructure": [
+    {
+      "id": "GameContainer",
+      "path": "src/features/games/components/GameContainer.tsx",
+      "risk_level": "CRITICAL",
+      "description": "Contenedor maestro de ciclo de vida, turnos, timers, rendición y liquidación"
+    },
+    {
+      "id": "TurnTimer",
+      "path": "src/features/games/components/TurnTimer.tsx",
+      "risk_level": "CRITICAL",
+      "description": "Temporizador sincronizado server-authoritative con período de gracia y prevención de deadlocks"
+    },
+    {
+      "id": "PlayerIdentityCard",
+      "path": "src/features/games/components/PlayerIdentityCard.tsx",
+      "risk_level": "HIGH",
+      "description": "Tarjeta de identidad visual y avatar de jugadores en mesa"
+    },
+    {
+      "id": "PlayerLives",
+      "path": "src/features/games/components/PlayerLives.tsx",
+      "risk_level": "MEDIUM",
+      "description": "Indicador de vidas / fallas en juegos de eliminatoria"
+    },
+    {
+      "id": "SettlementModal",
+      "path": "src/features/games/components/SettlementModal.tsx",
+      "risk_level": "HIGH",
+      "description": "Modal de premiación y resumen financiero final"
+    },
+    {
+      "id": "GameArena",
+      "path": "src/features/games/GameArena.tsx",
+      "risk_level": "CRITICAL",
+      "description": "Enrutador maestro de renderizado según tipo de juego y mesa"
+    },
+    {
+      "id": "useGameEngine",
+      "path": "src/features/games/useGameEngine.ts",
+      "risk_level": "CRITICAL",
+      "description": "Hook unificado de inicialización de motor, dispatch de jugadas y suscripción realtime"
+    },
+    {
+      "id": "GameEngineBase",
+      "path": "src/features/games/engines/GameEngine.ts",
+      "risk_level": "CRITICAL",
+      "description": "Clase base abstracta de todos los motores de juego"
+    },
+    {
+      "id": "GameEngineRegistry",
+      "path": "src/features/games/engines/index.ts",
+      "risk_level": "CRITICAL",
+      "description": "Fábrica y registro de instanciación de motores"
+    },
+    {
+      "id": "GameStateGuard",
+      "path": "src/features/games/utils/gameStateGuard.ts",
+      "risk_level": "CRITICAL",
+      "description": "Validadores de contratos y esquemas JSONB de estado de juego"
+    },
+    {
+      "id": "GameRepository",
+      "path": "src/services/repositories/GameRepository.ts",
+      "risk_level": "MAXIMUM",
+      "description": "Repositorio central de sesiones, turnos, timeouts, RPCs y jugadas server-authoritative"
+    },
+    {
+      "id": "TableRepository",
+      "path": "src/services/repositories/TableRepository.ts",
+      "risk_level": "MAXIMUM",
+      "description": "Repositorio de creación de mesas, asientos únicos, uniones y abandonos"
+    },
+    {
+      "id": "FinancialRepository",
+      "path": "src/services/repositories/FinancialRepository.ts",
+      "risk_level": "MAXIMUM",
+      "description": "Módulo financiero crítico: saldo disponible/retenido, ledger y transacciones"
+    },
+    {
+      "id": "RealtimeManager",
+      "path": "src/services/realtime/RealtimeManager.ts",
+      "risk_level": "MAXIMUM",
+      "description": "Gestor de canales Supabase Realtime, presencia, reconexión y deduplicación"
+    },
+    {
+      "id": "PresenceService",
+      "path": "src/services/PresenceService.ts",
+      "risk_level": "HIGH",
+      "description": "Servicio de latidos y estado en línea de usuarios"
+    },
+    {
+      "id": "AudioService",
+      "path": "src/services/AudioService.ts",
+      "risk_level": "LOW",
+      "description": "Efectos sonoros compartidos para eventos y turnos"
+    }
+  ],
+  "games": [
+    {
+      "id": "chess",
+      "name": "Ajedrez",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/ChessGame.tsx",
+        "src/features/games/components/ChessBoard.tsx",
+        "src/features/games/components/ChessPieces.tsx",
+        "src/features/games/engines/ChessEngine.ts"
+      ],
+      "protected_dependencies": [
+        "chess.js",
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "ChessGame",
+        "ChessBoard",
+        "ChessPieces"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/ChessEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/072_add_chess_game_type.sql",
+        "supabase/migrations/083_fix_settle_game_session_ambiguity_and_chess_sync.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "domino",
+      "name": "Dominó Venezolano",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/DominoGame.tsx",
+        "src/features/games/components/DominoBoard.tsx",
+        "src/features/games/engines/DominoEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "DominoGame",
+        "DominoBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/DominoEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_domino_turn_secure",
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/031_domino_turn_engine_and_cleanup.sql",
+        "supabase/migrations/080_fix_multiplayer_seats_started_at_and_abandon_signature.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "truco",
+      "name": "Truco Venezolano",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/TrucoGame.tsx",
+        "src/features/games/components/TrucoBoard.tsx",
+        "src/features/games/engines/TrucoEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "TrucoGame",
+        "TrucoBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/TrucoEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/032_game_turn_lives_and_timeout.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "bingo",
+      "name": "Bingo",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/BingoGame.tsx",
+        "src/features/games/components/BingoBoard.tsx",
+        "src/features/games/engines/BingoEngine.ts",
+        "src/features/games/hooks/useBingoAutoDraw.ts",
+        "src/hooks/useBingoClientDaemon.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "BingoGame",
+        "BingoBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/hooks/useBingoAutoDraw.ts",
+        "src/hooks/useBingoClientDaemon.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/BingoEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/repositories/FinancialRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "tests/e2e/bingo.spec.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "get_or_create_automated_bingo_table",
+        "server_bingo_operation",
+        "bingo_engine_tick",
+        "buy_bingo_cards_secure"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/065_bingo_virtual_sorteo_system.sql",
+        "supabase/migrations/068_bingo_la_olla_master_upgrade.sql",
+        "supabase/migrations/094_bingo_auto_draw_cron.sql",
+        "supabase/migrations/098_server_bingo_operation_rpc.sql",
+        "supabase/migrations/102_bingo_server_authoritative_draw.sql",
+        "supabase/migrations/109_centralized_bingo_draw.sql",
+        "supabase/migrations/111_bingo_fairness_lock_purchases_when_drawing.sql",
+        "supabase/migrations/114_bingo_engine_tick_rpc.sql",
+        "supabase/migrations/127_bingo_client_daemon_and_sales_fix.sql",
+        "supabase/migrations/128_fix_bingo_session_sales_and_status.sql",
+        "supabase/migrations/134_bingo_sales_open_until_first_ball.sql",
+        "supabase/migrations/139_fix_bingo_join_flow_and_states.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/repositories/FinancialRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "polla",
+      "name": "Polla Venezolana",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/PollaGame.tsx",
+        "src/features/games/components/PollaBoard.tsx",
+        "src/features/games/engines/PollaEngine.ts",
+        "src/services/repositories/PollaRepository.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "PollaGame",
+        "PollaBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/PollaEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/PollaRepository.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "polla_auto_draw_cron",
+        "get_active_polla_table"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/033_polla_venezolana_system.sql",
+        "supabase/migrations/034_fix_polla_and_bingo_system.sql",
+        "supabase/migrations/036_polla_shift_system_and_prizes.sql",
+        "supabase/migrations/039_polla_user_isolation_and_limit.sql",
+        "supabase/migrations/055_fix_polla_single_pool_system.sql",
+        "supabase/migrations/096_polla_auto_draw_cron.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "atrapaito",
+      "name": "Atrapaíto Criollo / Parchís",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/AtrapaitoGame.tsx",
+        "src/features/games/components/AtrapaitoBoard.tsx",
+        "src/features/games/components/ParchisBoard.tsx",
+        "src/features/games/engines/AtrapaitoEngine.ts",
+        "src/features/games/engines/ParchisEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "AtrapaitoGame",
+        "AtrapaitoBoard",
+        "ParchisBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/AtrapaitoEngine.ts",
+        "src/features/games/engines/ParchisEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/115_atrapaito_realtime_multiplayer_and_abandon.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "checkers",
+      "name": "Damas Venezolanas",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/CheckersGame.tsx",
+        "src/features/games/components/CheckersBoard.tsx",
+        "src/features/games/engines/CheckersEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "CheckersGame",
+        "CheckersBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/CheckersEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/008_game_tables_and_players.sql",
+        "supabase/migrations/009_game_sessions_and_actions.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "rock_paper_scissors",
+      "name": "Piedra, Papel o Tijera",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/RockPaperScissorsGame.tsx",
+        "src/features/games/components/RockPaperScissorsBoard.tsx",
+        "src/features/games/engines/RockPaperScissorsEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "RockPaperScissorsGame",
+        "RockPaperScissorsBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/RockPaperScissorsEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "scripts/test_rps_engine.ts",
+        "scripts/test-rps-suite.ts",
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "submit_rps_move_secure",
+        "rps_turn_coherence_and_timeout_delegation",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/140_rps_commit_reveal_and_round_deadlines.sql",
+        "supabase/migrations/141_fix_rps_pgcrypto_commit_reveal.sql",
+        "supabase/migrations/142_fix_rps_player_resolution_and_secrets.sql",
+        "supabase/migrations/144_fix_rps_current_state_null_and_jsonb_safety.sql",
+        "supabase/migrations/158_rps_turn_coherence_and_timeout_delegation.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "tic_tac_toe",
+      "name": "La Vieja / 3 en Raya",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/TicTacToeGame.tsx",
+        "src/features/games/components/TicTacToeBoard.tsx",
+        "src/features/games/engines/TicTacToeEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "TicTacToeGame",
+        "TicTacToeBoard"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/TicTacToeEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/156_DEFINITIVE_TURN_TIMER_TIMEOUT_AND_TICTACTOE_RESOLUTION.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    },
+    {
+      "id": "una_olla",
+      "name": "UNA-OLLA",
+      "status": "LOCKED",
+      "version": "1.0.0",
+      "protected_at": "2026-09-10T15:30:00Z",
+      "protected_commit": "certified-phase29-stable",
+      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_paths": [
+        "src/features/games/components/UnaOllaGame.tsx",
+        "src/features/games/components/UnaOllaCardComponent.tsx",
+        "src/features/games/engines/UnaOllaEngine.ts"
+      ],
+      "protected_dependencies": [
+        "lucide-react",
+        "motion"
+      ],
+      "protected_components": [
+        "UnaOllaGame",
+        "UnaOllaCardComponent"
+      ],
+      "protected_services": [
+        "src/services/realtime/RealtimeManager.ts",
+        "src/services/AudioService.ts",
+        "src/services/PresenceService.ts"
+      ],
+      "protected_hooks": [
+        "src/features/games/useGameEngine.ts"
+      ],
+      "protected_engines": [
+        "src/features/games/engines/UnaOllaEngine.ts"
+      ],
+      "protected_repositories": [
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts"
+      ],
+      "protected_types": [
+        "src/types/game.types.ts",
+        "src/types/tables.types.ts"
+      ],
+      "protected_tests": [
+        "tests/e2e/uno-olla.spec.ts",
+        "src/tests/phase28_8_games_transversal_audit.ts",
+        "scripts/test_all_games_matrix.ts"
+      ],
+      "protected_database_objects": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_rpc": [
+        "expire_game_turn_secure",
+        "start_game_session_secure",
+        "settle_game_session"
+      ],
+      "protected_tables": [
+        "game_tables",
+        "game_table_players",
+        "game_sessions",
+        "game_actions",
+        "game_settlements"
+      ],
+      "protected_migrations": [
+        "supabase/migrations/066_fix_una_olla_game_type.sql",
+        "supabase/migrations/159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql"
+      ],
+      "shared_dependencies": [
+        "src/features/games/components/GameContainer.tsx",
+        "src/features/games/components/TurnTimer.tsx",
+        "src/features/games/components/PlayerIdentityCard.tsx",
+        "src/features/games/components/PlayerLives.tsx",
+        "src/features/games/components/SettlementModal.tsx",
+        "src/features/games/GameArena.tsx",
+        "src/features/games/useGameEngine.ts",
+        "src/features/games/engines/GameEngine.ts",
+        "src/features/games/engines/index.ts",
+        "src/features/games/utils/gameStateGuard.ts",
+        "src/services/repositories/GameRepository.ts",
+        "src/services/repositories/TableRepository.ts",
+        "src/services/realtime/RealtimeManager.ts"
+      ]
+    }
+  ]
+}

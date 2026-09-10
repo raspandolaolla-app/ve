@@ -2,55 +2,54 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-09 14:30:00 -07:00 (UTC 2026-09-09 21:30:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / CABECERA MÓVIL Y MENÚ LATERAL DE PERFIL EN EXPLORE DRAWER TOTALMENTE INTEGRADOS)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 08:42:00 -07:00 (UTC 2026-09-10 15:42:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / Suite de pruebas consolidada PASS / SISTEMA DE JUEGOS PROTEGIDOS ACTIVO / MIGRACIÓN 159 OPERATIVA)
 ÚLTIMA MIGRACIÓN INTEGRADA: 159_sequential_turn_coherence_and_atrapaito_parchis_separation.sql (Resolución 42P13 con parámetro canónico p_game_str, Verificación Idempotente de Enum pg_enum, Desacoplamiento Canónico Atrapaíto Criollo vs Parchís / Ludo, Exclusión Explícita de Juegos No Secuenciales, Idempotencia Determinística Acotada < 100 caracteres en game_actions y Coherencia Autoritativa en expire_game_turn_secure)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-0) REDISEÑO RESPONSIVE DE CABECERA Y CONSOLIDACIÓN LATERAL DEL MENÚ DE USUARIO Y PERFIL EN EXPLORE DRAWER:
-   - Diagnóstico de la Vista Móvil / PWA:
-     * En pantallas de dispositivos móviles estrechas (< 400px), el contenedor de marca `brand-logo` y el contenedor derecho de acciones de la cabecera contaban con la clase `shrink-0`. La suma de anchos superaba el ancho disponible de pantalla en modo PWA o standalone, desplazando el botón de perfil de usuario fuera del margen derecho del viewport.
-   - Corrección Quirúrgica de Cabecera (`Header.tsx`):
-     * Contenedor de marca `brand-logo` optimizado con flexibilidad responsive (`shrink min-w-0 sm:shrink-0`), isotipo adaptativo y escalas tipográficas diseñadas para móviles (`min-[360px]`).
-     * Subtítulo "Juegos & Sorteos en Vivo" configurado como `hidden sm:flex` para liberar espacio horizontal vital en cabeceras de smartphones.
-     * Píldora de balance monetario y botón de perfil (`header-user-profile-btn`) configurados con `shrink-0` y paddings compactos, asegurando que todos los botones superiores (Campana de Notificaciones, Saldo Disponible, Ojo de visibilidad, Avatar de perfil y/o Botón Ingresar) queden 100% visibles sin corte lateral ni desbordamiento horizontal.
-   - Integración Canónica de Perfil y Menú de Usuario en `ExploreDrawer.tsx`:
-     * Incorporada tarjeta de perfil de usuario en la cabecera del drawer lateral: avatar con foto o inicial, aro dorado con resplandor, indicador de conexión en línea verde, nombre completo, verificación KYC/Cédula (`ShieldCheck`), badge rojo de `ADMIN` (si aplica), visualización de saldo disponible formateado en Bolívares y botones rápidos de acción directa "Abonar" y "Retirar".
-     * En caso de visitantes no autenticados, se presenta un banner estilizado de bienvenida con botón de acción prioritario "INGRESAR / INICIAR SESIÓN".
-     * Incorporado selector de pestañas dentro del Drawer Lateral: `[ 🎮 Juegos & Salas ]` y `[ 👤 Mi Menú ]`.
-     * Menú de usuario completo de navegación lateral:
-       1. Mi Perfil & Datos Personales (Cédula, apodo y verificación KYC).
-       2. Billetera & Saldo (Recargas, abonos y cuentas bancarias).
-       3. Botones directos de Abonar Saldo y Retirar Fondos.
-       4. Notificaciones del Sistema (con llamada directa a modal de notificaciones).
-       5. Programa de Referidos (invitaciones y comisiones).
-       6. Salón de la Fama & Logros (ranking nacional de campeones).
-       7. Seguridad 2FA & Verificación de Cuenta.
-       8. Panel de Administración (exclusivo para usuarios con rol `ADMIN` / `SUPER_ADMIN`).
-       9. Centro de Soporte & Chat en Vivo (atención 24/7 en línea).
-       10. Buzón de Sugerencias & Feedback.
-       11. Cerrar Sesión seguro con limpieza de sesión y cierre del drawer.
-     * `App.tsx` enlazado pasando `onOpenNotifications` a `ExploreDrawer`.
+0) SISTEMA DE JUEGOS PROTEGIDOS / MÓDULOS CERTIFICADOS (FASE 30 - PROTOCOLO ZERO-REGRESSION):
+   - Registro Central de Gobernanza y Archivos Canónicos:
+     * Creación de `/.github/protected-games.json` y `/.github/protected-games.yml` documentando los 10 juegos auditados del ecosistema: Ajedrez, Dominó Venezolano, Truco Venezolano, Bingo, Polla Venezolana, Atrapaíto Criollo / Parchís, Damas Venezolanas, Piedra Papel o Tijera, La Vieja / 3 en Raya y UNA-OLLA.
+     * Mapeo riguroso de dependencias exclusivas, componentes, motores (engines), repositorios, servicios, pruebas unitarias/e2e, objetos de base de datos (tablas y RPCs) y migraciones históricas asociadas.
+     * Catálogo de 16 módulos de infraestructura compartida clasificados por nivel de riesgo (CRITICAL, MAXIMUM, HIGH, MEDIUM, LOW) con matriz de juegos consumidores.
+   - CLI y Script de Gobernanza Autoritativa (`scripts/protected_games_guard.ts`):
+     * Comandos soportados:
+       - `audit` / `npm run audit:protected`: Audita la existencia e integridad de los archivos protegidos, detecta modificaciones no autorizadas en archivos exclusivos de juegos `LOCKED` o dependencias compartidas críticas, y retorna salida determinística `STATUS: SAFE` o `🔒 CAMBIO BLOQUEADO`.
+       - `status` / `npm run protected:status`: Visualiza el estado, versión, conteo de archivos y fecha de certificación de los 10 juegos.
+       - `protect <juego> [commit]`: Certifica y bloquea formalmente un juego en estado `LOCKED`.
+       - `unlock <juego> [motivo]`: Desbloquea de forma controlada a `UNDER_REPAIR` registrando autor, fecha y justificación técnica sin borrar el historial previo.
+       - `deps <juego>`: Detalla el mapa técnico completo de rutas, dependencias compartidas, RPCs y suites de pruebas de un juego.
+       - `dependents <dependencia>`: Búsqueda inversa que identifica qué juegos consumen un módulo compartido y advierte riesgos de regresión transversal.
+       - `matrix`: Genera la matriz transversal de dependencias vs juegos.
+       - `report` / `npm run protected:report`: Genera automáticamente `docs/PROTECTED_GAMES_REPORT.md`.
+   - Bloqueo por Permisos en GitHub (`/.github/CODEOWNERS`):
+     * Asignación obligatoria de revisión a mantenedores principales (`@raspandolaolla-app/core-maintainers`) para motores de juego certificados, componentes compartidos (`GameContainer`, `TurnTimer`, `SettlementModal`), servicios (`RealtimeManager`, `GameRepository`, `TableRepository`), migraciones históricas y registros de protección.
+   - Integración con GitHub Actions (`.github/workflows/main.yml`):
+     * Inclusión del paso `Run Protected Games Guard Audit` (`npm run audit:protected`) previo a typecheck y compilación, garantizando que ninguna PR o commit altere juegos certificados o dependencias compartidas sin protocolo formal.
+   - Documentación y Guías Operativas:
+     * `docs/SISTEMA_JUEGOS_PROTEGIDOS.md`: Documento exhaustivo que explica el funcionamiento, comandos CLI, protocolo de desbloqueo, mitigación del bucle de regresiones y políticas CI/CD.
+     * `docs/PROTECTED_GAMES_REPORT.md`: Informe formal con inventario y matriz detallada.
+   - Verificación de Integridad:
+     * `npm run audit:protected` -> `STATUS: SAFE` (10/10 juegos certificados en estado `LOCKED`).
+     * `npm run typecheck` -> PASS (0 errores).
+     * `npm run lint` -> PASS (0 errores).
+     * `compile_applet` -> PASS (Build exitoso).
+     * `npx tsx src/tests/run_all.ts` -> PASS (100% pruebas operativas y forenses).
 
-0) RESOLUCIÓN DEFINITIVA DE ERROR HTTP 400 EN POSTGREST (game_tables) Y AUDITORÍA ALREADY_IN_ACTIVE_TABLE:
-   - Diagnóstico y Causa Raíz de HTTP 400:
-     * El frontend al consultar `/rest/v1/game_tables` en `TableRepository.getTableById` y `TableRepository.getTableByCode` solicitaba columnas que no existen como campos nativos en la tabla `public.game_tables` (`mode`, `currency`, `is_private`, `join_code`, `share_token`, `finished_at`).
-     * Especialmente, la inclusión de `mode` provocaba que PostgreSQL interpretara la columna como la función de agregación ordenada `mode() WITHIN GROUP`, arrojando error PostgreSQL `42809: WITHIN GROUP is required for ordered-set aggregate mode`.
-     * En `getTableByCode`, el filtro `.or('invite_code.eq.${code},join_code.eq.${code}')` fallaba adicionalmente con error `42703: column game_tables.join_code does not exist`.
-   - Corrección Canónica Aplicada:
-     * Removidas las columnas no nativas de la cláusula `.select(...)` en `TableRepository.ts` (`getTableById` y `getTableByCode`).
-     * Consulta acotada exclusivamente al esquema real de PostgreSQL: `id, game_type, name, entry_fee, min_players, max_players, current_players_count, status, host_user_id, created_by, visibility, invite_code, created_at, started_at, closed_at, updated_at, expires_at, game_variant, config`.
-     * Enrutado del registro obtenido a través del transformador canónico del repositorio `TableRepository.mapDbTableToGameTable(data)`, el cual calcula y proyecta de forma consistente `mode`, `currency`, `isPrivate`, `joinCode`, `shareToken` y `finishedAt`.
-     * Incorporado registro visible `console.error` ante fallos de PostgREST para prevenir el silenciamiento inadvertido de errores en consultas a la base de datos.
-   - Diagnóstico Exhaustivo del Flujo `ALREADY_IN_ACTIVE_TABLE`:
-     * Causa identificada: Combinación B + E + F (Participación Stale e inconsistencia entre fin de sesión y `game_table_players`).
-     * En partidas multijugador previas, cuando una sesión entra en estado terminal (`SETTLED` o `FINISHED`), si el usuario no ejecutó un abandono explícito o si la mesa no fue cerrada en el mismo ciclo, el registro en `game_table_players` permaneció en estado activo (`JOINED` o `PLAYING`).
-     * La RPC `create_game_table_secure` realiza una verificación estricta de seguridad en PostgreSQL:
-       `SELECT COUNT(*) INTO v_active_table_count FROM game_tables gt INNER JOIN game_table_players gtp ON gtp.table_id = gt.id WHERE gtp.user_id = v_user_id AND gtp.status IN ('JOINED', 'READY', 'PLAYING') AND gt.status IN ('OPEN', 'WAITING', 'ACTIVE', 'STARTING', 'SALES', 'FULL') AND gt.game_type = v_enum_game_type AND gt.created_at >= NOW() - INTERVAL '4 hours';`
-     * La función preliminar de auto-limpieza `cleanup_stale_user_game_participation` únicamente marca `LEFT` sobre mesas que ya tienen estado `CLOSED`, `EXPIRED`, `CANCELLED` o `TERMINATED`, por lo que una mesa previa con status `FULL` o `ACTIVE` dentro de la ventana de 4 horas retuvo la participación como no resuelta.
-     * En consecuencia, la primera llamada generó la excepción legítima de protección de negocio `ALREADY_IN_ACTIVE_TABLE`.
-     * El mecanismo de auto-sanación (Self-Healing) del frontend actuó según diseño: al persistir el bloqueo, invocó `force_leave_all_game_tables`, la cual barrió las participaciones huérfanas marcándolas como `LEFT` y cerró la mesa huérfana mediante `close_game_table_if_orphaned`.
-     * En el reintento automático subsiguiente, `create_game_table_secure` procedió exitosamente sin duplicación de puestos, respetando íntegramente las reglas de balance y ledger financiero.
+0) AUDITORÍA INTEGRAL DE ESTABILIZACIÓN Y RECONCILIACIÓN DE TIMEOUTS (FASE 29):
+   - Verificación Transversal de Motores y Manejo de Turnos / Timeouts:
+     * Auditoría exhaustiva en los 8 motores (Tic Tac Toe, Piedra Papel o Tijera, Damas, Dominó Venezolano, Truco Venezolano, Bingo, Polla, Atrapaíto, Parchís, Ajedrez).
+     * Confirmación de compatibilidad transversal y paso de jugada automática/timeout en motores deterministas sin bloqueos.
+     * Protección contra desincronización de timers: comprobación de períodos de gracia en transiciones de turno y deduplicación estricta de eventos `TIMEOUT` mediante `timerKey` único en `TurnTimer.tsx`.
+   - Idempotencia y Blindaje de Claves en Base de Datos:
+     * Verificación de que todas las claves generadas para inserción en `game_actions` y llamadas RPC cumplan con el límite de longitud `VARCHAR(100)` con sufijos determinísticos hash MD5 de 53 caracteres, eliminando desbordamientos de clave.
+   - Aislamiento de Mesas y Prevención de Estados Huérfanos:
+     * Validación de `join_table_transaction`, `abandon_game_table_secure` y auto-cierre con `close_game_table_if_orphaned`.
+   - Verificación de Integridad de Código y Suites:
+     * Ejecución exitosa de la suite consolidada de pruebas (`src/tests/run_all.ts`): Fase 28 (Auditoría transversal de los 8 juegos y aislamiento), Ciclo de vida Realtime en Billetera, Fase 25.1 (Sanitización de errores), Fase 25.2 (Contratos frontend y RLS), Fase 27 (Seguridad RNG), Fase 26 (Límites de monto 25-5000 Bs y tasa BCV), Fase 24.2 (Pruebas operativas) y Fase 24 (Creación de mesas).
+     * `npm run typecheck` (PASS, exit code 0).
+     * `npm run lint` / `lint_applet` (PASS, exit code 0).
+     * `npm run build` / `compile_applet` (PASS, exit code 0).
 
 0) MIGRACIÓN 159 (BLINDAJE Y RESOLUCIÓN 42P13) — DESACOPLAMIENTO DEFINITIVO ATRAPAÍTO VS PARCHÍS & COHERENCIA DE TURNOS SECUENCIALES:
    - Corrección de Firma de Función en PostgreSQL (Error 42P13):

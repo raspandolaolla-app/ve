@@ -1,0 +1,67 @@
+# ==============================================================================
+# 🔒 GITHUB CODEOWNERS - HARD-LOCK / PROTECTED MODULES GOVERNANCE
+# PROYECTO: RASPANDO LA OLLA 🇻🇪 / PulsoPLAY
+# REPOSITORIO: https://github.com/raspandolaolla-app/ve
+# RAMA: main
+# ==============================================================================
+
+# Gobernanza global
+* @raspandolaolla-app/core-maintainers
+
+# 🔒 REGLA HARD_LOCKED: JUEGOS CERTIFICADOS Y PROTEGIDOS
+/src/features/games/components/Chess* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Chess* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Domino* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Domino* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Truco* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Truco* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Bingo* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Bingo* @raspandolaolla-app/core-maintainers
+/src/hooks/useBingoClientDaemon.ts @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Polla* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Polla* @raspandolaolla-app/core-maintainers
+/src/services/repositories/PollaRepository.ts @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Atrapaito* @raspandolaolla-app/core-maintainers
+/src/features/games/components/Parchis* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Atrapaito* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Parchis* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/Checkers* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/Checkers* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/RockPaperScissors* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/RockPaperScissors* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/TicTacToe* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/TicTacToe* @raspandolaolla-app/core-maintainers
+
+/src/features/games/components/UnaOlla* @raspandolaolla-app/core-maintainers
+/src/features/games/engines/UnaOlla* @raspandolaolla-app/core-maintainers
+
+# 🔒 REGLA HARD_LOCKED: INFRAESTRUCTURA COMPARTIDA CRÍTICA (SHARED DEPENDENCY)
+/src/features/games/components/GameContainer.tsx @raspandolaolla-app/core-maintainers
+/src/features/games/components/TurnTimer.tsx @raspandolaolla-app/core-maintainers
+/src/features/games/components/PlayerIdentityCard.tsx @raspandolaolla-app/core-maintainers
+/src/features/games/components/SettlementModal.tsx @raspandolaolla-app/core-maintainers
+/src/features/games/GameArena.tsx @raspandolaolla-app/core-maintainers
+/src/features/games/useGameEngine.ts @raspandolaolla-app/core-maintainers
+/src/features/games/engines/GameEngine.ts @raspandolaolla-app/core-maintainers
+/src/features/games/engines/index.ts @raspandolaolla-app/core-maintainers
+/src/features/games/utils/gameStateGuard.ts @raspandolaolla-app/core-maintainers
+/src/services/repositories/GameRepository.ts @raspandolaolla-app/core-maintainers
+/src/services/repositories/TableRepository.ts @raspandolaolla-app/core-maintainers
+/src/services/repositories/FinancialRepository.ts @raspandolaolla-app/core-maintainers
+/src/services/realtime/RealtimeManager.ts @raspandolaolla-app/core-maintainers
+
+# 🔒 REGLA HARD_LOCKED: MIGRACIONES HISTÓRICAS DE BASE DE DATOS
+/supabase/migrations/ @raspandolaolla-app/core-maintainers
+
+# 🔒 REGLA HARD_LOCKED: ARCHIVOS DE REGISTRO DE PROTECCIÓN
+/.github/protected-games.yml @raspandolaolla-app/core-maintainers
+/.github/protected-games.json @raspandolaolla-app/core-maintainers
+/scripts/protected_games_guard.ts @raspandolaolla-app/core-maintainers

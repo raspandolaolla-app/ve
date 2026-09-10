@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "audit:protected": "tsx scripts/protected_games_guard.ts audit",
+    "protected:status": "tsx scripts/protected_games_guard.ts status",
+    "protected:report": "tsx scripts/protected_games_guard.ts report"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

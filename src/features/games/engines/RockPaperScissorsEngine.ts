@@ -303,6 +303,10 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
       return { valid: true };
     }
 
+    if (actionType === 'ROUND_REVEAL') {
+      return { valid: true };
+    }
+
     // ✅ ELIMINADO: Validación de TIMEOUT
     // RPS es juego simultáneo commit-reveal, no tiene timeout por turno
     return { valid: false, reason: `Tipo de acción no soportada: ${actionType}` };
@@ -323,6 +327,57 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
     }
 
     const actionType = action.actionType || (action as any).type;
+
+    if (actionType === 'ROUND_REVEAL') {
+      const data = action.actionData || (action as any).payload || {};
+      const c1 = data.player1Choice as RPSChoice;
+      const c2 = data.player2Choice as RPSChoice;
+      const roundWinner = data.roundWinner;
+      const isGameOver = Boolean(data.isGameOver);
+
+      const newState: RPSState = {
+        ...state,
+        status: isGameOver ? 'MATCH_ENDED' : 'ROUND_REVEAL',
+        phase: isGameOver ? 'match_ended' : 'round_result',
+        player1Choice: c1 || state.player1Choice,
+        player2Choice: c2 || state.player2Choice,
+        roundWinner: roundWinner || state.roundWinner,
+      };
+
+      if (roundWinner === 'PLAYER1') {
+        newState.player2Lives = Math.max(0, (newState.player2Lives ?? 3) - 1);
+        newState.roundWinnerUserId = newState.player1Id;
+      } else if (roundWinner === 'PLAYER2') {
+        newState.player1Lives = Math.max(0, (newState.player1Lives ?? 3) - 1);
+        newState.roundWinnerUserId = newState.player2Id;
+      }
+
+      if (newState.lives) {
+        if (newState.player1Id) newState.lives[newState.player1Id] = newState.player1Lives;
+        if (newState.player2Id) newState.lives[newState.player2Id] = newState.player2Lives;
+      }
+
+      if (newState.player1Lives <= 0) {
+        newState.matchWinner = 'PLAYER2';
+        newState.winnerUserId = newState.player2Id;
+        newState.status = 'MATCH_ENDED';
+        newState.phase = 'match_ended';
+      } else if (newState.player2Lives <= 0) {
+        newState.matchWinner = 'PLAYER1';
+        newState.winnerUserId = newState.player1Id;
+        newState.status = 'MATCH_ENDED';
+        newState.phase = 'match_ended';
+      }
+
+      return {
+        newState,
+        isValid: true,
+        isGameOver: newState.status === 'MATCH_ENDED',
+        winnerUserId: newState.winnerUserId || null,
+        winnerTeamIndex: null,
+        isDraw: false,
+      };
+    }
 
     if (actionType === 'CHOOSE' || actionType === 'SUBMIT_CHOICE') {
       const rawChoice = action.actionData?.choice ?? (action as any).data?.choice;

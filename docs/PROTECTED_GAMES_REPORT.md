@@ -2,7 +2,7 @@
 **Proyecto:** RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)  
 **Repositorio Oficial:** https://github.com/raspandolaolla-app/ve  
 **Rama:** main  
-**Fecha de Generación:** 2026-09-10T15:39:47.845Z  
+**Fecha de Generación:** 2026-09-10T16:29:03.244Z  
 **Política General:** STRICT_PROTECTION  
 
 ---
@@ -29,7 +29,7 @@ El sistema de protección y certificación previene regresiones accidentales en 
 | `polla` | **Polla Venezolana** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 4 | 1 |
 | `atrapaito` | **Atrapaíto Criollo / Parchís** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 5 | 2 |
 | `checkers` | **Damas Venezolanas** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 3 | 2 |
-| `rock_paper_scissors` | **Piedra, Papel o Tijera** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 3 | 4 |
+| `rock_paper_scissors` | **Piedra, Papel o Tijera** | `LOCKED` | 1.0.0 | `certified-rev-mtvqsbg2` | 3 | 4 |
 | `tic_tac_toe` | **La Vieja / 3 en Raya** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 3 | 2 |
 | `una_olla` | **UNA-OLLA** | `LOCKED` | 1.0.0 | `certified-phase29-stable` | 3 | 3 |
 
@@ -286,8 +286,8 @@ El sistema de protección y certificación previene regresiones accidentales en 
 
 ### 🔒 Piedra, Papel o Tijera (`rock_paper_scissors`)
 - **Estado:** `LOCKED`
-- **Certificado por:** Senior DevOps / Architecture Committee (2026-09-10T15:30:00Z)
-- **Commit de Referencia:** `certified-phase29-stable`
+- **Certificado por:** Senior DevOps / AI Studio Automated Guard (2026-09-10T16:29:00.530Z)
+- **Commit de Referencia:** `certified-rev-mtvqsbg2`
 - **Archivos Propios:**
   * `src/features/games/components/RockPaperScissorsGame.tsx`
   * `src/features/games/components/RockPaperScissorsBoard.tsx`

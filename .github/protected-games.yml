@@ -1,21 +1,21 @@
-# ==============================================================================
-# 🔒 REGISTRO CENTRAL DE JUEGOS PROTEGIDOS / MÓDULOS CERTIFICADOS
-# PROYECTO: RASPANDO LA OLLA 🇻🇪 / PulsoPLAY
-# REPOSITORIO: https://github.com/raspandolaolla-app/ve
-# RAMA: main
-# ==============================================================================
+# ============================================================================== #
+# 🔒 REGISTRO CENTRAL DE JUEGOS PROTEGIDOS / MÓDULOS CERTIFICADOS                #
+# PROYECTO: RASPANDO LA OLLA 🇻🇪 / PulsoPLAY                                     #
+# REPOSITORIO: https://github.com/raspandolaolla-app/ve                          #
+# RAMA: main                                                                     #
+# ============================================================================== #
 
 version: "1.0.0"
-updated_at: "2026-09-10T15:35:00Z"
+updated_at: "2026-09-10T16:29:00.530Z"
 default_policy: STRICT_PROTECTION
 
 allowed_states:
-  - ACTIVE       # Juego en desarrollo. Puede modificarse.
-  - CAUTION      # Juego funcional pero que comparte componentes sensibles.
-  - STABLE       # Juego validado. No debe modificarse innecesariamente.
-  - LOCKED       # Juego protegido contra cambios normales.
-  - HARD_LOCKED  # Protección reforzada mediante controles Git/GitHub/CODEOWNERS.
-  - UNDER_REPAIR # Desbloqueado explícitamente para reparación autorizada.
+  - ACTIVE
+  - CAUTION
+  - STABLE
+  - LOCKED
+  - HARD_LOCKED
+  - UNDER_REPAIR
 
 shared_infrastructure:
   - id: GameContainer
@@ -89,7 +89,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/ChessGame.tsx
@@ -161,7 +161,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/DominoGame.tsx
@@ -231,7 +231,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/TrucoGame.tsx
@@ -299,7 +299,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/BingoGame.tsx
@@ -379,7 +379,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/PollaGame.tsx
@@ -447,7 +447,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/AtrapaitoGame.tsx
@@ -519,7 +519,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/CheckersGame.tsx
@@ -531,14 +531,14 @@ games:
     protected_components:
       - CheckersGame
       - CheckersBoard
-    protected_engines:
-      - src/features/games/engines/CheckersEngine.ts
     protected_services:
       - src/services/realtime/RealtimeManager.ts
       - src/services/AudioService.ts
       - src/services/PresenceService.ts
     protected_hooks:
       - src/features/games/useGameEngine.ts
+    protected_engines:
+      - src/features/games/engines/CheckersEngine.ts
     protected_repositories:
       - src/services/repositories/GameRepository.ts
       - src/services/repositories/TableRepository.ts
@@ -587,9 +587,12 @@ games:
     name: "Piedra, Papel o Tijera"
     status: LOCKED
     version: "1.0.0"
-    protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
-    protected_by: "Senior DevOps / Architecture Committee"
+    protected_at: "2026-09-10T16:29:00.530Z"
+    protected_commit: "certified-rev-mtvqsbg2"
+    protected_by: "Senior DevOps / AI Studio Automated Guard"
+    unlocked_at: "2026-09-10T16:10:07.804Z"
+    unlocked_by: "Authorized Maintainer / AI Studio"
+    unlock_reason: "Corrección de avance de rondas, auto-advance y coherencia de estado en RPS"
     protected_paths:
       - src/features/games/components/RockPaperScissorsGame.tsx
       - src/features/games/components/RockPaperScissorsBoard.tsx
@@ -662,7 +665,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/TicTacToeGame.tsx
@@ -730,7 +733,7 @@ games:
     status: LOCKED
     version: "1.0.0"
     protected_at: "2026-09-10T15:30:00Z"
-    protected_commit: certified-phase29-stable
+    protected_commit: "certified-phase29-stable"
     protected_by: "Senior DevOps / Architecture Committee"
     protected_paths:
       - src/features/games/components/UnaOllaGame.tsx
@@ -793,3 +796,4 @@ games:
       - src/services/repositories/GameRepository.ts
       - src/services/repositories/TableRepository.ts
       - src/services/realtime/RealtimeManager.ts
+

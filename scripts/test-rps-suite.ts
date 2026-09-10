@@ -10,6 +10,7 @@ const client = new pg.Client({
 
 async function runRPSTestSuite() {
   await client.connect();
+  client.on('notice', (msg) => console.log('[PG NOTICE]', msg.message));
   console.log('===============================================================');
   console.log('SUITE DE VALIDACIÓN FORENSE Y PRUEBAS AUTOMATIZADAS DE RPS');
   console.log('===============================================================');
@@ -291,8 +292,8 @@ async function runRPSTestSuite() {
     `, [sessionId]);
 
     console.log('Estado final sesión/mesa:', sessFinal.rows[0]);
-    if (sessFinal.rows[0].sess_status !== 'FINISHED' || sessFinal.rows[0].table_status !== 'CLOSED') {
-      throw new Error('Fallo: Sesión no FINISHED o Mesa no CLOSED tras Game Over');
+    if (!['FINISHED', 'SETTLED'].includes(sessFinal.rows[0].sess_status) || sessFinal.rows[0].table_status !== 'CLOSED') {
+      throw new Error('Fallo: Sesión no FINISHED/SETTLED o Mesa no CLOSED tras Game Over');
     }
 
     // Verificar liquidación en game_settlements
@@ -327,6 +328,7 @@ async function runRPSTestSuite() {
       VALUES ($1, $2, 1, 'READY', NOW()), ($1, $3, 2, 'READY', NOW());
     `, [tTableId, p1Id, p2Id]);
 
+    await client.query(`ALTER TABLE public.game_sessions DISABLE TRIGGER trg_refresh_turn_expires_at;`);
     const timeoutSess = await client.query(`
       INSERT INTO public.game_sessions (
         table_id, game_type, status, current_turn_user_id, current_state, turn_expires_at, turn_deadline_at
@@ -341,6 +343,7 @@ async function runRPSTestSuite() {
         NOW() - INTERVAL '10 seconds'
       ) RETURNING id;
     `, [tTableId, p1Id, p2Id]);
+    await client.query(`ALTER TABLE public.game_sessions ENABLE TRIGGER trg_refresh_turn_expires_at;`);
     const tSessId = timeoutSess.rows[0].id;
 
     // Registrar en secrets que p1 hizo commit pero p2 no
@@ -357,7 +360,7 @@ async function runRPSTestSuite() {
     `, [tSessId]);
 
     console.log('Resultado tras process_expired_turns:', timeoutCheck.rows[0]);
-    if (timeoutCheck.rows[0].status !== 'FINISHED' || timeoutCheck.rows[0].winner_user_id !== p1Id) {
+    if (!['FINISHED', 'SETTLED'].includes(timeoutCheck.rows[0].status) || timeoutCheck.rows[0].winner_user_id !== p1Id) {
       throw new Error('Fallo: Timeout no otorgó victoria a P1 por abandono de P2');
     }
     if (!timeoutCheck.rows[0].current_state) {

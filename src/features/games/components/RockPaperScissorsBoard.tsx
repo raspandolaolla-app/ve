@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Trophy, Loader, Clock, AlertTriangle } from 'lucide-react';
 import type { RPSChoice, RPSState } from '../engines/RockPaperScissorsEngine';
@@ -21,7 +21,7 @@ export interface RockPaperScissorsBoardProps {
 export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   state,
   currentUserId = '',
-  hasPlayerChosen = false,
+  hasPlayerChosen: externalHasPlayerChosen = false,
   onSubmitChoice,
   onNextRound,
   onAction,
@@ -33,10 +33,57 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const timeoutTriggeredRef = useRef(false);
 
+  const currentRound = state.roundNumber || state.round || 1;
+  const [localCommittedRound, setLocalCommittedRound] = useState<number | null>(null);
+
+  const isSelecting = state.status === 'ROUND_COMMIT' || state.phase === 'selecting';
+  const isRevealing = (state.status === 'ROUND_REVEAL' || state.phase === 'round_result') && !isSelecting;
+  const isGameOver =
+    state.status === 'MATCH_ENDED' ||
+    state.phase === 'match_ended' ||
+    Boolean(state.matchWinner) ||
+    (state.player1Lives !== undefined && state.player1Lives <= 0) ||
+    (state.player2Lives !== undefined && state.player2Lives <= 0);
+
+  // Determinar con certeza si el jugador local ha elegido en la ronda ACTUAL
+  const hasChosenThisRound = useMemo(() => {
+    // 1. Si el jugador local ya seleccionó su jugada en esta ronda específica en esta sesión
+    if (localCommittedRound === currentRound) {
+      return true;
+    }
+
+    // 2. Si Supabase reporta estado explícito de compromiso para el usuario en playerChoices
+    const userChoiceState = state.playerChoices?.[currentUserId];
+    if (userChoiceState && typeof userChoiceState.committed === 'boolean') {
+      return userChoiceState.committed;
+    }
+
+    // 3. En fase de selección (ROUND_COMMIT / selecting), ignorar cualquier elección residual de rondas previas
+    if (isSelecting) {
+      return false;
+    }
+
+    // 4. En fase de revelación de resultado, verificar si existe jugada revelada
+    const isP1 = currentUserId === state.player1Id;
+    if (isP1 && state.player1Choice) return true;
+    if (!isP1 && state.player2Choice) return true;
+
+    return Boolean(externalHasPlayerChosen);
+  }, [
+    currentRound,
+    localCommittedRound,
+    state.playerChoices,
+    currentUserId,
+    isSelecting,
+    state.player1Id,
+    state.player1Choice,
+    state.player2Choice,
+    externalHasPlayerChosen,
+  ]);
+
   // Sincronización del temporizador de ronda (15s autoritativos)
   useEffect(() => {
-    const isSelecting = (state.status === 'ROUND_COMMIT' || state.phase === 'selecting') && !state.matchWinner;
-    if (!isSelecting || !turnExpiresAt) {
+    if (!isSelecting || isGameOver || !turnExpiresAt) {
       setTimeLeft(null);
       timeoutTriggeredRef.current = false;
       return;
@@ -68,12 +115,23 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [turnExpiresAt, state.status, state.phase, state.matchWinner, onTimeout, onTurnTimeout]);
+  }, [turnExpiresAt, isSelecting, isGameOver, onTimeout, onTurnTimeout]);
 
   // Auto-avanzar a la siguiente ronda después de mostrar el resultado
+  const advanceTriggeredForRoundRef = useRef<number | null>(null);
+
   useEffect(() => {
-    const isReveal = state.status === 'ROUND_REVEAL' || state.phase === 'round_result';
-    if (isReveal && state.roundWinner) {
+    if (!isRevealing) {
+      advanceTriggeredForRoundRef.current = null;
+      setShowResult(false);
+      return;
+    }
+
+    if (isRevealing && state.roundWinner && !isGameOver) {
+      if (advanceTriggeredForRoundRef.current === currentRound) {
+        return;
+      }
+      advanceTriggeredForRoundRef.current = currentRound;
       setShowResult(true);
       const timer = setTimeout(() => {
         setShowResult(false);
@@ -85,20 +143,29 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
       }, 2500);
       return () => clearTimeout(timer);
     }
-  }, [state.status, state.phase, state.roundWinner, onNextRound, onAction]);
+  }, [
+    isRevealing,
+    state.roundWinner,
+    currentRound,
+    isGameOver,
+    onNextRound,
+    onAction,
+  ]);
 
   const handleChoice = (choice: RPSChoice) => {
     // ✅ GUARD 1: Solo permitir elegir si estamos en fase de compromiso (ROUND_COMMIT / selecting)
-    if (state.status !== 'ROUND_COMMIT' && state.phase !== 'selecting') {
+    if (!isSelecting || isGameOver) {
       console.warn('[RPS] No es el momento de elegir');
       return;
     }
     
     // ✅ GUARD 2: No permitir elegir si el jugador ya hizo su jugada en esta ronda
-    if (hasPlayerChosen) {
+    if (hasChosenThisRound) {
       console.warn('[RPS] Ya elegiste, esperando al oponente');
       return;
     }
+
+    setLocalCommittedRound(currentRound);
     
     // Si pasa ambos guards, la jugada es válida
     if (onSubmitChoice) {
@@ -139,18 +206,15 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   const p1Lives = state.player1Lives ?? (state.lives && state.player1Id ? state.lives[state.player1Id] : 3) ?? 3;
   const p2Lives = state.player2Lives ?? (state.lives && state.player2Id ? state.lives[state.player2Id] : 3) ?? 3;
 
-  const isRevealing = state.status === 'ROUND_REVEAL' || state.phase === 'round_result';
-  const isGameOver = state.status === 'MATCH_ENDED' || state.phase === 'match_ended' || Boolean(state.matchWinner);
-
   const p1HasChosen = Boolean(
-    (currentUserId === state.player1Id && hasPlayerChosen) ||
-    (state.player1Choice !== null && state.player1Choice !== undefined) ||
-    state.playerChoices?.[state.player1Id]?.committed
+    (currentUserId === state.player1Id && hasChosenThisRound) ||
+    state.playerChoices?.[state.player1Id]?.committed ||
+    (!isSelecting && state.player1Choice !== null && state.player1Choice !== undefined)
   );
   const p2HasChosen = Boolean(
-    (currentUserId === state.player2Id && hasPlayerChosen) ||
-    (state.player2Choice !== null && state.player2Choice !== undefined) ||
-    (state.player2Id && state.playerChoices?.[state.player2Id]?.committed)
+    (currentUserId === state.player2Id && hasChosenThisRound) ||
+    (state.player2Id && state.playerChoices?.[state.player2Id]?.committed) ||
+    (!isSelecting && state.player2Choice !== null && state.player2Choice !== undefined)
   );
 
   return (
@@ -166,7 +230,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
           </div>
         </div>
         <div className="text-center">
-          <p className="text-amber-400 text-xl font-black">RONDA {state.roundNumber || state.round || 1}</p>
+          <p className="text-amber-400 text-xl font-black">RONDA {currentRound}</p>
           <p className="text-slate-400 text-xs">Mejor de 3 Vidas</p>
         </div>
         <div className="text-center">
@@ -218,7 +282,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
       </AnimatePresence>
 
       {/* Botones de selección y estado */}
-      {(state.status === 'ROUND_COMMIT' || state.phase === 'selecting') && !isGameOver && (
+      {isSelecting && !isGameOver && (
         <>
           {/* Temporizador de Ronda Autoritativo */}
           {timeLeft !== null && (
@@ -250,10 +314,10 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
                 key={choice}
                 id={`rps-choice-btn-${choice}`}
                 onClick={() => handleChoice(choice as RPSChoice)}
-                disabled={hasPlayerChosen || isGameOver}
+                disabled={hasChosenThisRound || isGameOver}
                 data-testid={`rps-${choice}`}
                 className={`flex-1 px-4 py-4 rounded-xl font-bold text-lg transition-all ${
-                  !hasPlayerChosen && !isGameOver
+                  !hasChosenThisRound && !isGameOver
                     ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg hover:scale-105 active:scale-95 cursor-pointer' 
                     : 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-50'
                 }`}
@@ -265,7 +329,7 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
 
           {/* Indicador de estado CORREGIDO y blindado */}
           <div className="text-center mt-4">
-            {hasPlayerChosen ? (
+            {hasChosenThisRound ? (
               <div className="flex items-center justify-center gap-2 text-cyan-400 font-bold animate-pulse">
                 <Loader size={18} className="animate-spin" />
                 <span>✓ Tu jugada registrada. Esperando al rival...</span>

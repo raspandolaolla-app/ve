@@ -3,7 +3,7 @@
   "title": "Registro Central de Juegos Protegidos / Módulos Certificados",
   "version": "1.0.0",
   "description": "Configuración canónica de módulos protegidos y bloqueo de regresiones para RASPANDO LA OLLA 🇻🇪 / PulsoPLAY",
-  "updated_at": "2026-09-10T15:35:00Z",
+  "updated_at": "2026-09-10T16:29:00.530Z",
   "default_policy": "STRICT_PROTECTION",
   "allowed_states": [
     "ACTIVE",
@@ -721,9 +721,9 @@
       "name": "Piedra, Papel o Tijera",
       "status": "LOCKED",
       "version": "1.0.0",
-      "protected_at": "2026-09-10T15:30:00Z",
-      "protected_commit": "certified-phase29-stable",
-      "protected_by": "Senior DevOps / Architecture Committee",
+      "protected_at": "2026-09-10T16:29:00.530Z",
+      "protected_commit": "certified-rev-mtvqsbg2",
+      "protected_by": "Senior DevOps / AI Studio Automated Guard",
       "protected_paths": [
         "src/features/games/components/RockPaperScissorsGame.tsx",
         "src/features/games/components/RockPaperScissorsBoard.tsx",
@@ -803,7 +803,10 @@
         "src/services/repositories/GameRepository.ts",
         "src/services/repositories/TableRepository.ts",
         "src/services/realtime/RealtimeManager.ts"
-      ]
+      ],
+      "unlocked_at": "2026-09-10T16:10:07.804Z",
+      "unlocked_by": "Authorized Maintainer / AI Studio",
+      "unlock_reason": "Corrección de avance de rondas, auto-advance y coherencia de estado en RPS"
     },
     {
       "id": "tic_tac_toe",

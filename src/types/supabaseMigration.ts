@@ -20,7 +20,8 @@ export type MigrationStage =
   | 'PRODUCTION_VALIDATION'
   | 'COMPLETED'
   | 'FAILED'
-  | 'ROLLBACK';
+  | 'ROLLBACK'
+  | 'BLOCKED';
 
 export interface SourceEnvironmentStatus {
   url: string;
@@ -71,12 +72,24 @@ export interface TargetValidationResult {
   errors: string[];
 }
 
+export type DifferenceClassification = 'MATCH' | 'CREATE' | 'UPDATE_REQUIRED' | 'CONFLICT' | 'BLOCKED';
+
+export interface DryRunComparison {
+  name: string;
+  type: 'table' | 'extension' | 'rpc' | 'policy' | 'bucket' | 'publication';
+  sourceStatus: string;
+  targetStatus: string;
+  classification: DifferenceClassification;
+  notes?: string;
+}
+
 export interface DryRunPlan {
   id: string;
   generatedAt: string;
   sourceRef: string;
   targetRef: string;
   isCompatible: boolean;
+  comparisons?: DryRunComparison[];
   willCreate: {
     schemas: string[];
     extensions: string[];
@@ -113,6 +126,14 @@ export interface BackupManifest {
   configurationsSnapshot: Record<string, any[]>;
   adminProfilesSnapshot: Array<{ id: string; email: string; role: string }>;
   verified: boolean;
+  operationId?: string;
+}
+
+export interface SmokeTestEvidence {
+  check: string;
+  expected: string;
+  observed: string;
+  result: 'PASS' | 'FAIL' | 'WARN';
 }
 
 export interface SmokeTestCheck {
@@ -122,6 +143,7 @@ export interface SmokeTestCheck {
   status: 'PASS' | 'FAIL' | 'WARN';
   details: string;
   durationMs: number;
+  evidence?: SmokeTestEvidence;
 }
 
 export interface SmokeTestReport {
@@ -165,4 +187,7 @@ export interface MigrationFullStatusResponse {
   logs: MigrationLogEntry[];
   auditHistory: MigrationAuditRecord[];
   activeError: string | null;
+  backendAvailable?: boolean;
+  operationId?: string;
+  infrastructureSwitchStatus?: 'NOT_ATTEMPTED' | 'RUNTIME_ONLY' | 'BLOCKED_REQUIRES_MANUAL_SECRETS_UPDATE' | 'COMPLETED';
 }

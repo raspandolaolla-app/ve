@@ -390,6 +390,20 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
         </div>
       </div>
 
+      {/* AVISO DE ENTORNO Y CAPACIDAD REAL (GITHUB PAGES / BACKEND) */}
+      {statusData && statusData.backendAvailable === false && (
+        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-3 shadow-md">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold text-amber-300">Entorno Estático Detectado / Servidor Backend No Conectado</p>
+            <p className="text-zinc-300 leading-relaxed">
+              GitHub Pages es un hosting estático que no puede ejecutar procesos Node.js, Express ni gestionar credenciales privilegiadas (service_role).
+              Para orquestar migraciones automáticas en vivo, configure la variable de entorno <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">VITE_BACKEND_URL</code> apuntando a su backend autorizado o ejecute el servidor de desarrollo local con <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">npm run dev</code>.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* MENSAJES DE ALERTA O ÉXITO */}
       {errorMsg && (
         <div className="p-4 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 text-sm flex items-start gap-3 shadow-md">
@@ -724,6 +738,48 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
               </span>
               <span className="font-mono text-zinc-400 text-[11px]">ID: {dryRunPlan.id.slice(0, 8)}</span>
             </div>
+
+            {/* Matriz Detallada de Comparación Objeto por Objeto */}
+            {dryRunPlan.comparisons && dryRunPlan.comparisons.length > 0 && (
+              <div className="border border-zinc-800 rounded-xl overflow-hidden text-xs">
+                <div className="p-3 bg-zinc-800/50 font-bold text-zinc-200 border-b border-zinc-800 flex items-center justify-between">
+                  <span>Matriz de Inspección Real de Objetos ({dryRunPlan.comparisons.length} evaluados)</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Origen vs Destino</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto divide-y divide-zinc-800/60">
+                  {dryRunPlan.comparisons.map((item, idx) => (
+                    <div key={idx} className="p-2.5 flex items-center justify-between gap-4 hover:bg-zinc-800/30">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-white truncate">{item.name}</span>
+                          <span className="text-[10px] uppercase px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 font-mono">
+                            {item.type}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 truncate">{item.notes}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                        <span
+                          className={`px-2 py-0.5 rounded font-bold ${
+                            item.classification === 'MATCH'
+                              ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
+                              : item.classification === 'CREATE'
+                              ? 'bg-blue-950/60 text-blue-400 border border-blue-500/30'
+                              : item.classification === 'UPDATE_REQUIRED'
+                              ? 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                              : item.classification === 'BLOCKED'
+                              ? 'bg-purple-950/60 text-purple-400 border border-purple-500/30'
+                              : 'bg-red-950/60 text-red-400 border border-red-500/30'
+                          }`}
+                        >
+                          {item.classification}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-6 text-center text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-xl">
@@ -856,7 +912,7 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
               {smokeReport.checks.map((c) => (
                 <div
                   key={c.id}
-                  className={`p-3 rounded-xl border flex items-start justify-between gap-3 ${
+                  className={`p-3 rounded-xl border flex flex-col justify-between gap-2.5 ${
                     c.status === 'PASS'
                       ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
                       : c.status === 'WARN'
@@ -864,16 +920,33 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
                       : 'bg-red-950/20 border-red-500/30 text-red-300'
                   }`}
                 >
-                  <div className="space-y-0.5">
-                    <div className="font-bold flex items-center gap-1.5">
-                      {c.status === 'PASS' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
-                      {c.status === 'WARN' && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
-                      {c.status === 'FAIL' && <XCircle className="w-3.5 h-3.5 text-red-400" />}
-                      <span>{c.name}</span>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold flex items-center gap-1.5">
+                        {c.status === 'PASS' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                        {c.status === 'WARN' && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                        {c.status === 'FAIL' && <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                        <span>{c.name}</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-zinc-500 shrink-0">{c.durationMs}ms</span>
                     </div>
                     <p className="text-[11px] text-zinc-400">{c.details}</p>
                   </div>
-                  <span className="font-mono text-[10px] text-zinc-500 shrink-0">{c.durationMs}ms</span>
+
+                  {/* Evidencia Estructurada Real */}
+                  {c.evidence && (
+                    <div className="p-2 rounded bg-zinc-900/90 border border-zinc-800 text-[10px] font-mono space-y-0.5 text-zinc-300">
+                      <div><strong className="text-zinc-500">CHECK:</strong> {c.evidence.check}</div>
+                      <div><strong className="text-zinc-500">EXPECTED:</strong> {c.evidence.expected}</div>
+                      <div className="text-zinc-300 truncate"><strong className="text-zinc-500">OBSERVED:</strong> {c.evidence.observed}</div>
+                      <div>
+                        <strong className="text-zinc-500">RESULT:</strong>{' '}
+                        <span className={c.evidence.result === 'PASS' ? 'text-emerald-400 font-bold' : c.evidence.result === 'WARN' ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
+                          {c.evidence.result}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -923,6 +996,26 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
           <div className="mt-4 text-[11px] text-zinc-400 flex items-center gap-2 border-t border-zinc-800/80 pt-3">
             <Lock className="w-3.5 h-3.5 text-amber-500/80" />
             El botón de activación se desbloqueará una vez que se completen exitosamente los Smoke Tests y la validación de integridad.
+          </div>
+        )}
+
+        {statusData?.isSwitched && statusData.infrastructureSwitchStatus === 'BLOCKED_REQUIRES_MANUAL_SECRETS_UPDATE' && (
+          <div className="mt-5 p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 space-y-2">
+            <div className="font-bold flex items-center gap-2 text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              Acción de Infraestructura Requerida (GitHub Secrets / CI/CD)
+            </div>
+            <p className="text-zinc-300 leading-relaxed">
+              El proceso backend Node.js en caliente ha sido conmutado exitosamente a la nueva base de datos.
+              Para que la WebApp servida estáticamente en GitHub Pages y los nuevos builds apunten permanentemente al nuevo proyecto,
+              un Super Admin o DevOps debe actualizar los siguientes secretos en el repositorio <strong className="text-white">raspandolaolla-app/ve</strong>:
+            </p>
+            <div className="p-2.5 bg-zinc-900 rounded-lg font-mono text-[11px] text-amber-300/90 space-y-1 border border-zinc-800">
+              <div>1. Ir a GitHub → Settings → Secrets and variables → Actions</div>
+              <div>2. Actualizar <span className="text-white font-bold">VITE_SUPABASE_URL</span> con la URL del nuevo proyecto</div>
+              <div>3. Actualizar <span className="text-white font-bold">VITE_SUPABASE_ANON_KEY</span> con la anon key del nuevo proyecto</div>
+              <div>4. Re-ejecutar el workflow de despliegue en GitHub Actions</div>
+            </div>
           </div>
         )}
       </div>

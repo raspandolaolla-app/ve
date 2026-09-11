@@ -22,49 +22,105 @@ function getAdminClient() {
 }
 
 /**
- * Middleware estricto de autorización para SUPER_ADMIN.
- * Valida sesión Supabase mediante JWT o correo autorizado inmutable.
+ * Middleware estricto de autorización para SUPER_ADMIN (5 capas de verificación).
+ * 1. Comprobación de cabecera Authorization: Bearer <token>.
+ * 2. Validación criptográfica del JWT con Supabase Auth.
+ * 3. Identidad obtenida exclusivamente del token validado por el servidor.
+ * 4. Comprobación autoritativa en tabla profiles: rol SUPER_ADMIN y cuenta activa.
+ * 5. Verificación secundaria inmutable en AUTHORIZED_SUPER_ADMIN_EMAILS.
+ * Queda PROHIBIDO confiar en cabeceras cliente como x-admin-email, body, cookies o parámetros URL.
  */
 async function requireSuperAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
-    let userEmail: string | null = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const client = getAdminClient();
-      if (client) {
-        const { data: { user }, error } = await client.auth.getUser(token);
-        if (!error && user && user.email) {
-          userEmail = user.email;
-        }
-      }
-    }
-
-    // Si no se obtuvo de Supabase pero viene cabecera de actor en contexto seguro
-    if (!userEmail) {
-      const headerActor = req.headers['x-admin-email'] as string;
-      if (headerActor && typeof headerActor === 'string') {
-        userEmail = headerActor;
-      }
-    }
-
-    // Regla inmutable de RBAC: Solo los correos protegidos en AUTHORIZED_SUPER_ADMIN_EMAILS pueden operar
-    if (!userEmail || !AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === userEmail!.toLowerCase())) {
-      res.status(403).json({
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
         success: false,
-        error: 'ACCESO_DENEGADO: El Centro de Migración de Supabase está restringido exclusivamente para SUPER_ADMIN.',
+        error: 'NO_AUTENTICADO: Se requiere un token JWT válido de Supabase (Authorization: Bearer <token>).',
       });
       return;
     }
 
-    // Adjuntar email verificado a la petición
-    (req as any).superAdminEmail = userEmail;
+    const token = authHeader.split(' ')[1];
+    if (!token || token.trim() === '') {
+      res.status(401).json({
+        success: false,
+        error: 'TOKEN_VACIO: Token de autorización no provisto.',
+      });
+      return;
+    }
+
+    const client = getAdminClient();
+    if (!client) {
+      res.status(500).json({
+        success: false,
+        error: 'ERROR_CONFIGURACION_SERVIDOR: Cliente administrativo de Supabase no disponible en el backend.',
+      });
+      return;
+    }
+
+    // 1 & 2. Validar token e identidad con Supabase Auth
+    const { data: authData, error: authErr } = await client.auth.getUser(token);
+    if (authErr || !authData || !authData.user || !authData.user.email) {
+      res.status(401).json({
+        success: false,
+        error: 'TOKEN_INVALIDO: Sesión de Supabase inválida o expirada.',
+      });
+      return;
+    }
+
+    const authenticatedEmail = authData.user.email.toLowerCase().trim();
+    const userId = authData.user.id;
+
+    // 3 & 4. Comprobar perfil en base de datos autoritativa
+    const { data: profile, error: profileErr } = await client
+      .from('profiles')
+      .select('id, email, role, is_active, account_status')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileErr || !profile) {
+      res.status(403).json({
+        success: false,
+        error: 'PERFIL_NO_AUTORIZADO: No se encontró un perfil registrado en el sistema para el usuario autenticado.',
+      });
+      return;
+    }
+
+    if (profile.role !== 'SUPER_ADMIN') {
+      res.status(403).json({
+        success: false,
+        error: 'ACCESO_DENEGADO: La cuenta autenticada no posee el rol SUPER_ADMIN en la base de datos.',
+      });
+      return;
+    }
+
+    if (profile.is_active === false || profile.account_status === 'SUSPENDED') {
+      res.status(403).json({
+        success: false,
+        error: 'CUENTA_SUSPENDIDA: La cuenta administrativa se encuentra inactiva o suspendida.',
+      });
+      return;
+    }
+
+    // 5. Allowlist inmutable de defensa en profundidad
+    const isAllowlisted = AUTHORIZED_SUPER_ADMIN_EMAILS.some((e) => e.toLowerCase() === authenticatedEmail);
+    if (!isAllowlisted) {
+      res.status(403).json({
+        success: false,
+        error: 'CORREO_NO_AUTORIZADO: El correo electrónico verificado no pertenece a la lista inmutable de administradores.',
+      });
+      return;
+    }
+
+    // Adjuntar datos verificados de forma segura a la petición
+    (req as any).superAdminUser = authData.user;
+    (req as any).superAdminEmail = authenticatedEmail;
     next();
   } catch (err: any) {
     res.status(500).json({
       success: false,
-      error: 'Error interno validando credenciales de autorización.',
+      error: `Error interno validando credenciales de autorización: ${err?.message || err}`,
     });
   }
 }

@@ -58,6 +58,7 @@ import { AdminMaintenanceTab } from './tabs/AdminMaintenanceTab';
 import { AdminReportsTab } from './tabs/AdminReportsTab';
 import { AdminLobbyContentTab } from './tabs/AdminLobbyContentTab';
 import { AdminTournamentsTab } from './tabs/AdminTournamentsTab';
+import { AdminMigrationTab } from './tabs/AdminMigrationTab';
 
 import {
   Shield,
@@ -101,6 +102,7 @@ import {
   Sparkles,
   ExternalLink,
   Trophy,
+  Database,
 } from 'lucide-react';
 
 type ToolCategory = 'all' | 'general' | 'users' | 'finances' | 'games' | 'system';
@@ -618,6 +620,16 @@ export function AdminView() {
         shortLabel: 'Mantenimiento',
         description: 'Control de parada operativa del sistema',
         icon: Wrench,
+        category: 'system',
+        categoryLabel: 'Seguridad & Sistema',
+        superAdminOnly: true,
+      },
+      {
+        id: 'supabase-migration',
+        label: 'Centro de Migración de Supabase',
+        shortLabel: 'Migración Supabase',
+        description: 'Preparación, dry-run, respaldo y migración segura a nuevo Supabase',
+        icon: Database,
         category: 'system',
         categoryLabel: 'Seguridad & Sistema',
         superAdminOnly: true,
@@ -1171,6 +1183,10 @@ export function AdminView() {
             {activeTab === 'reports' && <AdminReportsTab metrics={metrics} />}
 
             {activeTab === 'lobby-content' && <AdminLobbyContentTab />}
+
+            {activeTab === 'supabase-migration' && (
+              <AdminMigrationTab isSuperAdmin={isSuperAdmin} currentUserEmail={userEmail} />
+            )}
           </div>
         </main>
       </div>

@@ -853,10 +853,19 @@ export const GameContainer: React.FC<GameContainerProps> = ({
                 if (actionRow.user_id !== currentUserId) {
                   setAbandonNotice(isWin ? '🏆 ¡Tu rival ha abandonado la partida! Has ganado la victoria.' : '⚠️ Partida finalizada por abandono.');
                 }
+                if (pData.winnerId && !isSettledRef.current) {
+                  handleSettleGame(pData.winnerId, false, null);
+                  setShowResults(true);
+                }
               } else {
                 setAbandonNotice('⚠️ Un jugador se ha retirado de la mesa. La partida continúa.');
                 setTimeout(() => setAbandonNotice(null), 6000);
+                if (pData.nextTurnUserId) {
+                  setSession((prev) => prev ? { ...prev, currentTurnUserId: pData.nextTurnUserId } : prev);
+                  setGameState((prev: any) => prev ? { ...prev, currentTurnUserId: pData.nextTurnUserId, turnUserId: pData.nextTurnUserId } : prev);
+                }
               }
+              refreshPlayers();
               return;
             }
             const actionType = actionRow.action_type;

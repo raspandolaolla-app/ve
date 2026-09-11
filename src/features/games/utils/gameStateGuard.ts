@@ -171,10 +171,21 @@ export function normalizeRPSState(
     ...(fallbackInitialState?.lives || {}),
     ...(raw.lives || {}),
   };
-  const guaranteedChoices: Record<string, any> = {
-    ...(fallbackInitialState?.playerChoices || {}),
-    ...(raw.playerChoices || {}),
-  };
+  const rawRound = typeof raw.roundNumber === 'number' ? raw.roundNumber : (raw.round || 1);
+  const fallbackRound = fallbackInitialState?.roundNumber || fallbackInitialState?.round || 1;
+  const isSameRound = rawRound === fallbackRound;
+
+  const currentStatus = raw.status || (isSameRound ? fallbackInitialState?.status : null) || 'ROUND_COMMIT';
+  const currentPhase = raw.phase || (isSameRound ? fallbackInitialState?.phase : null) || 'selecting';
+  const isCommitPhase = currentStatus === 'ROUND_COMMIT' || currentPhase === 'selecting';
+
+  const guaranteedChoices: Record<string, any> = {};
+  if (isSameRound && fallbackInitialState?.playerChoices) {
+    Object.assign(guaranteedChoices, fallbackInitialState.playerChoices);
+  }
+  if (raw.playerChoices) {
+    Object.assign(guaranteedChoices, raw.playerChoices);
+  }
 
   if (players && players.length > 0) {
     players.forEach((p, idx) => {
@@ -189,9 +200,21 @@ export function normalizeRPSState(
         guaranteedLives[uId] = 3;
       }
       if (!guaranteedChoices[uId]) {
-        guaranteedChoices[uId] = { committed: false };
+        guaranteedChoices[uId] = { committed: false, choice: null };
       }
     });
+  }
+
+  // En fase de selección / commit, las elecciones son secretas (nulas) para ambos jugadores
+  if (isCommitPhase) {
+    for (const pId of Object.keys(guaranteedChoices)) {
+      const rawCommitted = raw.playerChoices?.[pId]?.committed;
+      const fallbackCommitted = isSameRound ? fallbackInitialState?.playerChoices?.[pId]?.committed : false;
+      guaranteedChoices[pId] = {
+        committed: typeof rawCommitted === 'boolean' ? rawCommitted : Boolean(fallbackCommitted),
+        choice: null,
+      };
+    }
   }
 
   const playerIds = Object.keys(guaranteedPlayerNames);
@@ -199,26 +222,33 @@ export function normalizeRPSState(
   const p2Id = raw.player2Id || fallbackInitialState?.player2Id || playerIds[1] || '';
 
   const normalizedState: RPSState = {
-    status: raw.status || fallbackInitialState?.status || 'ROUND_COMMIT',
+    status: currentStatus,
     player1Id: p1Id,
     player2Id: p2Id,
-    player1Choice: raw.player1Choice ?? fallbackInitialState?.player1Choice ?? null,
-    player2Choice: raw.player2Choice ?? fallbackInitialState?.player2Choice ?? null,
+    player1Choice: isCommitPhase
+      ? null
+      : (raw.player1Choice ?? (isSameRound ? fallbackInitialState?.player1Choice : null) ?? null),
+    player2Choice: isCommitPhase
+      ? null
+      : (raw.player2Choice ?? (isSameRound ? fallbackInitialState?.player2Choice : null) ?? null),
     player1Lives: typeof raw.player1Lives === 'number' ? raw.player1Lives : (guaranteedLives[p1Id] ?? 3),
     player2Lives: typeof raw.player2Lives === 'number' ? raw.player2Lives : (guaranteedLives[p2Id] ?? 3),
-    roundWinner: raw.roundWinner ?? fallbackInitialState?.roundWinner ?? null,
+    roundWinner: isCommitPhase
+      ? null
+      : (raw.roundWinner ?? (isSameRound ? fallbackInitialState?.roundWinner : null) ?? null),
     matchWinner: raw.matchWinner ?? fallbackInitialState?.matchWinner ?? null,
-    roundNumber: typeof raw.roundNumber === 'number' ? raw.roundNumber : (raw.round || fallbackInitialState?.roundNumber || fallbackInitialState?.round || 1),
-
-    round: typeof raw.round === 'number' ? raw.round : (fallbackInitialState?.round || 1),
+    roundNumber: rawRound,
+    round: rawRound,
     targetWins: typeof raw.targetWins === 'number' ? raw.targetWins : (fallbackInitialState?.targetWins || 3),
     scores: guaranteedScores,
     playerNames: guaranteedPlayerNames,
     lives: guaranteedLives,
     playerChoices: guaranteedChoices,
-    phase: raw.phase || fallbackInitialState?.phase || 'selecting',
+    phase: currentPhase,
     winnerUserId: raw.winnerUserId ?? fallbackInitialState?.winnerUserId ?? null,
-    roundWinnerUserId: raw.roundWinnerUserId ?? fallbackInitialState?.roundWinnerUserId ?? null,
+    roundWinnerUserId: isCommitPhase
+      ? null
+      : (raw.roundWinnerUserId ?? (isSameRound ? fallbackInitialState?.roundWinnerUserId : null) ?? null),
     history: Array.isArray(raw.history) ? raw.history : (fallbackInitialState?.history || []),
   };
 

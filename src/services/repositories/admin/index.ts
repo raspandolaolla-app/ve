@@ -14,3 +14,4 @@ export { AdminTablesRepository } from './AdminTablesRepository';
 export { AdminKYCRepository } from './AdminKYCRepository';
 export { AdminGameConfigRepository } from './AdminGameConfigRepository';
 export { AdminSupportRepository } from './AdminSupportRepository';
+export { AdminSupabaseMigrationRepository } from './AdminSupabaseMigrationRepository';

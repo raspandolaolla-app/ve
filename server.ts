@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import pg from "pg";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseMigrationRouter } from "./src/server/supabaseMigrationRouter";
 
 // Cargar variables de entorno
 dotenv.config();
@@ -174,6 +175,9 @@ app.get("/api/health", (req, res) => {
     supabaseConnected: Boolean(supabaseServerClient),
   });
 });
+
+// Centro de Migración de Supabase (Exclusivo SUPER_ADMIN)
+app.use("/api/admin/supabase-migration", supabaseMigrationRouter);
 
 // Función del Motor de Sorteo y Cuenta Regresiva de Bingo (Daemon con Backoff Inteligente)
 // Reduce el consumo de Egress en Supabase cuando no hay partidas activas

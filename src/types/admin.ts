@@ -29,7 +29,8 @@ export type AdminTabId =
   | 'security'
   | 'maintenance'
   | 'reports'
-  | 'lobby-content';
+  | 'lobby-content'
+  | 'supabase-migration';
 
 export interface EntryFeeItem {
   id: string;

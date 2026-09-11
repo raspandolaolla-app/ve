@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Trophy, Loader, Clock, AlertTriangle } from 'lucide-react';
 import type { RPSChoice, RPSState } from '../engines/RockPaperScissorsEngine';
@@ -126,38 +126,68 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
 
   // Auto-avanzar a la siguiente ronda después de mostrar el resultado
   const advanceTriggeredForRoundRef = useRef<number | null>(null);
+  const nextRoundTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const onNextRoundRef = useRef(onNextRound);
+  onNextRoundRef.current = onNextRound;
+  const onActionRef = useRef(onAction);
+  onActionRef.current = onAction;
+
+  const triggerNextRound = useCallback(() => {
+    if (nextRoundTimerRef.current) {
+      clearTimeout(nextRoundTimerRef.current);
+      nextRoundTimerRef.current = null;
+    }
+    setShowResult(false);
+    if (onNextRoundRef.current) {
+      onNextRoundRef.current();
+    } else if (onActionRef.current) {
+      onActionRef.current('NEXT_ROUND', {});
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isRevealing) {
+    if (!isRevealing || isGameOver) {
+      if (nextRoundTimerRef.current) {
+        clearTimeout(nextRoundTimerRef.current);
+        nextRoundTimerRef.current = null;
+      }
       advanceTriggeredForRoundRef.current = null;
       setShowResult(false);
       return;
     }
 
     if (isRevealing && state.roundWinner && !isGameOver) {
+      setShowResult(true);
       if (advanceTriggeredForRoundRef.current === currentRound) {
         return;
       }
       advanceTriggeredForRoundRef.current = currentRound;
-      setShowResult(true);
-      const timer = setTimeout(() => {
-        setShowResult(false);
-        if (onNextRound) {
-          onNextRound();
-        } else if (onAction) {
-          onAction('NEXT_ROUND', {});
-        }
+
+      if (nextRoundTimerRef.current) {
+        clearTimeout(nextRoundTimerRef.current);
+      }
+
+      nextRoundTimerRef.current = setTimeout(() => {
+        nextRoundTimerRef.current = null;
+        triggerNextRound();
       }, 2500);
-      return () => clearTimeout(timer);
     }
   }, [
     isRevealing,
     state.roundWinner,
     currentRound,
     isGameOver,
-    onNextRound,
-    onAction,
+    triggerNextRound,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (nextRoundTimerRef.current) {
+        clearTimeout(nextRoundTimerRef.current);
+        nextRoundTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleChoice = (choice: RPSChoice) => {
     // ✅ GUARD 1: Solo permitir elegir si estamos en fase de compromiso (ROUND_COMMIT / selecting)
@@ -287,6 +317,22 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Botón de avance a siguiente ronda */}
+      {isRevealing && !isGameOver && (
+        <div className="text-center mb-6">
+          <button
+            type="button"
+            id="rps-next-round-btn"
+            data-testid="rps-next-round"
+            onClick={triggerNextRound}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer hover:scale-105 active:scale-95"
+          >
+            <span>Siguiente Ronda ⏭️</span>
+            <span className="text-xs opacity-75">(auto en 2.5s)</span>
+          </button>
+        </div>
+      )}
 
       {/* Botones de selección y estado */}
       {isSelecting && !isGameOver && (

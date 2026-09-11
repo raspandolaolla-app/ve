@@ -2,10 +2,21 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 21:00:00 -07:00 (UTC 2026-09-11 04:00:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA UNIVERSAL DE ABANDONO AUTORITATIVO Y TURNOS 100% OPERATIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 21:55:00 -07:00 (UTC 2026-09-11 04:55:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 162_universal_authoritative_abandonment_system.sql (Sistema Universal Autoritativo de Detección y Resolución de Abandono Voluntario, Reasignación de Turnos Multijugador y Liquidación Financiera Inmediata)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) CENTRO DE MIGRACIÓN Y CAMBIO CONTROLADO DE SUPABASE (SUPER_ADMIN):
+   - Módulo Completo en Panel de Administración (`SUPER_ADMIN`):
+     * Creación de `src/types/supabaseMigration.ts` con definición del ciclo canónico de migración: IDLE, VALIDATING_TARGET, DRY_RUN, BACKUP_READY, SCHEMA_MIGRATION, DATA_MIGRATION, INTEGRITY_VALIDATION, FUNCTIONAL_VALIDATION, READY_TO_SWITCH, SWITCHING, COMPLETED, ROLLBACK.
+     * Implementación del servicio backend autoritativo `src/server/supabaseMigrationService.ts` para escaneo de 156 migraciones SQL oficiales, ejecución de esquema, migración selectiva Allowlist (solo administradores y configuraciones), ejecución de suite de Smoke Tests (PostgREST, RLS, Auth, Storage, RPCs, simulación RPS y motor universal de abandono 1v1 y multijugador).
+     * Enrutador Express `src/server/supabaseMigrationRouter.ts` montado en `/api/admin/supabase-migration` con autenticación RBAC para SUPER_ADMIN.
+     * Repositorio frontend `src/services/repositories/admin/AdminSupabaseMigrationRepository.ts`.
+     * Interfaz de usuario interactiva `src/features/admin/tabs/AdminMigrationTab.tsx` integrada en `AdminView.tsx` y `AdminTabId` (`src/types/admin.ts`).
+     * Descarga de script consolidado de migraciones SQL para ejecución idempotente directa en Supabase SQL Editor.
+     * Cero mutaciones sobre la instancia origen (100% de operaciones destructivas prohibidas sobre la base actual).
+     * Cumplimiento estricto del protocolo seguro de despliegue y control de versiones para GitHub `raspandolaolla-app/ve` en la rama `main`.
 
 0) SISTEMA UNIVERSAL Y AUTORITATIVO DE ABANDONO DE JUGADORES (MIGRACIÓN 162 + FRONTEND):
    - Motor Server-Authoritative (`abandon_game_secure` y `abandon_game_table_secure`):

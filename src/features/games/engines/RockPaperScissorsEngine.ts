@@ -173,6 +173,10 @@ export const processRPSAction = (state: RPSState, userId: string, choice: RPSCho
       newState.phase = 'match_ended';
       newState.currentTurnUserId = null;
       newState.turnUserId = null;
+    } else {
+      // Mientras ambos tengan vidas > 0, el match sigue activo
+      newState.matchWinner = null;
+      newState.winnerUserId = null;
     }
   }
 
@@ -297,6 +301,10 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
     }
 
     if (actionType === 'NEXT_ROUND') {
+      // Idempotencia: Si ya avanzó al nuevo turno/ronda (ROUND_COMMIT), es válido sin error
+      if (state.status === 'ROUND_COMMIT' || state.phase === 'selecting') {
+        return { valid: true };
+      }
       if (state.status !== 'ROUND_REVEAL' && state.phase !== 'round_result') {
         return { valid: false, reason: 'La ronda actual aún no ha mostrado su resultado.' };
       }
@@ -402,13 +410,23 @@ export class RockPaperScissorsEngine implements IGameEngine<RPSState> {
     }
 
     if (actionType === 'NEXT_ROUND') {
-      if (state.status === 'MATCH_ENDED' || Boolean(state.matchWinner)) {
+      if (state.status === 'MATCH_ENDED' || Boolean(state.matchWinner) || (state.player1Lives <= 0) || (state.player2Lives <= 0)) {
         return {
           newState: state,
-          isValid: false,
-          errorMessage: 'La partida ya ha concluido y no admite más rondas.',
+          isValid: true,
           isGameOver: true,
           winnerUserId: state.winnerUserId || null,
+          winnerTeamIndex: null,
+          isDraw: false,
+        };
+      }
+      // Idempotencia: Si ya está en la fase de selección de la siguiente ronda, no duplicar avance
+      if (state.status === 'ROUND_COMMIT' || state.phase === 'selecting') {
+        return {
+          newState: state,
+          isValid: true,
+          isGameOver: false,
+          winnerUserId: null,
           winnerTeamIndex: null,
           isDraw: false,
         };

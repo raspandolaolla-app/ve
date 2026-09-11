@@ -6,7 +6,7 @@
 # ============================================================================== #
 
 version: "1.0.0"
-updated_at: "2026-09-10T16:29:00.530Z"
+updated_at: "2026-09-11T04:02:50.194Z"
 default_policy: STRICT_PROTECTION
 
 allowed_states:
@@ -587,8 +587,8 @@ games:
     name: "Piedra, Papel o Tijera"
     status: LOCKED
     version: "1.0.0"
-    protected_at: "2026-09-10T16:29:00.530Z"
-    protected_commit: "certified-rev-mtvqsbg2"
+    protected_at: "2026-09-11T04:02:50.194Z"
+    protected_commit: "certified-rev-mtwfkl3m"
     protected_by: "Senior DevOps / AI Studio Automated Guard"
     unlocked_at: "2026-09-10T16:10:07.804Z"
     unlocked_by: "Authorized Maintainer / AI Studio"

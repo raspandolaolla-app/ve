@@ -36,6 +36,13 @@ export const RockPaperScissorsBoard: React.FC<RockPaperScissorsBoardProps> = ({
   const currentRound = state.roundNumber || state.round || 1;
   const [localCommittedRound, setLocalCommittedRound] = useState<number | null>(null);
 
+  // Limpiar el estado de elección local si la ronda del servidor ya avanzó
+  useEffect(() => {
+    if (localCommittedRound !== null && localCommittedRound < currentRound) {
+      setLocalCommittedRound(null);
+    }
+  }, [currentRound, localCommittedRound]);
+
   const isSelecting = state.status === 'ROUND_COMMIT' || state.phase === 'selecting';
   const isRevealing = (state.status === 'ROUND_REVEAL' || state.phase === 'round_result') && !isSelecting;
   const isGameOver =

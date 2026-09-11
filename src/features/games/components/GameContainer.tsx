@@ -751,7 +751,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
           const statusUpper = (updated?.status || '').toUpperCase();
           const stateStatus = String((updated?.current_state as any)?.status || '').toLowerCase();
-          const hasStateWinner = Boolean((updated?.current_state as any)?.winnerUserId);
+          const hasStateWinner = table.gameType === 'rock_paper_scissors'
+            ? Boolean(
+                ((updated?.current_state as any)?.player1Lives !== undefined && (updated?.current_state as any)?.player1Lives <= 0) ||
+                ((updated?.current_state as any)?.player2Lives !== undefined && (updated?.current_state as any)?.player2Lives <= 0) ||
+                (updated?.current_state as any)?.status === 'MATCH_ENDED' ||
+                (updated?.current_state as any)?.phase === 'match_ended'
+              )
+            : Boolean((updated?.current_state as any)?.winnerUserId);
           const isTerminated =
             (statusUpper === 'SETTLED' ||
              statusUpper === 'FINISHED' ||
@@ -839,6 +846,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({
             } else if (actionRow.action_type === 'TURN_EXPIRED') {
               setBotNotice('⏱️ Turno expirado por inactividad');
               setTimeout(() => setBotNotice(null), 5000);
+            } else if (actionRow.action_type === 'PLAYER_ABANDONED') {
+              const pData = actionRow.action_data || actionRow.payload || {};
+              const isWin = pData.winnerId && normId(pData.winnerId) === normId(currentUserId);
+              if (pData.isGameOver) {
+                if (actionRow.user_id !== currentUserId) {
+                  setAbandonNotice(isWin ? '🏆 ¡Tu rival ha abandonado la partida! Has ganado la victoria.' : '⚠️ Partida finalizada por abandono.');
+                }
+              } else {
+                setAbandonNotice('⚠️ Un jugador se ha retirado de la mesa. La partida continúa.');
+                setTimeout(() => setAbandonNotice(null), 6000);
+              }
+              return;
             }
             const actionType = actionRow.action_type;
             const actionData = actionRow.action_data || actionRow.payload || {};
@@ -963,7 +982,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({
 
         const st = String(freshSession.status || '').toUpperCase();
         const stateStatus = String((freshSession.currentState as any)?.status || '').toLowerCase();
-        const hasStateWinner = Boolean((freshSession.currentState as any)?.winnerUserId);
+        const hasStateWinner = table.gameType === 'rock_paper_scissors'
+          ? Boolean(
+              ((freshSession.currentState as any)?.player1Lives !== undefined && (freshSession.currentState as any)?.player1Lives <= 0) ||
+              ((freshSession.currentState as any)?.player2Lives !== undefined && (freshSession.currentState as any)?.player2Lives <= 0) ||
+              (freshSession.currentState as any)?.status === 'MATCH_ENDED' ||
+              (freshSession.currentState as any)?.phase === 'match_ended'
+            )
+          : Boolean((freshSession.currentState as any)?.winnerUserId);
         const isSessionDone =
           st === 'FINISHED' ||
           st === 'SETTLED' ||
@@ -1194,6 +1220,55 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   useEffect(() => {
     const isPractice = Boolean(table.config?.isPractice) || table.id.startsWith('practice_') || table.entryFee === 0;
     if (!isPractice || !gameState || isSettledRef.current) return;
+
+    // Para juegos simultáneos (RPS) en Modo Práctica
+    if (table.gameType === 'rock_paper_scissors') {
+      const isSelecting = (gameState as any)?.status === 'ROUND_COMMIT' || (gameState as any)?.phase === 'selecting';
+      if (!isSelecting) return;
+
+      const botPlayer = currentPlayers.find((p) => p.userId !== currentUserId);
+      if (!botPlayer) return;
+
+      const isBotP1 = botPlayer.userId === (gameState as any)?.player1Id;
+      const botAlreadyChose = isBotP1
+        ? Boolean((gameState as any)?.player1Choice)
+        : Boolean((gameState as any)?.player2Choice);
+      const botCommitted = Boolean((gameState as any)?.playerChoices?.[botPlayer.userId]?.committed);
+
+      if (botAlreadyChose || botCommitted) return;
+
+      const botTimer = setTimeout(() => {
+        if (engine.getBotMove) {
+          const botAction = engine.getBotMove(gameState, botPlayer.userId);
+          if (botAction) {
+            const result = engine.applyAction(gameState, botAction);
+            if (result.isValid) {
+              const sanitizedNext = engine.getSanitizedStateForPlayer
+                ? engine.getSanitizedStateForPlayer(result.newState, currentUserId)
+                : result.newState;
+              setGameState(sanitizedNext);
+
+              if (result.isGameOver && !isSettledRef.current) {
+                isSettledRef.current = true;
+                const winnerPlayer = currentPlayers.find((p) => p.userId === result.winnerUserId);
+                setSettlementResult({
+                  grossPool: 0,
+                  prizePool: 0,
+                  platformFee: 0,
+                  winnerName: result.isDraw
+                    ? 'Empate'
+                    : (result.winnerUserId === currentUserId ? '¡Tú Ganaste!' : (winnerPlayer?.displayName || 'Bot Ganador')),
+                  isWinner: result.winnerUserId === currentUserId,
+                  isDraw: Boolean(result.isDraw),
+                });
+              }
+            }
+          }
+        }
+      }, 750);
+
+      return () => clearTimeout(botTimer);
+    }
 
     const turnUser = (gameState as any)?.currentTurnUserId || (gameState as any)?.turnUserId || (gameState as any)?.activePlayerUserId;
     if (!turnUser || turnUser === currentUserId) return;
@@ -1611,14 +1686,17 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         const p2Id = gameState?.player2Id || currentPlayers[1]?.userId;
 
         // Verificación estricta contra null y undefined para el currentUserId específico
+        const isSelecting = gameState?.status === 'ROUND_COMMIT' || gameState?.phase === 'selecting';
         let hasChosen = false;
         if (gameState && currentUserId) {
-          if (currentUserId === p1Id) {
-            hasChosen = (gameState.player1Choice !== null && gameState.player1Choice !== undefined) ||
-              Boolean(gameState.playerChoices?.[currentUserId]?.committed);
-          } else if (currentUserId === p2Id) {
-            hasChosen = (gameState.player2Choice !== null && gameState.player2Choice !== undefined) ||
-              Boolean(gameState.playerChoices?.[currentUserId]?.committed);
+          if (isSelecting) {
+            hasChosen = Boolean(gameState.playerChoices?.[currentUserId]?.committed);
+          } else {
+            if (currentUserId === p1Id) {
+              hasChosen = gameState.player1Choice !== null && gameState.player1Choice !== undefined;
+            } else if (currentUserId === p2Id) {
+              hasChosen = gameState.player2Choice !== null && gameState.player2Choice !== undefined;
+            }
           }
         }
 
@@ -1812,9 +1890,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         onToggleImmersive={() => setIsImmersiveMode(!isImmersiveMode)}
         onBackClick={() => {
           if (gameState && !isSettledRef.current) {
-            if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
-              setShowAbandonModal(true);
-            }
+            setShowAbandonModal(true);
           } else {
             logTableExitDiagnostic({
               tableId: table.id,
@@ -1833,9 +1909,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           }
         }}
         onAbandonClick={() => {
-          if (window.confirm('⚠️ ¿Estás seguro que deseas abandonar la partida?\n\nPerderás tu entrada y tu rival ganará automáticamente.')) {
-            setShowAbandonModal(true);
-          }
+          setShowAbandonModal(true);
         }}
         abandonNotice={abandonNotice}
         errorMsg={errorMsg}

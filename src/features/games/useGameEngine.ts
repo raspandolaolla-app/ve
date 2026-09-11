@@ -148,8 +148,8 @@ export function useGameEngine({
           const action = actionPayload.new;
           seqNumRef.current = Math.max(seqNumRef.current, (action.sequence_number || 0) + 1);
 
-          // Si un turno expiró o se ejecutó movimiento de bot, recargar estado actualizado
-          if (action.action_type === 'TURN_EXPIRED' || action.action_type === 'BOT_MOVE') {
+          // Si un turno expiró, movimiento de bot o abandono de jugador, recargar estado actualizado
+          if (action.action_type === 'TURN_EXPIRED' || action.action_type === 'BOT_MOVE' || action.action_type === 'PLAYER_ABANDONED') {
             initSessionRef.current();
           }
         }

@@ -3,7 +3,7 @@
   "title": "Registro Central de Juegos Protegidos / Módulos Certificados",
   "version": "1.0.0",
   "description": "Configuración canónica de módulos protegidos y bloqueo de regresiones para RASPANDO LA OLLA 🇻🇪 / PulsoPLAY",
-  "updated_at": "2026-09-10T16:29:00.530Z",
+  "updated_at": "2026-09-11T04:02:50.194Z",
   "default_policy": "STRICT_PROTECTION",
   "allowed_states": [
     "ACTIVE",
@@ -721,8 +721,8 @@
       "name": "Piedra, Papel o Tijera",
       "status": "LOCKED",
       "version": "1.0.0",
-      "protected_at": "2026-09-10T16:29:00.530Z",
-      "protected_commit": "certified-rev-mtvqsbg2",
+      "protected_at": "2026-09-11T04:02:50.194Z",
+      "protected_commit": "certified-rev-mtwfkl3m",
       "protected_by": "Senior DevOps / AI Studio Automated Guard",
       "protected_paths": [
         "src/features/games/components/RockPaperScissorsGame.tsx",

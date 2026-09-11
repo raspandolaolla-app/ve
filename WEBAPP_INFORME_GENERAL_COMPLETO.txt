@@ -2,10 +2,18 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 21:55:00 -07:00 (UTC 2026-09-11 04:55:00)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 22:05:00 -07:00 (UTC 2026-09-11 05:05:00)
 ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 162_universal_authoritative_abandonment_system.sql (Sistema Universal Autoritativo de Detección y Resolución de Abandono Voluntario, Reasignación de Turnos Multijugador y Liquidación Financiera Inmediata)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) AUDITORÍA DE CAPACIDADES REALES DEL ENTORNO DE EJECUCIÓN (GOBERNANZA DE INFRAESTRUCTURA):
+   - Determinación Estricta de Capacidades y Separación Frontend vs Backend vs Infraestructura Externa:
+     * El navegador (frontend) NO ejecuta operaciones privilegiadas (service_role, SQL administrativo, Supabase Management API ni secretos de GitHub/Netlify).
+     * El backend de desarrollo/servidor Node.js opera en puerto 3000 con `SUPABASE_SERVICE_ROLE_KEY` del proyecto origen actual.
+     * Toda creación de nuevo proyecto de Supabase requiere aprovisionamiento previo en dashboard (no se asume Management API disponible).
+     * La aplicación de DDL sobre instancias nuevas se soporta mediante script idempotente consolidado de 156 migraciones (`supabase_consolidated_migrations.sql`) para ejecución en SQL Editor.
+     * La sincronización con GitHub oficial (`raspandolaolla-app/ve`, rama `main`) cuenta con capacidad real de git push verificada y validada en GitHub Actions.
 
 0) CENTRO DE MIGRACIÓN Y CAMBIO CONTROLADO DE SUPABASE (SUPER_ADMIN):
    - Módulo Completo en Panel de Administración (`SUPER_ADMIN`):

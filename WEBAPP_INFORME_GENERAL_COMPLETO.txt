@@ -2,10 +2,29 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 22:15:00 -07:00 (UTC 2026-09-11 05:15:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 23:05:00 -07:00 (UTC 2026-09-11 06:05:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / npm run audit:protected PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 162_universal_authoritative_abandonment_system.sql (Sistema Universal Autoritativo de Detección y Resolución de Abandono Voluntario, Reasignación de Turnos Multijugador y Liquidación Financiera Inmediata)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) OPTIMIZACIÓN RESPONSIVA DEL HEADER Y VISUALIZACIÓN ADAPTATIVA DEL SALDO (`Header.tsx`):
+   - Diagnóstico: En dispositivos móviles y pantallas estrechas, los montos en bolívares (especialmente cifras grandes o con decimales) sufrían solapamientos visuales o recortes contra el bloque de marca, la campana de notificaciones y el botón de perfil.
+   - Ajuste de Marca y Distribución Horizontal:
+     * En resoluciones móviles (<640px), el bloque de marca "RASPANDO LA OLLA 🇻🇪" se organizó en dos líneas compactas y elegantes con escala de fuente proporcionada, liberando más de 80px de ancho para los controles del usuario.
+     * En escritorio/tablet, se mantiene la disposición horizontal amplia con el lema "Juegos & Sorteos en Vivo".
+   - Píldora de Saldo Inteligente y Adaptativa (`#header-balance-pill`):
+     * Formateo numérico adaptativo `Intl.NumberFormat('es-VE')` con detección de magnitudes de cifras.
+     * Escala tipográfica responsiva: montos habituales (`text-xs` a `text-lg`), montos grandes >9 caracteres (`text-[11px]` a `text-base`), y montos extra grandes >12 caracteres (`text-[10px]` a `text-sm`) con kerning monoespaciado optimizado (`tracking-tight` / `tracking-tighter`).
+     * Sufijo de moneda `Bs.` desvinculado de la cadena numérica principal, garantizando que el símbolo no compita con los números ni empuje los controles.
+     * Preservación del botón de alternar visibilidad (ojo), botón de abonar directo y accesibilidad completa por teclado (`role="button"`, `tabIndex={0}`, `aria-label`).
+   - Verificación de Integridad:
+     * `npm run audit:protected` PASS (10 juegos bloqueados y seguros, 16 dependencias compartidas íntegras).
+     * `npm run lint` y `npm run build` ejecutados exitosamente con 0 errores de compilación TypeScript.
+
+0) REGLA PERMANENTE Y OBLIGATORIA DE PUBLICACIÓN Y MODO SEGURO DE DESPLIEGUE:
+   - Sincronización completa con el repositorio oficial `raspandolaolla-app/ve` en la rama canónica `main`.
+   - Flujo estricto de validación en 7 fases: Diagnóstico de diff -> Auditoría sin secretos -> Typecheck PASS -> Audit de juegos protegidos PASS -> Build de producción PASS -> Git commit atómico -> Push verificado a GitHub.
+   - Preservación de workflows de CI/CD (`main.yml`) y scripts de protección (`scripts/protected_games_guard.ts`).
 
 0) AUDITORÍA, CORRECCIÓN Y FINALIZACIÓN REAL DEL CENTRO DE MIGRACIÓN SUPABASE (PRINCIPIO DE VERACIDAD):
    - Eliminación Total de Mocks y Datos Simulados en Respaldo (`createBackup`):

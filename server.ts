@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import path from "path";
 import fs from "fs";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import pg from "pg";
 import dotenv from "dotenv";
@@ -13,6 +14,59 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Configuración de orígenes autorizados para CORS
+const defaultAllowedOrigins = [
+  "https://raspandolaolla-app.github.io",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+];
+
+const envAllowedOrigins = [
+  process.env.APP_URL,
+  process.env.VITE_APP_URL,
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : []),
+]
+  .filter(Boolean)
+  .map((url) => (url as string).trim().replace(/\/+$/, ""));
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envAllowedOrigins]));
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Permitir peticiones sin cabecera origin (curl, bots de monitoreo, SSR interno)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.trim().replace(/\/+$/, "");
+      const isAllowed = allowedOrigins.some(
+        (allowed) =>
+          normalizedOrigin === allowed ||
+          normalizedOrigin.startsWith(allowed) ||
+          normalizedOrigin.endsWith(".github.io")
+      );
+
+      if (isAllowed || process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Petición bloqueada para origen no autorizado: ${origin}`);
+      return callback(new Error(`Origen no permitido por política CORS: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+      "x-admin-email",
+    ],
+  })
+);
 
 // Habilitar parsing de JSON para peticiones entrantes
 app.use(express.json());

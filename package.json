@@ -23,6 +23,7 @@
     "@types/pg": "^8.23.1",
     "@vitejs/plugin-react": "^5.0.4",
     "chess.js": "^1.4.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "lucide-react": "^0.546.0",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",

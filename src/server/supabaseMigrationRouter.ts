@@ -9,6 +9,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { supabaseMigrationService } from './supabaseMigrationService';
 import { AUTHORIZED_SUPER_ADMIN_EMAILS } from '../utils/constants';
 import { createClient } from '@supabase/supabase-js';
+import { TargetCredentialsInput } from '../types/supabaseMigration';
 
 export const supabaseMigrationRouter = Router();
 
@@ -125,8 +126,36 @@ async function requireSuperAdminAuth(req: Request, res: Response, next: NextFunc
   }
 }
 
-// Aplicar middleware a todas las rutas de migración
+/**
+ * GET /ping: Comprobación pública no destructiva de conectividad del router de migración
+ */
+supabaseMigrationRouter.get('/ping', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'supabase-migration',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Aplicar middleware de autorización SUPER_ADMIN a todas las rutas operativas de migración
 supabaseMigrationRouter.use(requireSuperAdminAuth);
+
+/**
+ * Función auxiliar para resolver las credenciales del Supabase destino:
+ * Prioriza los valores provistos en el cuerpo de la petición (HTTPS cifrado),
+ * y utiliza las variables de entorno seguras del servidor como respaldo.
+ */
+function resolveTargetCredentials(body: any): TargetCredentialsInput {
+  const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = body || {};
+  return {
+    targetUrl: String(targetUrl || process.env.TARGET_SUPABASE_URL || '').trim(),
+    targetAnonKey: String(targetAnonKey || process.env.TARGET_SUPABASE_ANON_KEY || '').trim(),
+    targetServiceRoleKey: String(targetServiceRoleKey || process.env.TARGET_SUPABASE_SERVICE_ROLE_KEY || '').trim(),
+    targetDbUrl: targetDbUrl
+      ? String(targetDbUrl).trim()
+      : (process.env.TARGET_DATABASE_URL ? String(process.env.TARGET_DATABASE_URL).trim() : undefined),
+  };
+}
 
 /**
  * GET /status: Estado general del centro de migración
@@ -145,18 +174,10 @@ supabaseMigrationRouter.get('/status', async (req: Request, res: Response) => {
  */
 supabaseMigrationRouter.post('/validate-target', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
     const actorEmail = (req as any).superAdminEmail;
 
-    const result = await supabaseMigrationService.validateTarget(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
-      actorEmail
-    );
+    const result = await supabaseMigrationService.validateTarget(creds, actorEmail);
 
     res.json({ success: result.valid, result });
   } catch (err: any) {
@@ -169,18 +190,10 @@ supabaseMigrationRouter.post('/validate-target', async (req: Request, res: Respo
  */
 supabaseMigrationRouter.post('/dry-run', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
     const actorEmail = (req as any).superAdminEmail;
 
-    const plan = await supabaseMigrationService.runDryRun(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
-      actorEmail
-    );
+    const plan = await supabaseMigrationService.runDryRun(creds, actorEmail);
 
     res.json({ success: true, plan });
   } catch (err: any) {
@@ -206,18 +219,10 @@ supabaseMigrationRouter.post('/create-backup', async (req: Request, res: Respons
  */
 supabaseMigrationRouter.post('/execute-schema-migration', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
     const actorEmail = (req as any).superAdminEmail;
 
-    const result = await supabaseMigrationService.executeSchemaMigration(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
-      actorEmail
-    );
+    const result = await supabaseMigrationService.executeSchemaMigration(creds, actorEmail);
 
     res.json(result);
   } catch (err: any) {
@@ -230,18 +235,10 @@ supabaseMigrationRouter.post('/execute-schema-migration', async (req: Request, r
  */
 supabaseMigrationRouter.post('/execute-data-migration', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
     const actorEmail = (req as any).superAdminEmail;
 
-    const result = await supabaseMigrationService.executeDataMigration(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
-      actorEmail
-    );
+    const result = await supabaseMigrationService.executeDataMigration(creds, actorEmail);
 
     res.json(result);
   } catch (err: any) {
@@ -254,18 +251,10 @@ supabaseMigrationRouter.post('/execute-data-migration', async (req: Request, res
  */
 supabaseMigrationRouter.post('/run-smoke-tests', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
     const actorEmail = (req as any).superAdminEmail;
 
-    const report = await supabaseMigrationService.runSmokeTests(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
-      actorEmail
-    );
+    const report = await supabaseMigrationService.runSmokeTests(creds, actorEmail);
 
     res.json({ success: report.allPassed, report });
   } catch (err: any) {
@@ -278,16 +267,12 @@ supabaseMigrationRouter.post('/run-smoke-tests', async (req: Request, res: Respo
  */
 supabaseMigrationRouter.post('/switch-production', async (req: Request, res: Response) => {
   try {
-    const { targetUrl, targetAnonKey, targetServiceRoleKey, targetDbUrl, confirmationCode } = req.body || {};
+    const creds = resolveTargetCredentials(req.body);
+    const { confirmationCode } = req.body || {};
     const actorEmail = (req as any).superAdminEmail;
 
     const result = await supabaseMigrationService.switchProduction(
-      {
-        targetUrl: String(targetUrl || '').trim(),
-        targetAnonKey: String(targetAnonKey || '').trim(),
-        targetServiceRoleKey: String(targetServiceRoleKey || '').trim(),
-        targetDbUrl: targetDbUrl ? String(targetDbUrl).trim() : undefined,
-      },
+      creds,
       String(confirmationCode || ''),
       actorEmail
     );

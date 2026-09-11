@@ -304,13 +304,24 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
                 <Database className="w-6 h-6" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-black tracking-tight text-white">
                     Centro de Migración de Supabase
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     SUPER_ADMIN
                   </span>
+                  {statusData?.backendAvailable ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" title="Servidor backend Node.js enlazado y activo">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Backend Conectado
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/30" title="Hosting estático o VITE_BACKEND_URL no configurada">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      Backend No Configurado
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-zinc-400">
                   Transición segura, determinista y auditable hacia un nuevo proyecto Supabase con política Allowlist.
@@ -334,10 +345,10 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
             <button
               onClick={handleDownloadBundle}
               className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 hover:text-amber-200 text-xs font-semibold flex items-center gap-2 border border-amber-500/30 transition shadow-sm"
-              title="Descargar script SQL completo con todas las 156 migraciones"
+              title="Descargar script SQL consolidado con todas las migraciones"
             >
               <Download className="w-3.5 h-3.5 text-amber-400" />
-              Descargar SQL Completo (156)
+              Descargar SQL Completo ({statusData?.source?.totalMigrationsCount || 166})
             </button>
 
             {statusData?.isSwitched && (
@@ -634,8 +645,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={handleValidateTarget}
-              disabled={operating || !targetUrl}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-sm flex items-center gap-2 transition shadow-md disabled:opacity-50"
+              disabled={operating || !targetUrl || !statusData?.backendAvailable}
+              title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-sm flex items-center gap-2 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4" />
               Paso 1: Validar Conectividad Destino
@@ -673,8 +685,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
           </div>
           <button
             onClick={handleRunDryRun}
-            disabled={operating || !targetUrl}
-            className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-bold flex items-center gap-2 border border-amber-500/30 transition self-start sm:self-auto"
+            disabled={operating || !targetUrl || !statusData?.backendAvailable}
+            title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+            className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-bold flex items-center gap-2 border border-amber-500/30 transition self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Activity className="w-4 h-4 text-amber-400" />
             Ejecutar Dry-Run
@@ -821,8 +834,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
             </div>
             <button
               onClick={handleCreateBackup}
-              disabled={operating}
-              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition"
+              disabled={operating || !statusData?.backendAvailable}
+              title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Archive className="w-4 h-4 text-amber-400" />
               Generar Respaldo
@@ -834,7 +848,7 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Paso 4</span>
-                <span className="text-[11px] font-mono text-zinc-500">156 Migraciones</span>
+                <span className="text-[11px] font-mono text-zinc-500">166 Migraciones</span>
               </div>
               <h3 className="font-bold text-white text-sm">Migración de Esquema SQL</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -843,8 +857,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
             </div>
             <button
               onClick={handleMigrateSchema}
-              disabled={operating || !targetUrl}
-              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition"
+              disabled={operating || !targetUrl || !statusData?.backendAvailable}
+              title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Database className="w-4 h-4 text-amber-400" />
               Instalar Esquema en Destino
@@ -865,8 +880,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
             </div>
             <button
               onClick={handleMigrateData}
-              disabled={operating || !targetUrl}
-              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition"
+              disabled={operating || !targetUrl || !statusData?.backendAvailable}
+              title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+              className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Shield className="w-4 h-4 text-emerald-400" />
               Migrar Datos Permitidos
@@ -889,8 +905,9 @@ export const AdminMigrationTab: React.FC<AdminMigrationTabProps> = ({
           </div>
           <button
             onClick={handleRunSmokeTests}
-            disabled={operating || !targetUrl}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-md transition self-start sm:self-auto"
+            disabled={operating || !targetUrl || !statusData?.backendAvailable}
+            title={!statusData?.backendAvailable ? 'Requiere servidor backend Node.js activo (VITE_BACKEND_URL)' : undefined}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-md transition self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="w-4 h-4" />
             Ejecutar Matriz de Smoke Tests

@@ -2,10 +2,57 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 22:05:00 -07:00 (UTC 2026-09-11 05:05:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 23:05:00 -07:00 (UTC 2026-09-11 06:05:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / npm run audit:protected PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
 ÚLTIMA MIGRACIÓN INTEGRADA: 162_universal_authoritative_abandonment_system.sql (Sistema Universal Autoritativo de Detección y Resolución de Abandono Voluntario, Reasignación de Turnos Multijugador y Liquidación Financiera Inmediata)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) OPTIMIZACIÓN RESPONSIVA DEL HEADER Y VISUALIZACIÓN ADAPTATIVA DEL SALDO (`Header.tsx`):
+   - Diagnóstico: En dispositivos móviles y pantallas estrechas, los montos en bolívares (especialmente cifras grandes o con decimales) sufrían solapamientos visuales o recortes contra el bloque de marca, la campana de notificaciones y el botón de perfil.
+   - Ajuste de Marca y Distribución Horizontal:
+     * En resoluciones móviles (<640px), el bloque de marca "RASPANDO LA OLLA 🇻🇪" se organizó en dos líneas compactas y elegantes con escala de fuente proporcionada, liberando más de 80px de ancho para los controles del usuario.
+     * En escritorio/tablet, se mantiene la disposición horizontal amplia con el lema "Juegos & Sorteos en Vivo".
+   - Píldora de Saldo Inteligente y Adaptativa (`#header-balance-pill`):
+     * Formateo numérico adaptativo `Intl.NumberFormat('es-VE')` con detección de magnitudes de cifras.
+     * Escala tipográfica responsiva: montos habituales (`text-xs` a `text-lg`), montos grandes >9 caracteres (`text-[11px]` a `text-base`), y montos extra grandes >12 caracteres (`text-[10px]` a `text-sm`) con kerning monoespaciado optimizado (`tracking-tight` / `tracking-tighter`).
+     * Sufijo de moneda `Bs.` desvinculado de la cadena numérica principal, garantizando que el símbolo no compita con los números ni empuje los controles.
+     * Preservación del botón de alternar visibilidad (ojo), botón de abonar directo y accesibilidad completa por teclado (`role="button"`, `tabIndex={0}`, `aria-label`).
+   - Verificación de Integridad:
+     * `npm run audit:protected` PASS (10 juegos bloqueados y seguros, 16 dependencias compartidas íntegras).
+     * `npm run lint` y `npm run build` ejecutados exitosamente con 0 errores de compilación TypeScript.
+
+0) REGLA PERMANENTE Y OBLIGATORIA DE PUBLICACIÓN Y MODO SEGURO DE DESPLIEGUE:
+   - Sincronización completa con el repositorio oficial `raspandolaolla-app/ve` en la rama canónica `main`.
+   - Flujo estricto de validación en 7 fases: Diagnóstico de diff -> Auditoría sin secretos -> Typecheck PASS -> Audit de juegos protegidos PASS -> Build de producción PASS -> Git commit atómico -> Push verificado a GitHub.
+   - Preservación de workflows de CI/CD (`main.yml`) y scripts de protección (`scripts/protected_games_guard.ts`).
+
+0) AUDITORÍA, CORRECCIÓN Y FINALIZACIÓN REAL DEL CENTRO DE MIGRACIÓN SUPABASE (PRINCIPIO DE VERACIDAD):
+   - Eliminación Total de Mocks y Datos Simulados en Respaldo (`createBackup`):
+     * Lectura directa y autoritativa de las tablas de configuración en el Supabase origen (`system_settings`, `game_configurations`, `entry_fees`, `system_announcements`, `advertising_assets`, `content_banners`, `game_manuals`, `faq_items`).
+     * Lectura de perfiles de administradores autorizados en `profiles` filtrando por `role = 'SUPER_ADMIN'`.
+     * Serialización canónica y generación de Hash criptográfico SHA-256 e ID de respaldo único inmutable (`BK-[timestamp]-[hash]`).
+   - Dry-Run Real con Comparación Objeto por Objeto (`runDryRun`):
+     * Inspección en vivo de 36 tablas candidatas, extensiones y procedimientos RPC entre Origen y Destino.
+     * Clasificación determinista de cada objeto en: `MATCH` (presente y coincidente), `CREATE` (requerido a crear), `UPDATE_REQUIRED` (ajuste necesario), `CONFLICT` (incompatibilidad) o `BLOCKED` (limitación de entorno).
+   - Smoke Tests con Comprobación y Evidencia Estructurada Real (`SmokeTestEvidence`):
+     * Eliminación de todos los estados estáticos simulados.
+     * Generación de evidencia detallada (`check`, `expected`, `observed`, `result`) para:
+       1. Conectividad PostgREST (`SELECT count FROM public.profiles`).
+       2. Auditoría RLS con cliente anónimo sobre `public.wallets` (bloqueo verificado).
+       3. Integridad de Procedimientos Almacenados (RPC) con ejecución de prueba.
+       4. Supabase Auth Admin (`auth.admin.listUsers`).
+       5. Supabase Storage (`storage.listBuckets`).
+       6. Máquina de estados determinista de RPS (3 -> 2 -> 1 -> 0 vidas y resolución de victoria).
+       7. Motor universal de abandono (1v1 con victoria inmediata vs multijugador con turno avanzado).
+   - Persistencia de Estado y Bloqueo Distribuido Seguro:
+     * Archivo de persistencia higienizado en `data/migration/migration_state.json` con `operation_id`, checkpoints y control de concurrencia mediante lease de bloqueo de 10 minutos.
+     * Garantía de seguridad: Cero almacenamiento de contraseñas, claves anon o service role keys en disco.
+   - Honestidad de Infraestructura y Transparencia con GitHub Actions:
+     * Separación explícita entre conmutación en caliente de proceso Node.js vs cambio persistente de infraestructura.
+     * Guía instructiva integrada para DevOps con los pasos de actualización en GitHub Secrets (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+   - Hardening de Seguridad y Autenticación en 5 Capas (`supabaseMigrationRouter.ts`):
+     * Eliminación total de encabezados cliente no autenticados (`x-admin-email`).
+     * Validación estricta de Bearer Token JWT, consulta a Supabase Auth, verificación en tabla `profiles` y cotejo contra `AUTHORIZED_SUPER_ADMIN_EMAILS`.
 
 0) AUDITORÍA DE CAPACIDADES REALES DEL ENTORNO DE EJECUCIÓN (GOBERNANZA DE INFRAESTRUCTURA):
    - Determinación Estricta de Capacidades y Separación Frontend vs Backend vs Infraestructura Externa:

@@ -42,12 +42,14 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
           VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
           VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || secrets.VITE_BACKEND_URL || '' }}
         run: |
           echo "=== DIAGNÓSTICO SEGURO DE VARIABLES PÚBLICAS ==="
           [ -n "$VITE_SUPABASE_URL" ] && echo "VITE_SUPABASE_URL = PRESENT" || echo "VITE_SUPABASE_URL = MISSING"
           [ -n "$VITE_SUPABASE_ANON_KEY" ] && echo "VITE_SUPABASE_ANON_KEY = PRESENT" || echo "VITE_SUPABASE_ANON_KEY = MISSING"
           [ -n "$VITE_APP_URL" ] && echo "VITE_APP_URL = PRESENT" || echo "VITE_APP_URL = MISSING"
           [ -n "$VITE_APP_BASE_PATH" ] && echo "VITE_APP_BASE_PATH = PRESENT" || echo "VITE_APP_BASE_PATH = MISSING"
+          [ -n "$VITE_BACKEND_URL" ] && echo "VITE_BACKEND_URL = PRESENT" || echo "VITE_BACKEND_URL = NOT CONFIGURED (STATIC HOSTING MODE)"
           echo "==============================================="
 
       - name: Run Protected Games Guard Audit
@@ -59,6 +61,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
           VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
           VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || secrets.VITE_BACKEND_URL || '' }}
         run: npm run typecheck
 
       - name: Build Web Application
@@ -67,6 +70,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
           VITE_APP_URL: ${{ vars.VITE_APP_URL || secrets.VITE_APP_URL || 'https://raspandolaolla-app.github.io' }}
           VITE_APP_BASE_PATH: ${{ vars.VITE_APP_BASE_PATH || secrets.VITE_APP_BASE_PATH || '/ve/' }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || secrets.VITE_BACKEND_URL || '' }}
         run: npm run build
 
       - name: Copy 404 fallback for Single Page Application

@@ -11,6 +11,7 @@ import {
   LogOut,
   AlertTriangle,
   Clock,
+  BookOpen,
 } from 'lucide-react';
 import type { GameTable, TablePlayer } from '../../../types/tables';
 import { formatBolivares, getGameDisplayName } from '../../../utils/formatters';
@@ -26,6 +27,7 @@ export interface GameHeaderProps {
   onToggleImmersive: () => void;
   onBackClick: () => void;
   onAbandonClick: () => void;
+  onOpenRules?: () => void;
   abandonNotice?: string | null;
   errorMsg?: string | null;
   botNotice?: string | null;
@@ -42,6 +44,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
   onToggleImmersive,
   onBackClick,
   onAbandonClick,
+  onOpenRules,
   abandonNotice,
   errorMsg,
   botNotice,
@@ -101,6 +104,17 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
               <span className="hidden sm:inline">RECONECTANDO</span>
               <span className="sm:hidden font-bold">OFF</span>
             </div>
+          )}
+
+          {onOpenRules && (
+            <button
+              id="game-rules-header-btn"
+              onClick={onOpenRules}
+              className="p-1.5 sm:p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-amber-400 transition-colors shrink-0 touch-manipulation cursor-pointer"
+              title="Manual Oficial, Reglas y Video Tutorial"
+            >
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            </button>
           )}
 
           <button

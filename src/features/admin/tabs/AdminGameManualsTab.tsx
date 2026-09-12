@@ -11,9 +11,12 @@ import {
   Award,
   ShieldAlert,
   Clock,
-  Sparkles
+  Sparkles,
+  Video,
 } from 'lucide-react';
 import { AdminRepository } from '../../../services/repositories/AdminRepository';
+import { AdminVideoTutorialModal } from '../components/AdminVideoTutorialModal';
+import { GameTutorialPlayer } from '../../../components/video/GameTutorialPlayer';
 import type { GameConfigItem, GameManualItem } from '../../../types/admin';
 
 export const AdminGameManualsTab: React.FC = () => {
@@ -24,6 +27,7 @@ export const AdminGameManualsTab: React.FC = () => {
   const [selectedGameId, setSelectedGameId] = useState<string>('domino_venezolano');
   const [editingManual, setEditingManual] = useState<GameManualItem | null>(null);
   const [editingConfig, setEditingConfig] = useState<GameConfigItem | null>(null);
+  const [videoModalOpen, setVideoModalOpen] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,14 +204,24 @@ export const AdminGameManualsTab: React.FC = () => {
                   </h3>
                   <p className="text-xs text-slate-400">ID del Juego: <code className="font-mono text-amber-400/80">{editingConfig.gameId}</code></p>
                 </div>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-sm flex items-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-50 transition"
-                >
-                  <Save className="w-4 h-4" />
-                  {saving ? 'Guardando...' : 'Guardar Todo'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVideoModalOpen(true)}
+                    className="px-4 py-2.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-bold rounded-xl text-sm flex items-center gap-2 border border-sky-500/30 transition cursor-pointer"
+                  >
+                    <Video className="w-4 h-4 text-sky-400" />
+                    <span>Video Tutorial</span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-sm flex items-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-50 transition cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Guardando...' : 'Guardar Todo'}
+                  </button>
+                </div>
               </div>
 
               {/* Parámetros Operativos del Juego */}
@@ -286,6 +300,50 @@ export const AdminGameManualsTab: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Sección de Video Tutorial Oficial */}
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-sky-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      <Video className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        Video Tutorial Oficial (YouTube / TikTok / Instagram)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Permite a los jugadores ver cómo jugar directamente en el modal de reglas
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVideoModalOpen(true)}
+                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Configurar Video</span>
+                  </button>
+                </div>
+
+                {editingConfig?.tutorialVideo?.enabled && editingConfig?.tutorialVideo?.url ? (
+                  <div className="pt-2">
+                    <GameTutorialPlayer
+                      video={editingConfig.tutorialVideo}
+                      gameTitle={editingConfig.name}
+                      showDetails={true}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-900/60 border border-dashed border-slate-800 text-center text-xs text-slate-400">
+                    <p>No hay un video tutorial asociado a este juego todavía.</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Haz clic en &quot;Configurar Video&quot; para asociar un tutorial de YouTube, TikTok o Instagram Reels.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Secciones del Manual Oficial */}
@@ -388,6 +446,16 @@ export const AdminGameManualsTab: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Modal de Configuración de Video Tutorial */}
+      <AdminVideoTutorialModal
+        isOpen={videoModalOpen}
+        onClose={() => setVideoModalOpen(false)}
+        initialGameId={selectedGameId}
+        onSuccess={() => {
+          loadData();
+        }}
+      />
     </div>
   );
 };

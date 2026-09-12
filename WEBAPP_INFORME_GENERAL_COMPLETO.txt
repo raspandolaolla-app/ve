@@ -2,101 +2,112 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-10 23:05:00 -07:00 (UTC 2026-09-11 06:05:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / npm run audit:protected PASS / Build de producción exitoso / MODO SEGURO DE DESPLIEGUE ACTIVO)
-ÚLTIMA MIGRACIÓN INTEGRADA: 162_universal_authoritative_abandonment_system.sql (Sistema Universal Autoritativo de Detección y Resolución de Abandono Voluntario, Reasignación de Turnos Multijugador y Liquidación Financiera Inmediata)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-11 18:35:00 -07:00 (UTC 2026-09-12 01:35:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA DE VIDEOS TUTORIALES Y MANUALES OFICIALES IMPLEMENTADO EXITOSAMENTE)
+ÚLTIMA MIGRACIÓN INTEGRADA: 158_rps_turn_coherence_and_timeout_delegation.sql (Coherencia de turnos en juegos simultáneos y resolución autoritativa de timeout en Piedra, Papel o Tijera)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
 
-0) OPTIMIZACIÓN RESPONSIVA DEL HEADER Y VISUALIZACIÓN ADAPTATIVA DEL SALDO (`Header.tsx`):
-   - Diagnóstico: En dispositivos móviles y pantallas estrechas, los montos en bolívares (especialmente cifras grandes o con decimales) sufrían solapamientos visuales o recortes contra el bloque de marca, la campana de notificaciones y el botón de perfil.
-   - Ajuste de Marca y Distribución Horizontal:
-     * En resoluciones móviles (<640px), el bloque de marca "RASPANDO LA OLLA 🇻🇪" se organizó en dos líneas compactas y elegantes con escala de fuente proporcionada, liberando más de 80px de ancho para los controles del usuario.
-     * En escritorio/tablet, se mantiene la disposición horizontal amplia con el lema "Juegos & Sorteos en Vivo".
-   - Píldora de Saldo Inteligente y Adaptativa (`#header-balance-pill`):
-     * Formateo numérico adaptativo `Intl.NumberFormat('es-VE')` con detección de magnitudes de cifras.
-     * Escala tipográfica responsiva: montos habituales (`text-xs` a `text-lg`), montos grandes >9 caracteres (`text-[11px]` a `text-base`), y montos extra grandes >12 caracteres (`text-[10px]` a `text-sm`) con kerning monoespaciado optimizado (`tracking-tight` / `tracking-tighter`).
-     * Sufijo de moneda `Bs.` desvinculado de la cadena numérica principal, garantizando que el símbolo no compita con los números ni empuje los controles.
-     * Preservación del botón de alternar visibilidad (ojo), botón de abonar directo y accesibilidad completa por teclado (`role="button"`, `tabIndex={0}`, `aria-label`).
-   - Verificación de Integridad:
-     * `npm run audit:protected` PASS (10 juegos bloqueados y seguros, 16 dependencias compartidas íntegras).
-     * `npm run lint` y `npm run build` ejecutados exitosamente con 0 errores de compilación TypeScript.
+0) SISTEMA DE VIDEOS TUTORIALES PARA JUEGOS (YOUTUBE, TIKTOK, INSTAGRAM REELS) [PROMPT MAESTRO]:
+   - Arquitectura y Almacenamiento Seguro (Cero Descargas / Cero Polución de Storage):
+     * De acuerdo con los principios de no almacenamiento de videos de terceros ni polución de Supabase Storage, la configuración se aloja de forma estructurada en la columna JSONB `config` de la tabla `game_configurations` bajo la clave `tutorialVideo`.
+     * Interfaz canónica `GameTutorialVideo` (`src/types/admin.ts`):
+       - `url`: Enlace original suministrado por el administrador.
+       - `platform`: Identificador de origen ('youtube' | 'tiktok' | 'instagram' | 'other').
+       - `orientation`: Formato visual ('horizontal' [16:9] | 'vertical' [9:16]).
+       - `embedUrl`: URL sanitizada y estandarizada para incrustación oficial (sin tracking, utilizando youtube-nocookie o reproductores oficiales).
+       - `videoId`: ID único del video extraído mediante expresiones regulares auditadas.
+       - `enabled`: Interruptor booleano para activar o desactivar la visualización del video sin perder la URL configurada.
+       - `title` / `notes`: Metadatos descriptivos opcionales del tutorial.
+       - `updatedAt`: Marca de tiempo ISO de la última modificación.
+   - Seguridad y Sanitización Antimanipulación:
+     * Utilidad `src/utils/videoTutorial.ts`:
+       - Parser robusto y seguro para YouTube (estándar, shorts, embeds, youtu.be), TikTok (@usuario/video/ID o v/ID) e Instagram Reels/Posts (/reel/ID o /p/ID).
+       - Prohibición estricta de `dangerouslySetInnerHTML`.
+       - Bloqueo de URLs que no pertenezcan a los dominios oficiales de las plataformas permitidas.
+     * Reproductor `GameTutorialPlayer.tsx`:
+       - Iframe blindado con `sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"` y `referrerPolicy="no-referrer"`.
+       - `loading="lazy"` para rendimiento óptimo.
+       - Controles de fallback: Botón directo "Abrir en plataforma oficial" si el navegador o la plataforma de origen restringe cookies o reproducción externa.
+   - Herramientas Administrativas ("Perfil Admin → Herramienta Juegos"):
+     * `AdminVideoTutorialModal.tsx`:
+       - Interfaz completa para administradores: selector de juego, campo para pegar URL, auto-detección instantánea de plataforma y orientación con capacidad de modificación manual.
+       - Vista previa interactiva en tiempo real antes de guardar.
+       - Guardado seguro a través de `AdminGameConfigRepository.ts` (`saveGameTutorialVideo`), que preserva atómicamente todos los demás parámetros de juego (apuestas, límites, estado operativo).
+     * Integración en `AdminGamesTab.tsx`: Botón "Video Tutorial" directo en la cabecera general y en cada tarjeta de juego del catálogo.
+     * Integración en `AdminGameManualsTab.tsx`: Botón de acción en la barra de herramientas y sección visual destacada con el reproductor interactivo en el formulario de edición de manuales.
+   - Experiencia del Jugador (Juego → Manual / Cómo Jugar / Instrucciones):
+     * `GameRulesModal.tsx`:
+       - Carga en tiempo real de los datos del manual (`game_manuals`) y del video tutorial (`game_configurations.config.tutorialVideo`).
+       - Conmutador intuitivo de vistas ("📖 Instrucciones Escritas" y "🎬 Video Tutorial Oficial [PLATAFORMA]").
+       - Adaptabilidad geométrica: En modo horizontal (16:9) se presenta centrado y con proporciones cinematográficas; en modo vertical (9:16) se enmarca en formato smartphone con proporciones verticales optimizadas sin cortes.
+       - Fallback limpio y estricto: Si un juego no tiene video tutorial asociado o está deshabilitado, el modal se comporta con las instrucciones escritas habituales sin mostrar marcos vacíos, reproductores rotos ni advertencias espurias.
+     * `GameHeader.tsx` & `GameContainer.tsx`:
+       - Se incorporó un botón de acceso directo (`BookOpen`) en la barra superior de juego, permitiendo a los jugadores consultar el manual oficial y ver el video tutorial en cualquier momento sin abandonar la partida.
+   - Verificación de Calidad y No Regresión:
+     * Typecheck & Lint (`npm run lint` / `tsc --noEmit`): PASS (0 errores).
+     * Compilación y empaquetado de producción (`npm run build`): PASS (dist/ generado correctamente).
+     * Preservación absoluta de la lógica de Wallet, Ledger, RPCs de liquidación y motores multijugador existentes.
 
-0) REGLA PERMANENTE Y OBLIGATORIA DE PUBLICACIÓN Y MODO SEGURO DE DESPLIEGUE:
-   - Sincronización completa con el repositorio oficial `raspandolaolla-app/ve` en la rama canónica `main`.
-   - Flujo estricto de validación en 7 fases: Diagnóstico de diff -> Auditoría sin secretos -> Typecheck PASS -> Audit de juegos protegidos PASS -> Build de producción PASS -> Git commit atómico -> Push verificado a GitHub.
-   - Preservación de workflows de CI/CD (`main.yml`) y scripts de protección (`scripts/protected_games_guard.ts`).
+0) DIAGNÓSTICO FORENSE Y CORRECCIÓN QUIRÚRGICA DEL SISTEMA DE TURNOS (PIEDRA, PAPEL O TIJERA / RPS):
+   - Diagnóstico Forense de Causa Raíz (¿Por qué currentTurnUserId se volvía null?):
+     * Arquitectura Prevista vs. Divergencia en start_game_session_secure:
+       En Piedra, Papel o Tijera (RPS), el modelo es COMMIT-REVEAL simultáneo (ambos jugadores eligen al mismo tiempo sin alternancia de turnos).
+       El motor local RockPaperScissorsEngine.ts y GameContainer.tsx fueron diseñados explícitamente para mantener currentTurnUserId = null y turnUserId = null en todo momento.
+       Sin embargo, en la base de datos, la RPC start_game_session_secure (migraciones 156 y 157) ejecutaba una asignación ciega que, si no se especificaba turno, asignaba v_effective_turn_user_id := (v_players->0->>'user_id')::uuid; (el Jugador 1).
+       Por lo tanto, la RPC devolvía transitoriamente currentTurnUserId = <uuid_jugador_1>, pero de inmediato GameContainer.tsx aplicaba el guardián isSimultaneousGame forzándolo a null, y la subsiguiente llamada de jugada submit_rps_choice_secure persistía current_turn_user_id = NULL en la base de datos. Esto causaba la discrepancia observada en los registros.
+   - Diagnóstico Forense del Mecanismo de Avance tras el Deadline (¿Quién avanza la ronda?):
+     * El avance de rondas tras vencer el deadline (15 segundos) se delegaba exclusivamente a la función de fondo process_expired_turns (cron en migración 156), pero la función interactiva expire_game_turn_secure retornaba un error 'NO_ACTIVE_TURN' debido a que current_turn_user_id era NULL.
+     * En el frontend, RockPaperScissorsBoard.tsx poseía un auto-avance puramente cosmético de 2.5s tras el reveal (ROUND_REVEAL) para emitir NEXT_ROUND, pero la pantalla no mostraba el temporizador de cuenta regresiva de los 15s de la ronda de selección ni permitía a un jugador que ya jugó forzar la liquidación por inactividad del rival.
+   - Solución Quirúrgica Implementada:
+     1. Migración 158 (158_rps_turn_coherence_and_timeout_delegation.sql):
+        * start_game_session_secure: Se incorporó la condición v_is_simultaneous para juegos simultáneos ('rock_paper_scissors', 'rps', 'piedra_papel_tijera', 'bingo', 'polla'). Para estos juegos, v_effective_turn_user_id es estrictamente NULL, evitando la inyección espuria del Jugador 1 y garantizando sincronía total desde el primer instante.
+        * expire_game_turn_secure: Se implementó la rama autoritativa para juegos simultáneos ('ROCK_PAPER_SCISSORS', 'RPS', 'PIEDRA_PAPEL_TIJERA'). Al vencer el deadline de 15 segundos:
+          - Si un jugador envió su jugada secreta (game_session_secrets / committed) y el rival no, el jugador que cumplió gana inmediatamente por inactividad/abandono del rival y la partida se liquida autoritativamente con el modelo 90/10 mediante universal_settle_game_session.
+          - Si ninguno de los dos jugadores envió su jugada, la partida se cancela y se reembolsa al 100% mediante refund_game_session.
+     2. GameRepository.ts:
+        * Incorporado método canónico isSimultaneousGame.
+        * getActiveSession, getSessionById, getLatestSession y createOrGetSession mapean y serializan de forma determinista currentTurnUserId como undefined/null para juegos simultáneos, garantizando coherencia absoluta entre logs y estado reactivo.
+     3. RockPaperScissorsBoard.tsx:
+        * Se añadió el temporizador visual sincronizado con turnExpiresAt durante la fase ROUND_COMMIT / selecting, con advertencia animada en los últimos 5 segundos y disparo de onTimeout al llegar a cero.
+     4. GameContainer.tsx:
+        * Se conectó turnExpiresAt y onTimeout={handleOpponentTimeout} a RockPaperScissorsBoard, permitiendo que el cliente invoque la verificación autoritativa en el servidor ante vencimiento del temporizador.
+     5. Suite de Validación Automatizada (scripts/test_rps_engine.ts):
+        * Verificación de invariantes: ciclo de vida completo de RPS, persistencia estricta de currentTurnUserId === null en todas las fases (ROUND_COMMIT, ROUND_REVEAL, NEXT_ROUND, MATCH_ENDED), resolución de empates, deducción de vidas y victoria final.
+   - Verificaciones de Integridad:
+     * scripts/test_rps_engine.ts: PASS (todas las aserciones de invariantes superadas).
+     * npm run typecheck: PASS (0 errores).
+     * npm run lint: PASS (0 errores).
+     * compile_applet: PASS (compilación exitosa).
 
-0) AUDITORÍA, CORRECCIÓN Y FINALIZACIÓN REAL DEL CENTRO DE MIGRACIÓN SUPABASE (PRINCIPIO DE VERACIDAD):
-   - Eliminación Total de Mocks y Datos Simulados en Respaldo (`createBackup`):
-     * Lectura directa y autoritativa de las tablas de configuración en el Supabase origen (`system_settings`, `game_configurations`, `entry_fees`, `system_announcements`, `advertising_assets`, `content_banners`, `game_manuals`, `faq_items`).
-     * Lectura de perfiles de administradores autorizados en `profiles` filtrando por `role = 'SUPER_ADMIN'`.
-     * Serialización canónica y generación de Hash criptográfico SHA-256 e ID de respaldo único inmutable (`BK-[timestamp]-[hash]`).
-   - Dry-Run Real con Comparación Objeto por Objeto (`runDryRun`):
-     * Inspección en vivo de 36 tablas candidatas, extensiones y procedimientos RPC entre Origen y Destino.
-     * Clasificación determinista de cada objeto en: `MATCH` (presente y coincidente), `CREATE` (requerido a crear), `UPDATE_REQUIRED` (ajuste necesario), `CONFLICT` (incompatibilidad) o `BLOCKED` (limitación de entorno).
-   - Smoke Tests con Comprobación y Evidencia Estructurada Real (`SmokeTestEvidence`):
-     * Eliminación de todos los estados estáticos simulados.
-     * Generación de evidencia detallada (`check`, `expected`, `observed`, `result`) para:
-       1. Conectividad PostgREST (`SELECT count FROM public.profiles`).
-       2. Auditoría RLS con cliente anónimo sobre `public.wallets` (bloqueo verificado).
-       3. Integridad de Procedimientos Almacenados (RPC) con ejecución de prueba.
-       4. Supabase Auth Admin (`auth.admin.listUsers`).
-       5. Supabase Storage (`storage.listBuckets`).
-       6. Máquina de estados determinista de RPS (3 -> 2 -> 1 -> 0 vidas y resolución de victoria).
-       7. Motor universal de abandono (1v1 con victoria inmediata vs multijugador con turno avanzado).
-   - Persistencia de Estado y Bloqueo Distribuido Seguro:
-     * Archivo de persistencia higienizado en `data/migration/migration_state.json` con `operation_id`, checkpoints y control de concurrencia mediante lease de bloqueo de 10 minutos.
-     * Garantía de seguridad: Cero almacenamiento de contraseñas, claves anon o service role keys en disco.
-   - Honestidad de Infraestructura y Transparencia con GitHub Actions:
-     * Separación explícita entre conmutación en caliente de proceso Node.js vs cambio persistente de infraestructura.
-     * Guía instructiva integrada para DevOps con los pasos de actualización en GitHub Secrets (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
-   - Hardening de Seguridad y Autenticación en 5 Capas (`supabaseMigrationRouter.ts`):
-     * Eliminación total de encabezados cliente no autenticados (`x-admin-email`).
-     * Validación estricta de Bearer Token JWT, consulta a Supabase Auth, verificación en tabla `profiles` y cotejo contra `AUTHORIZED_SUPER_ADMIN_EMAILS`.
-
-0) AUDITORÍA DE CAPACIDADES REALES DEL ENTORNO DE EJECUCIÓN (GOBERNANZA DE INFRAESTRUCTURA):
-   - Determinación Estricta de Capacidades y Separación Frontend vs Backend vs Infraestructura Externa:
-     * El navegador (frontend) NO ejecuta operaciones privilegiadas (service_role, SQL administrativo, Supabase Management API ni secretos de GitHub/Netlify).
-     * El backend de desarrollo/servidor Node.js opera en puerto 3000 con `SUPABASE_SERVICE_ROLE_KEY` del proyecto origen actual.
-     * Toda creación de nuevo proyecto de Supabase requiere aprovisionamiento previo en dashboard (no se asume Management API disponible).
-     * La aplicación de DDL sobre instancias nuevas se soporta mediante script idempotente consolidado de 156 migraciones (`supabase_consolidated_migrations.sql`) para ejecución en SQL Editor.
-     * La sincronización con GitHub oficial (`raspandolaolla-app/ve`, rama `main`) cuenta con capacidad real de git push verificada y validada en GitHub Actions.
-
-0) CENTRO DE MIGRACIÓN Y CAMBIO CONTROLADO DE SUPABASE (SUPER_ADMIN):
-   - Módulo Completo en Panel de Administración (`SUPER_ADMIN`):
-     * Creación de `src/types/supabaseMigration.ts` con definición del ciclo canónico de migración: IDLE, VALIDATING_TARGET, DRY_RUN, BACKUP_READY, SCHEMA_MIGRATION, DATA_MIGRATION, INTEGRITY_VALIDATION, FUNCTIONAL_VALIDATION, READY_TO_SWITCH, SWITCHING, COMPLETED, ROLLBACK.
-     * Implementación del servicio backend autoritativo `src/server/supabaseMigrationService.ts` para escaneo de 156 migraciones SQL oficiales, ejecución de esquema, migración selectiva Allowlist (solo administradores y configuraciones), ejecución de suite de Smoke Tests (PostgREST, RLS, Auth, Storage, RPCs, simulación RPS y motor universal de abandono 1v1 y multijugador).
-     * Enrutador Express `src/server/supabaseMigrationRouter.ts` montado en `/api/admin/supabase-migration` con autenticación RBAC para SUPER_ADMIN.
-     * Repositorio frontend `src/services/repositories/admin/AdminSupabaseMigrationRepository.ts`.
-     * Interfaz de usuario interactiva `src/features/admin/tabs/AdminMigrationTab.tsx` integrada en `AdminView.tsx` y `AdminTabId` (`src/types/admin.ts`).
-     * Descarga de script consolidado de migraciones SQL para ejecución idempotente directa en Supabase SQL Editor.
-     * Cero mutaciones sobre la instancia origen (100% de operaciones destructivas prohibidas sobre la base actual).
-     * Cumplimiento estricto del protocolo seguro de despliegue y control de versiones para GitHub `raspandolaolla-app/ve` en la rama `main`.
-
-0) SISTEMA UNIVERSAL Y AUTORITATIVO DE ABANDONO DE JUGADORES (MIGRACIÓN 162 + FRONTEND):
-   - Motor Server-Authoritative (`abandon_game_secure` y `abandon_game_table_secure`):
-     * Bloqueo atómico canónico con `FOR UPDATE` en `game_sessions`, `game_tables` y `game_table_players` para evitar condiciones de carrera, doble salida y discrepancias de concurrencia.
-     * Soporte universal para todos los modos y tipos de juego (1v1, equipos 2v2, multijugador 3+ y colectivos como Bingo y Polla).
-     * Distinción estricta entre abandono voluntario inmediato y timeout/inactividad.
-   - Resolución Inmediata en Partidas 1v1 y Último Superviviente:
-     * Al abandonar un jugador, se otorga inmediatamente la victoria al rival activo restante.
-     * Se actualiza la sesión a `FINISHED` con `winner_user_id` y se liquida el pozo de premios de forma server-authoritative vía `universal_settle_game_session` (90/10).
-     * La mesa pasa a `CLOSED`.
-   - Resolución en Partidas por Equipos (Domino 2v2, Truco 2v2):
-     * Si un miembro de un equipo abandona, se otorga inmediatamente la victoria al equipo contrario completo.
-     * Liquidación financiera autoritativa mediante `universal_settle_game_session` asignando el pozo al equipo ganador.
-   - Reasignación de Turno en Partidas Multijugador (Parchís, Ludo, etc.):
-     * Si quedan 2 o más rivales activos, la partida no termina; el jugador que abandona queda marcado como `ABANDONED`.
-     * Si el jugador retirado poseía el turno activo, el motor reasigna inmediatamente el turno al siguiente jugador activo respetando `playerOrder` o el orden numérico de asientos (`seat_number`), ignorando a los jugadores retirados.
-     * Se actualiza `currentColor`, `turn` y se genera un nuevo `turn_deadline_at` autoritativo en el servidor.
-   - Cancelación y Reembolso por Abandono Total:
-     * Si todos los jugadores abandonan la partida (0 rivales activos restantes), la sesión se cancela (`CANCELLED`) y se ejecuta el reembolso íntegro de las entradas retenidas vía `refund_game_session`.
-   - Salida Pre-Partida de Mesas (Lobby / Waiting):
-     * En salas donde aún no ha comenzado la partida, `abandon_game_table_secure` libera el saldo de entrada retenido de vuelta a `available_balance` mediante `TABLE_ENTRY_REFUND` y cierra la mesa si queda vacía.
-   - Emisión de Eventos y Manejo en Frontend:
-     * Registro atómico en `game_actions` con `action_type = 'PLAYER_ABANDONED'` e idempotencia estricta.
-     * En `GameContainer.tsx` y `useGameEngine.ts`, el receptor de Realtime detecta `PLAYER_ABANDONED`, presenta avisos claros contextuales al usuario y recarga el estado fresco del servidor sin generar conflictos con los motores locales.
-     * Modal de abandono de confirmación directa en Tailwind integrado en `GameContainer.tsx` sin dobles diálogos intrusivos.
+0) AUDITORÍA FORENSE DE SEGURIDAD, ENDURECIMIENTO DE PRODUCCIÓN Y SANEAMIENTO DE SECRETOS (PROMPT MAESTRO):
+   - Saneamiento y Protección Absoluta de Cloudflare Turnstile:
+     * Eliminación definitiva de claves secretas hardcodeadas en server.ts. El endpoint /api/verify-captcha ahora requiere estrictamente process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY configurado en el servidor; si falta, emite un registro seguro y responde HTTP 500 controlado sin inventar credenciales.
+     * Sanitización de documentación pública: las referencias en reportes que contenían la secret key han sido sustituidas por marcadores no secretos [SECRETO_CONFIGURADO_EN_ENV_DEL_SERVIDOR].
+     * Frontend verificado: CloudflareCaptcha.tsx, WithdrawalModal / WalletView.tsx y LoginModal.tsx utilizan únicamente la clave pública del sitio VITE_CLOUDFLARE_TURNSTILE_SITE_KEY. Ninguna clave secreta se lee, almacena ni expone en el cliente (src/).
+   - Saneamiento del Cliente Supabase en Backend (server.ts):
+     * Eliminación de cualquier degradación a clave anónima (SUPABASE_SERVICE_ROLE_KEY || VITE_SUPABASE_ANON_KEY o serviceRoleKey ?? anonKey).
+     * supabaseAdmin se inicializa ÚNICAMENTE si SUPABASE_SERVICE_ROLE_KEY está configurada en el servidor. Si falta la clave de servicio, las tareas administrativas de fondo permanecen deshabilitadas de forma segura emitiendo un aviso controlado y sin comprometer la consistencia contable ni ejecutar llamadas RPC privilegiadas con una clave anónima.
+     * Eliminación de URLs y claves anónimas hardcodeadas en server.ts.
+   - Saneamiento del Cliente Supabase en Frontend (src/lib/supabase/client.ts):
+     * Eliminación de los fallbacks hardcodeados (CANONICAL_SUPABASE_URL y CANONICAL_SUPABASE_ANON_KEY).
+     * Las credenciales se obtienen estrictamente de las variables de entorno públicas VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.
+     * Si faltan las variables de entorno, se emite una advertencia segura y controlada sin inventar credenciales ni intentar conectarse a proyectos arbitrarios.
+     * Se mantiene la prohibición absoluta de leer SUPABASE_SERVICE_ROLE_KEY en el bundle cliente.
+   - Eliminación de bun.lock y Unificación de Herramientas de Construcción:
+     * Se eliminó el archivo bun.lock de la raíz del proyecto para evitar conflictos de gestores de paquetes. El proyecto opera de forma estándar y canónica con npm, package.json, package-lock.json y los workflows de CI/CD (npm ci, npm run typecheck, npm run build).
+   - Auditoría Financiera, Contable y Regla 90/10:
+     * Verificación de FinancialRepository.ts y migraciones: el modelo inmutable 90/10 (90% al ganador, 10% comisión de plataforma) rige de forma autoritativa.
+     * En caso de empate, cancelación o anulación, se aplica 100% de reembolso a available_balance sin comisión.
+     * Ningún componente frontend interactúa ni modifica wallets o ledger_entries de forma directa; todas las transacciones se efectúan a través de RPCs server-authoritative (universal_settle_game_session, request_withdrawal_locked, claim_test_bonus).
+     * Bloqueos pesimistas a nivel de fila (FOR UPDATE) en sesiones, mesas y billeteras previenen liquidaciones concurrentes y condiciones de carrera.
+   - Auditoría de Realtime, PWA y Publicidad:
+     * RealtimeManager.ts remueve canales huérfanos antes de suscribir y asegura la desuscripción al desmontar componentes.
+     * public/sw.js excluye explícitamente peticiones dinámicas, tokens de autenticación, /api, Supabase y módulos financieros del almacenamiento en caché.
+     * AdService.ts opera con aislamiento estricto y fallbacks locales en /public/ads/, garantizando que ningún fallo publicitario bloquee el motor de juego o la interfaz.
+   - Verificaciones de Integridad:
+     * npm run typecheck: PASS (0 errores de TypeScript).
+     * npm run lint: PASS (0 errores de linter).
+     * npm run build / compile_applet: PASS (compilación exitosa).
 
 0) RESOLUCIÓN DEFINITIVA Y AUTORITATIVA DEL SISTEMA DE TURNOS Y TIMEOUTS (LA VIEJA / TIC_TAC_TOE):
    - Diagnóstico de Causa Raíz Identificada y Solucionada:
@@ -1314,7 +1325,7 @@ ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / co
    - Sincronización del esquema de variables de entorno en `.env.example`:
      * `VITE_SUPABASE_URL` / `SUPABASE_URL` configurado con la URL oficial del proyecto Supabase: `https://tncxgwycinbnkjbfwojt.supabase.co`.
      * `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY`: `0x4AAAAAAEoI4ipaJrT8oCLk`.
-     * `CLOUDFLARE_TURNSTILE_SECRET_KEY`: `0x4AAAAAAEoI4kjQ9CTICyN_0kv3dq_Jymg`.
+     * `CLOUDFLARE_TURNSTILE_SECRET_KEY`: `[SECRETO_CONFIGURADO_EN_ENV_DEL_SERVIDOR]`.
    - Seguridad y Sanitización en Backend (`server.ts`):
      * Manejo resiliente de `DATABASE_URL` con detección y eliminación automática de corchetes en contraseñas generadas por plantillas (`postgres:[password]@` -> `postgres:password@`).
      * Soporte dual de cliente Supabase tanto en modo servicio (`SUPABASE_SERVICE_ROLE_KEY`) como fallback autenticado por token.

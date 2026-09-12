@@ -43,6 +43,21 @@ export interface EntryFeeItem {
   updatedAt: string;
 }
 
+export type VideoPlatform = 'youtube' | 'tiktok' | 'instagram';
+export type VideoOrientation = 'horizontal' | 'vertical';
+
+export interface GameTutorialVideo {
+  enabled: boolean;
+  platform: VideoPlatform;
+  url: string;
+  embedUrl?: string;
+  orientation: VideoOrientation;
+  title?: string;
+  description?: string;
+  updatedAt?: string;
+  updatedBy?: string | null;
+}
+
 export interface GameConfigItem {
   gameId: string;
   name: string;
@@ -60,6 +75,7 @@ export interface GameConfigItem {
   minEntryFee: number;
   maxEntryFee: number;
   config: Record<string, any>;
+  tutorialVideo?: GameTutorialVideo | null;
   displayOrder: number;
   updatedAt: string;
 }
@@ -76,6 +92,7 @@ export interface GameManualItem {
   disconnectionRules: string;
   cancellationRules: string;
   fullContentMarkdown: string;
+  tutorialVideo?: GameTutorialVideo | null;
   updatedAt: string;
   updatedBy?: string | null;
 }

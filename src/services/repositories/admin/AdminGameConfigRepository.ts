@@ -15,6 +15,7 @@ import type {
   EntryFeeItem,
   GameConfigItem,
   GameManualItem,
+  GameTutorialVideo,
   SystemAnnouncementItem,
 } from '../../../types/admin';
 
@@ -196,28 +197,138 @@ export class AdminGameConfigRepository {
         }));
       }
 
-      return data.map((row: any) => ({
-        gameId: row.game_id,
-        name: row.name,
-        shortDescription: row.short_description,
-        iconName: row.icon_name || 'Gamepad2',
-        isActive: Boolean(row.is_active && row.enabled !== false),
-        enabled: row.enabled !== false,
-        disabledReason: row.disabled_reason || null,
-        disabledAt: row.disabled_at || null,
-        disabledBy: row.disabled_by || null,
-        maintenanceMessage: row.maintenance_message,
-        minPlayers: Number(row.min_players),
-        maxPlayers: Number(row.max_players),
-        allowedModes: row.allowed_modes || ['1v1', '2v2'],
-        minEntryFee: Number(row.min_entry_fee),
-        maxEntryFee: Number(row.max_entry_fee),
-        config: row.config || {},
-        displayOrder: Number(row.display_order || 0),
-        updatedAt: row.updated_at,
-      }));
+      return data.map((row: any) => {
+        const rowConfig = (row.config && typeof row.config === 'object') ? row.config : {};
+        const tutVideo: GameTutorialVideo | null = rowConfig.tutorialVideo || null;
+
+        return {
+          gameId: row.game_id,
+          name: row.name,
+          shortDescription: row.short_description,
+          iconName: row.icon_name || 'Gamepad2',
+          isActive: Boolean(row.is_active && row.enabled !== false),
+          enabled: row.enabled !== false,
+          disabledReason: row.disabled_reason || null,
+          disabledAt: row.disabled_at || null,
+          disabledBy: row.disabled_by || null,
+          maintenanceMessage: row.maintenance_message,
+          minPlayers: Number(row.min_players),
+          maxPlayers: Number(row.max_players),
+          allowedModes: row.allowed_modes || ['1v1', '2v2'],
+          minEntryFee: Number(row.min_entry_fee),
+          maxEntryFee: Number(row.max_entry_fee),
+          config: rowConfig,
+          tutorialVideo: tutVideo,
+          displayOrder: Number(row.display_order || 0),
+          updatedAt: row.updated_at,
+        };
+      });
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Obtiene la configuración de video tutorial para un juego específico.
+   */
+  public static async getGameTutorialVideo(gameId: string): Promise<GameTutorialVideo | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('game_configurations')
+        .select('config')
+        .eq('game_id', gameId)
+        .maybeSingle();
+
+      if (error || !data || !data.config) return null;
+      return (data.config as any).tutorialVideo || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Guarda o actualiza exclusivamente el video tutorial de un juego en game_configurations.config.
+   */
+  public static async saveGameTutorialVideo(
+    gameId: string,
+    tutorialVideo: GameTutorialVideo | null
+  ): Promise<{ success: boolean; error?: string }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Servicio no disponible' };
+
+    try {
+      // 1. Obtener la fila actual de configuración
+      const { data: existingRow, error: fetchErr } = await supabase
+        .from('game_configurations')
+        .select('*')
+        .eq('game_id', gameId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        return { success: false, error: fetchErr.message };
+      }
+
+      const existingConfig = (existingRow?.config && typeof existingRow.config === 'object')
+        ? existingRow.config
+        : {};
+
+      const updatedConfig = {
+        ...existingConfig,
+        tutorialVideo: tutorialVideo || null,
+      };
+
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
+
+      if (existingRow) {
+        const { error: updateErr } = await supabase
+          .from('game_configurations')
+          .update({
+            config: updatedConfig,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('game_id', gameId);
+
+        if (updateErr) return { success: false, error: updateErr.message };
+      } else {
+        // Si la fila no existiese aún, se crea con valores mínimos seguros
+        const { error: insertErr } = await supabase
+          .from('game_configurations')
+          .insert({
+            game_id: gameId,
+            name: gameId,
+            short_description: `Configuración para ${gameId}`,
+            config: updatedConfig,
+            is_active: true,
+            enabled: true,
+            updated_at: new Date().toISOString(),
+          });
+
+        if (insertErr) return { success: false, error: insertErr.message };
+      }
+
+      await AdminAuditRepository.recordAdminAudit({
+        action: tutorialVideo ? 'UPDATE_GAME_TUTORIAL_VIDEO' : 'REMOVE_GAME_TUTORIAL_VIDEO',
+        resourceType: 'GAME_TUTORIAL_VIDEO',
+        resourceId: gameId,
+        severity: 'INFO',
+        metadata: {
+          gameId,
+          platform: tutorialVideo?.platform,
+          orientation: tutorialVideo?.orientation,
+          enabled: tutorialVideo?.enabled,
+          url: tutorialVideo?.url,
+          adminUserId: currentUser?.id,
+        },
+      });
+
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message };
     }
   }
 
@@ -261,6 +372,11 @@ export class AdminGameConfigRepository {
     if (!supabase) return { success: false, error: 'Servicio no disponible' };
 
     try {
+      const mergedConfig = {
+        ...(config.config || {}),
+        ...(config.tutorialVideo !== undefined ? { tutorialVideo: config.tutorialVideo } : {}),
+      };
+
       const { error } = await supabase.from('game_configurations').upsert({
         game_id: config.gameId,
         name: config.name,
@@ -273,7 +389,7 @@ export class AdminGameConfigRepository {
         allowed_modes: config.allowedModes,
         min_entry_fee: config.minEntryFee,
         max_entry_fee: config.maxEntryFee,
-        config: config.config || {},
+        config: mergedConfig,
         display_order: config.displayOrder,
         updated_at: new Date().toISOString(),
       });

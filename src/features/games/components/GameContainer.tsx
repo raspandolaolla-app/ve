@@ -53,6 +53,7 @@ import { UnaOllaGame } from './UnaOllaGame';
 import { ChessBoard } from './ChessBoard';
 import { SettlementModal } from './SettlementModal';
 import { GameHeader } from './GameHeader';
+import { GameRulesModal } from '../GameRulesModal';
 import { useGameMode } from '../../../hooks/useGameMode';
 import { useProtectedGameplay } from '../../../context/ProtectedGameplayContext';
 import { useGameFullscreen } from '../../../hooks/useGameFullscreen';
@@ -89,6 +90,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
   const [isImmersiveMode, setIsImmersiveMode] = useState<boolean>(true);
   const [isFullscreenNative, setIsFullscreenNative] = useState<boolean>(false);
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
+  const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
 
   // Hook de Abandono de Mesa y Salida Segura
   const {
@@ -1923,6 +1925,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({
         abandonNotice={abandonNotice}
         errorMsg={errorMsg}
         botNotice={botNotice}
+        onOpenRules={() => setShowRulesModal(true)}
       />
 
       {/* Banner de Inspección del Tablero Final */}
@@ -2118,6 +2121,13 @@ export const GameContainer: React.FC<GameContainerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Reglas Oficiales & Video Tutorial dentro de la Partida */}
+      <GameRulesModal
+        isOpen={showRulesModal}
+        defaultGameId={table.gameType}
+        onClose={() => setShowRulesModal(false)}
+      />
     </div>
   );
 };

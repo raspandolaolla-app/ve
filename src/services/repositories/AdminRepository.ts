@@ -116,6 +116,8 @@ export class AdminRepository {
   public static saveGameConfig = AdminGameConfigRepository.saveGameConfig;
   public static getGameManualsList = AdminGameConfigRepository.getGameManualsList;
   public static saveGameManual = AdminGameConfigRepository.saveGameManual;
+  public static getGameTutorialVideo = AdminGameConfigRepository.getGameTutorialVideo;
+  public static saveGameTutorialVideo = AdminGameConfigRepository.saveGameTutorialVideo;
   public static getAnnouncementsList = AdminGameConfigRepository.getAnnouncementsList;
   public static saveAnnouncement = AdminGameConfigRepository.saveAnnouncement;
   public static deleteAnnouncement = AdminGameConfigRepository.deleteAnnouncement;

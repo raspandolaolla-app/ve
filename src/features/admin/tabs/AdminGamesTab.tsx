@@ -25,7 +25,9 @@ import {
   Search,
   Filter,
   RefreshCw,
+  Video,
 } from 'lucide-react';
+import { AdminVideoTutorialModal } from '../components/AdminVideoTutorialModal';
 
 interface AdminGamesTabProps {
   games: AdminGameItem[];
@@ -48,6 +50,15 @@ export function AdminGamesTab({ games, onRefresh }: AdminGamesTabProps) {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+
+  // Estado del modal de Video Tutorial
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoModalGameId, setVideoModalGameId] = useState<string>('domino_venezolano');
+
+  const handleOpenVideoTutorial = (gameId: string) => {
+    setVideoModalGameId(normalizeCanonicalGameId(gameId));
+    setVideoModalOpen(true);
+  };
 
   // Abrir modal para deshabilitar
   const handleOpenDisableModal = (game: AdminGameItem) => {
@@ -171,6 +182,16 @@ export function AdminGamesTab({ games, onRefresh }: AdminGamesTabProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            id="btn-admin-game-video-tutorials"
+            type="button"
+            onClick={() => handleOpenVideoTutorial('domino_venezolano')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 rounded-xl text-xs font-bold transition-all cursor-pointer border border-sky-500/30 shadow-sm"
+            title="Configurar videos tutoriales de los juegos"
+          >
+            <Video className="w-3.5 h-3.5 text-sky-400" />
+            <span>Video Tutoriales</span>
+          </button>
           <button
             id="btn-refresh-admin-games"
             type="button"
@@ -323,8 +344,17 @@ export function AdminGamesTab({ games, onRefresh }: AdminGamesTabProps) {
                   </div>
                 )}
 
-                {/* Botón de Acción Administrativa Directo */}
-                <div className="pt-2">
+                {/* Botones de Acción Administrativa */}
+                <div className="pt-2 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenVideoTutorial(game.id)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-bold text-sky-300 hover:text-sky-100 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 rounded-xl transition cursor-pointer"
+                  >
+                    <Video className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Video Tutorial</span>
+                  </button>
+
                   {isEnabled ? (
                     <Button
                       id={`btn-disable-game-${game.id}`}
@@ -540,6 +570,16 @@ export function AdminGamesTab({ games, onRefresh }: AdminGamesTabProps) {
           </div>
         </div>
       )}
+
+      {/* 6. MODAL ADMINISTRATIVO DE VIDEO TUTORIAL */}
+      <AdminVideoTutorialModal
+        isOpen={videoModalOpen}
+        onClose={() => setVideoModalOpen(false)}
+        initialGameId={videoModalGameId}
+        onSuccess={() => {
+          onRefresh();
+        }}
+      />
     </div>
   );
 }

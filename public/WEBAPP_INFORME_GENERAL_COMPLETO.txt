@@ -2,10 +2,32 @@
 INFORME TÉCNICO GENERAL COMPLETO DE LA WEBAPP
 PROYECTO: RASPANDO LA OLLA 🇻🇪 (PulsoPLAY)
 REPOSITORIO: https://github.com/raspandolaolla-app/ve
-FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-11 18:35:00 -07:00 (UTC 2026-09-12 01:35:00)
-ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / SISTEMA DE VIDEOS TUTORIALES Y MANUALES OFICIALES IMPLEMENTADO EXITOSAMENTE)
+FECHA Y HORA DE ACTUALIZACIÓN: 2026-09-11 20:12:00 -07:00 (UTC 2026-09-12 03:12:00)
+ESTADO DE COMPILACIÓN: PASS (0 errores de TypeScript / 0 errores de Linter / compile_applet PASS / Build de producción exitoso / POLÍTICA CORS Y ALLOWED_ORIGINS AUDITADA Y VALIDADA)
 ÚLTIMA MIGRACIÓN INTEGRADA: 158_rps_turn_coherence_and_timeout_delegation.sql (Coherencia de turnos en juegos simultáneos y resolución autoritativa de timeout en Piedra, Papel o Tijera)
 ÚLTIMAS MEJORAS TÉCNICAS, BACKEND, MIGRACIONES Y UI/UX INTEGRADAS:
+
+0) AUDITORÍA Y CONFIGURACIÓN ESTRICTA DE ALLOWED_ORIGINS Y POLÍTICA CORS [PROMPT MAESTRO]:
+   - Diagnóstico y Localización del Backend:
+     * Frontend de Producción: Alojado en GitHub Pages (https://raspandolaolla-app.github.io/ve/). Es un entorno estático Single Page Application (SPA).
+     * Origen Canónico Autorizado: https://raspandolaolla-app.github.io (sin rutas hijas ni barras finales).
+     * Backend Node.js / Express: Definido en `server.ts`. En el entorno de desarrollo/contenedor actual opera en puerto 3000 con endpoints /api/health, /api/verify-captcha y daemons de fondo.
+     * En producción externa, GitHub Actions opera en modo de alojamiento estático puro (`VITE_BACKEND_URL = NOT CONFIGURED (STATIC HOSTING MODE)`). No existe backend Node.js desplegado en proveedores como Render/Railway/Fly/Netlify en este momento.
+   - Configuración de ALLOWED_ORIGINS:
+     * Ubicación técnica: Variable de entorno del proceso servidor `process.env.ALLOWED_ORIGINS` y lista predeterminada autorizada en `server.ts` (`defaultAllowedOrigins`).
+     * Documentación en `.env.example`: `ALLOWED_ORIGINS="https://raspandolaolla-app.github.io"`.
+     * Orígenes combinados en `server.ts`: Incluye de fábrica el frontend oficial (`https://raspandolaolla-app.github.io`), los puertos locales de desarrollo (3000, 5173, 127.0.0.1) y orígenes inyectados vía `ALLOWED_ORIGINS` o `APP_URL`.
+   - Endurecimiento Estricto de CORS (Cero Wildcards / Cero Spoofing):
+     * Se eliminó el bypass de desarrollo `process.env.NODE_ENV !== "production"` que permitía cualquier origen en modo dev.
+     * Se eliminaron las coincidencias laxas `.startsWith(allowed)` y `.endsWith(".github.io")` para evitar ataques de suplantación de subdominio o sitios de GitHub Pages ajenos.
+     * Validación de igualdad exacta estricta: `normalizedOrigin === allowed`.
+     * Respuesta controlada: Orígenes autorizados reciben `Access-Control-Allow-Origin` y `Access-Control-Allow-Credentials: true`. Orígenes no autorizados son rechazados limpiamente omitiendo las cabeceras CORS.
+   - Comprobaciones Ejecutadas (Tests Reales HTTP/CORS):
+     * Origen Legítimo (`https://raspandolaolla-app.github.io`): PERMITIDO (Status 200 / 204 con Access-Control-Allow-Origin).
+     * Origen No Autorizado (`https://malicious-site.com`): RECHAZADO (Cabecera Access-Control-Allow-Origin omitida).
+     * Origen No Autorizado (`https://other-account.github.io`): RECHAZADO (Cabecera Access-Control-Allow-Origin omitida).
+     * Preflight OPTIONS Legítimo: PERMITIDO (Status 204 con cabeceras CORS).
+     * Preflight OPTIONS No Autorizado: RECHAZADO.
 
 0) SISTEMA DE VIDEOS TUTORIALES PARA JUEGOS (YOUTUBE, TIKTOK, INSTAGRAM REELS) [PROMPT MAESTRO]:
    - Arquitectura y Almacenamiento Seguro (Cero Descargas / Cero Polución de Storage):

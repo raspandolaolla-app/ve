@@ -41,19 +41,14 @@ app.use(
       if (!origin) return callback(null, true);
 
       const normalizedOrigin = origin.trim().replace(/\/+$/, "");
-      const isAllowed = allowedOrigins.some(
-        (allowed) =>
-          normalizedOrigin === allowed ||
-          normalizedOrigin.startsWith(allowed) ||
-          normalizedOrigin.endsWith(".github.io")
-      );
+      const isAllowed = allowedOrigins.some((allowed) => normalizedOrigin === allowed);
 
-      if (isAllowed || process.env.NODE_ENV !== "production") {
+      if (isAllowed) {
         return callback(null, true);
       }
 
       console.warn(`[CORS] Petición bloqueada para origen no autorizado: ${origin}`);
-      return callback(new Error(`Origen no permitido por política CORS: ${origin}`));
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
